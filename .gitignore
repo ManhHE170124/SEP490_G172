@@ -1,0 +1,34 @@
+# === Visual Studio / .NET ===
+.vs/
+.vscode/
+*.user
+*.suo
+bin/
+obj/
+Debug/
+Release/
+*.dll
+*.pdb
+*.exe
+*.log
+*.tmp
+*.cache
+*.dbmdl
+*.Publish.xml
+
+# === Node / React ===
+node_modules/
+dist/
+build/
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === System files ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# === IDE ===
+.idea/

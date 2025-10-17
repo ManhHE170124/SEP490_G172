@@ -45,7 +45,7 @@ export default function Register() {
         </div>
 
         <div className="form-row">
-          <label>Họ & tên (tuỳ chọn)</label>
+          <label>Họ & tên (Tuỳ chọn)</label>
           <input
             className="input"
             type="text"
