@@ -1,43 +1,56 @@
 import React, { useState } from "react";
 import "../styles/auth.css";
-import { post } from "../api";
+import { authApi } from "../api";   
 
 export default function Register() {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
-  const [display, setDisplay] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
-      const res = await post("/auth/register", {
-        email,
-        password: pw,
-        displayName: display,
-      });
+      const res = await authApi.register({ email, password: pw, displayName });
       localStorage.setItem("token", res.token);
-      alert("Đăng ký thành công");
-      window.location = "/";
+      localStorage.setItem("email", res.email);
+      alert("Đăng ký thành công!");
+      window.location.href = "/login";
     } catch (err) {
-      setError(err.data?.message || "Lỗi đăng ký");
+      setError(err.message || "Lỗi khi đăng ký");
     }
   };
 
   return (
     <div className="auth-wrap container">
       <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>Đăng ký</h1>
+        <h1>Đăng ký tài khoản</h1>
         <p className="helper" style={{ textAlign: "center" }}>
-          Tạo tài khoản để quản lý đơn hàng & điểm thưởng.
+          Tạo tài khoản mới để quản lý đơn hàng, bảo hành và điểm thưởng.
         </p>
 
         <div className="form-row">
-          <label>Email</label>
+          <label htmlFor="fullname">Họ và tên</label>
           <input
             className="input"
+            id="fullname"
+            type="text"
+            placeholder="Nguyễn Văn A"
+            required
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+
+        <div className="form-row">
+          <label htmlFor="remail">Email</label>
+          <input
+            className="input"
+            id="remail"
             type="email"
+            placeholder="email@address.com"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -45,20 +58,12 @@ export default function Register() {
         </div>
 
         <div className="form-row">
-          <label>Họ & tên (Tuỳ chọn)</label>
+          <label htmlFor="rpw">Mật khẩu</label>
           <input
             className="input"
-            type="text"
-            value={display}
-            onChange={(e) => setDisplay(e.target.value)}
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Mật khẩu</label>
-          <input
-            className="input"
+            id="rpw"
             type="password"
+            placeholder="••••••••"
             required
             value={pw}
             onChange={(e) => setPw(e.target.value)}
@@ -66,20 +71,16 @@ export default function Register() {
         </div>
 
         <div className="form-row" style={{ marginTop: 12 }}>
-          <button
-            className="btn primary"
-            style={{ width: "100%" }}
-            type="submit"
-          >
+          <button className="btn primary" style={{ width: "100%" }} type="submit">
             Đăng ký
           </button>
         </div>
 
-        <div
-          aria-live="polite"
-          className="helper"
-          style={{ textAlign: "center", marginTop: 10 }}
-        >
+        <p className="helper" style={{ textAlign: "center", marginTop: 10 }}>
+          Đã có tài khoản? <a href="/login">Đăng nhập</a>
+        </p>
+
+        <div aria-live="polite" className="helper" id="register-errors">
           {error}
         </div>
       </form>

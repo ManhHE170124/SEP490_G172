@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import "../styles/auth.css";
-import { post } from "../api";
+import { authApi } from "../api"; 
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -11,14 +11,14 @@ export default function Login() {
     e.preventDefault();
     setError("");
     try {
-      const res = await post("/auth/login", { email, password: pw });
-      // lưu token (ví dụ localStorage)
+      const res = await authApi.login({ email, password: pw });
       localStorage.setItem("token", res.token);
       localStorage.setItem("email", res.email);
-      // redirect hoặc cập nhật UI
-      alert("Đăng nhập thành công");
+      localStorage.setItem("role", res.role);
+      alert("Đăng nhập thành công!");
+      window.location.href = "/";
     } catch (err) {
-      setError(err.data?.message || "Lỗi đăng nhập");
+      setError(err.message || "Lỗi đăng nhập");
     }
   };
 
@@ -69,33 +69,15 @@ export default function Login() {
         </div>
 
         <div className="form-row" style={{ marginTop: 12 }}>
-          <button
-            className="btn primary"
-            style={{ width: "100%" }}
-            type="submit"
-          >
+          <button className="btn primary" style={{ width: "100%" }} type="submit">
             Đăng nhập
-          </button>
-        </div>
-
-        <div className="form-row">
-          <hr />
-        </div>
-
-        <div className="form-row">
-          <button
-            className="btn"
-            style={{ width: "100%" }}
-            type="button"
-            onClick={() => alert("Login Google")}
-          >
-            Đăng nhập bằng Google
           </button>
         </div>
 
         <p className="helper" style={{ textAlign: "center", marginTop: 10 }}>
           Chưa có tài khoản? <a href="/register">Đăng ký</a>
         </p>
+
         <div aria-live="polite" className="helper" id="login-errors">
           {error}
         </div>
