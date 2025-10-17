@@ -22,7 +22,29 @@ namespace KeytietkiemApi.Controllers
             _config = config;
         }
 
+        private string GenerateJwtToken(Account acc, string role)
+        {
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "super_secret_key_123456789012345678901234567890")
+            );
 
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, acc.AccountId.ToString()),
+                new Claim(ClaimTypes.Email, acc.Email),
+                new Claim(ClaimTypes.Role, role)
+            };
+
+            var token = new JwtSecurityToken(
+                claims: claims,
+                expires: DateTime.UtcNow.AddDays(7),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
 
         // Đăng ký
         [HttpPost("register")]
@@ -60,9 +82,15 @@ namespace KeytietkiemApi.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
+            // Role mặc định: "User"
+            var token = GenerateJwtToken(acc, "User");
 
-
-            return Ok(new { message = "Đăng ký thành công." });
+            return Ok(new
+            {
+                token,
+                email = acc.Email,
+                role = "User"
+            });
         }
 
         //  Đăng nhập
@@ -97,20 +125,20 @@ namespace KeytietkiemApi.Controllers
             acc.LastLoginAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            // ✅ Tạm gán role = Admin nếu email có chứa “admin”
+            // Tạm gán role = Admin nếu email có chứa “admin” sau bảo mạnh insert thực tế sẽ lấy từ bảng UserRoles
             string roleName = acc.Email.Contains("admin") ? "Admin" : "User";
-
+            var token = GenerateJwtToken(acc, roleName);
 
             return Ok(new
             {
-                message = "Sai email hoặc mật khẩu." 
-        });
+                token,
+                email = acc.Email,
+                role = roleName
+            });
         }
     }
 
-    // ===============================
     // Request Models
-    // ===============================
     public class RegisterRequest
     {
         public string Email { get; set; } = "";
@@ -124,3 +152,5 @@ namespace KeytietkiemApi.Controllers
         public string Password { get; set; } = "";
     }
 }
+
+
