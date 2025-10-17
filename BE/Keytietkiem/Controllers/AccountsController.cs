@@ -1,5 +1,4 @@
 ﻿using Keytietkiem.Models;
-using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 

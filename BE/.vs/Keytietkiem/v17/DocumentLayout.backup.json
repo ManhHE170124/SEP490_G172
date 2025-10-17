@@ -3,40 +3,60 @@
   "WorkspaceRootPath": "D:\\SEP_FALL25\\BE\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\controllers\\accountscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\accountscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\controllers\\admincontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\admincontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\controllers\\weatherforecastcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\weatherforecastcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\rolepermission.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\rolepermission.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\userrole.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\userrole.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\keytietkiemcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\keytietkiemcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\keytietkiem.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\keytietkiem.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\rolepermission.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\rolepermission.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\user.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\user.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\account.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\account.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\userrole.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\userrole.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\keytietkiemcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\keytietkiemcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|d:\\sep_fall25\\be\\keytietkiem\\models\\account.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\account.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -46,7 +66,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 191,
+          "SelectedChildIndex": 192,
           "Children": [
             {
               "$type": "Bookmark",
@@ -155,14 +175,6 @@
             {
               "$type": "Bookmark",
               "Name": "ST:3:0:{e8b06f52-6d01-11d2-aa7d-00c04f990343}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
             },
             {
               "$type": "Bookmark",
@@ -809,18 +821,79 @@
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
             },
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "AdminController.cs",
+              "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Controllers\\AdminController.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\AdminController.cs",
+              "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Controllers\\AdminController.cs",
+              "RelativeToolTip": "Keytietkiem\\Controllers\\AdminController.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAAA4AAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-17T16:59:56.034Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "Keytietkiem",
+              "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Keytietkiem.csproj",
+              "RelativeDocumentMoniker": "Keytietkiem\\Keytietkiem.csproj",
+              "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Keytietkiem.csproj",
+              "RelativeToolTip": "Keytietkiem\\Keytietkiem.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-17T16:45:44.736Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "Role.cs",
+              "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\Role.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Models\\Role.cs",
+              "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\Role.cs",
+              "RelativeToolTip": "Keytietkiem\\Models\\Role.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-17T16:36:30.895Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "Keytietkiem\\appsettings.Development.json",
+              "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\appsettings.Development.json",
+              "RelativeToolTip": "Keytietkiem\\appsettings.Development.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-17T16:05:07.908Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "AuthController.cs",
+              "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Controllers\\AuthController.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\AuthController.cs",
+              "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Controllers\\AuthController.cs",
+              "RelativeToolTip": "Keytietkiem\\Controllers\\AuthController.cs",
+              "ViewState": "AgIAABIAAAAAAAAAAAA7wCAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-17T11:46:51.918Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "AccountsController.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Controllers\\AccountsController.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\AccountsController.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Controllers\\AccountsController.cs",
               "RelativeToolTip": "Keytietkiem\\Controllers\\AccountsController.cs",
-              "ViewState": "AgIAAAsAAAAAAAAAAAAAwBkAAABEAAAAAAAAAA==",
+              "ViewState": "AgIAADsAAAAAAAAAAAAswCQAAAArAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:22:55.836Z",
               "EditorCaption": ""
@@ -840,91 +913,91 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 6,
               "Title": "Program.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Program.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Program.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Program.cs",
               "RelativeToolTip": "Keytietkiem\\Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAA0AAAAAAAAAA==",
+              "ViewState": "AgIAADUAAAAAAAAAAAAIwDgAAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:17:32.912Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 8,
               "Title": "RolePermission.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\RolePermission.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Models\\RolePermission.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\RolePermission.cs",
               "RelativeToolTip": "Keytietkiem\\Models\\RolePermission.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:16:49.946Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 10,
               "Title": "UserRole.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\UserRole.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Models\\UserRole.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\UserRole.cs",
               "RelativeToolTip": "Keytietkiem\\Models\\UserRole.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAuAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:16:38.092Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 5,
               "Title": "KeytietkiemContext.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\KeytietkiemContext.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Models\\KeytietkiemContext.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\KeytietkiemContext.cs",
               "RelativeToolTip": "Keytietkiem\\Models\\KeytietkiemContext.cs",
-              "ViewState": "AgIAACgAAAAAAAAAAAAqwDUAAAAFAAAAAAAAAA==",
+              "ViewState": "AgIAACUAAAAAAAAAAAA3wC4AAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:11:00.166Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 9,
               "Title": "User.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\User.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Models\\User.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\User.cs",
               "RelativeToolTip": "Keytietkiem\\Models\\User.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAA+AAAAAAAAAA==",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAIwAwAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:09:08.978Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 13,
               "Title": "Account.cs",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\Account.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Models\\Account.cs",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\Models\\Account.cs",
               "RelativeToolTip": "Keytietkiem\\Models\\Account.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAACQAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAEAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-16T18:09:00.995Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 4,
               "Title": "appsettings.json",
               "DocumentMoniker": "D:\\SEP_FALL25\\BE\\Keytietkiem\\appsettings.json",
               "RelativeDocumentMoniker": "Keytietkiem\\appsettings.json",
               "ToolTip": "D:\\SEP_FALL25\\BE\\Keytietkiem\\appsettings.json",
               "RelativeToolTip": "Keytietkiem\\appsettings.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAA0AAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAA7AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
               "WhenOpened": "2025-10-16T16:10:46.586Z",
               "EditorCaption": ""

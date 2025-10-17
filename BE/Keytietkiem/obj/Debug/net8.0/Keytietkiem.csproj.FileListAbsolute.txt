@@ -336,3 +336,4 @@ D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\refint\Keytietkiem.dll
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.pdb
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.genruntimeconfig.cache
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\ref\Keytietkiem.dll
+D:\SEP_FALL25\BE\Keytietkiem\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
