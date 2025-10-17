@@ -23,11 +23,13 @@ public partial class KeytietkiemContext : DbContext
 
     public virtual DbSet<LoginAttempt> LoginAttempts { get; set; }
 
+    public virtual DbSet<Module> Modules { get; set; }
+
     public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
     public virtual DbSet<PaymentGateway> PaymentGateways { get; set; }
 
-    public virtual DbSet<PermissionCatalog> PermissionCatalogs { get; set; }
+    public virtual DbSet<Permission> Permissions { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -43,15 +45,12 @@ public partial class KeytietkiemContext : DbContext
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("server =DESKTOP-K81FGOE\\SQLEXPRESS; database = Keytietkiem; uid=sa;pwd=123;Trusted_Connection=True;Encrypt=False");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>(entity =>
         {
-            entity.HasKey(e => e.AccountId).HasName("PK__Accounts__349DA5A67692B388");
+            entity.HasKey(e => e.AccountId).HasName("PK__Accounts__349DA5A6B3B912D0");
 
             entity.HasIndex(e => new { e.Email, e.Status }, "IX_Accounts_Email_Status");
 
@@ -87,13 +86,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F2398EC105465");
-
-            entity.ToTable(tb =>
-                {
-                    tb.HasTrigger("trg_Audit_HashChain");
-                    tb.HasTrigger("trg_Audit_Immutable");
-                });
+            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F239896070FEA");
 
             entity.HasIndex(e => new { e.Action, e.Resource, e.ActorEmail }, "IX_Audit_Filter");
 
@@ -120,7 +113,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<HomeSection>(entity =>
         {
-            entity.HasKey(e => e.SectionId).HasName("PK__HomeSect__80EF0872F965CD49");
+            entity.HasKey(e => e.SectionId).HasName("PK__HomeSect__80EF08722FFDF7A8");
 
             entity.HasIndex(e => e.Order, "UX_HomeSections_Order").IsUnique();
 
@@ -137,7 +130,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<LoginAttempt>(entity =>
         {
-            entity.HasKey(e => e.AttemptId).HasName("PK__LoginAtt__891A68E6BA136AD8");
+            entity.HasKey(e => e.AttemptId).HasName("PK__LoginAtt__891A68E69EE34A45");
 
             entity.Property(e => e.AttemptAt)
                 .HasPrecision(3)
@@ -149,9 +142,21 @@ public partial class KeytietkiemContext : DbContext
             entity.Property(e => e.UserAgent).HasMaxLength(200);
         });
 
+        modelBuilder.Entity<Module>(entity =>
+        {
+            entity.HasKey(e => e.ModuleId).HasName("PK__Modules__2B7477A73609BCFE");
+
+            entity.Property(e => e.ModuleId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ModuleName).HasMaxLength(100);
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+        });
+
         modelBuilder.Entity<PasswordResetToken>(entity =>
         {
-            entity.HasKey(e => e.TokenId).HasName("PK__Password__658FEEEA0C94B7E7");
+            entity.HasKey(e => e.TokenId).HasName("PK__Password__658FEEEA97BB8C72");
 
             entity.Property(e => e.TokenId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CreatedAt)
@@ -172,7 +177,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<PaymentGateway>(entity =>
         {
-            entity.HasKey(e => e.GatewayId).HasName("PK__PaymentG__66BCD8A0C2B98463");
+            entity.HasKey(e => e.GatewayId).HasName("PK__PaymentG__66BCD8A09F15EEFE");
 
             entity.Property(e => e.CallbackUrl).HasMaxLength(255);
             entity.Property(e => e.Name).HasMaxLength(60);
@@ -183,31 +188,22 @@ public partial class KeytietkiemContext : DbContext
                 .HasDefaultValueSql("(sysutcdatetime())");
         });
 
-        modelBuilder.Entity<PermissionCatalog>(entity =>
+        modelBuilder.Entity<Permission>(entity =>
         {
-            entity.HasKey(e => e.PermissionId).HasName("PK__Permissi__EFA6FB2FA8941FC2");
+            entity.HasKey(e => e.PermissionId).HasName("PK__Permissi__EFA6FB2FF8F175B7");
 
-            entity.ToTable("PermissionCatalog");
-
-            entity.HasIndex(e => new { e.Module, e.Action }, "UX_PermissionCatalog").IsUnique();
-
-            entity.Property(e => e.Action)
-                .HasMaxLength(20)
-                .IsUnicode(false);
-            entity.Property(e => e.Module)
-                .HasMaxLength(40)
-                .IsUnicode(false);
+            entity.Property(e => e.PermissionId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.PermissionName).HasMaxLength(50);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.Description).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
         });
 
         modelBuilder.Entity<Role>(entity =>
         {
-            entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1A82592D82");
-
-            entity.ToTable(tb =>
-                {
-                    tb.HasTrigger("trg_Roles_Immutable_Delete");
-                    tb.HasTrigger("trg_Roles_Immutable_Update");
-                });
+            entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1A09CAFF24");
 
             entity.HasIndex(e => e.Name, "UX_Roles_Name").IsUnique();
 
@@ -222,27 +218,30 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<RolePermission>(entity =>
         {
-            entity.HasKey(e => new { e.RoleId, e.PermissionId });
+            entity.HasKey(e => new { e.RoleId, e.PermissionId, e.ModuleId });
 
-            entity.ToTable(tb => tb.HasTrigger("trg_RolePermissions_Dependency"));
+            entity.Property(e => e.EffectiveFrom)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.EffectiveTo).HasColumnType("datetime");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
 
-            entity.HasIndex(e => e.RoleId, "IX_RolePerm_Role");
-
-            entity.Property(e => e.EffectiveFrom).HasPrecision(3);
-            entity.Property(e => e.EffectiveTo).HasPrecision(3);
+            entity.HasOne(d => d.Module).WithMany(p => p.RolePermissions)
+                .HasForeignKey(d => d.ModuleId)
+                .HasConstraintName("FK_RolePermissions_Modules");
 
             entity.HasOne(d => d.Permission).WithMany(p => p.RolePermissions)
                 .HasForeignKey(d => d.PermissionId)
-                .HasConstraintName("FK_RolePermissions_Perm");
+                .HasConstraintName("FK_RolePermissions_Permissions");
 
             entity.HasOne(d => d.Role).WithMany(p => p.RolePermissions)
                 .HasForeignKey(d => d.RoleId)
-                .HasConstraintName("FK_RolePermissions_Role");
+                .HasConstraintName("FK_RolePermissions_Roles");
         });
 
         modelBuilder.Entity<SiteConfig>(entity =>
         {
-            entity.HasKey(e => e.ConfigKey).HasName("PK__SiteConf__4A3067858B361FEE");
+            entity.HasKey(e => e.ConfigKey).HasName("PK__SiteConf__4A3067856A57D99D");
 
             entity.ToTable("SiteConfig");
 
@@ -276,7 +275,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<SmtpSetting>(entity =>
         {
-            entity.HasKey(e => e.SmtpId).HasName("PK__SmtpSett__F7072912C1FB83E8");
+            entity.HasKey(e => e.SmtpId).HasName("PK__SmtpSett__F7072912AA60256E");
 
             entity.Property(e => e.FromAddress).HasMaxLength(254);
             entity.Property(e => e.Host).HasMaxLength(120);
@@ -290,7 +289,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<SocialLink>(entity =>
         {
-            entity.HasKey(e => e.SocialId).HasName("PK__SocialLi__67CF711A4786B5B1");
+            entity.HasKey(e => e.SocialId).HasName("PK__SocialLi__67CF711A4DB078B0");
 
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Network)
@@ -304,7 +303,7 @@ public partial class KeytietkiemContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.HasKey(e => e.UserId).HasName("PK__Users__1788CC4CFD18B741");
+            entity.HasKey(e => e.UserId).HasName("PK__Users__1788CC4C1601D4D5");
 
             entity.Property(e => e.UserId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.AvatarUrl).HasMaxLength(255);
@@ -327,8 +326,6 @@ public partial class KeytietkiemContext : DbContext
         modelBuilder.Entity<UserRole>(entity =>
         {
             entity.HasKey(e => new { e.AccountId, e.RoleId });
-
-            entity.ToTable(tb => tb.HasTrigger("trg_UserRoles_LastAdmin"));
 
             entity.HasIndex(e => e.RoleId, "IX_UserRoles_Role");
 

@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj": {}
+    "F:\\KTK_Project\\BE\\Keytietkiem\\Keytietkiem.csproj": {}
   },
   "projects": {
-    "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj": {
+    "F:\\KTK_Project\\BE\\Keytietkiem\\Keytietkiem.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
+        "projectUniqueName": "F:\\KTK_Project\\BE\\Keytietkiem\\Keytietkiem.csproj",
         "projectName": "Keytietkiem",
-        "projectPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
-        "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\obj\\",
+        "projectPath": "F:\\KTK_Project\\BE\\Keytietkiem\\Keytietkiem.csproj",
+        "packagesPath": "C:\\Users\\FPT-LAPTOP\\.nuget\\packages\\",
+        "outputPath": "F:\\KTK_Project\\BE\\Keytietkiem\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\DELL\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\FPT-LAPTOP\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -44,7 +44,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "9.0.200"
       },
       "frameworks": {
         "net8.0": {
@@ -84,7 +84,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

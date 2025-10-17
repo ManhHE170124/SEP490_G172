@@ -1,5 +1,9 @@
-var builder = WebApplication.CreateBuilder(args);
+using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
 
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDbContext<KeytietkiemContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
 // Add services to the container.
 
 builder.Services.AddControllers();
