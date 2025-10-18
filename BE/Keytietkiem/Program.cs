@@ -1,25 +1,44 @@
-var builder = WebApplication.CreateBuilder(args);
+﻿using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
 
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+internal class Program
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    private static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        // Add controllers
+        builder.Services.AddControllers();
+
+        // Connect to SQL Server
+        builder.Services.AddDbContext<KeytietkiemContext>(options =>
+            options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
+
+        // Enable CORS for React (localhost:3000)
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("AllowReactApp", policy =>
+            {
+                policy
+                    .WithOrigins("http://localhost:3000")
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+            });
+        });
+
+        var app = builder.Build();
+
+        // ❌ Không bật HTTPS redirect để tránh chuyển hướng
+        // app.UseHttpsRedirection();
+
+        // Enable CORS
+        app.UseCors("AllowReactApp");
+
+        app.UseAuthorization();
+
+        app.MapControllers();
+
+        app.Run();
+    }
 }
-
-app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();

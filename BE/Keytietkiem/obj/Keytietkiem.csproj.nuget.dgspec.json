@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj": {}
+    "C:\\Users\\PC\\OneDrive\\Desktop\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj": {}
   },
   "projects": {
-    "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj": {
+    "C:\\Users\\PC\\OneDrive\\Desktop\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
+        "projectUniqueName": "C:\\Users\\PC\\OneDrive\\Desktop\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj",
         "projectName": "Keytietkiem",
-        "projectPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
-        "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\obj\\",
+        "projectPath": "C:\\Users\\PC\\OneDrive\\Desktop\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj",
+        "packagesPath": "C:\\Users\\PC\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\PC\\OneDrive\\Desktop\\SEP490_G172\\BE\\Keytietkiem\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\DELL\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\PC\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
