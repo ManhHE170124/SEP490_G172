@@ -1,10 +1,38 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\",
+  "WorkspaceRootPath": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\source\\repos\\sep490_g172\\be\\keytietkiem\\keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\services\\auditlogservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\services\\auditlogservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\models\\keytietkiemcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\keytietkiemcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\controllers\\auditlogscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\auditlogscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\dtos\\auditlogdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\dtos\\auditlogdto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\services\\iauditlogservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\services\\iauditlogservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\desktop\\sep490_g172_keytietkiem\\sep490_g172\\be\\keytietkiem\\mapping\\auditmapping.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\mapping\\auditmapping.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,23 +42,110 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 4,
           "Children": [
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "AuditLogService.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Services\\AuditLogService.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Services\\AuditLogService.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Services\\AuditLogService.cs",
+              "RelativeToolTip": "Keytietkiem\\Services\\AuditLogService.cs",
+              "ViewState": "AgIAAEwAAAAAAAAAAAAkwGkAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T11:05:20.579Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "IAuditLogService.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Services\\IAuditLogService.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Services\\IAuditLogService.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Services\\IAuditLogService.cs",
+              "RelativeToolTip": "Keytietkiem\\Services\\IAuditLogService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T11:04:56.139Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "AuditLogsController.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Controllers\\AuditLogsController.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\AuditLogsController.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Controllers\\AuditLogsController.cs",
+              "RelativeToolTip": "Keytietkiem\\Controllers\\AuditLogsController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAA5AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T10:54:25.631Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "KeytietkiemContext.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Models\\KeytietkiemContext.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Models\\KeytietkiemContext.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Models\\KeytietkiemContext.cs",
+              "RelativeToolTip": "Keytietkiem\\Models\\KeytietkiemContext.cs",
+              "ViewState": "AgIAABkAAAAAAAAAAAA/wCsAAAA6AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T11:10:05.213Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Program.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Program.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Program.cs",
+              "RelativeToolTip": "Keytietkiem\\Program.cs",
+              "ViewState": "AgIAACoAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T11:06:45.625Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "appsettings.json",
-              "DocumentMoniker": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\appsettings.json",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\appsettings.json",
               "RelativeDocumentMoniker": "Keytietkiem\\appsettings.json",
-              "ToolTip": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\appsettings.json*",
-              "RelativeToolTip": "Keytietkiem\\appsettings.json*",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\appsettings.json",
+              "RelativeToolTip": "Keytietkiem\\appsettings.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
               "WhenOpened": "2025-10-16T16:10:46.586Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "AuditLogDto.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\DTOs\\AuditLogDto.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\DTOs\\AuditLogDto.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\DTOs\\AuditLogDto.cs",
+              "RelativeToolTip": "Keytietkiem\\DTOs\\AuditLogDto.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACMAAABgAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T11:02:50.275Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "AuditMapping.cs",
+              "DocumentMoniker": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Mapping\\AuditMapping.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Mapping\\AuditMapping.cs",
+              "ToolTip": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Mapping\\AuditMapping.cs",
+              "RelativeToolTip": "Keytietkiem\\Mapping\\AuditMapping.cs",
+              "ViewState": "AgIAAAUAAAAAAAAAAAAxwCEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-18T11:03:48.945Z",
               "EditorCaption": ""
             }
           ]
