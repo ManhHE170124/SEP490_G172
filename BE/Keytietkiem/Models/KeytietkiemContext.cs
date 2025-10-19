@@ -44,12 +44,17 @@ public partial class KeytietkiemContext : DbContext
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+<<<<<<< HEAD
     {
         if (!optionsBuilder.IsConfigured)
         {
             var ConnectionString = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetConnectionString("MyCnn");
             optionsBuilder.UseSqlServer(ConnectionString);
         }
+=======
+#warning
+    {
+>>>>>>> origin/TrungDQ
 
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
