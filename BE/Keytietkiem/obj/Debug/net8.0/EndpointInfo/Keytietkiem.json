@@ -1,8 +1,9 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "Keytietkiem",
-    "version": "1.0"
+    "title": "Keytietkiem API",
+    "description": "Backend API for React user management frontend",
+    "version": "v1"
   },
   "paths": {
     "/api/Users": {

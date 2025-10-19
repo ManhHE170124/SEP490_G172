@@ -6,33 +6,38 @@ export default function UserList() {
   const [selected, setSelected] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
+  // ⚠️ Backend URL phải dùng HTTP (cùng giao thức với React)
   const apiBase = "http://localhost:5042/api";
 
   useEffect(() => {
+    console.log("👉 Gọi API:", `${apiBase}/users`);
     fetch(`${apiBase}/users`)
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error("Lỗi khi lấy danh sách");
         return res.json();
       })
-      .then(data => setUsers(data))
-      .catch(err => {
-        console.error(err);
+      .then((data) => {
+        console.log("✅ Nhận data:", data);
+        setUsers(data);
+      })
+      .catch((err) => {
+        console.error("❌ Lỗi fetch:", err);
         alert("Không thể lấy dữ liệu từ API. Kiểm tra backend/CORS/URL.");
       });
   }, []);
 
   const openDetail = (userId) => {
     fetch(`${apiBase}/users/${userId}`)
-      .then(r => {
+      .then((r) => {
         if (!r.ok) throw new Error("Fail");
         return r.json();
       })
-      .then(data => {
+      .then((data) => {
         setSelected(data);
         setShowModal(true);
       })
-      .catch(err => {
-        console.error(err);
+      .catch((err) => {
+        console.error("❌ Lỗi load chi tiết:", err);
         alert("Không thể tải chi tiết");
       });
   };
@@ -40,29 +45,26 @@ export default function UserList() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Danh sách người dùng</h1>
-
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th style={{ border: "1px solid #ddd", padding: 8 }}>Avatar</th>
-            <th style={{ border: "1px solid #ddd", padding: 8 }}>Họ và tên</th>
-            <th style={{ border: "1px solid #ddd", padding: 8 }}>Username</th>
-            <th style={{ border: "1px solid #ddd", padding: 8 }}>Email</th>
-            <th style={{ border: "1px solid #ddd", padding: 8 }}>Trạng thái</th>
-            <th style={{ border: "1px solid #ddd", padding: 8 }}>Hành động</th>
+            <th>Avatar</th>
+            <th>Họ và tên</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Trạng thái</th>
+            <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
           {users.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ padding: 20 }}>
-                Không có user
-              </td>
+              <td colSpan={6}>Không có user</td>
             </tr>
           )}
-          {users.map(u => (
+          {users.map((u) => (
             <tr key={u.userId}>
-              <td style={{ border: "1px solid #ddd", padding: 8 }}>
+              <td>
                 {u.avatarUrl ? (
                   <img
                     src={u.avatarUrl}
@@ -73,11 +75,11 @@ export default function UserList() {
                   "—"
                 )}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 8 }}>{u.fullName}</td>
-              <td style={{ border: "1px solid #ddd", padding: 8 }}>{u.username}</td>
-              <td style={{ border: "1px solid #ddd", padding: 8 }}>{u.email}</td>
-              <td style={{ border: "1px solid #ddd", padding: 8 }}>{u.status}</td>
-              <td style={{ border: "1px solid #ddd", padding: 8 }}>
+              <td>{u.fullName}</td>
+              <td>{u.username}</td>
+              <td>{u.email}</td>
+              <td>{u.status}</td>
+              <td>
                 <button onClick={() => openDetail(u.userId)}>Xem chi tiết</button>
               </td>
             </tr>
