@@ -136,7 +136,21 @@ namespace KeytietkiemApi.Controllers
                 role = roleName
             });
         }
+
+        [HttpPost("forgot-password")]
+        public IActionResult ForgotPassword([FromBody] dynamic req)
+        {
+            string email = req?.email;
+            if (string.IsNullOrEmpty(email))
+                return BadRequest(new { message = "Email không hợp lệ." });
+
+            // TODO: Thực tế bạn sẽ gửi email có link reset thật.
+            return Ok(new { message = $"Link đặt lại mật khẩu đã được gửi tới {email} (demo)." });
+        }
+
+
     }
+
 
     // Request Models
     public class RegisterRequest
