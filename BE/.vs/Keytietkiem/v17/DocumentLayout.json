@@ -3,24 +3,12 @@
   "WorkspaceRootPath": "F:\\KTK_Project\\BE\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\controllers\\rolescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\rolescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\models\\rolepermission.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\rolepermission.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\models\\module.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\models\\module.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\controllers\\modulescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\modulescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\controllers\\rolescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\rolescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -30,7 +18,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 10,
+          "SelectedChildIndex": 7,
           "Children": [
             {
               "$type": "Bookmark",
@@ -59,65 +47,27 @@
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "RolePermission.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Models\\RolePermission.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Models\\RolePermission.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Models\\RolePermission.cs",
-              "RelativeToolTip": "Keytietkiem\\Models\\RolePermission.cs",
-              "ViewState": "AgIAAAoAAAAAAAAAAAA1wBkAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-17T21:13:42.569Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "Module.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Models\\Module.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Models\\Module.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Models\\Module.cs",
-              "RelativeToolTip": "Keytietkiem\\Models\\Module.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-17T21:13:37.208Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "Program.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Program.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Program.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Program.cs",
-              "RelativeToolTip": "Keytietkiem\\Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAZAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-17T21:06:07.614Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "ModulesController.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\ModulesController.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\ModulesController.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\ModulesController.cs",
-              "RelativeToolTip": "Keytietkiem\\Controllers\\ModulesController.cs",
-              "ViewState": "AgIAAD8AAAAAAAAAAAAowE0AAAAeAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-17T20:26:46.907Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
               "Title": "RolesController.cs",
               "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\RolesController.cs",
               "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\RolesController.cs",
               "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\RolesController.cs",
               "RelativeToolTip": "Keytietkiem\\Controllers\\RolesController.cs",
-              "ViewState": "AgIAAFYAAAAAAAAAAAAYwF8AAAANAAAAAAAAAA==",
+              "ViewState": "AgIAAIcAAAAAAAAAAAAowI4AAAAxAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-17T18:44:15.854Z",
+              "WhenOpened": "2025-10-20T14:08:11.994Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Program.cs",
+              "RelativeDocumentMoniker": "Keytietkiem\\Program.cs",
+              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Program.cs",
+              "RelativeToolTip": "Keytietkiem\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-20T14:08:08.223Z",
               "EditorCaption": ""
             }
           ]

@@ -1,8 +1,23 @@
-﻿using Keytietkiem.Models;
+﻿/*
+  File: RolesController.cs
+  Author: HieuNDHE173169
+  Created: 17-10-2025
+  Last Updated: 20-10-2025
+  Version: 1.0.0
+  Purpose: Manage roles (CRUD). Initializes role-permissions for all modules &
+           permissions on role creation and maintains referential integrity on
+           updates/deletions.
+  Endpoints:
+    - GET    /api/roles              : List roles
+    - GET    /api/roles/{id}         : Get role by id (includes role-permissions)
+    - POST   /api/roles              : Create role and seed role-permissions
+    - PUT    /api/roles/{id}         : Update role
+    - DELETE /api/roles/{id}         : Delete role and its role-permissions
+*/
+
+using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
-// For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace Keytietkiem.Controllers
 {
@@ -17,6 +32,12 @@ namespace Keytietkiem.Controllers
         }
         // GET: api/<RolesController>
         [HttpGet]
+        /**
+         * Summary: Retrieve all roles.
+         * Route: GET /api/roles
+         * Params: none
+         * Returns: 200 OK with list of roles
+         */
         public async Task<IActionResult> GetRoles()
         {
             var roles = await _context.Roles.ToListAsync();
@@ -25,6 +46,12 @@ namespace Keytietkiem.Controllers
 
         // GET api/<RolesController>/5
         [HttpGet("{id}")]
+        /**
+         * Summary: Retrieve a role by id including role-permissions.
+         * Route: GET /api/roles/{id}
+         * Params: id (long) - role identifier
+         * Returns: 200 OK with role, 404 if not found
+         */
         public async Task<IActionResult> GetRoleById(long id)
         {
             var role = await _context.Roles
@@ -42,6 +69,12 @@ namespace Keytietkiem.Controllers
         }
         // POST api/<RolesController>
         [HttpPost]
+        /**
+         * Summary: Create a new role and seed role-permissions for all modules & permissions.
+         * Route: POST /api/roles
+         * Body: Role newRole
+         * Returns: 201 Created with created role, 400/409 on validation errors
+         */
         public async Task<IActionResult> CreateRole([FromBody] Role newRole)
         {
             if (newRole == null || string.IsNullOrWhiteSpace(newRole.Name))
@@ -88,6 +121,13 @@ namespace Keytietkiem.Controllers
         }
         // PUT api/<RolesController>/5
         [HttpPut("{id}")]
+        /**
+        * Summary: Update an existing role by id.
+        * Route: PUT /api/roles/{id}
+        * Params: id (long)
+        * Body: Role updatedRole
+        * Returns: 204 No Content, 400/404 on errors
+        */
         public async Task<IActionResult> UpdateRole(long id, [FromBody] Role updatedRole)
         {
             if (updatedRole == null || id != updatedRole.RoleId)
@@ -107,8 +147,14 @@ namespace Keytietkiem.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
-        // DELETE api/<ModulesController>/5
+        // DELETE api/<RolesController>/5
         [HttpDelete("{id}")]
+        /**
+         * Summary: Delete a role by id and cascade remove related role-permissions.
+         * Route: DELETE /api/roles/{id}
+         * Params: id (long)
+         * Returns: 204 No Content, 404 if not found
+         */
         public async Task<IActionResult> DeleteRoleById(long id)
         {
             var existingRole = await _context.Roles.FindAsync(id);
@@ -123,7 +169,6 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-       
 
     }
 }
