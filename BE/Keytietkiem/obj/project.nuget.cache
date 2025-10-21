@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "F6FaHzdUq5Q=",
+  "dgSpecHash": "TxN0v6uWJGE=",
   "success": true,
-  "projectFilePath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
+  "projectFilePath": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\DELL\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",
     "C:\\Users\\DELL\\.nuget\\packages\\azure.identity\\1.11.4\\azure.identity.1.11.4.nupkg.sha512",

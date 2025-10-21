@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj": {}
+    "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj": {}
   },
   "projects": {
-    "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj": {
+    "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
+        "projectUniqueName": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj",
         "projectName": "Keytietkiem",
-        "projectPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\Keytietkiem.csproj",
+        "projectPath": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem.csproj",
         "packagesPath": "C:\\Users\\DELL\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\obj\\",
+        "outputPath": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\Keytietkiem\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
