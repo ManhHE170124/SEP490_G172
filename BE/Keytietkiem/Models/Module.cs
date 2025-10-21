@@ -5,9 +5,11 @@ namespace Keytietkiem.Models;
 
 public partial class Module
 {
-    public Guid ModuleId { get; set; }
+    public long ModuleId { get; set; }
 
     public string ModuleName { get; set; } = null!;
+
+    public string? Description { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

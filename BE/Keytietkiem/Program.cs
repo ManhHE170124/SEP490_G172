@@ -2,7 +2,7 @@ using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddDbContext<KeytietkiemContext>(options =>
+builder.Services.AddDbContext<KeytietkiemDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
 // Add services to the container.
 

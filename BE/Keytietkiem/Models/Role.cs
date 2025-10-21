@@ -5,11 +5,9 @@ namespace Keytietkiem.Models;
 
 public partial class Role
 {
-    public long RoleId { get; set; }
+    public string RoleId { get; set; } = null!;
 
     public string Name { get; set; } = null!;
-
-    public string? Desc { get; set; }
 
     public bool IsSystem { get; set; }
 
@@ -21,5 +19,5 @@ public partial class Role
 
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 
-    public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+    public virtual ICollection<User> Users { get; set; } = new List<User>();
 }

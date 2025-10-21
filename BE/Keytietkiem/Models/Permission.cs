@@ -5,7 +5,7 @@ namespace Keytietkiem.Models;
 
 public partial class Permission
 {
-    public Guid PermissionId { get; set; }
+    public long PermissionId { get; set; }
 
     public string PermissionName { get; set; } = null!;
 

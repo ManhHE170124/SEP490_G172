@@ -336,4 +336,3 @@ F:\KTK_Project\BE\Keytietkiem\obj\Debug\net8.0\refint\Keytietkiem.dll
 F:\KTK_Project\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.pdb
 F:\KTK_Project\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.genruntimeconfig.cache
 F:\KTK_Project\BE\Keytietkiem\obj\Debug\net8.0\ref\Keytietkiem.dll
-F:\KTK_Project\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
