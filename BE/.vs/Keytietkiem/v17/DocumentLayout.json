@@ -1,41 +1,12 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\",
-  "Documents": [
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|c:\\users\\dell\\source\\repos\\sep490_g172\\be\\keytietkiem\\keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
-    }
-  ],
+  "WorkspaceRootPath": "C:\\Users\\DELL\\Desktop\\SEP490_G172_Keytietkiem\\SEP490_G172\\BE\\",
+  "Documents": [],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": [
-        {
-          "DockedWidth": 200,
-          "SelectedChildIndex": 1,
-          "Children": [
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "appsettings.json",
-              "DocumentMoniker": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\appsettings.json",
-              "RelativeDocumentMoniker": "Keytietkiem\\appsettings.json",
-              "ToolTip": "C:\\Users\\DELL\\source\\repos\\SEP490_G172\\BE\\Keytietkiem\\Keytietkiem\\appsettings.json",
-              "RelativeToolTip": "Keytietkiem\\appsettings.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2025-10-16T16:10:46.586Z",
-              "EditorCaption": ""
-            }
-          ]
-        }
-      ]
+      "DocumentGroups": []
     }
   ]
 }
