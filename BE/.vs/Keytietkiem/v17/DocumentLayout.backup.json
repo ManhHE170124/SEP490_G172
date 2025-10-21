@@ -1,20 +1,7 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "F:\\KTK_Project\\BE\\",
-  "Documents": [
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\controllers\\modulescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\modulescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\controllers\\permissionscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\permissionscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|f:\\ktk_project\\be\\keytietkiem\\controllers\\rolescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{03E2D6EA-DC00-4D55-AD4F-4DCF22A2A355}|Keytietkiem\\Keytietkiem.csproj|solutionrelative:keytietkiem\\controllers\\rolescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    }
-  ],
+  "Documents": [],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -22,7 +9,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 6,
+          "SelectedChildIndex": -1,
           "Children": [
             {
               "$type": "Bookmark",
@@ -47,45 +34,6 @@
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "ModulesController.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\ModulesController.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\ModulesController.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\ModulesController.cs",
-              "RelativeToolTip": "Keytietkiem\\Controllers\\ModulesController.cs",
-              "ViewState": "AgIAAAwAAAAAAAAAAADwvxkAAAA3AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-21T12:49:08.268Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "PermissionsController.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\PermissionsController.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\PermissionsController.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\PermissionsController.cs",
-              "RelativeToolTip": "Keytietkiem\\Controllers\\PermissionsController.cs",
-              "ViewState": "AgIAACUAAAAAAAAAAAAUwDIAAAAbAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-21T12:48:54.459Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "RolesController.cs",
-              "DocumentMoniker": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\RolesController.cs",
-              "RelativeDocumentMoniker": "Keytietkiem\\Controllers\\RolesController.cs",
-              "ToolTip": "F:\\KTK_Project\\BE\\Keytietkiem\\Controllers\\RolesController.cs",
-              "RelativeToolTip": "Keytietkiem\\Controllers\\RolesController.cs",
-              "ViewState": "AgIAAKEAAAAAAAAAAAAswJgAAAAdAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-21T06:11:50.987Z",
-              "EditorCaption": ""
             }
           ]
         }

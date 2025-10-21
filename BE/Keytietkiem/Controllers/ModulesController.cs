@@ -1,4 +1,4 @@
-﻿/*
+﻿/**
   File: ModulesController.cs
   Author: HieuNDHE173169
   Created: 16/10/2025
@@ -16,6 +16,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
+using Keytietkiem.DTOs;
 using Microsoft.EntityFrameworkCore;
 namespace Keytietkiem.Controllers
 {
@@ -31,22 +32,31 @@ namespace Keytietkiem.Controllers
         // GET: api/<ModulesController>
         [HttpGet]
         /**
- * Summary: Retrieve all modules.
- * Route: GET /api/modules
- * Params: none
- * Returns: 200 OK with list of modules
- */
+        * Summary: Retrieve all modules.
+        * Route: GET /api/modules
+        * Params: none
+        * Returns: 200 OK with list of modules
+        */
         public async Task<IActionResult> GetModules()
         {
-            var modules = await _context.Modules.ToListAsync();
+            var modules = await _context.Modules
+                .Select(m => new ModuleDTO
+                {
+                    ModuleId = m.ModuleId,
+                    ModuleName = m.ModuleName,
+                    Description = m.Description,
+                    CreatedAt = m.CreatedAt,
+                    UpdatedAt = m.UpdatedAt
+                })
+                .ToListAsync();
             return Ok(modules);
         }
         // GET api/<ModulesController>/5
         /**
          * Summary: Retrieve a module by id.
-         * Route: GET /api/modules/{id}
-         * Params: id (long) - module identifier
-         * Returns: 200 OK with module, 404 if not found
+         * @Route: GET /api/modules/{id}
+         * @Params: id (long) - module identifier
+         * @Returns: 200 OK with module, 404 if not found
          */
         [HttpGet("{id}")]
         public async Task<IActionResult> GetModuleById(long id)
@@ -57,7 +67,17 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
-            return Ok(module);
+
+            var moduleDto = new ModuleDTO
+            {
+                ModuleId = module.ModuleId,
+                ModuleName = module.ModuleName,
+                Description = module.Description,
+                CreatedAt = module.CreatedAt,
+                UpdatedAt = module.UpdatedAt
+            };
+
+            return Ok(moduleDto);
         }
         // POST api/<ModulesController>
         [HttpPost]
@@ -67,22 +87,61 @@ namespace Keytietkiem.Controllers
          * Body: Module newModule
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
-        public async Task<IActionResult> CreateModule([FromBody] Module newModule)
+        public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
-            if (newModule == null || string.IsNullOrWhiteSpace(newModule.ModuleName))
+            if (createModuleDto == null || string.IsNullOrWhiteSpace(createModuleDto.ModuleName))
             {
                 return BadRequest("Module name is required.");
             }
             var existing = await _context.Modules
-                .FirstOrDefaultAsync(m => m.ModuleName == newModule.ModuleName);
+                .FirstOrDefaultAsync(m => m.ModuleName == createModuleDto.ModuleName);
             if (existing != null)
             {
                 return Conflict(new { message = "Module name already exists." });
             }
-            newModule.CreatedAt = DateTime.Now;
+
+            var newModule = new Module
+            {
+                ModuleName = createModuleDto.ModuleName,
+                Description = createModuleDto.Description,
+                CreatedAt = DateTime.UtcNow
+            };
+
             _context.Modules.Add(newModule);
             await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetModuleById), new { id = newModule.ModuleId }, newModule);
+
+            // Add RolePermissions for all existing roles and permissions with this new module
+            var roles = await _context.Roles.ToListAsync();
+            var permissions = await _context.Permissions.ToListAsync();
+
+            var rolePermissions = new List<RolePermission>();
+            foreach (var role in roles)
+            {
+                foreach (var permission in permissions)
+                {
+                    rolePermissions.Add(new RolePermission
+                    {
+                        RoleId = role.RoleId,
+                        ModuleId = newModule.ModuleId,
+                        PermissionId = permission.PermissionId,
+                        IsActive = true
+                    });
+                }
+            }
+
+            _context.RolePermissions.AddRange(rolePermissions);
+            await _context.SaveChangesAsync();
+
+            var moduleDto = new ModuleDTO
+            {
+                ModuleId = newModule.ModuleId,
+                ModuleName = newModule.ModuleName,
+                Description = newModule.Description,
+                CreatedAt = newModule.CreatedAt,
+                UpdatedAt = newModule.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetModuleById), new { id = newModule.ModuleId }, moduleDto);
         }
         // PUT api/<ModulesController>/5
         [HttpPut("{id}")]
@@ -93,9 +152,9 @@ namespace Keytietkiem.Controllers
          * Body: Module updatedModule
          * Returns: 204 No Content, 400/404 on errors
          */
-        public async Task<IActionResult> UpdateModule(long id, [FromBody] Module updatedModule)
+        public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
-            if (updatedModule == null || id != updatedModule.ModuleId)
+            if (updateModuleDto == null)
             {
                 return BadRequest("Invalid module data.");
             }
@@ -105,8 +164,9 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
-            existing.ModuleName = updatedModule.ModuleName;
-            existing.UpdatedAt = DateTime.Now;
+            existing.ModuleName = updateModuleDto.ModuleName;
+            existing.Description = updateModuleDto.Description;
+            existing.UpdatedAt = DateTime.UtcNow;
             _context.Modules.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();

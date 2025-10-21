@@ -10,12 +10,15 @@
   Endpoints:
     - GET    /api/roles              : List roles
     - GET    /api/roles/{id}         : Get role by id (includes role-permissions)
+    - GET    /api/roles/{id}/permissions : Get role permissions matrix
     - POST   /api/roles              : Create role and seed role-permissions
     - PUT    /api/roles/{id}         : Update role
+    - PUT    /api/roles/{id}/permissions : Bulk update role permissions
     - DELETE /api/roles/{id}         : Delete role and its role-permissions
 */
 
 using Keytietkiem.Models;
+using Keytietkiem.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +33,6 @@ namespace Keytietkiem.Controllers
         {
             _context = context;
         }
-        // GET: api/<RolesController>
         [HttpGet]
         /**
          * Summary: Retrieve all roles.
@@ -40,11 +42,20 @@ namespace Keytietkiem.Controllers
          */
         public async Task<IActionResult> GetRoles()
         {
-            var roles = await _context.Roles.ToListAsync();
+            var roles = await _context.Roles
+                .Select(r => new RoleDTO
+                {
+                    RoleId = r.RoleId,
+                    Name = r.Name,
+                    IsSystem = r.IsSystem,
+                    IsActive = r.IsActive,
+                    CreatedAt = r.CreatedAt,
+                    UpdatedAt = r.UpdatedAt
+                })
+                .ToListAsync();
             return Ok(roles);
         }
 
-        // GET api/<RolesController>/5
         [HttpGet("{id}")]
         /**
          * Summary: Retrieve a role by id including role-permissions.
@@ -64,10 +75,28 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
-            return Ok(role);
 
+            var roleResponse = new RoleResponseDTO
+            {
+                RoleId = role.RoleId,
+                Name = role.Name,
+                IsSystem = role.IsSystem,
+                IsActive = role.IsActive,
+                CreatedAt = role.CreatedAt,
+                UpdatedAt = role.UpdatedAt,
+                RolePermissions = role.RolePermissions.Select(rp => new RolePermissionDTO
+                {
+                    RoleId = rp.RoleId,
+                    ModuleId = rp.ModuleId,
+                    PermissionId = rp.PermissionId,
+                    IsActive = rp.IsActive,
+                    ModuleName = rp.Module?.ModuleName,
+                    PermissionName = rp.Permission?.PermissionName
+                }).ToList()
+            };
+
+            return Ok(roleResponse);
         }
-        // POST api/<RolesController>
         [HttpPost]
         /**
          * Summary: Create a new role and seed role-permissions for all modules & permissions.
@@ -75,21 +104,27 @@ namespace Keytietkiem.Controllers
          * Body: Role newRole
          * Returns: 201 Created with created role, 400/409 on validation errors
          */
-        public async Task<IActionResult> CreateRole([FromBody] Role newRole)
+        public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
-            if (newRole == null || string.IsNullOrWhiteSpace(newRole.Name))
+            if (createRoleDto == null || string.IsNullOrWhiteSpace(createRoleDto.Name))
             {
                 return BadRequest("Role name is required.");
             }
             var existingRole = await _context.Roles
-                .FirstOrDefaultAsync(m => m.Name == newRole.Name);
+                .FirstOrDefaultAsync(m => m.Name == createRoleDto.Name);
             if (existingRole != null)
             {
                 return Conflict(new { message = "Role name already exists." });
             }
 
-            newRole.CreatedAt = DateTime.UtcNow;
-            newRole.IsActive = true;
+            var newRole = new Role
+            {
+                RoleId = Guid.NewGuid().ToString(),
+                Name = createRoleDto.Name,
+                IsSystem = createRoleDto.IsSystem,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
 
             _context.Roles.Add(newRole);
             await _context.SaveChangesAsync();
@@ -116,9 +151,18 @@ namespace Keytietkiem.Controllers
             _context.RolePermissions.AddRange(rolePermissions);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetRoleById), new { id = newRole.RoleId }, newRole);
+            var roleDto = new RoleDTO
+            {
+                RoleId = newRole.RoleId,
+                Name = newRole.Name,
+                IsSystem = newRole.IsSystem,
+                IsActive = newRole.IsActive,
+                CreatedAt = newRole.CreatedAt,
+                UpdatedAt = newRole.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetRoleById), new { id = newRole.RoleId }, roleDto);
         }
-        // PUT api/<RolesController>/5
         [HttpPut("{id}")]
         /**
         * Summary: Update an existing role by id.
@@ -127,9 +171,9 @@ namespace Keytietkiem.Controllers
         * Body: Role updatedRole
         * Returns: 204 No Content, 400/404 on errors
         */
-        public async Task<IActionResult> UpdateRole(string id, [FromBody] Role updatedRole)
+        public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDTO updateRoleDto)
         {
-            if (updatedRole == null || id != updatedRole.RoleId)
+            if (updateRoleDto == null)
             {
                 return BadRequest("Invalid role data.");
             }
@@ -138,14 +182,13 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
-            existingRole.Name = updatedRole.Name;
-            existingRole.IsActive = updatedRole.IsActive;
+            existingRole.Name = updateRoleDto.Name;
+            existingRole.IsActive = updateRoleDto.IsActive;
             existingRole.UpdatedAt = DateTime.UtcNow;
             _context.Roles.Update(existingRole);
             await _context.SaveChangesAsync();
             return NoContent();
         }
-        // DELETE api/<RolesController>/5
         [HttpDelete("{id}")]
         /**
          * Summary: Delete a role by id and cascade remove related role-permissions.
@@ -167,6 +210,139 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
+        [HttpGet("{id}/permissions")]
+        /**
+         * Summary: Get role permissions matrix for a specific role.
+         * Route: GET /api/roles/{id}/permissions
+         * Params: id (string) - role identifier
+         * Returns: 200 OK with role permissions matrix, 404 if role not found
+         */
+        public async Task<IActionResult> GetRolePermissions(string id)
+        {
+            var role = await _context.Roles
+                .Include(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Module)
+                .Include(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
+                .FirstOrDefaultAsync(r => r.RoleId == id);
+
+            if (role == null)
+            {
+                return NotFound(new { message = "Role not found." });
+            }
+
+            var rolePermissions = role.RolePermissions.Select(rp => new RolePermissionDTO
+            {
+                RoleId = rp.RoleId,
+                ModuleId = rp.ModuleId,
+                PermissionId = rp.PermissionId,
+                IsActive = rp.IsActive,
+                ModuleName = rp.Module?.ModuleName,
+                PermissionName = rp.Permission?.PermissionName
+            }).ToList();
+
+            var response = new RolePermissionResponseDTO
+            {
+                RoleId = role.RoleId,
+                RoleName = role.Name,
+                RolePermissions = rolePermissions
+            };
+
+            return Ok(response);
+        }
+
+        [HttpPut("{id}/permissions")]
+        /**
+         * Summary: Bulk update role permissions for a specific role.
+         * Route: PUT /api/roles/{id}/permissions
+         * Params: id (string) - role identifier
+         * Body: BulkRolePermissionUpdateDTO - list of role permissions to update
+         * Returns: 200 OK with updated role permissions, 400/404 on errors
+         */
+        public async Task<IActionResult> UpdateRolePermissions(string id, [FromBody] BulkRolePermissionUpdateDTO updateDto)
+        {
+            if (updateDto == null || updateDto.RolePermissions == null || !updateDto.RolePermissions.Any())
+            {
+                return BadRequest(new { message = "Role permissions data is required." });
+            }
+
+            if (id != updateDto.RoleId)
+            {
+                return BadRequest(new { message = "Role ID mismatch." });
+            }
+
+            var role = await _context.Roles.FindAsync(id);
+            if (role == null)
+            {
+                return NotFound(new { message = "Role not found." });
+            }
+
+            try
+            {
+                // Get existing role permissions
+                var existingRolePermissions = await _context.RolePermissions
+                    .Where(rp => rp.RoleId == id)
+                    .ToListAsync();
+
+                // Update or create role permissions
+                foreach (var permissionDto in updateDto.RolePermissions)
+                {
+                    var existingPermission = existingRolePermissions
+                        .FirstOrDefault(rp => rp.ModuleId == permissionDto.ModuleId &&
+                                            rp.PermissionId == permissionDto.PermissionId);
+
+                    if (existingPermission != null)
+                    {
+                        // Update existing permission
+                        existingPermission.IsActive = permissionDto.IsActive;
+                        _context.RolePermissions.Update(existingPermission);
+                    }
+                    else
+                    {
+                        // Create new permission
+                        var newRolePermission = new RolePermission
+                        {
+                            RoleId = permissionDto.RoleId,
+                            ModuleId = permissionDto.ModuleId,
+                            PermissionId = permissionDto.PermissionId,
+                            IsActive = permissionDto.IsActive
+                        };
+                        _context.RolePermissions.Add(newRolePermission);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Return updated role permissions
+                var updatedRolePermissions = await _context.RolePermissions
+                    .Include(rp => rp.Module)
+                    .Include(rp => rp.Permission)
+                    .Where(rp => rp.RoleId == id)
+                    .Select(rp => new RolePermissionDTO
+                    {
+                        RoleId = rp.RoleId,
+                        ModuleId = rp.ModuleId,
+                        PermissionId = rp.PermissionId,
+                        IsActive = rp.IsActive,
+                        ModuleName = rp.Module.ModuleName,
+                        PermissionName = rp.Permission.PermissionName
+                    })
+                    .ToListAsync();
+
+                var response = new RolePermissionResponseDTO
+                {
+                    RoleId = role.RoleId,
+                    RoleName = role.Name,
+                    RolePermissions = updatedRolePermissions
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating role permissions.", error = ex.Message });
+            }
+        }
 
     }
 }

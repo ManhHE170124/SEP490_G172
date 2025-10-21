@@ -14,6 +14,7 @@
     - DELETE /api/permissions/{id}         : Delete permission and role-permissions
 */
 using Keytietkiem.Models;
+using Keytietkiem.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,7 +40,16 @@ namespace Keytietkiem.Controllers
          */
         public async Task<IActionResult> GetPermissions()
         {
-            var permissions = await _context.Permissions.ToListAsync();
+            var permissions = await _context.Permissions
+                .Select(p => new PermissionDTO
+                {
+                    PermissionId = p.PermissionId,
+                    PermissionName = p.PermissionName,
+                    Description = p.Description,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt
+                })
+                .ToListAsync();
             return Ok(permissions);
         }
 
@@ -59,7 +69,17 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
-            return Ok(permission);
+
+            var permissionDto = new PermissionDTO
+            {
+                PermissionId = permission.PermissionId,
+                PermissionName = permission.PermissionName,
+                Description = permission.Description,
+                CreatedAt = permission.CreatedAt,
+                UpdatedAt = permission.UpdatedAt
+            };
+
+            return Ok(permissionDto);
         }
 
         // POST api/<PermissionsController>
@@ -70,22 +90,61 @@ namespace Keytietkiem.Controllers
          * Body: Permission newPermission
          * Returns: 201 Created with created permission, 400/409 on validation errors
          */
-        public async Task<IActionResult> CreatePermission([FromBody] Permission newPermission)
+        public async Task<IActionResult> CreatePermission([FromBody] CreatePermissionDTO createPermissionDto)
         {
-            if (newPermission == null || string.IsNullOrWhiteSpace(newPermission.PermissionName))
+            if (createPermissionDto == null || string.IsNullOrWhiteSpace(createPermissionDto.PermissionName))
             {
                 return BadRequest("Permission name is required.");
             }
             var existing = await _context.Permissions
-                .FirstOrDefaultAsync(m => m.PermissionName == newPermission.PermissionName);
+                .FirstOrDefaultAsync(m => m.PermissionName == createPermissionDto.PermissionName);
             if (existing != null)
             {
                 return Conflict(new { message = "Permission name already exists." });
             }
-            newPermission.CreatedAt = DateTime.Now;
+
+            var newPermission = new Permission
+            {
+                PermissionName = createPermissionDto.PermissionName,
+                Description = createPermissionDto.Description,
+                CreatedAt = DateTime.UtcNow
+            };
+
             _context.Permissions.Add(newPermission);
             await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetPermissionById), new { id = newPermission.PermissionId }, newPermission);
+
+            // Add RolePermissions for all existing roles and modules with this new permission
+            var roles = await _context.Roles.ToListAsync();
+            var modules = await _context.Modules.ToListAsync();
+
+            var rolePermissions = new List<RolePermission>();
+            foreach (var role in roles)
+            {
+                foreach (var module in modules)
+                {
+                    rolePermissions.Add(new RolePermission
+                    {
+                        RoleId = role.RoleId,
+                        ModuleId = module.ModuleId,
+                        PermissionId = newPermission.PermissionId,
+                        IsActive = true
+                    });
+                }
+            }
+
+            _context.RolePermissions.AddRange(rolePermissions);
+            await _context.SaveChangesAsync();
+
+            var permissionDto = new PermissionDTO
+            {
+                PermissionId = newPermission.PermissionId,
+                PermissionName = newPermission.PermissionName,
+                Description = newPermission.Description,
+                CreatedAt = newPermission.CreatedAt,
+                UpdatedAt = newPermission.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetPermissionById), new { id = newPermission.PermissionId }, permissionDto);
         }
 
         // PUT api/<PermissionsController>/5
@@ -97,9 +156,9 @@ namespace Keytietkiem.Controllers
          * Body: Permission updatedPermission
          * Returns: 204 No Content, 400/404 on errors
          */
-        public async Task<IActionResult> UpdatePermission(long id, [FromBody] Permission updatedPermission)
+        public async Task<IActionResult> UpdatePermission(long id, [FromBody] UpdatePermissionDTO updatePermissionDto)
         {
-            if (updatedPermission == null || id != updatedPermission.PermissionId)
+            if (updatePermissionDto == null)
             {
                 return BadRequest("Invalid permission data.");
             }
@@ -109,9 +168,9 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
-            existing.PermissionName = updatedPermission.PermissionName;
-            existing.Description = updatedPermission.Description;
-            existing.UpdatedAt = DateTime.Now;
+            existing.PermissionName = updatePermissionDto.PermissionName;
+            existing.Description = updatePermissionDto.Description;
+            existing.UpdatedAt = DateTime.UtcNow;
             _context.Permissions.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();

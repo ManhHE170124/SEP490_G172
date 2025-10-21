@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { rbacApi } from "../../api";
-import RBACModal from "../../components/RBACModal";
+import RBACModal from "../../components/RBACModal/RBACModal";
+import ToastContainer from "../../components/Toast/ToastContainer";
+import useToast from "../../hooks/useToast";
 import "./RBACManagement.css";
 
 const TABS = {
@@ -54,6 +56,7 @@ function formatDate(value) {
 export default function RBACManagement() {
   const [activeTab, setActiveTab] = useState(TABS.MODULES);
   const { data, loading, error, setData } = useFetchData(activeTab);
+  const { toasts, showSuccess, showError, showWarning, removeToast } = useToast();
 
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("");
@@ -83,6 +86,7 @@ export default function RBACManagement() {
         addButtonText: "Thêm Module",
         columns: [
           { key: "moduleName", label: "Module Name" },
+          { key: "description", label: "Description" },
           { key: "createdAt", label: "Created At", render: formatDate },
           { key: "updatedAt", label: "Updated At", render: formatDate },
         ],
@@ -103,7 +107,7 @@ export default function RBACManagement() {
       addButtonText: "Thêm Role",
       columns: [
         { key: "name", label: "Role Name" },
-        { key: "desc", label: "Description" },
+        { key: "isSystem", label: "System Role", render: (v) => (v ? "Yes" : "No") },
         { key: "isActive", label: "Active", render: (v) => (v ? "Yes" : "No") },
         { key: "createdAt", label: "Created At", render: formatDate },
         { key: "updatedAt", label: "Updated At", render: formatDate },
@@ -185,11 +189,19 @@ export default function RBACManagement() {
   async function handleCreateRole(form) {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createRole({ name: form.name, desc: form.desc });
+      const created = await rbacApi.createRole({ 
+        name: form.name, 
+        isSystem: form.isSystem || false 
+      });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddRoleOpen(false);
+      showSuccess(
+        "Tạo Role thành công!",
+        `Role "${form.name}" đã được tạo và tự động gán quyền cho tất cả modules và permissions.`
+      );
     } catch (e) {
-      alert(e.message || "Không thể tạo Role");
+      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Role";
+      showError("Tạo Role thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -198,11 +210,19 @@ export default function RBACManagement() {
   async function handleCreateModule(form) {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createModule({ moduleName: form.moduleName });
+      const created = await rbacApi.createModule({ 
+        moduleName: form.moduleName,
+        description: form.description || ""
+      });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddModuleOpen(false);
+      showSuccess(
+        "Tạo Module thành công!",
+        `Module "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả roles và permissions.`
+      );
     } catch (e) {
-      alert(e.message || "Không thể tạo Module");
+      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Module";
+      showError("Tạo Module thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -211,11 +231,19 @@ export default function RBACManagement() {
   async function handleCreatePermission(form) {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createPermission({ permissionName: form.permissionName, description: form.description });
+      const created = await rbacApi.createPermission({ 
+        permissionName: form.permissionName, 
+        description: form.description || ""
+      });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddPermissionOpen(false);
+      showSuccess(
+        "Tạo Permission thành công!",
+        `Permission "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả roles và modules.`
+      );
     } catch (e) {
-      alert(e.message || "Không thể tạo Permission");
+      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Permission";
+      showError("Tạo Permission thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -233,19 +261,19 @@ export default function RBACManagement() {
       setEditTitle("Sửa Module");
       setEditFields([
         { name: "moduleName", label: "Module Name", required: true, defaultValue: row.moduleName },
+        { name: "description", label: "Description", type: "textarea", defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
       setEditTitle("Sửa Permission");
       setEditFields([
         { name: "permissionName", label: "Permission Name", required: true, defaultValue: row.permissionName },
-        { name: "description", label: "Description", type: "textarea", defaultValue: row.description },
+        { name: "description", label: "Description", type: "textarea", defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
         { name: "name", label: "Role Name", required: true, defaultValue: row.name },
-        { name: "desc", label: "Description", type: "textarea", defaultValue: row.desc },
-        { name: "isActive", label: "Active (true/false)", defaultValue: row.isActive, type: "text" },
+        { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
     setEditOpen(true);
@@ -253,8 +281,16 @@ export default function RBACManagement() {
 
   async function onDelete(row) {
     const label = activeTab === TABS.MODULES ? row.moduleName : activeTab === TABS.PERMISSIONS ? row.permissionName : row.name;
+    const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+    
+    showWarning(
+      `Xác nhận xóa ${entityType}`,
+      `Bạn sắp xóa ${entityType.toLowerCase()} "${label}". Hành động này không thể hoàn tác!`
+    );
+    
     const ok = window.confirm(`Xoá mục: ${label}?`);
     if (!ok) return;
+    
     try {
       if (activeTab === TABS.MODULES) await rbacApi.deleteModule(row.moduleId || row.id);
       else if (activeTab === TABS.PERMISSIONS) await rbacApi.deletePermission(row.permissionId || row.id);
@@ -263,28 +299,59 @@ export default function RBACManagement() {
         const key = activeTab === TABS.MODULES ? "moduleId" : activeTab === TABS.PERMISSIONS ? "permissionId" : "roleId";
         return x[key] !== row[key];
       }));
+      showSuccess(
+        `Xóa ${entityType} thành công!`,
+        `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
+      );
     } catch (e) {
-      alert(e.message || "Xoá thất bại");
+      const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
+      showError(`Xóa ${entityType} thất bại!`, errorMessage);
     }
   }
 
   async function onSubmitEdit(form) {
     try {
       setEditSubmitting(true);
+      const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+      const entityName = activeTab === TABS.MODULES ? form.moduleName : activeTab === TABS.PERMISSIONS ? form.permissionName : form.name;
+      
       if (activeTab === TABS.MODULES) {
-        await rbacApi.updateModule(editingRow.moduleId, { moduleName: form.moduleName });
-        setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? { ...x, moduleName: form.moduleName } : x));
+        await rbacApi.updateModule(editingRow.moduleId, { 
+          moduleName: form.moduleName, 
+          description: form.description || ""
+        });
+        setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? { 
+          ...x, 
+          moduleName: form.moduleName, 
+          description: form.description 
+        } : x));
       } else if (activeTab === TABS.PERMISSIONS) {
-        await rbacApi.updatePermission(editingRow.permissionId, { permissionName: form.permissionName, description: form.description });
-        setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? { ...x, permissionName: form.permissionName, description: form.description } : x));
+        await rbacApi.updatePermission(editingRow.permissionId, { 
+          permissionName: form.permissionName, 
+          description: form.description || ""
+        });
+        setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? { 
+          ...x, 
+          permissionName: form.permissionName, 
+          description: form.description 
+        } : x));
       } else {
-        const payload = { name: form.name, desc: form.desc, isActive: String(form.isActive).toLowerCase() === "true" };
+        const payload = { 
+          name: form.name, 
+          isActive: form.isActive 
+        };
         await rbacApi.updateRole(editingRow.roleId, payload);
         setData((prev) => prev.map((x) => x.roleId === editingRow.roleId ? { ...x, ...payload } : x));
       }
       setEditOpen(false);
+      showSuccess(
+        `Cập nhật ${entityType} thành công!`,
+        `${entityType} "${entityName}" đã được cập nhật thành công.`
+      );
     } catch (e) {
-      alert(e.message || "Cập nhật thất bại");
+      const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
+      const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+      showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
     } finally {
       setEditSubmitting(false);
     }
@@ -387,7 +454,7 @@ export default function RBACManagement() {
           title="Thêm Role"
           fields={[
             { name: "name", label: "Role Name", required: true },
-            { name: "desc", label: "Description", type: "textarea" },
+            { name: "isSystem", label: "System Role", type: "checkbox" },
           ]}
           onClose={() => setAddRoleOpen(false)}
           onSubmit={handleCreateRole}
@@ -400,6 +467,7 @@ export default function RBACManagement() {
           title="Thêm Module"
           fields={[
             { name: "moduleName", label: "Module Name", required: true },
+            { name: "description", label: "Description", type: "textarea" },
           ]}
           onClose={() => setAddModuleOpen(false)}
           onSubmit={handleCreateModule}
@@ -504,15 +572,20 @@ export default function RBACManagement() {
           </button>
         </div>
       </div>
-      <RBACModal
-        isOpen={editOpen}
-        title={editTitle}
-        fields={editFields}
-        onClose={() => setEditOpen(false)}
-        onSubmit={onSubmitEdit}
-        submitting={editSubmitting}
-      />
-    </div>
-  );
-}
+       <RBACModal
+         isOpen={editOpen}
+         title={editTitle}
+         fields={editFields}
+         onClose={() => setEditOpen(false)}
+         onSubmit={onSubmitEdit}
+         submitting={editSubmitting}
+       />
+       
+       <ToastContainer 
+         toasts={toasts} 
+         onRemove={removeToast} 
+       />
+     </div>
+   );
+ }
 

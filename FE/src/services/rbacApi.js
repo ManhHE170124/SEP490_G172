@@ -24,6 +24,24 @@ export const rbacApi = {
   async deleteRole(roleId) {
     return axiosClient.delete(`${RBAC_ENDPOINTS.ROLES}/${roleId}`);
   },
+
+  // Role Permissions methods
+  async getRolePermissions(roleId) {
+    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`);
+  },
+
+  async updateRolePermissions(roleId, payload) {
+    return axiosClient.put(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`, payload);
+  },
+
+  async createOrUpdateRolePermission(roleId, permissionData) {
+    // For single permission update, we'll use the bulk update endpoint
+    const payload = {
+      roleId: roleId,
+      rolePermissions: [permissionData]
+    };
+    return axiosClient.put(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`, payload);
+  },
   
   async getModules() {
     return axiosClient.get(`${RBAC_ENDPOINTS.MODULES}`);
