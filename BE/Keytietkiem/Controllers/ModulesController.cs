@@ -23,8 +23,8 @@ namespace Keytietkiem.Controllers
     [ApiController]
     public class ModulesController : ControllerBase
     {
-        private readonly KeytietkiemContext _context;
-        public ModulesController(KeytietkiemContext context)
+        private readonly KeytietkiemDbContext _context;
+        public ModulesController(KeytietkiemDbContext context)
         {
             _context = context;
         }
@@ -45,11 +45,11 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Retrieve a module by id.
          * Route: GET /api/modules/{id}
-         * Params: id (Guid) - module identifier
+         * Params: id (long) - module identifier
          * Returns: 200 OK with module, 404 if not found
          */
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetModuleById(Guid id)
+        public async Task<IActionResult> GetModuleById(long id)
         {
             var module = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
@@ -89,11 +89,11 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Update an existing module by id.
          * Route: PUT /api/modules/{id}
-         * Params: id (Guid)
+         * Params: id (long)
          * Body: Module updatedModule
          * Returns: 204 No Content, 400/404 on errors
          */
-        public async Task<IActionResult> UpdateModule(Guid id, [FromBody] Module updatedModule)
+        public async Task<IActionResult> UpdateModule(long id, [FromBody] Module updatedModule)
         {
             if (updatedModule == null || id != updatedModule.ModuleId)
             {
@@ -116,10 +116,10 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Delete a module by id and cascade remove related role-permissions.
          * Route: DELETE /api/modules/{id}
-         * Params: id (Guid)
+         * Params: id (long)
          * Returns: 204 No Content, 404 if not found
          */
-        public async Task<IActionResult> DeleteModule(Guid id)
+        public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);

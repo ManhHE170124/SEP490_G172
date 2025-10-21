@@ -23,8 +23,8 @@ namespace Keytietkiem.Controllers
     [ApiController]
     public class PermissionsController : ControllerBase
     {
-        private readonly KeytietkiemContext _context;
-        public PermissionsController(KeytietkiemContext context)
+        private readonly KeytietkiemDbContext _context;
+        public PermissionsController(KeytietkiemDbContext context)
         {
             _context = context;
         }
@@ -48,10 +48,10 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Retrieve a permission by id.
          * Route: GET /api/permissions/{id}
-         * Params: id (Guid) - permission identifier
+         * Params: id (long) - permission identifier
          * Returns: 200 OK with permission, 404 if not found
          */
-        public async Task<IActionResult> GetPermissionById(Guid id)
+        public async Task<IActionResult> GetPermissionById(long id)
         {
             var permission = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionId == id);
@@ -93,11 +93,11 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Update an existing permission by id.
          * Route: PUT /api/permissions/{id}
-         * Params: id (Guid)
+         * Params: id (long)
          * Body: Permission updatedPermission
          * Returns: 204 No Content, 400/404 on errors
          */
-        public async Task<IActionResult> UpdatePermission(Guid id, [FromBody] Permission updatedPermission)
+        public async Task<IActionResult> UpdatePermission(long id, [FromBody] Permission updatedPermission)
         {
             if (updatedPermission == null || id != updatedPermission.PermissionId)
             {
@@ -122,10 +122,10 @@ namespace Keytietkiem.Controllers
         /**
         * Summary: Delete a permission by id and cascade remove related role-permissions.
         * Route: DELETE /api/permissions/{id}
-        * Params: id (Guid)
+        * Params: id (long)
         * Returns: 204 No Content, 404 if not found
         */
-        public async Task<IActionResult> DeletePermission(Guid id)
+        public async Task<IActionResult> DeletePermission(long id)
         {
             var existingPermission = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionId == id);

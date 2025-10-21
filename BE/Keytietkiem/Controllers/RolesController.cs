@@ -25,8 +25,8 @@ namespace Keytietkiem.Controllers
     [ApiController]
     public class RolesController : ControllerBase
     {
-        private readonly KeytietkiemContext _context;
-        public RolesController(KeytietkiemContext context)
+        private readonly KeytietkiemDbContext _context;
+        public RolesController(KeytietkiemDbContext context)
         {
             _context = context;
         }
@@ -49,10 +49,10 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Retrieve a role by id including role-permissions.
          * Route: GET /api/roles/{id}
-         * Params: id (long) - role identifier
+         * Params: id (string) - role identifier
          * Returns: 200 OK with role, 404 if not found
          */
-        public async Task<IActionResult> GetRoleById(long id)
+        public async Task<IActionResult> GetRoleById(string id)
         {
             var role = await _context.Roles
                 .Include(r => r.RolePermissions)
@@ -108,8 +108,7 @@ namespace Keytietkiem.Controllers
                         RoleId = newRole.RoleId,
                         ModuleId = module.ModuleId,
                         PermissionId = permission.PermissionId,
-                        IsActive = true,
-                        EffectiveFrom = DateTime.Now
+                        IsActive = true
                     });
                 }
             }
@@ -124,11 +123,11 @@ namespace Keytietkiem.Controllers
         /**
         * Summary: Update an existing role by id.
         * Route: PUT /api/roles/{id}
-        * Params: id (long)
+        * Params: id (string)
         * Body: Role updatedRole
         * Returns: 204 No Content, 400/404 on errors
         */
-        public async Task<IActionResult> UpdateRole(long id, [FromBody] Role updatedRole)
+        public async Task<IActionResult> UpdateRole(string id, [FromBody] Role updatedRole)
         {
             if (updatedRole == null || id != updatedRole.RoleId)
             {
@@ -140,7 +139,6 @@ namespace Keytietkiem.Controllers
                 return NotFound();
             }
             existingRole.Name = updatedRole.Name;
-            existingRole.Desc = updatedRole.Desc;
             existingRole.IsActive = updatedRole.IsActive;
             existingRole.UpdatedAt = DateTime.UtcNow;
             _context.Roles.Update(existingRole);
@@ -152,10 +150,10 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Delete a role by id and cascade remove related role-permissions.
          * Route: DELETE /api/roles/{id}
-         * Params: id (long)
+         * Params: id (string)
          * Returns: 204 No Content, 404 if not found
          */
-        public async Task<IActionResult> DeleteRoleById(long id)
+        public async Task<IActionResult> DeleteRoleById(string id)
         {
             var existingRole = await _context.Roles.FindAsync(id);
             if (existingRole == null)
