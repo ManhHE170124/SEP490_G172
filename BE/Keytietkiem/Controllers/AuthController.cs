@@ -1,4 +1,5 @@
 ﻿using Keytietkiem.Models;
+using KeytietkiemApi.Dtos.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -21,14 +22,19 @@ namespace KeytietkiemApi.Controllers
             _context = context;
             _config = config;
         }
-
-        private string GenerateJwtToken(Account acc, string role)
+        //  Generate JWT Token
+        private string GenerateJwtToken(Account acc, string role, out DateTime expiresAt)
         {
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "super_secret_key_123456789012345678901234567890")
-            );
+            var keyString = _config["Jwt:Key"] ?? "super_secret_key_123456789012345678901234567890";
+            var keyBytes = Encoding.UTF8.GetBytes(keyString);
 
+            if (keyBytes.Length < 32)
+                throw new ArgumentOutOfRangeException(nameof(keyBytes), "JWT key phải dài tối thiểu 32 bytes (256 bit).");
+
+            var key = new SymmetricSecurityKey(keyBytes);
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            expiresAt = DateTime.UtcNow.AddDays(7);
 
             var claims = new[]
             {
@@ -38,15 +44,17 @@ namespace KeytietkiemApi.Controllers
             };
 
             var token = new JwtSecurityToken(
+                issuer: "KeytietkiemApi",
+                audience: "KeytietkiemClient",
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(7),
+                expires: expiresAt,
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // Đăng ký
+        //  Đăng ký
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest req)
         {
@@ -82,15 +90,17 @@ namespace KeytietkiemApi.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // Role mặc định: "User"
-            var token = GenerateJwtToken(acc, "User");
+            var token = GenerateJwtToken(acc, "User", out var expiresAt);
 
-            return Ok(new
+            var response = new RegisterResponse
             {
-                token,
-                email = acc.Email,
-                role = "User"
-            });
+                Token = token,
+                Email = acc.Email,
+                Role = "User",
+                CreatedAt = acc.CreatedAt
+            };
+
+            return Ok(response);
         }
 
         //  Đăng nhập
@@ -125,46 +135,30 @@ namespace KeytietkiemApi.Controllers
             acc.LastLoginAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            // Tạm gán role = Admin nếu email có chứa “admin” sau bảo mạnh insert thực tế sẽ lấy từ bảng UserRoles
             string roleName = acc.Email.Contains("admin") ? "Admin" : "User";
-            var token = GenerateJwtToken(acc, roleName);
+            var token = GenerateJwtToken(acc, roleName, out var expiresAt);
 
-            return Ok(new
+            var response = new AuthResponse
             {
-                token,
-                email = acc.Email,
-                role = roleName
-            });
+                Token = token,
+                Email = acc.Email,
+                Role = roleName,
+                ExpiresAt = expiresAt
+            };
+
+            return Ok(response);
         }
 
+        //  Quên mật khẩu
         [HttpPost("forgot-password")]
-        public IActionResult ForgotPassword([FromBody] dynamic req)
+        public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest req)
         {
-            string email = req?.email;
-            if (string.IsNullOrEmpty(email))
+            if (string.IsNullOrEmpty(req.Email))
                 return BadRequest(new { message = "Email không hợp lệ." });
+            var acc = _context.Accounts.FirstOrDefault(a => a.Email == req.Email);
+            if (acc == null) return BadRequest(new { message = "Email chưa được đăng ký." });
 
-            // TODO: Thực tế bạn sẽ gửi email có link reset thật.
-            return Ok(new { message = $"Link đặt lại mật khẩu đã được gửi tới {email} (demo)." });
+            return Ok(new { message = $"Link đặt lại mật khẩu đã được gửi tới {req.Email} (demo)." });
         }
-
-
-    }
-
-
-    // Request Models
-    public class RegisterRequest
-    {
-        public string Email { get; set; } = "";
-        public string Password { get; set; } = "";
-        public string? DisplayName { get; set; }
-    }
-
-    public class LoginRequest
-    {
-        public string Email { get; set; } = "";
-        public string Password { get; set; } = "";
     }
 }
-
-
