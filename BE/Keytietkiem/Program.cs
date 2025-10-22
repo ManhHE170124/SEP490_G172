@@ -1,4 +1,4 @@
-using Keytietkiem.Models;
+﻿using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -6,22 +6,32 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<KeytietkiemContext>();
 builder.Services.AddDbContext<KeytietkiemContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "super_secret_key_123";
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? "super_secret_key_123456789012345678901234567890"; 
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.RequireHttpsMetadata = false; //  bật true khi deploy thật có HTTPS
+        options.SaveToken = true; // Lưu token vào HttpContext.User
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = false,
-            ValidateAudience = false,
+            ValidateIssuer = true,
+            ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "KeytietkiemApi",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "KeytietkiemClient",
+
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+
+            ClockSkew = TimeSpan.Zero
         };
     });
+
 // Add services to the container.
 
 builder.Services.AddControllers();

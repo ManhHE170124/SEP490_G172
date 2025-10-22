@@ -44,7 +44,6 @@ public partial class KeytietkiemContext : DbContext
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning
     {
 
     }
