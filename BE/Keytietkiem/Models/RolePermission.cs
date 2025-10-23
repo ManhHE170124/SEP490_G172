@@ -5,15 +5,17 @@ namespace Keytietkiem.Models;
 
 public partial class RolePermission
 {
-    public long RoleId { get; set; }
+    public string RoleId { get; set; } = null!;
 
     public long PermissionId { get; set; }
 
-    public DateTime? EffectiveFrom { get; set; }
+    public long ModuleId { get; set; }
 
-    public DateTime? EffectiveTo { get; set; }
+    public bool IsActive { get; set; }
 
-    public virtual PermissionCatalog Permission { get; set; } = null!;
+    public virtual Module Module { get; set; } = null!;
+
+    public virtual Permission Permission { get; set; } = null!;
 
     public virtual Role Role { get; set; } = null!;
 }
