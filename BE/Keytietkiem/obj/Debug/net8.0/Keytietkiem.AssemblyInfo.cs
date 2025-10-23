@@ -14,7 +14,11 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Keytietkiem")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+<<<<<<< Updated upstream
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1cfa4f0380942687faa767ec3f95f5ec5de27870")]
+=======
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+>>>>>>> Stashed changes
 [assembly: System.Reflection.AssemblyProductAttribute("Keytietkiem")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Keytietkiem")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
