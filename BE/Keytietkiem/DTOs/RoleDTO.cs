@@ -1,24 +1,17 @@
 /**
-  File: RoleDTO.cs
-  Author: HieuNDHE173169
-  Created: 20/10/2025
-  Last Updated: 20/10/2025
-  Version: 1.0.0
-  Purpose: Data Transfer Object for Role operations. Provides a clean interface
-           for API communication without exposing internal entity structure.
-           Supports role creation, updates, and responses.
-  Properties:
-    - RoleId (string)           : Unique role identifier
-    - Name (string)            : Role display name
-    - IsSystem (bool)          : Indicates if this is a system-defined role
-    - IsActive (bool)          : Role activation status
-    - CreatedAt (DateTime)     : Role creation timestamp
-    - UpdatedAt (DateTime?)    : Last update timestamp
-  Usage:
-    - Input DTO for role creation/updates
-    - Output DTO for role responses
-    - Validation and data transfer
-*/
+ * File: RoleDTO.cs
+ * Author: HieuNDHE173169
+ * Created: 20/10/2025
+ * Last Updated: 20/10/2025
+ * Version: 1.0.0
+ * Purpose: Data Transfer Object for Role operations. Provides a clean interface
+ *          for API communication without exposing internal entity structure.
+ *          Supports role creation, updates, and responses.
+ * Usage:
+ *   - Input DTO for role creation/updates
+ *   - Output DTO for role responses
+ *   - Validation and data transfer
+ */
 
 using System;
 

@@ -1,21 +1,21 @@
-﻿/*
-  File: RolesController.cs
-  Author: HieuNDHE173169
-  Created: 17-10-2025
-  Last Updated: 20-10-2025
-  Version: 1.0.0
-  Purpose: Manage roles (CRUD). Initializes role-permissions for all modules &
-           permissions on role creation and maintains referential integrity on
-           updates/deletions.
-  Endpoints:
-    - GET    /api/roles              : List roles
-    - GET    /api/roles/{id}         : Get role by id (includes role-permissions)
-    - GET    /api/roles/{id}/permissions : Get role permissions matrix
-    - POST   /api/roles              : Create role and seed role-permissions
-    - PUT    /api/roles/{id}         : Update role
-    - PUT    /api/roles/{id}/permissions : Bulk update role permissions
-    - DELETE /api/roles/{id}         : Delete role and its role-permissions
-*/
+﻿/**
+ * File: RolesController.cs
+ * Author: HieuNDHE173169
+ * Created: 17-10-2025
+ * Last Updated: 20-10-2025
+ * Version: 1.0.0
+ * Purpose: Manage roles (CRUD). Initializes role-permissions for all modules &
+ *          permissions on role creation and maintains referential integrity on
+ *          updates/deletions.
+ * Endpoints:
+ *   - GET    /api/roles              : List roles
+ *   - GET    /api/roles/{id}         : Get role by id (includes role-permissions)
+ *   - GET    /api/roles/{id}/permissions : Get role permissions matrix
+ *   - POST   /api/roles              : Create role and seed role-permissions
+ *   - PUT    /api/roles/{id}         : Update role
+ *   - PUT    /api/roles/{id}/permissions : Bulk update role permissions
+ *   - DELETE /api/roles/{id}         : Delete role and its role-permissions
+ */
 
 using Keytietkiem.Models;
 using Keytietkiem.DTOs;
@@ -208,6 +208,30 @@ namespace Keytietkiem.Controllers
             _context.Roles.Remove(existingRole);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        [HttpGet("active")]
+        /**
+         * Summary: Retrieve all active roles.
+         * Route: GET /api/roles/active
+         * Params: none
+         * Returns: 200 OK with list of active roles
+         */
+        public async Task<IActionResult> GetActiveRoles()
+        {
+            var activeRoles = await _context.Roles
+                .Where(r => r.IsActive == true)
+                .Select(r => new RoleDTO
+                {
+                    RoleId = r.RoleId,
+                    Name = r.Name,
+                    IsSystem = r.IsSystem,
+                    IsActive = r.IsActive,
+                    CreatedAt = r.CreatedAt,
+                    UpdatedAt = r.UpdatedAt
+                })
+                .ToListAsync();
+            return Ok(activeRoles);
         }
 
         [HttpGet("{id}/permissions")]

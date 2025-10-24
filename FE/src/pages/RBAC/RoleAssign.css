@@ -1,4 +1,25 @@
-/* RoleAssign Component Styles */
+/**
+ * @author HieuNDHE173169
+ * @created 20/10/2025
+ * @last_updated 24/10/2025
+ * @version 1.0.0
+ * Role Assignment Component Styles
+ * 
+ * This stylesheet provides styling for the Role Assignment component,
+ * featuring a two-panel layout with roles list and permission matrix.
+ * 
+ * Key features:
+ * - Two-panel responsive layout (roles sidebar + permissions matrix)
+ * - Interactive permission checkboxes with visual feedback
+ * - Modern button styling with hover effects
+ * - Responsive table design for permission matrix
+ * - Modal dialogs for creating new entities
+ * - Custom scrollbar styling
+ * 
+ *
+ */
+ 
+ /* RoleAssign Component Styles */
 :root {
   --primary: #007bff;
   --primary-hover: #0056b3;
@@ -447,6 +468,41 @@
 .btn-modal-primary:hover {
   background-color: #0056b3;
   border-color: #0056b3;
+}
+
+/* Loading and Empty States */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e9ecef;
+  border-top: 3px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #6c757d;
+  font-size: 0.9rem;
 }
 
 /* Responsive Design */

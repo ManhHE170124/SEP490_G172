@@ -42,7 +42,7 @@ export default function RoleAssign() {
     try {
       setLoading(true);
       const [rolesData, modulesData, permissionsData] = await Promise.all([
-        rbacApi.getRoles(),
+        rbacApi.GetActiveRoles(),
         rbacApi.getModules(),
         rbacApi.getPermissions()
       ]);
@@ -158,24 +158,28 @@ export default function RoleAssign() {
     }
   };
   
-  // Handle permission toggle (local state only)
-  const handlePermissionToggle = (moduleId, permissionId) => {
+  /**
+   * Handle permission toggle in the matrix
+   * This only updates local state - changes are not persisted until save
+   */ 
+   const handlePermissionToggle = (moduleId, permissionId) => {
     if (!selectedRole) return;
     
     setRolePermissions(prev => {
+      // Find existing permission for this module-permission combination
       const existing = prev.find(rp => 
         rp.moduleId === moduleId && rp.permissionId === permissionId
       );
       
       if (existing) {
-        // Toggle existing permission
+        // Toggle existing permission - flip the isActive status
         return prev.map(rp => 
           rp.moduleId === moduleId && rp.permissionId === permissionId
             ? { ...rp, isActive: !rp.isActive }
             : rp
         );
       } else {
-        // Add new permission
+        // Add new permission - create new role permission entry
         return [...prev, {
           roleId: selectedRole.roleId,
           moduleId,
@@ -185,7 +189,7 @@ export default function RoleAssign() {
       }
     });
     
-    // Mark as having unsaved changes
+    // Mark as having unsaved changes - this triggers save button activation
     setHasUnsavedChanges(true);
   };
   
@@ -197,8 +201,11 @@ export default function RoleAssign() {
     return rolePermission ? rolePermission.isActive : false;
   };
   
-  // Handle save changes
-  const handleSaveChanges = async () => {
+  /**
+   * Handle saving all permission changes to the server
+   * Creates a complete matrix of all module-permission combinations
+   */
+    const handleSaveChanges = async () => {
     if (!selectedRole) {
       showWarning("Chưa chọn Role", "Vui lòng chọn một role để lưu thay đổi");
       return;
@@ -207,14 +214,16 @@ export default function RoleAssign() {
     try {
       setSubmitting(true);
       
-      // Prepare all role permissions for the current role
+      // Prepare complete role permissions matrix - every module x permission combination
       const allRolePermissions = [];
       for (const module of modules) {
-        for (const permission of permissions) {
+        for (const permission of permissions) {          
+          // Check if this combination exists in current state
           const existing = rolePermissions.find(rp => 
             rp.moduleId === module.moduleId && rp.permissionId === permission.permissionId
-          );
-          
+          );    
+
+          // Add to matrix - use existing state or default to false
           allRolePermissions.push({
             roleId: selectedRole.roleId,
             moduleId: module.moduleId,
@@ -223,13 +232,14 @@ export default function RoleAssign() {
           });
         }
       }
-      
+
+      // Send complete matrix to server
       await rbacApi.updateRolePermissions(selectedRole.roleId, {
         roleId: selectedRole.roleId,
         rolePermissions: allRolePermissions
       });
       
-      // Reload role permissions to get updated data
+      // Reload from server to get authoritative state
       await loadRolePermissions(selectedRole.roleId);
       
       // Clear unsaved changes flag
@@ -321,16 +331,27 @@ export default function RoleAssign() {
         
         {/* Role List */}
         <div className="role-list">
-          {roles.map((role) => (
-            <button
-              key={role.roleId}
-              className={`role-item ${selectedRole?.roleId === role.roleId ? 'selected' : ''}`}
-              onClick={() => handleRoleSelect(role)}
-              type="button"
-            >
-              {role.name}
-            </button>
-          ))}
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-spinner" />
+              <div>Đang tải dữ liệu...</div>
+            </div>
+          ) : roles.length === 0 ? (
+            <div className="empty-state">
+              <div>Không có dữ liệu</div>
+            </div>
+          ) : (
+            roles.map((role) => (
+              <button
+                key={role.roleId}
+                className={`role-item ${selectedRole?.roleId === role.roleId ? 'selected' : ''}`}
+                onClick={() => handleRoleSelect(role)}
+                type="button"
+              >
+                {role.name}
+              </button>
+            ))
+          )}
         </div>
       </div>
       
@@ -466,7 +487,7 @@ export default function RoleAssign() {
         onSubmit={handleCreatePermission}
         submitting={submitting}
       />
-      
+      {/* Toast */}
       <ToastContainer 
         toasts={toasts} 
         onRemove={removeToast} 

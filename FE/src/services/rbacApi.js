@@ -42,6 +42,14 @@ export const rbacApi = {
     };
     return axiosClient.put(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`, payload);
   },
+
+  async GetActiveRoles() {
+    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/active`);
+  },
+  
+   async getRoles() {
+    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}`);
+  },
   
   async getModules() {
     return axiosClient.get(`${RBAC_ENDPOINTS.MODULES}`);
@@ -70,6 +78,8 @@ export const rbacApi = {
   async deletePermission(permissionId) {
     return axiosClient.delete(`${RBAC_ENDPOINTS.PERMISSIONS}/${permissionId}`);
   },
+
+  
 };
 
 export default rbacApi;

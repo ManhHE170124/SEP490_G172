@@ -1,18 +1,18 @@
-﻿/*
-  File: PermissionsController.cs
-  Author: HieuNDHE173169
-  Created: 17/10/2025
-  Last Updated: 20/10/2025
-  Version: 1.0.0
-  Purpose: Manage permissions (CRUD). Ensures unique permission names and
-           cascades deletion to related role-permissions.
-  Endpoints:
-    - GET    /api/permissions              : List permissions
-    - GET    /api/permissions/{id}         : Get permission by id
-    - POST   /api/permissions              : Create permission
-    - PUT    /api/permissions/{id}         : Update permission
-    - DELETE /api/permissions/{id}         : Delete permission and role-permissions
-*/
+﻿/**
+ * File: PermissionsController.cs
+ * Author: HieuNDHE173169
+ * Created: 17/10/2025
+ * Last Updated: 20/10/2025
+ * Version: 1.0.0
+ * Purpose: Manage permissions (CRUD). Ensures unique permission names and
+ *          cascades deletion to related role-permissions.
+ * Endpoints:
+ *   - GET    /api/permissions              : List permissions
+ *   - GET    /api/permissions/{id}         : Get permission by id
+ *   - POST   /api/permissions              : Create permission
+ *   - PUT    /api/permissions/{id}         : Update permission
+ *   - DELETE /api/permissions/{id}         : Delete permission and role-permissions
+ */
 using Keytietkiem.Models;
 using Keytietkiem.DTOs;
 using Microsoft.AspNetCore.Mvc;

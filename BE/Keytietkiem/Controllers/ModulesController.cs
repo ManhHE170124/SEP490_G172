@@ -1,18 +1,18 @@
 ﻿/**
-  File: ModulesController.cs
-  Author: HieuNDHE173169
-  Created: 16/10/2025
-  Last Updated: 20/10/2025
-  Version: 1.0.0
-  Purpose: Manage application modules (CRUD). Also cascades delete to related
-           role-permissions to maintain integrity.
-  Endpoints:
-    - GET    /api/modules              : List modules
-    - GET    /api/modules/{id}         : Get a module by id
-    - POST   /api/modules              : Create a module
-    - PUT    /api/modules/{id}         : Update a module
-    - DELETE /api/modules/{id}         : Delete a module and its role-permissions
-*/
+ * File: ModulesController.cs
+ * Author: HieuNDHE173169
+ * Created: 16/10/2025
+ * Last Updated: 20/10/2025
+ * Version: 1.0.0
+ * Purpose: Manage application modules (CRUD). Also cascades delete to related
+ *          role-permissions to maintain integrity.
+ * Endpoints:
+ *   - GET    /api/modules              : List modules
+ *   - GET    /api/modules/{id}         : Get a module by id
+ *   - POST   /api/modules              : Create a module
+ *   - PUT    /api/modules/{id}         : Update a module
+ *   - DELETE /api/modules/{id}         : Delete a module and its role-permissions
+ */
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
