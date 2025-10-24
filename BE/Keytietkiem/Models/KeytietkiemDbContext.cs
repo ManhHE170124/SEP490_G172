@@ -55,15 +55,6 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<WarrantyClaim> WarrantyClaims { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        if (!optionsBuilder.IsConfigured)
-        {
-            var ConnectionString = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetConnectionString("MyCnn");
-            optionsBuilder.UseSqlServer(ConnectionString);
-        }
-
-    }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>(entity =>
