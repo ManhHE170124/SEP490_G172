@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Keytietkiem.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace KeytietkiemApi.Controllers
 {
@@ -8,26 +10,26 @@ namespace KeytietkiemApi.Controllers
     [Authorize(Roles = "Admin")]
     public class AdminController : ControllerBase
     {
-        // GET: api/admin/dashboard
+        private readonly KeytietkiemDbContext _context;
+        public AdminController(KeytietkiemDbContext context) => _context = context;
+
         [HttpGet("dashboard")]
-        public IActionResult Dashboard()
+        public async Task<IActionResult> Dashboard()
         {
+            var users = await _context.Users.CountAsync();
+            var accounts = await _context.Accounts.CountAsync();
+            var admins = await _context.Users
+    .CountAsync(u => u.Roles.Any(r => r.RoleId == "Admin"));
+
+
             return Ok(new
             {
                 message = "Chào mừng bạn đến trang quản trị!",
+                stats = new { users, accounts, admins },
                 time = DateTime.UtcNow
             });
         }
 
-        // GET: api/admin/users
-        [HttpGet("users")]
-        public IActionResult GetAllUsers()
-        {
-            return Ok(new
-            {
-                message = "Đây là danh sách người dùng chỉ Admin được thấy.",
-                sample = new[] { "user1@gmail.com", "user2@gmail.com" }
-            });
-        }
+
     }
 }

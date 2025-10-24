@@ -6,10 +6,10 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<KeytietkiemContext>(options =>
+builder.Services.AddDbContext<KeytietkiemDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
 var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? "super_secret_key_123456789012345678901234567890"; 
+    ?? "super_secret_key_123456789012345678901234567890";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

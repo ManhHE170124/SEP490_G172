@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # === Visual Studio / .NET ===
 .vs/
 .vscode/
@@ -32,3 +33,40 @@ Desktop.ini
 
 # === IDE ===
 .idea/
+=======
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# .NET build
+**/bin/
+**/obj/
+**/TestResults/
+
+# VS Code (giữ file chia sẻ nếu muốn)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# Logs
+*.log
+
+# React/Node
+**/node_modules/
+**/dist/
+**/build/
+**/.cache/
+
+# Env
+*.env
+*.env.*
+!.env.example
+
+# EF/Secrets (tùy team)
+**/appsettings.*.local.json
+**/secrets.json
+>>>>>>> 9265b5599504016ed4fc45418a41bd6206fa4cf4

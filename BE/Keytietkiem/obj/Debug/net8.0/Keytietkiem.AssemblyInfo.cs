@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Keytietkiem")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3b3abe934bd936314a5ec3f8c6c8dec1869bf96a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e1d1433fa2989b089ff98bb3bc0a4a12e6c0e97e")]
 [assembly: System.Reflection.AssemblyProductAttribute("Keytietkiem")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Keytietkiem")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

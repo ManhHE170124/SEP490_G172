@@ -24,12 +24,4 @@ public partial class AuditLog
     public string? UserAgent { get; set; }
 
     public string? DetailJson { get; set; }
-
-    public Guid? CorrelationId { get; set; }
-
-    public byte[]? PrevHash { get; set; }
-
-    public byte[]? ThisHash { get; set; }
-
-    public bool IntegrityAlert { get; set; }
 }

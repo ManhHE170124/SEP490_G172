@@ -329,7 +329,6 @@ D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.build.json
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.build.json.cache
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.development.json
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.build.endpoints.json
-D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\Keytietk.74C910B8.Up2Date
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.dll
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\refint\Keytietkiem.dll
@@ -337,3 +336,4 @@ D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.pdb
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.genruntimeconfig.cache
 D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\ref\Keytietkiem.dll
 D:\SEP_FALL25\BE\Keytietkiem\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+D:\SEP_FALL25\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
