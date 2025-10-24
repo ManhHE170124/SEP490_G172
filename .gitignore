@@ -1,23 +1,35 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# .NET build
+**/bin/
+**/obj/
+**/TestResults/
 
-# testing
-/coverage
+# VS Code (giữ file chia sẻ nếu muốn)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 
-# production
-/build
+# Logs
+*.log
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# React/Node
+**/node_modules/
+**/dist/
+**/build/
+**/.cache/
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Env
+*.env
+*.env.*
+!.env.example
+
+# EF/Secrets (tùy team)
+**/appsettings.*.local.json
+**/secrets.json
