@@ -1,24 +1,58 @@
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ===== DI =====
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
+    opt.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+
+builder.Services.AddSingleton<IClock, SystemClock>();
+
+builder.Services.AddControllers()
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+
+const string FrontendCors = "Frontend";
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+                 ?? new[] { "http://localhost:5173" };
+builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
+    p.WithOrigins(corsOrigins)
+     .AllowAnyHeader()
+     .AllowAnyMethod()
+     .AllowCredentials()
+));
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ===== Middleware pipeline =====
 if (app.Environment.IsDevelopment())
 {
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+else
+{
+    // vẫn có thể bật Swagger ngoài prod nếu muốn
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
+app.UseCors(FrontendCors);
 
 app.MapControllers();
 
