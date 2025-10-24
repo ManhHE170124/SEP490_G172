@@ -76,3 +76,10 @@ v2: i18n, FAQ chatbot, advanced analytics, UX/performance improvements, internat
 📄 License
 
 MIT (or the license you choose for this repository).
+Project Tracking
+Ver 1.1: Up base project (BE,FE).
+Ver 1.2(25/10/2025):
+Merge branch HieuND (RBAC) to Develop(branch test before merge to main)
+Merge branch ThanBD (User Management) to Develop(branch test before merge to main)
+
+ 
