@@ -8,7 +8,7 @@ const RBAC_ENDPOINTS = {
 
 export const rbacApi = {
   async getRoles() {
-    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}`);
+    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/list`);
   },
 
   async getRoleById(roleId) {

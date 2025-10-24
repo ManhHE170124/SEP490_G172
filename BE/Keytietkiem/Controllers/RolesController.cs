@@ -33,7 +33,22 @@ namespace Keytietkiem.Controllers
         {
             _context = context;
         }
+
+        /// <summary>
+        /// Get a list of roles excluding any role whose name contains "admin" (case-insensitive).
+        /// </summary>
         [HttpGet]
+        public async Task<IActionResult> Get()
+        {
+            var roles = await _context.Roles
+                .AsNoTracking()
+                .Where(r => !EF.Functions.Like(r.Name.ToLower(), "%admin%"))
+                .Select(r => new { r.RoleId, r.Name })
+                .ToListAsync();
+
+            return Ok(roles);
+        }
+        [HttpGet("list")]
         /**
          * Summary: Retrieve all roles.
          * Route: GET /api/roles
@@ -367,6 +382,7 @@ namespace Keytietkiem.Controllers
                 return StatusCode(500, new { message = "An error occurred while updating role permissions.", error = ex.Message });
             }
         }
+
 
     }
 }
