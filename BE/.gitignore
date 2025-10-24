@@ -1,39 +1,3 @@
-<<<<<<< HEAD
-# === Visual Studio / .NET ===
-.vs/
-.vscode/
-*.user
-*.suo
-bin/
-obj/
-Debug/
-Release/
-*.dll
-*.pdb
-*.exe
-*.log
-*.tmp
-*.cache
-*.dbmdl
-*.Publish.xml
-
-# === Node / React ===
-node_modules/
-dist/
-build/
-.env
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# === System files ===
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# === IDE ===
-.idea/
-=======
 # Visual Studio
 .vs/
 *.suo
@@ -69,4 +33,3 @@ Desktop.ini
 # EF/Secrets (tùy team)
 **/appsettings.*.local.json
 **/secrets.json
->>>>>>> 9265b5599504016ed4fc45418a41bd6206fa4cf4
