@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
+// Clock (để test dễ mock thời gian)
 builder.Services.AddSingleton<IClock, SystemClock>();
 
 builder.Services.AddControllers()
@@ -19,7 +20,6 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
-
 
 const string FrontendCors = "Frontend";
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
