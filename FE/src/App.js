@@ -4,15 +4,21 @@
  * Notes: Routes the User Management page at /admin/users.
  */
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import AdminUserManagement from "./pages/admin-user-management";
+import Sidebar from "./layout/Sidebar.jsx";
+import Header from "./layout/Header.jsx";
+import AppRoutes from "./routes/AppRoutes";
+import "./App.css";
 
-function App() {
+const App = () => {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/admin/users" replace />} />
-      <Route path="/admin/users" element={<AdminUserManagement />} />
-    </Routes>
+    <div className="app">
+      <Sidebar />
+      <div className="content">
+        <Header />
+        <AppRoutes />
+      </div>
+    </div>
   );
-}
+};
+
 export default App;
