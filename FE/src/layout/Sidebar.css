@@ -1,5 +1,5 @@
 /* Sidebar Styles */
-.sidebar {
+.sb-sidebar {
   width: 280px;
   background: var(--card);
   border-right: 1px solid var(--line);
@@ -11,7 +11,7 @@
   z-index: 1000;
 }
 
-.logo {
+.sb-logo {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -19,7 +19,7 @@
   border-bottom: 1px solid var(--line);
 }
 
-.logo i {
+.sb-logo i {
   width: 40px;
   height: 40px;
   background: var(--primary);
@@ -33,17 +33,17 @@
   font-size: 1.2rem;
 }
 
-.logo span {
+.sb-logo span {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--ink);
 }
 
-.nav {
+.sb-nav {
   padding: 1.5rem 0;
 }
 
-.section-title {
+.sb-section-title {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
@@ -53,11 +53,11 @@
   margin-top: 1.5rem;
 }
 
-.section-title:first-child {
+.sb-section-title:first-child {
   margin-top: 0;
 }
 
-.item {
+.sb-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -71,17 +71,17 @@
   cursor: pointer;
 }
 
-.item:hover {
+.sb-item:hover {
   background: var(--page);
   color: var(--primary);
 }
 
-.item.active {
+.sb-item.active {
   background: var(--primary);
   color: white;
 }
 
-.item.active::before {
+.sb-item.active::before {
   content: '';
   position: absolute;
   left: 0;
@@ -91,46 +91,46 @@
   background: var(--primary);
 }
 
-.item svg {
+.sb-item svg {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
 }
 
-.label {
+.sb-label {
   font-size: 0.9rem;
   font-weight: 500;
 }
 
-.menu-group {
+.sb-menu-group {
   margin-bottom: 0.5rem;
 }
 
-.item.has-sub {
+.sb-item.has-sub {
   cursor: pointer;
 }
 
-.chevron {
+.sb-chevron {
   margin-left: auto;
   transition: transform 0.2s ease;
 }
 
-.menu-group.open .chevron {
+.sb-menu-group.open .sb-chevron {
   transform: rotate(180deg);
 }
 
-.submenu {
+.sb-submenu {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease;
   background: var(--page);
 }
 
-.menu-group.open .submenu {
+.sb-menu-group.open .sb-submenu {
   max-height: 300px;
 }
 
-.subitem {
+.sb-subitem {
   padding-left: 3rem;
   font-size: 0.85rem;
   display: flex;
@@ -138,39 +138,39 @@
   gap: 0.75rem;
 }
 
-.subitem svg {
+.sb-subitem svg {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
 }
 
-.subitem:hover {
+.sb-subitem:hover {
   background: rgba(37, 99, 235, 0.1);
 }
 
-.subitem.active {
+.sb-subitem.active {
   background: var(--primary);
   color: white;
 }
 
-.subitem.active svg {
+.sb-subitem.active svg {
   color: white;
 }
 
 /* App layout adjustment */
-.app {
+.sb-app {
   display: flex;
   min-height: 100vh;
 }
 
-.app > div:last-child {
+.sb-app > div:last-child {
   margin-left: 280px;
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.main {
+.sb-main {
   flex: 1;
   padding: 2rem;
   background: var(--page);

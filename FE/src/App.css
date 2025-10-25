@@ -5,14 +5,21 @@
     --line:#e5e7eb;
     --page:#f3f6fa;
     --card:#ffffff;
-    --primary:#2563eb;
     --danger:#ef4444;
     --success:#10b981;
     --warning:#f59e0b;
     --radius:16px;
     --shadow:0 8px 24px rgba(2,6,23,.06);
+    --primary: #007bff;
+    --primary-hover: #0056b3;
+    --secondary: #6c757d;
+    --info: #17a2b8;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --border-color: #dee2e6;
+    --text-color: #212529;
+    --text-muted: #6c757d;
 }
-
 /* Global Styles */
 * {
   margin: 0;
@@ -29,6 +36,36 @@ body {
   background: var(--page);
   color: var(--ink);
   line-height: 1.6;
+}
+
+/* App layout with fixed sidebar */
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.content {
+  margin-left: 280px; /* Account for fixed sidebar width */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Responsive behavior for mobile */
+@media (max-width: 1024px) {
+  .content {
+    margin-left: 0; /* Remove sidebar margin on mobile */
+  }
+  
+  .sb-sidebar {
+    transform: translateX(-100%); /* Hide sidebar on mobile */
+    transition: transform 0.3s ease;
+  }
+  
+  .sb-sidebar.open {
+    transform: translateX(0); /* Show sidebar when open */
+  }
 }
 
 /* Full height for RBAC pages */

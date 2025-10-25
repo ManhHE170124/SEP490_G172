@@ -7,16 +7,16 @@ const Sidebar = () => {
   const currentPage = location.pathname.substring(1) || "home";
 
   return (
-    <aside className="sidebar" aria-label="Điều hướng">
-      <div className="logo" aria-label="Keytietkiem">
+    <aside className="sb-sidebar" aria-label="Điều hướng">
+      <div className="sb-logo" aria-label="Keytietkiem">
         <i>@</i>
         <span>Keytietkiem</span>
       </div>
 
-      <nav className="nav">
-        <div className="section-title">Tổng quan</div>
+      <nav className="sb-nav">
+        <div className="sb-section-title">Tổng quan</div>
         <Link 
-          className={`item ${currentPage === "home" ? "active" : ""}`}
+          className={`sb-item ${currentPage === "home" ? "active" : ""}`}
           to="/home"
         >
           <svg viewBox="0 0 24 24">
@@ -25,13 +25,13 @@ const Sidebar = () => {
               fill="#111827"
             />
           </svg>
-          <span className="label">Dashboard</span>
+          <span className="sb-label">Dashboard</span>
         </Link>
 
-        <div className="section-title">RBAC</div>
+        <div className="sb-section-title">RBAC</div>
         
         <Link 
-          className={`item ${currentPage === "rbac" ? "active" : ""}`}
+          className={`sb-item ${currentPage === "rbac" ? "active" : ""}`}
           to="/rbac"
         >
           <svg viewBox="0 0 24 24" fill="none">
@@ -51,11 +51,11 @@ const Sidebar = () => {
               strokeLinejoin="round"
             />
           </svg>
-          <span className="label">Quản lý RBAC</span>
+          <span className="sb-label">Quản lý RBAC</span>
         </Link>
         
         <Link 
-          className={`item ${currentPage === "roleassign" ? "active" : ""}`}
+          className={`sb-item ${currentPage === "roleassign" ? "active" : ""}`}
           to="/roleassign"
         >
           <svg viewBox="0 0 24 24" fill="none">
@@ -75,9 +75,34 @@ const Sidebar = () => {
               strokeLinejoin="round"
             />
           </svg>
-          <span className="label">Phân công vai trò</span>
+          <span className="sb-label">Phân công vai trò</span>
         </Link>
-        
+
+        <div className="sb-section-title">Quản lý người dùng</div>
+
+        <Link 
+          className={`sb-item ${currentPage === "admin-user-management" ? "active" : ""}`}
+          to="/admin-user-management"
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            <path
+              d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" stroke="currentColor" strokeWidth="2"/>
+            <path
+              d="M12 11h4M12 16h4M8 11h.01M8 16h.01"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="sb-label">Quản lý người dùng</span>
+        </Link>
       </nav>
     </aside>
   );
