@@ -6,7 +6,7 @@
 import React from "react";
 import Sidebar from "./layout/Sidebar.jsx";
 import Header from "./layout/Header.jsx";
-import AppRoutes from "./routes/AppRoutes";
+import AppRoutes from "./routes/AppRoutes.jsx";
 import "./App.css";
 
 const App = () => {
@@ -20,4 +20,5 @@ const App = () => {
     </div>
   );
 };
+
 export default App;
