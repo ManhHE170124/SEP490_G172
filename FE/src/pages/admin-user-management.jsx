@@ -7,32 +7,22 @@
  *  - All API errors are shown in a modal dialog (not thrown).
  *  - CRUD via modal (view/edit/add) and toggle active/disabled.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "../styles/admin-user-management.css";
 import { usersApi } from "../api/usersApi";
 import { USER_STATUS, USER_STATUS_OPTIONS } from "../constants/userStatus";
+import ToastContainer from "../components/Toast/ToastContainer";
+import useToast from "../hooks/useToast";
 
 /**
  * Error dialog for unified API error messages.
  * @param {{message:string, onClose:() => void}} props
  */
-function ErrorDialog({ message, onClose }) {
-  return (
-    <div className={`modal ${message ? "open" : ""}`} role="dialog" aria-hidden={!message}>
-      <div className="modal-card" role="document" aria-live="assertive" aria-atomic="true">
-        <div className="modal-head">
-          <strong>Thông báo lỗi</strong>
-          <button className="btn" onClick={onClose} aria-label="Đóng">✖</button>
-        </div>
-        <div className="modal-body">
-          <div style={{ lineHeight: 1.6 }}>{message}</div>
-        </div>
-        <div className="modal-foot">
-          <button className="btn primary" onClick={onClose}>Đã hiểu</button>
-        </div>
-      </div>
-    </div>
-  );
+function ErrorDialog({ message, onClose, showError }) {
+  if (message) {
+    showError("Thông báo lỗi", message);
+  }
+  return null;
 }
 
 const initialFilters = {
@@ -50,6 +40,8 @@ const initialFilters = {
  * @returns {JSX.Element}
  */
 export default function AdminUserManagement() {
+  const { toasts, showSuccess, showError, showWarning, removeToast } = useToast();
+  
   const [uiFilters, setUiFilters] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
 
@@ -99,7 +91,7 @@ export default function AdminUserManagement() {
    * Also filters out any item whose roleName contains "admin".
    * @param {*} take
    */
-  const fetchList = async (take = applied) => {
+  const fetchList = useCallback(async (take = applied) => {
     setLoading(true);
     try {
       const res = await usersApi.list(take);
@@ -114,7 +106,7 @@ export default function AdminUserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [applied]);
 
   useEffect(() => { fetchRoles(); }, []);
 
@@ -122,7 +114,7 @@ export default function AdminUserManagement() {
     fetchList(applied);
   }, [
     applied.page, applied.pageSize, applied.sortBy, applied.sortDir,
-    applied.q, applied.roleId, applied.status
+    applied.q, applied.roleId, applied.status, fetchList
   ]);
 
   /**
@@ -257,55 +249,8 @@ export default function AdminUserManagement() {
 
   return (
     <>
-      <header className="topbar kt-admin">
-        <div className="inner">
-          <div className="brand">
-            <div className="mark">K</div>
-            <div>Keytietkiem <span className="muted">· Admin</span></div>
-          </div>
-          <div className="top-actions">
-            <button className="btn" title="Thông báo">🔔</button>
-            <span className="user-name">Admin Tester</span>
-            <span className="avatar" aria-hidden="true"></span>
-          </div>
-        </div>
-      </header>
-
       <div className="kt-admin wrap">
-        <aside className="sidebar">
-          <div className="side-group">Tổng quan</div>
-          <nav className="nav"><a href="#">🏠 Màn hình chính</a></nav>
-
-          <div className="side-group">Quản lý sản phẩm</div>
-          <nav className="nav"><a href="#">🧩 Sản phẩm & Danh mục</a></nav>
-
-          <div className="side-group">Quản lý kho key</div>
-          <nav className="nav">
-            <a href="#">📦 Quản lý kho Key</a>
-            <a href="#">📊 Theo dõi tình trạng</a>
-            <a href="#">🏷️ Nhà cung cấp & License</a>
-          </nav>
-
-          <div className="side-group">Quản lý nội dung</div>
-          <nav className="nav">
-            <a href="#">📈 Dashboard nội dung</a>
-            <a href="#">📚 Danh sách bài viết</a>
-            <a href="#">✍️ Tạo/Sửa bài viết</a>
-          </nav>
-
-          <div className="side-group">Quản lý người dùng</div>
-          <nav className="nav">
-            <a href="/admin/users" className="active">👥 Người dùng</a>
-          </nav>
-
-          <div className="side-group">Hệ thống & nhật ký</div>
-          <nav className="nav">
-            <a href="#">🔐 Quyền truy cập (RBAC)</a>
-            <a href="#">⚙️ Cấu hình trang web</a>
-            <a href="#">📝 Audit Logs</a>
-          </nav>
-        </aside>
-
+        
         <main className="main">
           <section className="card filters" aria-labelledby="title">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -397,91 +342,174 @@ export default function AdminUserManagement() {
           </section>
         </main>
 
-        <div className={`modal ${open ? "open" : ""}`} role="dialog" aria-hidden={(!open)}>
-          <div className="modal-card" role="document">
-            <div className="modal-head">
-              <strong>
-                {mode === "add" ? "Thêm người dùng" : mode === "edit" ? "Cập nhật người dùng" : "Chi tiết người dùng"}
-              </strong>
-              <button className="btn" onClick={() => setOpen(false)}>✖</button>
-            </div>
-
-            <form onSubmit={submit}>
-              <div className="modal-body">
-                <div className="grid2">
-                  <div className="form-row">
-                    <label>Họ</label>
-                    <div className="control">
-                      <input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} required disabled={mode === "view"} />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label>Tên</label>
-                    <div className="control">
-                      <input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} required disabled={mode === "view"} />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label>Email</label>
-                    <div className="control">
-                      <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required disabled={mode === "view"} />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label>Điện thoại</label>
-                    <div className="control">
-                      <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} disabled={mode === "view"} />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label>Địa chỉ</label>
-                    <div className="control">
-                      <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} disabled={mode === "view"} />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label>Vai trò</label>
-                    <div className="control">
-                      <select value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })} disabled={mode === "view"}>
-                        <option value="">-- Chọn vai trò --</option>
-                        {roles.map(r => <option key={r.roleId} value={r.roleId}>{r.name}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label>Trạng thái</label>
-                    <div className="control">
-                      <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} disabled={mode === "view"}>
-                        {Object.values(USER_STATUS).map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <label>Mật khẩu</label>
-                  <div className="control" style={{ display: "flex", gap: 8 }}>
+        {/* Modal - Redesigned based on RBACModal */}
+        {open && (
+          <div className="modal-overlay active" onClick={() => setOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  {mode === "add" ? "Thêm người dùng" : mode === "edit" ? "Cập nhật người dùng" : "Chi tiết người dùng"}
+                </h3>
+                <button className="modal-close" onClick={() => setOpen(false)}>
+                  ×
+                </button>
+              </div>
+              
+              <form onSubmit={submit} className="modal-body">
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">
+                      Họ <span style={{ color: 'red' }}>*</span>
+                    </label>
                     <input
-                      type={showPw ? "text" : "password"}
-                      placeholder={mode === "add" ? "Nhập mật khẩu" : (form.hasAccount ? "•••••••• (đang có)" : "Chưa có mật khẩu")}
-                      value={mode === "add" ? (form.newPassword || "") : (form.newPassword || form.passwordPlain || "")}
-                      onChange={e => setForm({ ...form, newPassword: e.target.value })}
+                      type="text"
+                      className="form-input"
+                      value={form.firstName}
+                      onChange={e => setForm({ ...form, firstName: e.target.value })}
+                      required
                       disabled={mode === "view"}
+                      placeholder="Nhập họ"
                     />
-                    <button type="button" className="btn" onClick={() => setShowPw(s => !s)} aria-label="Toggle password">👁️</button>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">
+                      Tên <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={form.lastName}
+                      onChange={e => setForm({ ...form, lastName: e.target.value })}
+                      required
+                      disabled={mode === "view"}
+                      placeholder="Nhập tên"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">
+                      Email <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={form.email}
+                      onChange={e => setForm({ ...form, email: e.target.value })}
+                      required
+                      disabled={mode === "view"}
+                      placeholder="Nhập email"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Điện thoại</label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      value={form.phone}
+                      onChange={e => setForm({ ...form, phone: e.target.value })}
+                      disabled={mode === "view"}
+                      placeholder="Nhập số điện thoại"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Địa chỉ</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={form.address}
+                      onChange={e => setForm({ ...form, address: e.target.value })}
+                      disabled={mode === "view"}
+                      placeholder="Nhập địa chỉ"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">
+                      Vai trò <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <select
+                      className="form-input"
+                      value={form.roleId}
+                      onChange={(e) => setForm({ ...form, roleId: e.target.value })}
+                      disabled={mode === "view"}
+                    >
+                      <option value="">-- Chọn vai trò --</option>
+                      {roles.map(r => (
+                        <option key={r.roleId} value={r.roleId}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Trạng thái</label>
+                    <select
+                      className="form-input"
+                      value={form.status}
+                      onChange={(e) => setForm({ ...form, status: e.target.value })}
+                      disabled={mode === "view"}
+                    >
+                      {Object.values(USER_STATUS).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group form-group-full">
+                    <label className="form-label">Mật khẩu</label>
+                    <div className="password-input-group">
+                      <input
+                        type={showPw ? "text" : "password"}
+                        className="form-input"
+                        placeholder={mode === "add" ? "Nhập mật khẩu" : (form.hasAccount ? "•••••••• (đang có)" : "Chưa có mật khẩu")}
+                        value={mode === "add" ? (form.newPassword || "") : (form.newPassword || form.passwordPlain || "")}
+                        onChange={e => setForm({ ...form, newPassword: e.target.value })}
+                        disabled={mode === "view"}
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        onClick={() => setShowPw(s => !s)}
+                        aria-label="Toggle password visibility"
+                      >
+                        {showPw ? "🙈" : "👁️"}
+                      </button>
+                    </div>
                   </div>
                 </div>
+              </form>
+              
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-modal btn-modal-secondary"
+                  onClick={() => setOpen(false)}
+                >
+                  Hủy
+                </button>
+                {mode !== "view" && (
+                  <button
+                    type="submit"
+                    className="btn-modal btn-modal-primary"
+                    onClick={submit}
+                  >
+                    {mode === "add" ? "Thêm" : "Cập nhật"}
+                  </button>
+                )}
               </div>
-
-              <div className="modal-foot">
-                <button type="button" className="btn" onClick={() => setOpen(false)}>Đóng</button>
-                {mode !== "view" && (<button className="btn primary" type="submit">Lưu</button>)}
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
+        )}
 
-        <ErrorDialog message={errorMsg} onClose={() => setErrorMsg("")} />
+        <ErrorDialog message={errorMsg} onClose={() => setErrorMsg("")} showError={showError} />
+        
+        {/* Toast Container */}
+        <ToastContainer 
+          toasts={toasts} 
+          onRemove={removeToast} 
+        />
       </div>
     </>
   );
