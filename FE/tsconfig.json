@@ -1,6 +1,0 @@
-{
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "types": ["vite/client", "react", "react-dom"]
-  }
-}

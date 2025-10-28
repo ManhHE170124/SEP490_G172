@@ -2,45 +2,32 @@
 using System.Text.Json.Serialization;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ===== Connection string =====
+var connStr = builder.Configuration.GetConnectionString("MyCnn");
+
 // ===== DI =====
-
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+    opt.UseSqlServer(connStr));
 
-// Clock (để test dễ mock thời gian)
+// Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
 
+// ===== Controllers + JSON camelCase + Enum string =====
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Nếu bạn dùng DateOnly/TimeOnly, thêm converter custom tại đây
+        // o.JsonSerializerOptions.Converters.Add(new DateOnlyJsonConverter());
     });
 
-const string FrontendCors = "Frontend";
-var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
-                 ?? new[] { "http://localhost:5173" };
-builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
-    p.WithOrigins(corsOrigins)
-     .AllowAnyHeader()
-     .AllowAnyMethod()
-     .AllowCredentials()
-));
-
-// Swagger
-// Controllers: JSON camelCase để khớp FE
-builder.Services.AddControllers().AddJsonOptions(opt =>
-{
-    opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-});
-
-// Chuẩn hóa lỗi validate thành { message: "..." }
+// ===== Uniform ModelState error => { message: "..." } =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -53,30 +40,30 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
-// DbContext
-builder.Services.AddDbContext<KeytietkiemDbContext>(opt =>
-{
-    var conn = builder.Configuration.GetConnectionString("MyCnn");
-    opt.UseSqlServer(conn);
-});
+// ===== CORS (một policy duy nhất) =====
+const string FrontendCors = "Frontend";
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+                 ?? new[] { "http://localhost:5173" };
 
+builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
+    p.WithOrigins(corsOrigins)
+     .AllowAnyHeader()
+     .AllowAnyMethod()
+     .AllowCredentials()
+     .WithExposedHeaders("Content-Disposition") // phục vụ export CSV
+));
+
+// ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS cho React dev server
-builder.Services.AddCors(opt =>
-{
-    opt.AddPolicy("fe", p => p
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .WithOrigins("http://localhost:3000", "https://localhost:3000"));
-});
+// // (Tuỳ chọn) JWT
+// builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+//     .AddJwtBearer(...);
 
 var app = builder.Build();
-app.UseSwagger();
-app.UseSwaggerUI();
 
-// Global exception → { message: "..."}
+// ===== Global exception -> { message: "..." } =====
 app.UseExceptionHandler(exApp =>
 {
     exApp.Run(async context =>
@@ -88,9 +75,19 @@ app.UseExceptionHandler(exApp =>
     });
 });
 
-app.UseHttpsRedirection();
-app.UseCors("fe");
+// ===== Dev tools =====
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// TẮT trong dev nếu chỉ dùng HTTP để tránh redirect gây CORS
+// app.UseHttpsRedirection();
+
+// // (Tuỳ chọn) Auth
+// app.UseAuthentication();
+
+app.UseCors(FrontendCors);
 app.UseAuthorization();
 
 app.MapControllers();
+
 app.Run();
