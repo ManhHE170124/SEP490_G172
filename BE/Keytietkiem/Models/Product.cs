@@ -39,7 +39,13 @@ public partial class Product
 
     public Guid? UpdatedBy { get; set; }
 
+    public string? ThumbnailUrl { get; set; }
+
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+
+    public virtual ICollection<ProductBadge> ProductBadges { get; set; } = new List<ProductBadge>();
+
+    public virtual ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
 
     public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
 

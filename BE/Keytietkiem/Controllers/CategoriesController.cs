@@ -1,8 +1,13 @@
-﻿using Keytietkiem.DTOs;
+﻿using CsvHelper;
+using CsvHelper.Configuration;
+using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Formats.Asn1;
+using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Keytietkiem.Controllers;
@@ -32,34 +37,63 @@ public class CategoriesController : ControllerBase
 
     // GET: api/categories?keyword=&code=&active=true
     [HttpGet]
+    [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryListItemDto>>> Get(
-      [FromQuery] string? keyword, [FromQuery] string? code, [FromQuery] bool? active)
+    [FromQuery] string? keyword,
+    [FromQuery] bool? active,
+    [FromQuery] string? sort = "displayOrder",
+    [FromQuery] string? direction = "asc")
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-
         var q = db.Categories.AsNoTracking();
 
+        // ==== FILTER (1 ô search tất cả) ====
         if (!string.IsNullOrWhiteSpace(keyword))
-            q = q.Where(c => c.CategoryName.Contains(keyword) || c.CategoryCode.Contains(keyword));
-        if (!string.IsNullOrWhiteSpace(code))
-            q = q.Where(c => c.CategoryCode == code);
+        {
+            var kw = keyword.Trim().ToLowerInvariant();
+            q = q.Where(c =>
+                c.CategoryCode.ToLower().Contains(kw) ||
+                c.CategoryName.ToLower().Contains(kw) ||
+                (c.Description != null && c.Description.ToLower().Contains(kw))
+            );
+        }
+
         if (active is not null)
             q = q.Where(c => c.IsActive == active);
 
+        // ==== SORT ====
+        sort = sort?.Trim().ToLowerInvariant();
+        direction = direction?.Trim().ToLowerInvariant();
+
+        q = (sort, direction) switch
+        {
+            ("name", "asc") => q.OrderBy(c => c.CategoryName),
+            ("name", "desc") => q.OrderByDescending(c => c.CategoryName),
+            ("code", "asc") => q.OrderBy(c => c.CategoryCode),
+            ("code", "desc") => q.OrderByDescending(c => c.CategoryCode),
+            ("displayorder", "asc") => q.OrderBy(c => c.DisplayOrder),
+            ("displayorder", "desc") => q.OrderByDescending(c => c.DisplayOrder),
+            ("active", "asc") => q.OrderBy(c => c.IsActive),
+            ("active", "desc") => q.OrderByDescending(c => c.IsActive),
+            _ => q.OrderBy(c => c.DisplayOrder)
+        };
+
+        // ==== RESULT ====
         var items = await q
-            .OrderBy(c => c.DisplayOrder)                
-            .Select(c => new CategoryListItemDto(       
+            .Select(c => new CategoryListItemDto(
                 c.CategoryId,
                 c.CategoryCode,
                 c.CategoryName,
                 c.IsActive,
                 c.DisplayOrder,
-                c.Products.Count()                      
+                c.Products.Count()
             ))
             .ToListAsync();
 
         return Ok(items);
     }
+
+
 
 
     [HttpGet("{id:int}")]
@@ -197,5 +231,72 @@ public class CategoriesController : ControllerBase
 
         var changed = await db.SaveChangesAsync();
         return Ok(new { created, updated, changed });
+    }
+    public record CategoryCsvRow(string CategoryCode, string CategoryName, string Description, bool IsActive, int DisplayOrder);
+    [HttpGet("export.csv")]
+    public async Task<IActionResult> ExportCsv()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var rows = await db.Categories.AsNoTracking()
+            .OrderBy(x => x.DisplayOrder)
+            .Select(x => new CategoryCsvRow(x.CategoryCode, x.CategoryName, x.Description ?? "", x.IsActive, x.DisplayOrder))
+            .ToListAsync();
+
+        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
+        await using var ms = new MemoryStream();
+        await using (var writer = new StreamWriter(ms, new UTF8Encoding(true)))
+        await using (var csv = new CsvWriter(writer, cfg))
+        {
+            csv.WriteRecords(rows);
+            await writer.FlushAsync();
+        }
+        return File(ms.ToArray(), "text/csv", "categories.csv");
+    }
+
+    [HttpPost("import.csv")]
+    public async Task<IActionResult> ImportCsv(IFormFile file)
+    {
+        if (file == null || file.Length == 0) return BadRequest(new { message = "CSV file is required" });
+
+        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true, MissingFieldFound = null, BadDataFound = null };
+        using var stream = file.OpenReadStream();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        using var csv = new CsvReader(reader, cfg);
+
+        var rows = csv.GetRecords<CategoryCsvRow>().ToList();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        int created = 0, updated = 0;
+        foreach (var r in rows)
+        {
+            var code = NormalizeSlug(r.CategoryCode);
+            if (string.IsNullOrWhiteSpace(code)) continue;
+
+            var e = await db.Categories.FirstOrDefaultAsync(x => x.CategoryCode == code);
+            if (e == null)
+            {
+                db.Categories.Add(new Category
+                {
+                    CategoryCode = code,
+                    CategoryName = r.CategoryName.Trim(),
+                    Description = r.Description,
+                    IsActive = r.IsActive,
+                    DisplayOrder = r.DisplayOrder,
+                    CreatedAt = _clock.UtcNow
+                });
+                created++;
+            }
+            else
+            {
+                e.CategoryName = r.CategoryName.Trim();
+                e.Description = r.Description;
+                e.IsActive = r.IsActive;
+                e.DisplayOrder = r.DisplayOrder;
+                e.UpdatedAt = _clock.UtcNow;
+                updated++;
+            }
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { created, updated, total = rows.Count });
     }
 }
