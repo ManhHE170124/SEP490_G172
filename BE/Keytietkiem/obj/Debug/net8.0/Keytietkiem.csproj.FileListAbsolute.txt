@@ -495,10 +495,10 @@ C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\ob
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.development.json
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.build.endpoints.json
-C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\Keytietk.74C910B8.Up2Date
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.dll
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\refint\Keytietkiem.dll
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.pdb
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\Keytietkiem.genruntimeconfig.cache
 C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\obj\Debug\net8.0\ref\Keytietkiem.dll
+C:\Users\DELL\source\repos\SEP490_G172_Keytietkiem\SEP490_G172\BE\Keytietkiem\bin\Debug\net8.0\Keytietkiem.staticwebassets.runtime.json

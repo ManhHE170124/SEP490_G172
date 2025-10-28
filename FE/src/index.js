@@ -3,6 +3,7 @@
  * Purpose: React bootstrapper for Keytietkiem admin app.
  */
 import React from "react";
+import ReactDOM from 'react-dom/client';
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
