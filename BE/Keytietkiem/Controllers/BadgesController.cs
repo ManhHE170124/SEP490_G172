@@ -18,17 +18,65 @@ public class BadgesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<BadgeListItemDto>>> List([FromQuery] bool? active)
+    public async Task<ActionResult<IEnumerable<BadgeListItemDto>>> List(
+    [FromQuery] string? keyword,
+    [FromQuery] bool? active,
+    [FromQuery] string? sort = "displayName",
+    [FromQuery] string? direction = "asc")
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Badges.AsNoTracking().AsQueryable();
-        if (active is not null) q = q.Where(b => b.IsActive == active);
+
+        // ==== FILTER (gộp 1 ô tìm kiếm) ====
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var kw = keyword.Trim().ToLowerInvariant();
+            q = q.Where(b =>
+                b.BadgeCode.ToLower().Contains(kw) ||
+                b.DisplayName.ToLower().Contains(kw) ||
+                (b.ColorHex != null && b.ColorHex.ToLower().Contains(kw)) ||
+                (b.Icon != null && b.Icon.ToLower().Contains(kw))
+            );
+        }
+
+        if (active is not null)
+            q = q.Where(b => b.IsActive == active);
+
+        // ==== SORT ====
+        sort = sort?.Trim().ToLowerInvariant();
+        direction = direction?.Trim().ToLowerInvariant();
+
+        q = (sort, direction) switch
+        {
+            ("code", "asc") => q.OrderBy(b => b.BadgeCode),
+            ("code", "desc") => q.OrderByDescending(b => b.BadgeCode),
+            ("name", "asc") => q.OrderBy(b => b.DisplayName),
+            ("name", "desc") => q.OrderByDescending(b => b.DisplayName),
+            ("color", "asc") => q.OrderBy(b => b.ColorHex),
+            ("color", "desc") => q.OrderByDescending(b => b.ColorHex),
+            ("active", "asc") => q.OrderBy(b => b.IsActive),
+            ("active", "desc") => q.OrderByDescending(b => b.IsActive),
+            ("icon", "asc") => q.OrderBy(b => b.Icon),
+            ("icon", "desc") => q.OrderByDescending(b => b.Icon),
+            _ => q.OrderBy(b => b.DisplayName)
+        };
+
+        // ==== RESULT ====
         var items = await q
-            .OrderBy(b => b.DisplayName)
-            .Select(b => new BadgeListItemDto(b.BadgeCode, b.DisplayName, b.ColorHex, b.Icon, b.IsActive))
+            .Select(b => new BadgeListItemDto(
+                b.BadgeCode,
+                b.DisplayName,
+                b.ColorHex,
+                b.Icon,
+                b.IsActive
+            ))
             .ToListAsync();
+
         return Ok(items);
     }
+
+
+
 
     [HttpGet("{code}")]
     public async Task<ActionResult<BadgeListItemDto>> Get(string code)

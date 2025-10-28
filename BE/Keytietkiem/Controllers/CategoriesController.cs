@@ -37,34 +37,63 @@ public class CategoriesController : ControllerBase
 
     // GET: api/categories?keyword=&code=&active=true
     [HttpGet]
+    [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryListItemDto>>> Get(
-      [FromQuery] string? keyword, [FromQuery] string? code, [FromQuery] bool? active)
+    [FromQuery] string? keyword,
+    [FromQuery] bool? active,
+    [FromQuery] string? sort = "displayOrder",
+    [FromQuery] string? direction = "asc")
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-
         var q = db.Categories.AsNoTracking();
 
+        // ==== FILTER (1 ô search tất cả) ====
         if (!string.IsNullOrWhiteSpace(keyword))
-            q = q.Where(c => c.CategoryName.Contains(keyword) || c.CategoryCode.Contains(keyword));
-        if (!string.IsNullOrWhiteSpace(code))
-            q = q.Where(c => c.CategoryCode == code);
+        {
+            var kw = keyword.Trim().ToLowerInvariant();
+            q = q.Where(c =>
+                c.CategoryCode.ToLower().Contains(kw) ||
+                c.CategoryName.ToLower().Contains(kw) ||
+                (c.Description != null && c.Description.ToLower().Contains(kw))
+            );
+        }
+
         if (active is not null)
             q = q.Where(c => c.IsActive == active);
 
+        // ==== SORT ====
+        sort = sort?.Trim().ToLowerInvariant();
+        direction = direction?.Trim().ToLowerInvariant();
+
+        q = (sort, direction) switch
+        {
+            ("name", "asc") => q.OrderBy(c => c.CategoryName),
+            ("name", "desc") => q.OrderByDescending(c => c.CategoryName),
+            ("code", "asc") => q.OrderBy(c => c.CategoryCode),
+            ("code", "desc") => q.OrderByDescending(c => c.CategoryCode),
+            ("displayorder", "asc") => q.OrderBy(c => c.DisplayOrder),
+            ("displayorder", "desc") => q.OrderByDescending(c => c.DisplayOrder),
+            ("active", "asc") => q.OrderBy(c => c.IsActive),
+            ("active", "desc") => q.OrderByDescending(c => c.IsActive),
+            _ => q.OrderBy(c => c.DisplayOrder)
+        };
+
+        // ==== RESULT ====
         var items = await q
-            .OrderBy(c => c.DisplayOrder)                
-            .Select(c => new CategoryListItemDto(       
+            .Select(c => new CategoryListItemDto(
                 c.CategoryId,
                 c.CategoryCode,
                 c.CategoryName,
                 c.IsActive,
                 c.DisplayOrder,
-                c.Products.Count()                      
+                c.Products.Count()
             ))
             .ToListAsync();
 
         return Ok(items);
     }
+
+
 
 
     [HttpGet("{id:int}")]

@@ -31,6 +31,8 @@ export default function ProductsPage() {
     categoryId: "",
     type: "",
     status: "",
+    sort: "createdAt",
+    direction: "desc",
     page: 1,
     pageSize: 10,
   });
@@ -67,9 +69,9 @@ export default function ProductsPage() {
     loadProducts();
   };
 const statusLabel = (s) =>
-  s === "ACTIVE" ? "ACTIVE"
-  : s === "INACTIVE" ? "INACTIVE"
-  : s === "OUT_OF_STOCK" ? "OUT OF STOCK"
+  s === "ACTIVE" ? "Hiện"
+  : s === "INACTIVE" ? "Ẩn"
+  : s === "OUT_OF_STOCK" ? "Hết hàng"
   : s || "-";
 
 const statusClass = (s) =>
@@ -85,12 +87,13 @@ const typeLabel = (t) =>
   : t || "-";
 
 const toggleProductStatus = async (p) => {
-  // quick switch without confirm
+  // compute desired status and send to backend; backend will enforce OUT_OF_STOCK when stockQty <= 0
   const next = p.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
   try {
-    await ProductApi.toggle(p.productId);
-  } catch (err) {
     await ProductApi.changeStatus(p.productId, next);
+  } catch (err) {
+    // fallback to toggle endpoint if direct status patch fails
+    try { await ProductApi.toggle(p.productId); } catch (e) { console.error(e); }
   }
   loadProducts();
 };
@@ -149,8 +152,8 @@ const toggleProductStatus = async (p) => {
           </div>
         </div>
 
-        {/* Bộ lọc sản phẩm: bỏ nút Áp dụng, tự load 400ms */}
-        <div className="filter-inline" style={{ marginTop: 10 }}>
+  {/* Bộ lọc sản phẩm: bỏ nút Áp dụng, tự load 400ms */}
+  <div className="filter-inline" style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'nowrap', overflowX: 'auto', alignItems: 'end' }}>
           <div className="group">
             <span>Từ khoá</span>
             <input
@@ -190,64 +193,66 @@ const toggleProductStatus = async (p) => {
               <option value="OUT_OF_STOCK">OUT_OF_STOCK</option>
             </select>
           </div>
-          <button className="btn" onClick={() => setQ({ keyword: "", categoryId: "", type: "", status: "", page: 1, pageSize: q.pageSize })}>
-            Reset
+          {/* Sort bằng cách nhấn vào tiêu đề bảng (th) - bộ lọc gọn gàng, giữ sort hiện tại */}
+          <button className="btn" onClick={() => setQ((s) => ({ ...s, keyword: "", categoryId: "", type: "", status: "", page: 1 }))}>
+            Đặt lại
           </button>
         </div>
 
-       <table className="table" style={{ marginTop: 10 }}>
-  <thead>
-    <tr>
-      <th>Mã SP</th>
-      <th>Tên sản phẩm</th>
-      <th>Danh mục</th>
-      <th>Loại</th>
-      <th className="mono">Giá</th>
-      <th>Tồn</th>
-      <th>Bảo hành</th>
-      <th>Trạng thái</th>
-      <th>Thao tác</th>
-    </tr>
-  </thead>
-  <tbody>
-    {products.map((p) => (
-      <tr key={p.productId}>
-        <td className="mono">{p.productCode}</td>
-        <td>{p.productName}</td>
-  <td>{(categories.find(c => c.categoryId === ((p.categoryIds && p.categoryIds[0]) || p.categoryId)) || {}).categoryName || "-"}</td>
-  <td>{typeLabel(p.productType)}</td>
-        <td className="mono">{p.salePrice}</td>
-        <td>{p.stockQty}</td>
-        <td>{p.warrantyDays}</td>
-        <td>
-          <span className={statusClass(p.status)}>{statusLabel(p.status)}</span>
-        </td>
-        <td className="row" style={{ gap: 8 }}>
-          {/* Xem chi tiết / chỉnh sửa như danh mục */}
-          <Link
-            className="btn"
-            to={`/admin/products/${p.productId}`}
-            title="Xem chi tiết / chỉnh sửa"
-          >
-            ✏️
-          </Link>
-
-          {/* Đổi trạng thái (ACTIVE <-> INACTIVE) */}
-          <label className="switch" title="Bật/Tắt hiển thị">
-            <input type="checkbox" checked={p.status === 'ACTIVE'} onChange={() => toggleProductStatus(p)} />
-            <span className="slider" />
-          </label>
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
+        <table className="table" style={{ marginTop: 10 }}>
+          <thead>
+            <tr>
+              <th onClick={() => setQ((s) => ({ ...s, sort: "name", direction: s.sort === "name" && s.direction === "asc" ? "desc" : "asc", page: 1 }))} style={{ cursor: "pointer" }}>
+                Tên sản phẩm {q.sort === "name" ? (q.direction === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+              <th onClick={() => setQ((s) => ({ ...s, sort: "type", direction: s.sort === "type" && s.direction === "asc" ? "desc" : "asc", page: 1 }))} style={{ cursor: "pointer" }}>
+                Loại {q.sort === "type" ? (q.direction === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+              <th className="mono" onClick={() => setQ((s) => ({ ...s, sort: "price", direction: s.sort === "price" && s.direction === "asc" ? "desc" : "asc", page: 1 }))} style={{ cursor: "pointer" }}>
+                Giá {q.sort === "price" ? (q.direction === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+              <th onClick={() => setQ((s) => ({ ...s, sort: "stock", direction: s.sort === "stock" && s.direction === "asc" ? "desc" : "asc", page: 1 }))} style={{ cursor: "pointer" }}>
+                Tồn {q.sort === "stock" ? (q.direction === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+              <th onClick={() => setQ((s) => ({ ...s, sort: "status", direction: s.sort === "status" && s.direction === "asc" ? "desc" : "asc", page: 1 }))} style={{ cursor: "pointer" }}>
+                Trạng thái {q.sort === "status" ? (q.direction === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p.productId}>
+                <td>{p.productName}</td>
+                <td>{typeLabel(p.productType)}</td>
+                <td className="mono">{p.salePrice}</td>
+                <td>{p.stockQty}</td>
+                <td>
+                  <span className={statusClass(p.status)}>{statusLabel(p.status)}</span>
+                </td>
+                <td className="row" style={{ gap: 8 }}>
+                  <Link
+                    className="btn"
+                    to={`/admin/products/${p.productId}`}
+                    title="Xem chi tiết / chỉnh sửa"
+                  >
+                    ✏️
+                  </Link>
+                  <label className="switch" title="Bật/Tắt hiển thị">
+                    <input type="checkbox" checked={p.status === 'ACTIVE'} onChange={() => toggleProductStatus(p)} />
+                    <span className="slider" />
+                  </label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
 
         <div className="pager">
-          <button disabled={q.page <= 1} onClick={() => setQ((s) => ({ ...s, page: s.page - 1 }))}>Prev</button>
+          <button disabled={q.page <= 1} onClick={() => setQ((s) => ({ ...s, page: s.page - 1 }))}>Trước</button>
           <span style={{ padding: "0 8px" }}>Trang {q.page}</span>
-          <button disabled={q.page * q.pageSize >= total} onClick={() => setQ((s) => ({ ...s, page: s.page + 1 }))}>Next</button>
+          <button disabled={q.page * q.pageSize >= total} onClick={() => setQ((s) => ({ ...s, page: s.page + 1 }))}>Tiếp</button>
         </div>
       </div>
 

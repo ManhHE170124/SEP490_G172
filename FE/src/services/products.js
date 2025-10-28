@@ -15,8 +15,8 @@ export const ProductApi = {
 
   changeStatus: (id, status) =>
     api
-      .patch(`/products/${id}/status`, JSON.stringify(status), {
-        headers: { "Content-Type": "application/json" },
+      .patch(`/products/${id}/status`, String(status), {
+        headers: { "Content-Type": "text/plain" },
       })
       .then((r) => r.data),
   toggle: (id) => api.patch(`/products/${id}/toggle`).then((r) => r.data),

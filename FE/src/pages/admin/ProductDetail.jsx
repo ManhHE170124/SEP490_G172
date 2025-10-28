@@ -180,13 +180,13 @@ export default function ProductDetail() {
   };
 
   const toggle = async () => {
-    const next =
-      form.status === "ACTIVE" ? "INACTIVE" : form.status === "INACTIVE" ? "ACTIVE" : "ACTIVE";
-    // quick toggle without confirmation
+    const next = form.status === "ACTIVE" ? "INACTIVE" : form.status === "INACTIVE" ? "ACTIVE" : "ACTIVE";
     try {
-      await ProductApi.toggle(productId);
-    } catch (e) {
+      // request direct status change and allow backend to resolve based on stock
       await ProductApi.changeStatus(productId, next);
+    } catch (e) {
+      // fallback to toggle if direct change fails
+      try { await ProductApi.toggle(productId); } catch (err) { console.error(err); }
     }
     await load();
   };

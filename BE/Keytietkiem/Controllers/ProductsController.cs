@@ -39,12 +39,14 @@ namespace Keytietkiem.Controllers
         // ===== LIST =====
         [HttpGet("list")]
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
-            [FromQuery] string? keyword,
-            [FromQuery] int? categoryId,
-            [FromQuery(Name = "type")] string? productType,
-            [FromQuery] string? status,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+      [FromQuery] string? keyword,
+      [FromQuery] int? categoryId,
+      [FromQuery(Name = "type")] string? productType,
+      [FromQuery] string? status,
+      [FromQuery] string? sort = "createdAt",
+      [FromQuery] string? direction = "desc",
+      [FromQuery] int page = 1,
+      [FromQuery] int pageSize = 10)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -53,6 +55,7 @@ namespace Keytietkiem.Controllers
                 .Include(p => p.ProductBadges)
                 .AsQueryable();
 
+            // ==== FILTERS ====
             if (!string.IsNullOrWhiteSpace(keyword))
                 q = q.Where(p => p.ProductName.Contains(keyword) || p.ProductCode.Contains(keyword));
             if (!string.IsNullOrWhiteSpace(productType))
@@ -62,9 +65,30 @@ namespace Keytietkiem.Controllers
             if (categoryId is not null)
                 q = q.Where(p => p.Categories.Any(c => c.CategoryId == categoryId));
 
+            // ==== SORT ====
+            sort = sort?.Trim().ToLowerInvariant();
+            direction = direction?.Trim().ToLowerInvariant();
+
+            q = (sort, direction) switch
+            {
+                ("name", "asc") => q.OrderBy(p => p.ProductName),
+                ("name", "desc") => q.OrderByDescending(p => p.ProductName),
+                ("price", "asc") => q.OrderBy(p => p.SalePrice),
+                ("price", "desc") => q.OrderByDescending(p => p.SalePrice),
+                ("stock", "asc") => q.OrderBy(p => p.StockQty),
+                ("stock", "desc") => q.OrderByDescending(p => p.StockQty),
+                ("type", "asc") => q.OrderBy(p => p.ProductType),
+                ("type", "desc") => q.OrderByDescending(p => p.ProductType),
+                ("status", "asc") => q.OrderBy(p => p.Status),
+                ("status", "desc") => q.OrderByDescending(p => p.Status),
+                ("createdat", "asc") => q.OrderBy(p => p.CreatedAt),
+                ("createdat", "desc") or _ => q.OrderByDescending(p => p.CreatedAt)
+            };
+
+            // ==== PAGINATION ====
             var total = await q.CountAsync();
 
-            var items = await q.OrderByDescending(p => p.CreatedAt)
+            var items = await q
                 .Skip((page - 1) * pageSize).Take(pageSize)
                 .Select(p => new ProductListItemDto(
                     p.ProductId,
@@ -83,6 +107,7 @@ namespace Keytietkiem.Controllers
 
             return Ok(new PagedResult<ProductListItemDto>(items, total, page, pageSize));
         }
+
 
         // ===== DETAIL =====
         [HttpGet("{id:guid}")]

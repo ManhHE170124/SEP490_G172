@@ -9,7 +9,7 @@ export default function CategoryPage() {
 	const confirm = useConfirm();
 
 	// ====== Danh mục ======
-	const [catQuery, setCatQuery] = React.useState({ keyword: "", code: "", active: "" });
+	const [catQuery, setCatQuery] = React.useState({ keyword: "", active: "", sort: "displayorder", direction: "asc" });
 	const [categories, setCategories] = React.useState([]);
 	const [catLoading, setCatLoading] = React.useState(false);
 
@@ -17,6 +17,9 @@ export default function CategoryPage() {
 		setCatLoading(true);
 		const params = { ...catQuery };
 		if (params.active === "") delete params.active;
+		// ensure sort/direction are passed through and match backend keys
+		if (!params.sort) params.sort = "displayorder";
+		if (!params.direction) params.direction = "asc";
 		CategoryApi.list(params)
 			.then(setCategories)
 			.finally(() => setCatLoading(false));
@@ -63,13 +66,23 @@ export default function CategoryPage() {
 	// ====== Badges (show simple list inside this page) ======
 	const [badges, setBadges] = React.useState([]);
 	const [badgesLoading, setBadgesLoading] = React.useState(false);
+	// badgeQuery maps to backend query params: keyword, color, icon, active
+	const [badgeQuery, setBadgeQuery] = React.useState({ keyword: "", color: "", icon: "", active: "" });
+	// backend sort keys: code, name, color, active, icon
+	const [badgeSort, setBadgeSort] = React.useState("name");
+	const [badgeDirection, setBadgeDirection] = React.useState("asc");
 
 	const loadBadges = React.useCallback(() => {
 		setBadgesLoading(true);
-		BadgesApi.list()
+		const params = { ...badgeQuery, sort: badgeSort, direction: badgeDirection };
+		if (params.active === "") delete params.active;
+		if (!params.keyword) delete params.keyword;
+		if (!params.color) delete params.color;
+		if (!params.icon) delete params.icon;
+		BadgesApi.list(params)
 			.then(setBadges)
 			.finally(() => setBadgesLoading(false));
-	}, []);
+	}, [badgeSort, badgeDirection, badgeQuery]);
 
 	React.useEffect(() => {
 		loadBadges();
@@ -102,25 +115,17 @@ export default function CategoryPage() {
 				{/* Bộ lọc gọn gàng – cân đối */}
 				<div
 					className="row input-group"
-					style={{ gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "end" }}
+					style={{ gap: 10, marginTop: 12, flexWrap: "nowrap", alignItems: "end", overflowX: 'auto' }}
 				>
-					<div className="group" style={{ minWidth: 220 }}>
-						<span>Tên/Slug</span>
+					<div className="group" style={{ minWidth: 320, maxWidth: 520 }}>
+						<span>Tìm kiếm</span>
 						<input
 							value={catQuery.keyword}
 							onChange={(e) => setCatQuery((s) => ({ ...s, keyword: e.target.value }))}
-							placeholder="VD: Office / office…"
+							placeholder="Tìm theo mã, tên hoặc mô tả…"
 						/>
 					</div>
-					<div className="group" style={{ minWidth: 180 }}>
-						<span>Mã/Slug chính xác</span>
-						<input
-							value={catQuery.code}
-							onChange={(e) => setCatQuery((s) => ({ ...s, code: e.target.value }))}
-							placeholder="VD: office"
-						/>
-					</div>
-					<div className="group" style={{ minWidth: 160 }}>
+					<div className="group" style={{ minWidth: 140 }}>
 						<span>Trạng thái</span>
 						<select
 							value={catQuery.active}
@@ -131,6 +136,7 @@ export default function CategoryPage() {
 							<option value="false">Ẩn</option>
 						</select>
 					</div>
+					{/* Sắp xếp sẽ được thực hiện khi nhấn vào tiêu đề bảng (th) */}
 
 					{/* Nhãn trạng thái tải */}
 					{catLoading && <span className="badge gray">Đang tải…</span>}
@@ -138,21 +144,29 @@ export default function CategoryPage() {
 					{/* Reset nhanh */}
 					<button
 						className="btn"
-						onClick={() => setCatQuery({ keyword: "", code: "", active: "" })}
+						onClick={() => setCatQuery((s) => ({ ...s, keyword: "", code: "", active: "" }))}
 						title="Xoá bộ lọc"
 					>
-						Reset
+						Đặt lại
 					</button>
 				</div>
 
 				<table className="table" style={{ marginTop: 10 }}>
 					<thead>
 						<tr>
-							<th>Tên</th>
-							<th>Slug</th>
-							<th>Thứ tự</th>
+							<th onClick={() => setCatQuery((s) => ({ ...s, sort: "name", direction: s.sort === "name" && s.direction === "asc" ? "desc" : "asc" }))} style={{ cursor: "pointer" }}>
+								Tên {catQuery.sort === "name" ? (catQuery.direction === "asc" ? " ▲" : " ▼") : ""}
+							</th>
+							<th onClick={() => setCatQuery((s) => ({ ...s, sort: "code", direction: s.sort === "code" && s.direction === "asc" ? "desc" : "asc" }))} style={{ cursor: "pointer" }}>
+								Mã danh mục {catQuery.sort === "code" ? (catQuery.direction === "asc" ? " ▲" : " ▼") : ""}
+							</th>
+							<th onClick={() => setCatQuery((s) => ({ ...s, sort: "displayorder", direction: s.sort === "displayorder" && s.direction === "asc" ? "desc" : "asc" }))} style={{ cursor: "pointer" }}>
+								Thứ tự {catQuery.sort === "displayorder" ? (catQuery.direction === "asc" ? " ▲" : " ▼") : ""}
+							</th>
 							<th>Số SP</th>
-							<th>Trạng thái</th>
+							<th onClick={() => setCatQuery((s) => ({ ...s, sort: "active", direction: s.sort === "active" && s.direction === "asc" ? "desc" : "asc" }))} style={{ cursor: "pointer" }}>
+								Trạng thái {catQuery.sort === "active" ? (catQuery.direction === "asc" ? " ▲" : " ▼") : ""}
+							</th>
 							<th>Thao tác</th>
 						</tr>
 					</thead>
@@ -190,29 +204,89 @@ export default function CategoryPage() {
 				{/* Badges card */}
 				<div className="card" style={{ marginTop: 14 }}>
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-						<h2>Nhãn</h2>
-						<div className="row">
-							<Link className="btn primary" to="/admin/badges/add">+ Thêm nhãn</Link>
+						<h2>Nhãn sản phẩm</h2>
+						<div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+							<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+								<Link className="btn primary" to="/admin/badges/add">+ Thêm nhãn</Link>
+							</div>
+							{/* Badge filters */}
+							<div className="row input-group" style={{ gap: 10, alignItems: 'end', flexWrap: 'nowrap' }}>
+								<div className="group" style={{ minWidth: 320 }}>
+									<span>Tìm kiếm</span>
+									<input value={badgeQuery.keyword} onChange={(e) => setBadgeQuery((s) => ({ ...s, keyword: e.target.value }))} placeholder="Tìm theo mã, tên, màu, icon…" />
+								</div>
+								<div className="group" style={{ minWidth: 140 }}>
+									<span>Trạng thái</span>
+									<select value={badgeQuery.active} onChange={(e) => setBadgeQuery((s) => ({ ...s, active: e.target.value }))}>
+										<option value="">Tất cả</option>
+										<option value="true">Hiện</option>
+										<option value="false">Ẩn</option>
+									</select>
+								</div>
+								<button className="btn" onClick={() => setBadgeQuery({ keyword: "", active: "" })}>Đặt lại</button>
+							</div>
 						</div>
 					</div>
 
 					{badgesLoading && <div className="badge gray">Đang tải…</div>}
-					<table className="table" style={{ marginTop: 10 }}>
-						<thead>
-							<tr>
-								<th>Mã</th>
-								<th>Tên</th>
-								<th>Màu</th>
-								<th>Trạng thái</th>
-								<th>Thao tác</th>
-							</tr>
-						</thead>
+						<table className="table" style={{ marginTop: 10 }}>
+							<thead>
+								<tr>
+									<th onClick={() => {
+										const key = "code";
+										setBadgeSort((prev) => {
+											setBadgeDirection((d) => (prev === key && d === "asc" ? "desc" : "asc"));
+											return key;
+										});
+									}} style={{ cursor: "pointer" }}>
+										Mã {badgeSort === "code" ? (badgeDirection === "asc" ? " ▲" : " ▼") : ""}
+									</th>
+									<th onClick={() => {
+										const key = "name";
+										setBadgeSort((prev) => {
+											setBadgeDirection((d) => (prev === key && d === "asc" ? "desc" : "asc"));
+											return key;
+										});
+									}} style={{ cursor: "pointer" }}>
+										Tên {badgeSort === "name" ? (badgeDirection === "asc" ? " ▲" : " ▼") : ""}
+									</th>
+									<th onClick={() => {
+										const key = "color";
+										setBadgeSort((prev) => {
+											setBadgeDirection((d) => (prev === key && d === "asc" ? "desc" : "asc"));
+											return key;
+										});
+									}} style={{ cursor: "pointer" }}>
+										Màu {badgeSort === "color" ? (badgeDirection === "asc" ? " ▲" : " ▼") : ""}
+									</th>
+									<th onClick={() => {
+										const key = "icon";
+										setBadgeSort((prev) => {
+											setBadgeDirection((d) => (prev === key && d === "asc" ? "desc" : "asc"));
+											return key;
+										});
+									}} style={{ cursor: "pointer" }}>
+										Icon {badgeSort === "icon" ? (badgeDirection === "asc" ? " ▲" : " ▼") : ""}
+									</th>
+									<th onClick={() => {
+										const key = "active";
+										setBadgeSort((prev) => {
+											setBadgeDirection((d) => (prev === key && d === "asc" ? "desc" : "asc"));
+											return key;
+										});
+									}} style={{ cursor: "pointer" }}>
+										Trạng thái {badgeSort === "active" ? (badgeDirection === "asc" ? " ▲" : " ▼") : ""}
+									</th>
+									<th>Thao tác</th>
+								</tr>
+							</thead>
 						<tbody>
 							{badges.map(b => (
 								<tr key={b.badgeCode}>
 									<td className="mono">{b.badgeCode}</td>
 									<td>{b.displayName}</td>
 									<td className="mono">{b.colorHex}</td>
+									<td className="mono">{b.icon ?? "-"}</td>
 									<td><span className={b.isActive ? 'badge green' : 'badge gray'}>{b.isActive ? 'Hiện' : 'Ẩn'}</span></td>
 									<td className="row" style={{ gap: 8 }}>
 										<Link className="btn" to={`/admin/badges/${encodeURIComponent(b.badgeCode)}`} title="Xem chi tiết">✏️</Link>
