@@ -100,11 +100,12 @@ v2: i18n, FAQ chatbot, advanced analytics, UX/performance improvements, internat
 
 ## 📊 Project Tracking
 
-- **v1.1** — Initialize base project structure (**BE**, **FE**).
-- **v1.2 — 2025-10-25**
+- **v0.1 - 2025-10-18** — Initialize base project structure (**BE**, **FE**).
+- **v0.2 - 2025-10-25**
   - Merge **HieuND (RBAC)** → **Develop** (pre-merge testing branch).
   - Merge **ThanBD (User Management)** → **Develop** (pre-merge testing branch).
-
+- **v0.3 - 2025-10-28**
+  - Merge **ManhLD (Product,Category,Badge)** → **Develop** (pre-merge testing branch).
 ---
 
 ## 📄 License
