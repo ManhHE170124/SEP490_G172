@@ -1,9 +1,8 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import AdminLayout from "../../components/admin/Layout";
 import { CategoryApi } from "../../services/categories";
 import { useConfirm } from "../../components/common/ConfirmProvider.jsx";
-
+import "./admin.css";
 export default function CategoryDetail() {
   const { id } = useParams();
   const catId = Number(id);
@@ -76,24 +75,24 @@ export default function CategoryDetail() {
 
   if (loading) {
     return (
-      <AdminLayout>
+      <div className="page">
         <div className="card"><div>Đang tải chi tiết danh mục…</div></div>
-      </AdminLayout>
+      </div>
     );
   }
 
   if (notFound) {
     return (
-      <AdminLayout>
+      <div className="page">
         <div className="card">
           <h2>Không tìm thấy danh mục</h2>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
+    <div className="page">
       <div className="card">
         {/* Header chỉ còn tiêu đề, đã bỏ các nút góc phải */}
         <div style={{marginBottom:10}}>
@@ -162,6 +161,6 @@ export default function CategoryDetail() {
           </button>
         </div>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

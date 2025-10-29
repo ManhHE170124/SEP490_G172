@@ -158,8 +158,7 @@ export default function RBACManagement() {
       });
     }
     return rows;
-  }, [data, columns, search, sortKey, sortOrder]);
-
+}, [data, columns, search, sortKey, sortOrder, activeTab, roleStatus]);
   const total = filteredSorted.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);

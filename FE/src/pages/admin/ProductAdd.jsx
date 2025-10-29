@@ -1,10 +1,9 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import AdminLayout from "../../components/admin/Layout";
 import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
-
+import "./admin.css";
 export default function ProductAdd() {
   const nav = useNavigate();
   const [cats, setCats] = React.useState([]);
@@ -65,7 +64,7 @@ export default function ProductAdd() {
   };
 
   return (
-    <AdminLayout>
+    <div className="page">
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <h2>Thêm sản phẩm</h2>
@@ -261,6 +260,6 @@ export default function ProductAdd() {
         <button className="btn" disabled={saving} onClick={() => save(false)}>Lưu nháp</button>
         <button className="btn primary" disabled={saving} onClick={() => save(true)}>Lưu & Xuất bản</button>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

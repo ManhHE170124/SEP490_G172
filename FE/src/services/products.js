@@ -1,66 +1,68 @@
-import api from "../apiClient";
+import axiosClient from "../api/axiosClient";
+
+const PRODUCT_ENDPOINTS = {
+  ROOT: "products",
+  LIST: "products/list",
+};
 
 export const ProductApi = {
-  list: (params = {}) =>
-    api.get("/products/list", { params }).then((r) => r.data),
+  // ===== CRUD & list =====
+  list: (params = {}) => axiosClient.get(PRODUCT_ENDPOINTS.LIST, { params }),
+  get: (id) => axiosClient.get(`${PRODUCT_ENDPOINTS.ROOT}/${id}`),
+  create: (payload) => axiosClient.post(PRODUCT_ENDPOINTS.ROOT, payload),
+  update: (id, payload) => axiosClient.put(`${PRODUCT_ENDPOINTS.ROOT}/${id}`, payload),
+  remove: (id) => axiosClient.delete(`${PRODUCT_ENDPOINTS.ROOT}/${id}`),
 
-  get: (id) => api.get(`/products/${id}`).then((r) => r.data),
-
-  create: (payload) => api.post("/products", payload).then((r) => r.data),
-
-  update: (id, payload) =>
-    api.put(`/products/${id}`, payload).then((r) => r.data),
-
-  remove: (id) => api.delete(`/products/${id}`).then((r) => r.data),
-
+  // ===== Status / toggle =====
+  // Giống RBAC: PUT với body JSON để tránh 415
   changeStatus: (id, status) =>
-    api
-      .patch(`/products/${id}/status`, String(status), {
-        headers: { "Content-Type": "text/plain" },
-      })
-      .then((r) => r.data),
-  toggle: (id) => api.patch(`/products/${id}/toggle`).then((r) => r.data),
+    axiosClient.put(`${PRODUCT_ENDPOINTS.ROOT}/${id}/status`, { status }),
+  toggle: (id) => axiosClient.patch(`${PRODUCT_ENDPOINTS.ROOT}/${id}/toggle`),
 
+  // ===== Bulk price & CSV =====
   bulkPrice: (payload) =>
-    api.post("/products/bulk-price", payload).then((r) => r.data),
+    axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/bulk-price`, payload),
 
   exportCsv: () =>
-    api.get("/products/export-csv", { responseType: "blob" }).then((r) => r.data),
+    axiosClient.get(`${PRODUCT_ENDPOINTS.ROOT}/export-csv`, { responseType: "blob" }),
 
   importPriceCsv: (file) => {
     const form = new FormData();
     form.append("file", file);
-    return api
-      .post("/products/import-price-csv", form)
-      .then((r) => r.data);
+    return axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/import-price-csv`, form);
   },
-  // Images
-  uploadImage: (id, file) => {
+
+  // ===== Images =====
+  uploadImage: async (id, file) => {
     const form = new FormData();
     form.append("file", file);
-    return api.post(`/products/${id}/images/upload`, form).then((r) => {
-      const d = r.data || {};
-      return {
-        imageId: d.imageId ?? d.ImageId,
-        url: d.url ?? d.Url,
-        sortOrder: d.sortOrder ?? d.SortOrder,
-        isPrimary: d.isPrimary ?? d.IsPrimary,
-      };
-    });
+    const d = await axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/${id}/images/upload`, form);
+    // axiosClient thường trả data trực tiếp
+    return {
+      imageId: d.imageId ?? d.ImageId,
+      url: d.url ?? d.Url,
+      sortOrder: d.sortOrder ?? d.SortOrder,
+      isPrimary: d.isPrimary ?? d.IsPrimary,
+    };
   },
+
   setThumbnail: (id, url) =>
-    api
-      .post(`/products/${id}/thumbnail`, JSON.stringify(url), {
-        headers: { "Content-Type": "application/json" },
-      })
-      .then((r) => r.data),
-  deleteImage: (id, imageId) => api.delete(`/products/${id}/images/${imageId}`).then((r) => r.data),
-  reorderImages: (id, imageIds) => api.post(`/products/${id}/images/reorder`, { imageIds }).then((r) => r.data),
-  setPrimaryImage: (id, imageId) => api.post(`/products/${id}/images/${imageId}/primary`).then((r) => r.data),
-  // Create product + images (multipart) - payload is same fields as ProductCreateDto
+    axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/${id}/thumbnail`, url, {
+      headers: { "Content-Type": "application/json" },
+    }),
+
+  deleteImage: (id, imageId) =>
+    axiosClient.delete(`${PRODUCT_ENDPOINTS.ROOT}/${id}/images/${imageId}`),
+
+  reorderImages: (id, imageIds) =>
+    axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/${id}/images/reorder`, { imageIds }),
+
+  setPrimaryImage: (id, imageId) =>
+    axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/${id}/images/${imageId}/primary`),
+
+  // ===== Create/Update multipart =====
   createWithImages: (payload, files = [], primaryIndex = 0) => {
     const form = new FormData();
-    // scalar fields
     if (payload.productCode !== undefined) form.append("ProductCode", payload.productCode);
     if (payload.productName !== undefined) form.append("ProductName", payload.productName);
     if (payload.supplierId !== undefined) form.append("SupplierId", String(payload.supplierId));
@@ -74,25 +76,15 @@ export const ProductApi = {
     if (payload.status !== undefined && payload.status !== null) form.append("Status", payload.status);
     if (payload.description !== undefined && payload.description !== null) form.append("Description", payload.description);
     if (payload.thumbnailUrl !== undefined && payload.thumbnailUrl !== null) form.append("ThumbnailUrl", payload.thumbnailUrl);
-
-    // arrays: CategoryIds, BadgeCodes
-    if (payload.categoryIds && Array.isArray(payload.categoryIds)) {
-      payload.categoryIds.forEach((id) => form.append("CategoryIds", String(id)));
-    }
-    if (payload.badgeCodes && Array.isArray(payload.badgeCodes)) {
-      payload.badgeCodes.forEach((c) => form.append("BadgeCodes", c));
-    }
-
-    // files
-    if (files && files.length) {
+    if (payload.categoryIds?.length) payload.categoryIds.forEach((id) => form.append("CategoryIds", String(id)));
+    if (payload.badgeCodes?.length) payload.badgeCodes.forEach((c) => form.append("BadgeCodes", c));
+    if (files?.length) {
       for (const f of files) form.append("Images", f);
       form.append("PrimaryIndex", String(primaryIndex ?? 0));
     }
-
-    return api.post("/products/with-images", form).then((r) => r.data);
+    return axiosClient.post(`${PRODUCT_ENDPOINTS.ROOT}/with-images`, form);
   },
 
-  // Update product with images (multipart). Payload fields map to ProductUpdateWithImagesForm
   updateWithImages: (id, payload, newFiles = [], primaryIndex = null, deleteImageIds = []) => {
     const form = new FormData();
     if (payload.productName !== undefined) form.append("ProductName", payload.productName);
@@ -107,17 +99,17 @@ export const ProductApi = {
     if (payload.status !== undefined && payload.status !== null) form.append("Status", payload.status);
     if (payload.description !== undefined && payload.description !== null) form.append("Description", payload.description);
     if (payload.thumbnailUrl !== undefined && payload.thumbnailUrl !== null) form.append("ThumbnailUrl", payload.thumbnailUrl);
-
-    if (payload.categoryIds && Array.isArray(payload.categoryIds)) payload.categoryIds.forEach((cid) => form.append("CategoryIds", String(cid)));
-    if (payload.badgeCodes && Array.isArray(payload.badgeCodes)) payload.badgeCodes.forEach((b) => form.append("BadgeCodes", b));
-
-    if (deleteImageIds && Array.isArray(deleteImageIds)) deleteImageIds.forEach((did) => form.append("DeleteImageIds", String(did)));
-
-    if (newFiles && newFiles.length) {
+    if (payload.categoryIds?.length) payload.categoryIds.forEach((cid) => form.append("CategoryIds", String(cid)));
+    if (payload.badgeCodes?.length) payload.badgeCodes.forEach((b) => form.append("BadgeCodes", b));
+    if (deleteImageIds?.length) deleteImageIds.forEach((did) => form.append("DeleteImageIds", String(did)));
+    if (newFiles?.length) {
       for (const f of newFiles) form.append("NewImages", f);
-      if (primaryIndex !== null && primaryIndex !== undefined) form.append("PrimaryIndex", String(primaryIndex));
+      if (primaryIndex !== null && primaryIndex !== undefined) {
+        form.append("PrimaryIndex", String(primaryIndex));
+      }
     }
-
-    return api.put(`/products/${id}/with-images`, form).then((r) => r.data);
+    return axiosClient.put(`${PRODUCT_ENDPOINTS.ROOT}/${id}/with-images`, form);
   },
 };
+
+export default ProductApi;

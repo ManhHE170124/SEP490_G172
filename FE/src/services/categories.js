@@ -1,22 +1,29 @@
-import api from "../apiClient"
+import axiosClient from "../api/axiosClient";
+
+const CATEGORY_ENDPOINTS = {
+  ROOT: "categories",
+  EXPORT: "categories/export.csv",
+  IMPORT: "categories/import.csv",
+};
 
 export const CategoryApi = {
-  list: (params={}) => api.get("/categories", { params }).then(r => r.data),
-  get: (id) => api.get(`/categories/${id}`).then(r => r.data),
-  create: (payload) => api.post("/categories", payload).then(r => r.data),
-  update: (id, payload) => api.put(`/categories/${id}`, payload).then(r => r.data),
-  remove: (id) => api.delete(`/categories/${id}`).then(r => r.data),
-  toggle: (id) => api.patch(`/categories/${id}/toggle`).then(r => r.data),
+  list: (params = {}) => axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params }),
+  get: (id) => axiosClient.get(`${CATEGORY_ENDPOINTS.ROOT}/${id}`),
+  create: (payload) => axiosClient.post(CATEGORY_ENDPOINTS.ROOT, payload),
+  update: (id, payload) => axiosClient.put(`${CATEGORY_ENDPOINTS.ROOT}/${id}`, payload),
+  remove: (id) => axiosClient.delete(`${CATEGORY_ENDPOINTS.ROOT}/${id}`),
+  toggle: (id) => axiosClient.patch(`${CATEGORY_ENDPOINTS.ROOT}/${id}/toggle`),
 };
+
 export const CategoryCsv = {
   exportCsv: () =>
-    api.get("/categories/export.csv", { responseType: "blob" }).then(r => r.data),
+    axiosClient.get(CATEGORY_ENDPOINTS.EXPORT, { responseType: "blob" }),
 
   importCsv: (file) => {
     const form = new FormData();
     form.append("file", file);
-    return api.post("/categories/import.csv", form, {
+    return axiosClient.post(CATEGORY_ENDPOINTS.IMPORT, form, {
       headers: { "Content-Type": "multipart/form-data" },
-    }).then(r => r.data);
+    });
   },
 };

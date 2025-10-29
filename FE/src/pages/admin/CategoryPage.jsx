@@ -1,12 +1,9 @@
 import React from "react";
-import AdminLayout from "../../components/admin/Layout";
 import { CategoryApi, CategoryCsv } from "../../services/categories";
 import { Link } from "react-router-dom";
-import { useConfirm } from "../../components/common/ConfirmProvider.jsx";
 import { BadgesApi } from "../../services/badges";
-
+import "./admin.css";
 export default function CategoryPage() {
-	const confirm = useConfirm();
 
 	// ====== Danh mục ======
 	const [catQuery, setCatQuery] = React.useState({ keyword: "", active: "", sort: "displayorder", direction: "asc" });
@@ -34,7 +31,6 @@ export default function CategoryPage() {
 	}, [catQuery, loadCategories]);
 
 	const catToggle = async (id) => {
-		// quick toggle without confirmation (match product behavior)
 		try {
 			await CategoryApi.toggle(id);
 		} catch (err) {
@@ -89,7 +85,7 @@ export default function CategoryPage() {
 	}, [loadBadges]);
 
 	return (
-		<AdminLayout>
+		<div className="page">
 			<div className="card">
 				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 					<h2>Danh mục sản phẩm</h2>
@@ -300,7 +296,7 @@ export default function CategoryPage() {
 						</tbody>
 					</table>
 				</div>
-		</AdminLayout>
+		</div>
 	);
 }
 

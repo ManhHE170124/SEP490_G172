@@ -1,4 +1,33 @@
-﻿using Keytietkiem.DTOs;
+﻿/**
+ * File: ProductsController.cs
+ * Author: ManhLDHE170124
+ * Created: 24/10/2025
+ * Last Updated: 28/10/2025
+ * Version: 1.0.0
+ * Purpose: Manage products, including listing with filters/pagination, detail view,
+ *          create/update (JSON and multipart with images), delete, toggle/status updates,
+ *          image CRUD (upload/delete/reorder/set primary/thumbnail), CSV price export/import,
+ *          and bulk percentage price adjustments.
+ * Endpoints:
+ *   - GET    /api/products/list                         : List products (filters, sort, paging)
+ *   - GET    /api/products/{id}                         : Get product detail by id (Guid)
+ *   - POST   /api/products                              : Create product (JSON)
+ *   - POST   /api/products/with-images                  : Create product (multipart + images)
+ *   - PUT    /api/products/{id}                         : Update product (JSON)
+ *   - PUT    /api/products/{id}/with-images             : Update product (multipart + images)
+ *   - DELETE /api/products/{id}                         : Delete product
+ *   - PATCH  /api/products/{id}/toggle                  : Toggle visibility (ACTIVE <-> INACTIVE; OUT_OF_STOCK if none)
+ *   - PATCH  /api/products/{id}/status                  : Set status explicitly (validated)
+ *   - POST   /api/products/{id}/images/upload           : Upload single image
+ *   - POST   /api/products/{id}/thumbnail               : Set thumbnail by URL
+ *   - DELETE /api/products/{id}/images/{imageId}        : Delete single image
+ *   - POST   /api/products/{id}/images/reorder          : Reorder images
+ *   - POST   /api/products/{id}/images/{imageId}/primary: Mark image as primary
+ *   - GET    /api/products/export-csv                   : Export prices CSV (sku,new_price)
+ *   - POST   /api/products/import-price-csv             : Import prices CSV (sku,new_price)
+ *   - POST   /api/products/bulk-price                   : Bulk % price change (filters)
+ */
+using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -23,10 +52,10 @@ namespace Keytietkiem.Controllers
 
         private static string ResolveStatus(int stockQty, string? desired)
         {
-            if (stockQty <= 0) return "OUT_OF_STOCK"; // hết hàng thì luôn OUT_OF_STOCK
+            if (stockQty <= 0) return "OUT_OF_STOCK";
             if (!string.IsNullOrWhiteSpace(desired) && ProductEnums.Statuses.Contains(desired))
                 return desired.ToUpperInvariant();
-            return "ACTIVE"; // còn hàng mặc định ACTIVE
+            return "ACTIVE";
         }
 
         private static string ToggleVisibility(string current, int stockQty)
@@ -38,15 +67,29 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST =====
         [HttpGet("list")]
+        /**
+         * Summary: List products with filters, sorting, and pagination.
+         * Route: GET /api/products/list
+         * Params (query):
+         *   - keyword      : search in ProductName, ProductCode
+         *   - categoryId   : filter by category
+         *   - type         : filter by ProductType
+         *   - status       : filter by Status
+         *   - sort         : name|price|stock|type|status|createdAt (default: createdAt)
+         *   - direction    : asc|desc (default: desc)
+         *   - page         : page number (default: 1)
+         *   - pageSize     : page size (default: 10)
+         * Returns: 200 OK with PagedResult<ProductListItemDto>
+         */
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
-      [FromQuery] string? keyword,
-      [FromQuery] int? categoryId,
-      [FromQuery(Name = "type")] string? productType,
-      [FromQuery] string? status,
-      [FromQuery] string? sort = "createdAt",
-      [FromQuery] string? direction = "desc",
-      [FromQuery] int page = 1,
-      [FromQuery] int pageSize = 10)
+            [FromQuery] string? keyword,
+            [FromQuery] int? categoryId,
+            [FromQuery(Name = "type")] string? productType,
+            [FromQuery] string? status,
+            [FromQuery] string? sort = "createdAt",
+            [FromQuery] string? direction = "desc",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -55,7 +98,6 @@ namespace Keytietkiem.Controllers
                 .Include(p => p.ProductBadges)
                 .AsQueryable();
 
-            // ==== FILTERS ====
             if (!string.IsNullOrWhiteSpace(keyword))
                 q = q.Where(p => p.ProductName.Contains(keyword) || p.ProductCode.Contains(keyword));
             if (!string.IsNullOrWhiteSpace(productType))
@@ -65,7 +107,6 @@ namespace Keytietkiem.Controllers
             if (categoryId is not null)
                 q = q.Where(p => p.Categories.Any(c => c.CategoryId == categoryId));
 
-            // ==== SORT ====
             sort = sort?.Trim().ToLowerInvariant();
             direction = direction?.Trim().ToLowerInvariant();
 
@@ -85,7 +126,6 @@ namespace Keytietkiem.Controllers
                 ("createdat", "desc") or _ => q.OrderByDescending(p => p.CreatedAt)
             };
 
-            // ==== PAGINATION ====
             var total = await q.CountAsync();
 
             var items = await q
@@ -108,9 +148,15 @@ namespace Keytietkiem.Controllers
             return Ok(new PagedResult<ProductListItemDto>(items, total, page, pageSize));
         }
 
-
         // ===== DETAIL =====
         [HttpGet("{id:guid}")]
+        /**
+         * Summary: Retrieve product detail by id.
+         * Route: GET /api/products/{id}
+         * Params:
+         *   - id (route, Guid): product identifier
+         * Returns: 200 OK with ProductDetailDto, or 404 Not Found
+         */
         public async Task<ActionResult<ProductDetailDto>> GetById(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -124,7 +170,7 @@ namespace Keytietkiem.Controllers
             if (p is null) return NotFound();
 
             return Ok(new ProductDetailDto(
-                p.ProductId, p.ProductCode, p.ProductName, p.SupplierId, p.ProductType,
+                p.ProductId, p.ProductCode, p.ProductName, p.ProductType,
                 p.CostPrice, p.SalePrice, p.StockQty, p.WarrantyDays, p.ExpiryDate,
                 p.AutoDelivery, p.Status, p.Description, p.ThumbnailUrl,
                 p.Categories.Select(c => c.CategoryId),
@@ -137,6 +183,13 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE (JSON) =====
         [HttpPost]
+        /**
+         * Summary: Create a new product from JSON payload.
+         * Route: POST /api/products
+         * Body: ProductCreateDto
+         * Validations: ProductType in enum; SalePrice>0; StockQty>=0; WarrantyDays>=0; unique ProductCode.
+         * Returns: 200 OK with ProductDetailDto (via GetById) or 400/409 on errors
+         */
         public async Task<ActionResult<ProductDetailDto>> Create(ProductCreateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType)) return BadRequest(new { message = "Invalid ProductType" });
@@ -149,15 +202,11 @@ namespace Keytietkiem.Controllers
             if (await db.Products.AnyAsync(x => x.ProductCode == dto.ProductCode))
                 return Conflict(new { message = "ProductCode already exists" });
 
-            if (!await db.Suppliers.AnyAsync(s => s.SupplierId == dto.SupplierId))
-                return BadRequest(new { message = "Supplier not found" });
-
             var e = new Product
             {
                 ProductId = Guid.NewGuid(),
                 ProductCode = dto.ProductCode.Trim(),
                 ProductName = dto.ProductName.Trim(),
-                SupplierId = dto.SupplierId,
                 ProductType = dto.ProductType,
                 CostPrice = dto.CostPrice,
                 SalePrice = dto.SalePrice,
@@ -171,14 +220,12 @@ namespace Keytietkiem.Controllers
                 CreatedAt = _clock.UtcNow
             };
 
-            // categories
             if (dto.CategoryIds is not null && dto.CategoryIds.Any())
             {
                 var cats = await db.Categories.Where(c => dto.CategoryIds.Contains(c.CategoryId)).ToListAsync();
                 foreach (var c in cats) e.Categories.Add(c);
             }
 
-            // badges (chỉ nhận badge active tồn tại)
             if (dto.BadgeCodes is not null && dto.BadgeCodes.Any())
             {
                 var codes = dto.BadgeCodes.Select(x => x.Trim()).Where(x => x != "").ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -194,10 +241,9 @@ namespace Keytietkiem.Controllers
             return await GetById(e.ProductId);
         }
 
-        // ===== CREATE (multipart + upload nhiều ảnh & chọn ảnh đại diện) =====
+        // ===== CREATE (multipart + images) =====
         public class ProductCreateWithImagesForm
         {
-            // các field từ form-data (FromForm)
             public string ProductCode { get; set; } = null!;
             public string ProductName { get; set; } = null!;
             public int SupplierId { get; set; }
@@ -212,51 +258,61 @@ namespace Keytietkiem.Controllers
             public string? Description { get; set; }
             public List<int>? CategoryIds { get; set; }
             public List<string>? BadgeCodes { get; set; }
-
-            // files
             public List<IFormFile>? Images { get; set; }
-            public int? PrimaryIndex { get; set; } // chỉ số ảnh làm đại diện (0-based)
+            public int? PrimaryIndex { get; set; }
         }
 
-       [HttpPost("with-images")]
-[Consumes("multipart/form-data")]
-public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithImagesForm form)
-{
-    // Gọi create JSON
-    var result = await Create(new ProductCreateDto(
-        form.ProductCode, form.ProductName, form.SupplierId, form.ProductType,
-        form.CostPrice, form.SalePrice, form.StockQty, form.WarrantyDays,
-        form.ExpiryDate, form.AutoDelivery, form.Status, form.Description,
-        null, form.CategoryIds ?? new List<int>(), form.BadgeCodes ?? new List<string>()
-    ));
-
-    // Nếu Create trả lỗi, “unwrap” status & payload rồi trả về đúng IActionResult
-    if (result.Result is ObjectResult orr && orr.StatusCode is >= 400)
-        return StatusCode(orr.StatusCode!.Value, orr.Value);
-
-    var detail = (result.Value ?? (result.Result as ObjectResult)?.Value) as ProductDetailDto;
-    if (detail is null) return Problem("Create failed");
-
-    // Upload ảnh, set thumbnail như cũ...
-    if (form.Images is { Count: > 0 })
-    {
-        var urls = new List<string>();
-        foreach (var file in form.Images)
+        [HttpPost("with-images")]
+        [Consumes("multipart/form-data")]
+        /**
+         * Summary: Create a product with images via multipart/form-data.
+         * Route: POST /api/products/with-images
+         * Body: ProductCreateWithImagesForm (form-data)
+         * Behavior: Creates product, uploads images (if any), sets thumbnail by PrimaryIndex.
+         * Returns: 200 OK with ProductDetailDto
+         */
+        public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithImagesForm form)
         {
-            var imgDto = await UploadImageInternal(detail.ProductId, file);
-            urls.Add(imgDto.Url);
-        }
-        var idx = Math.Clamp(form.PrimaryIndex ?? 0, 0, urls.Count - 1);
-        await SetThumbnail(detail.ProductId, urls[idx]);
-    }
+            var result = await Create(new ProductCreateDto(
+                form.ProductCode, form.ProductName, form.ProductType,
+                form.CostPrice, form.SalePrice, form.StockQty, form.WarrantyDays,
+                form.ExpiryDate, form.AutoDelivery, form.Status, form.Description,
+                null, form.CategoryIds ?? new List<int>(), form.BadgeCodes ?? new List<string>()
+            ));
 
-    // Trả về chi tiết cuối cùng
-    var finalDetail = await GetById(detail.ProductId);
-    return Ok(finalDetail.Value ?? (finalDetail.Result as ObjectResult)?.Value);
-}
+            if (result.Result is ObjectResult orr && orr.StatusCode is >= 400)
+                return StatusCode(orr.StatusCode!.Value, orr.Value);
+
+            var detail = (result.Value ?? (result.Result as ObjectResult)?.Value) as ProductDetailDto;
+            if (detail is null) return Problem("Create failed");
+
+            if (form.Images is { Count: > 0 })
+            {
+                var urls = new List<string>();
+                foreach (var file in form.Images)
+                {
+                    var imgDto = await UploadImageInternal(detail.ProductId, file);
+                    urls.Add(imgDto.Url);
+                }
+                var idx = Math.Clamp(form.PrimaryIndex ?? 0, 0, urls.Count - 1);
+                await SetThumbnail(detail.ProductId, urls[idx]);
+            }
+
+            var finalDetail = await GetById(detail.ProductId);
+            return Ok(finalDetail.Value ?? (finalDetail.Result as ObjectResult)?.Value);
+        }
 
         // ===== UPDATE (JSON) =====
         [HttpPut("{id:guid}")]
+        /**
+         * Summary: Update a product by id from JSON payload.
+         * Route: PUT /api/products/{id}
+         * Params:
+         *   - id (route, Guid)
+         * Body: ProductUpdateDto
+         * Validations: ProductType in enum; SalePrice>0; StockQty>=0; WarrantyDays>=0.
+         * Returns: 204 No Content, 404 Not Found, or 400 on validation errors
+         */
         public async Task<IActionResult> Update(Guid id, ProductUpdateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType)) return BadRequest(new { message = "Invalid ProductType" });
@@ -271,11 +327,8 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
                 .FirstOrDefaultAsync(p => p.ProductId == id);
 
             if (e is null) return NotFound();
-            if (!await db.Suppliers.AnyAsync(s => s.SupplierId == dto.SupplierId))
-                return BadRequest(new { message = "Supplier not found" });
 
             e.ProductName = dto.ProductName.Trim();
-            e.SupplierId = dto.SupplierId;
             e.ProductType = dto.ProductType;
             e.CostPrice = dto.CostPrice;
             e.SalePrice = dto.SalePrice;
@@ -288,7 +341,6 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             e.ThumbnailUrl = dto.ThumbnailUrl;
             e.UpdatedAt = _clock.UtcNow;
 
-            // sync categories
             e.Categories.Clear();
             if (dto.CategoryIds is not null && dto.CategoryIds.Any())
             {
@@ -296,7 +348,6 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
                 foreach (var c in cats) e.Categories.Add(c);
             }
 
-            // sync badges
             e.ProductBadges.Clear();
             if (dto.BadgeCodes is not null && dto.BadgeCodes.Any())
             {
@@ -311,7 +362,7 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return NoContent();
         }
 
-        // ===== UPDATE with images (multipart) =====
+        // ===== UPDATE (multipart + images) =====
         public class ProductUpdateWithImagesForm
         {
             public string ProductName { get; set; } = null!;
@@ -328,21 +379,27 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             public string? ThumbnailUrl { get; set; }
             public List<int>? CategoryIds { get; set; }
             public List<string>? BadgeCodes { get; set; }
-
-            // ảnh thêm mới
             public List<IFormFile>? NewImages { get; set; }
-            public int? PrimaryIndex { get; set; } // nếu set thì dùng ảnh (mới + cũ) theo thứ tự sau cập nhật để chọn
-            // ảnh xóa
+            public int? PrimaryIndex { get; set; }
             public List<int>? DeleteImageIds { get; set; }
         }
 
         [HttpPut("{id:guid}/with-images")]
         [Consumes("multipart/form-data")]
+        /**
+         * Summary: Update a product via multipart/form-data with image changes.
+         * Route: PUT /api/products/{id}/with-images
+         * Params:
+         *   - id (route, Guid)
+         * Body: ProductUpdateWithImagesForm
+         * Behavior: Updates core fields, deletes requested images, uploads new images,
+         *           optionally sets primary image/thumbnail by PrimaryIndex.
+         * Returns: 204 No Content or appropriate error
+         */
         public async Task<IActionResult> UpdateWithImages(Guid id, [FromForm] ProductUpdateWithImagesForm form)
         {
-            // 1) update core fields
             var dto = new ProductUpdateDto(
-                form.ProductName, form.SupplierId, form.ProductType, form.CostPrice, form.SalePrice,
+                form.ProductName, form.ProductType, form.CostPrice, form.SalePrice,
                 form.StockQty, form.WarrantyDays, form.ExpiryDate, form.AutoDelivery,
                 form.Status, form.Description, form.ThumbnailUrl,
                 form.CategoryIds ?? new List<int>(), form.BadgeCodes ?? new List<string>()
@@ -352,7 +409,6 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
 
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // 2) delete images if requested
             if (form.DeleteImageIds is not null && form.DeleteImageIds.Any())
             {
                 var dels = await db.ProductImages.Where(i => i.ProductId == id && form.DeleteImageIds.Contains(i.ImageId)).ToListAsync();
@@ -361,7 +417,6 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
                     db.ProductImages.RemoveRange(dels);
                     await db.SaveChangesAsync();
 
-                    // nếu xóa mất thumbnail, gán lại ảnh đầu tiên (nếu có)
                     var p = await db.Products.FindAsync(id);
                     if (p is not null && !string.IsNullOrWhiteSpace(p.ThumbnailUrl))
                     {
@@ -379,7 +434,6 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
                 }
             }
 
-            // 3) add new images
             var appendedUrls = new List<string>();
             if (form.NewImages is not null && form.NewImages.Count > 0)
             {
@@ -390,10 +444,8 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
                 }
             }
 
-            // 4) primary selection (optional)
             if (form.PrimaryIndex is not null)
             {
-                // danh sách ảnh sau khi thêm mới
                 var all = await db.ProductImages.Where(i => i.ProductId == id).OrderBy(i => i.SortOrder).ToListAsync();
                 var primaryIdx = Math.Clamp(form.PrimaryIndex.Value, 0, Math.Max(all.Count - 1, 0));
                 var selected = all.ElementAtOrDefault(primaryIdx);
@@ -411,6 +463,13 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
 
         // ===== DELETE =====
         [HttpDelete("{id:guid}")]
+        /**
+         * Summary: Delete a product by id.
+         * Route: DELETE /api/products/{id}
+         * Params:
+         *   - id (route, Guid)
+         * Returns: 204 No Content, 404 Not Found
+         */
         public async Task<IActionResult> Delete(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -421,8 +480,15 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return NoContent();
         }
 
-        // ===== TOGGLE VISIBILITY (ẩn/hiện) =====
+        // ===== TOGGLE VISIBILITY =====
         [HttpPatch("{id:guid}/toggle")]
+        /**
+         * Summary: Toggle product visibility (ACTIVE <-> INACTIVE); returns OUT_OF_STOCK if stock is 0.
+         * Route: PATCH /api/products/{id}/toggle
+         * Params:
+         *   - id (route, Guid)
+         * Returns: 200 OK with { ProductId, Status }, 404 Not Found
+         */
         public async Task<IActionResult> Toggle(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -435,23 +501,8 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return Ok(new { e.ProductId, e.Status });
         }
 
-        // ===== PATCH status trực tiếp (giữ cho UI cũ) =====
-        [HttpPatch("{id:guid}/status")]
-        public async Task<IActionResult> ChangeStatus(Guid id, [FromBody] string status)
-        {
-            if (!ProductEnums.Statuses.Contains(status)) return BadRequest(new { message = "Invalid Status" });
-            await using var db = await _dbFactory.CreateDbContextAsync();
-            var e = await db.Products.FindAsync(id);
-            if (e is null) return NotFound();
-            e.Status = ResolveStatus(e.StockQty, status);
-            e.UpdatedAt = _clock.UtcNow;
-            await db.SaveChangesAsync();
-            return Ok(new { e.ProductId, e.Status });
-        }
+        // ===== IMAGES =====
 
-        // ===== ẢNH SẢN PHẨM =====
-
-        // dùng nội bộ cho create-with-images / update-with-images
         private async Task<ProductImageDto> UploadImageInternal(Guid id, IFormFile file)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -474,7 +525,6 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             db.ProductImages.Add(img);
             await db.SaveChangesAsync();
 
-            // nếu chưa có thumbnail thì set luôn
             if (string.IsNullOrWhiteSpace(p.ThumbnailUrl))
             {
                 p.ThumbnailUrl = url;
@@ -484,13 +534,27 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return new ProductImageDto(img.ImageId, img.Url, img.SortOrder, img.IsPrimary);
         }
 
-        // Upload 1 ảnh (API lẻ)
         [HttpPost("{id:guid}/images/upload")]
+        /**
+         * Summary: Upload a single image for a product.
+         * Route: POST /api/products/{id}/images/upload
+         * Params:
+         *   - id (route, Guid)
+         * Body: IFormFile file
+         * Returns: 200 OK with ProductImageDto
+         */
         public async Task<ActionResult<ProductImageDto>> UploadImage(Guid id, IFormFile file)
             => Ok(await UploadImageInternal(id, file));
 
-        // Đặt thumbnail từ URL (hoặc từ ảnh đã có)
         [HttpPost("{id:guid}/thumbnail")]
+        /**
+         * Summary: Set product thumbnail by URL (existing or newly uploaded).
+         * Route: POST /api/products/{id}/thumbnail
+         * Params:
+         *   - id (route, Guid)
+         * Body: string urlOrExistingImageUrl
+         * Returns: 204 No Content, 404 Not Found
+         */
         public async Task<IActionResult> SetThumbnail(Guid id, [FromBody] string urlOrExistingImageUrl)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -503,8 +567,15 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return NoContent();
         }
 
-        // Xoá 1 ảnh
         [HttpDelete("{id:guid}/images/{imageId:int}")]
+        /**
+         * Summary: Delete a single image of a product; reassigns thumbnail if needed.
+         * Route: DELETE /api/products/{id}/images/{imageId}
+         * Params:
+         *   - id (route, Guid)
+         *   - imageId (route, int)
+         * Returns: 204 No Content, 404 Not Found
+         */
         public async Task<IActionResult> DeleteImage(Guid id, int imageId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -529,8 +600,15 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
 
         public record ReorderImagesDto(IReadOnlyList<int> ImageIds);
 
-        // Sắp xếp lại thứ tự ảnh
         [HttpPost("{id:guid}/images/reorder")]
+        /**
+         * Summary: Reorder product images based on provided list of image IDs.
+         * Route: POST /api/products/{id}/images/reorder
+         * Params:
+         *   - id (route, Guid)
+         * Body: ReorderImagesDto { ImageIds }
+         * Returns: 204 No Content
+         */
         public async Task<IActionResult> ReorderImages(Guid id, ReorderImagesDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -545,8 +623,15 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return NoContent();
         }
 
-        // Đánh dấu ảnh primary và cập nhật thumbnail
         [HttpPost("{id:guid}/images/{imageId:int}/primary")]
+        /**
+         * Summary: Mark an image as primary and update the product thumbnail.
+         * Route: POST /api/products/{id}/images/{imageId}/primary
+         * Params:
+         *   - id (route, Guid)
+         *   - imageId (route, int)
+         * Returns: 204 No Content
+         */
         public async Task<IActionResult> SetPrimary(Guid id, int imageId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -562,8 +647,13 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return NoContent();
         }
 
-        // ===== CSV EXPORT / IMPORT (cập nhật giá) =====
+        // ===== CSV EXPORT / IMPORT (prices) =====
         [HttpGet("export-csv")]
+        /**
+         * Summary: Export current product prices as CSV.
+         * Route: GET /api/products/export-csv
+         * Returns: 200 OK with CSV file (sku,new_price)
+         */
         public async Task<IActionResult> ExportCsv()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -581,6 +671,13 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
         }
 
         [HttpPost("import-price-csv")]
+        /**
+         * Summary: Import product prices from CSV (sku,new_price).
+         * Route: POST /api/products/import-price-csv
+         * Body: IFormFile file
+         * Behavior: Validates numbers (>0), updates SalePrice, stamps UpdatedAt.
+         * Returns: 200 OK with { total, updated, notFound, invalid }
+         */
         public async Task<ActionResult<PriceImportResult>> ImportPriceCsv(IFormFile file)
         {
             if (file is null || file.Length == 0)
@@ -617,8 +714,15 @@ public async Task<IActionResult> CreateWithImages([FromForm] ProductCreateWithIm
             return Ok(new PriceImportResult(total, updated, notFound, invalid));
         }
 
-        // ===== Bulk tăng/giảm % =====
+        // ===== Bulk % price change =====
         [HttpPost("bulk-price")]
+        /**
+         * Summary: Apply bulk percentage price updates with optional filters.
+         * Route: POST /api/products/bulk-price
+         * Body: BulkPriceUpdateDto { Percent, ProductType?, CategoryIds? }
+         * Behavior: Validates Percent != 0; filters by ProductType/CategoryIds; rounds to 2 decimals.
+         * Returns: 200 OK with { items, updated }
+         */
         public async Task<ActionResult<object>> BulkPrice(BulkPriceUpdateDto dto)
         {
             if (dto.Percent == 0) return BadRequest(new { message = "Percent must be non-zero" });

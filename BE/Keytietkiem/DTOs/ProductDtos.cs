@@ -1,15 +1,38 @@
-﻿using System;
+﻿/**
+ * File: ProductDtos.cs
+ * Author: ManhLDHE170124
+ * Created: 24/10/2025
+ * Last Updated: 28/10/2025
+ * Version: 1.0.0
+ * Purpose: Data Transfer Objects and enums for Product feature. Provide request/response
+ *          contracts (list/detail/create/update), price-import/export payloads, and image DTOs.
+ *
+ * DTOs & Types Included:
+ *   - ProductEnums            : Stable string enums & validation sets (Types, Statuses)
+ *   - ProductImageDto         : Image metadata for a product
+ *   - ProductListItemDto      : Lightweight item for product listing
+ *   - ProductDetailDto        : Full product details
+ *   - ProductCreateDto        : Payload for creating a product (JSON)
+ *   - ProductUpdateDto        : Payload for updating a product (JSON)
+ *   - BulkPriceUpdateDto      : Payload for bulk percentage price updates
+ *   - PriceImportResult       : Result summary for CSV price import
+ *
+ * Usage:
+ *   - API request/response shaping for product management
+ *   - Admin screens: listing, detail, images, pricing tools, import/export
+ */
+
+using System;
 using System.Collections.Generic;
 
 namespace Keytietkiem.DTOs
 {
     public static class ProductEnums
     {
-        // FE hiển thị tiếng Việt; BE lưu code ổn định
-        public const string SHARED_KEY = "SHARED_KEY";        // Key dùng chung
-        public const string PERSONAL_KEY = "PERSONAL_KEY";      // Key cá nhân
-        public const string SHARED_ACCOUNT = "SHARED_ACCOUNT";    // Tài khoản dùng chung
-        public const string PERSONAL_ACCOUNT = "PERSONAL_ACCOUNT";  // Tài khoản cá nhân
+        public const string SHARED_KEY = "SHARED_KEY";
+        public const string PERSONAL_KEY = "PERSONAL_KEY";
+        public const string SHARED_ACCOUNT = "SHARED_ACCOUNT";
+        public const string PERSONAL_ACCOUNT = "PERSONAL_ACCOUNT";
 
         public static readonly HashSet<string> Types =
             new(StringComparer.OrdinalIgnoreCase)
@@ -41,7 +64,6 @@ namespace Keytietkiem.DTOs
         Guid ProductId,
         string ProductCode,
         string ProductName,
-        int SupplierId,
         string ProductType,
         decimal? CostPrice,
         decimal? SalePrice,
@@ -57,11 +79,9 @@ namespace Keytietkiem.DTOs
         IEnumerable<ProductImageDto> Images
     );
 
-    // JSON create/update (không kèm file)
     public record ProductCreateDto(
         string ProductCode,
         string ProductName,
-        int SupplierId,
         string ProductType,
         decimal? CostPrice,
         decimal SalePrice,
@@ -69,16 +89,15 @@ namespace Keytietkiem.DTOs
         int WarrantyDays,
         DateOnly? ExpiryDate,
         bool AutoDelivery,
-        string? Status,          // null => BE tự suy theo tồn kho
+        string? Status,
         string? Description,
-        string? ThumbnailUrl,    // nếu FE đã có URL có sẵn (CDN, v.v.)
+        string? ThumbnailUrl,
         IEnumerable<int> CategoryIds,
         IEnumerable<string> BadgeCodes
     );
 
     public record ProductUpdateDto(
         string ProductName,
-        int SupplierId,
         string ProductType,
         decimal? CostPrice,
         decimal SalePrice,
@@ -86,7 +105,7 @@ namespace Keytietkiem.DTOs
         int WarrantyDays,
         DateOnly? ExpiryDate,
         bool AutoDelivery,
-        string? Status,          // null => BE tự suy theo tồn kho
+        string? Status,
         string? Description,
         string? ThumbnailUrl,
         IEnumerable<int> CategoryIds,

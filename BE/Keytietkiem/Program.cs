@@ -10,24 +10,25 @@ var builder = WebApplication.CreateBuilder(args);
 // ===== Connection string =====
 var connStr = builder.Configuration.GetConnectionString("MyCnn");
 
-// ===== DI =====
+// ===== DI (ưu tiên bản dưới) =====
+// Dùng DbContextFactory để dễ test và control scope
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
     opt.UseSqlServer(connStr));
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
 
-// ===== Controllers + JSON camelCase + Enum string =====
+// ===== Controllers + JSON (ưu tiên bản dưới, có Enum -> string) =====
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-        // Nếu bạn dùng DateOnly/TimeOnly, thêm converter custom tại đây
+        // Nếu dùng DateOnly/TimeOnly => thêm converter custom ở đây
         // o.JsonSerializerOptions.Converters.Add(new DateOnlyJsonConverter());
     });
 
-// ===== Uniform ModelState error => { message: "..." } =====
+// ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -40,10 +41,11 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
-// ===== CORS (một policy duy nhất) =====
+// ===== CORS (gộp: config + 5173 + 3000) =====
 const string FrontendCors = "Frontend";
-var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
-                 ?? new[] { "http://localhost:5173" };
+var cfgOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+var defaultOrigins = new[] { "http://localhost:5173", "http://localhost:3000", "https://localhost:3000" };
+var corsOrigins = cfgOrigins.Union(defaultOrigins).Distinct().ToArray();
 
 builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
     p.WithOrigins(corsOrigins)
@@ -57,13 +59,9 @@ builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// // (Tuỳ chọn) JWT
-// builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-//     .AddJwtBearer(...);
-
 var app = builder.Build();
 
-// ===== Global exception -> { message: "..." } =====
+// ===== Global exception -> { message: "..." } (giữ bản dưới) =====
 app.UseExceptionHandler(exApp =>
 {
     exApp.Run(async context =>
@@ -79,7 +77,7 @@ app.UseExceptionHandler(exApp =>
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// TẮT trong dev nếu chỉ dùng HTTP để tránh redirect gây CORS
+// Theo bản dưới: tắt redirect HTTPS trong môi trường dev để tránh CORS redirect
 // app.UseHttpsRedirection();
 
 // // (Tuỳ chọn) Auth

@@ -1,16 +1,13 @@
 import React from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import AdminLayout from "../../components/admin/Layout";
+import { useParams, Link } from "react-router-dom";
 import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
-import { useConfirm } from "../../components/common/ConfirmProvider.jsx";
-
+import "./admin.css";
 export default function ProductDetail() {
   const { id } = useParams();
   const productId = id; // id is GUID string
-  const nav = useNavigate();
-  const confirm = useConfirm();
+
 
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -154,8 +151,6 @@ export default function ProductDetail() {
       // normalize expiryDate for backend DateOnly? (send null when empty)
       if (!payload.expiryDate) payload.expiryDate = null;
 
-      // compute primary index for API: combined = existing images (after deletions) + newFiles
-      const existingCount = images.length; // images state already pruned for deletions
       const apiPrimary = primaryIndex !== null && primaryIndex !== undefined ? primaryIndex : null;
 
       if ((newFiles && newFiles.length > 0) || (deleteImageIds && deleteImageIds.length > 0) || apiPrimary !== null) {
@@ -193,17 +188,17 @@ export default function ProductDetail() {
 
   if (loading) {
     return (
-      <AdminLayout>
+      <div className="page">
         <div className="card">
           <div>Đang tải chi tiết sản phẩm…</div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   if (notFound) {
     return (
-      <AdminLayout>
+      <div className="page">
         <div className="card">
           <h2>Không tìm thấy sản phẩm</h2>
           <div className="row" style={{ marginTop: 10 }}>
@@ -212,12 +207,12 @@ export default function ProductDetail() {
             </Link>
           </div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
+    <div className="page">
       {/* Header gọn, không có nút bên phải để đồng bộ rule trước đó */}
       <div className="card">
         <h2>Chi tiết sản phẩm</h2>
@@ -513,6 +508,6 @@ export default function ProductDetail() {
           {saving ? "Đang lưu…" : "Lưu thay đổi"}
         </button>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

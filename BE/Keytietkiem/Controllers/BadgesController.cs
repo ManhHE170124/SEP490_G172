@@ -1,4 +1,21 @@
-﻿using Keytietkiem.DTOs;
+﻿/**
+ * File: BadgesController.cs
+ * Author: ManhLDHE170124
+ * Created: 24/10/2025
+ * Last Updated: 28/10/2025
+ * Version: 1.0.0
+ * Purpose: Manage badges (CRUD, toggle/status) and assign badges to products.
+ * Endpoints:
+ *   - GET    /api/badges                         : List badges (keyword filter, active filter, sort)
+ *   - GET    /api/badges/{code}                  : Get a badge by code
+ *   - POST   /api/badges                         : Create a new badge
+ *   - PUT    /api/badges/{code}                  : Update a badge by code
+ *   - DELETE /api/badges/{code}                  : Delete a badge by code
+ *   - PATCH  /api/badges/{code}/toggle           : Toggle IsActive
+ *   - PATCH  /api/badges/{code}/status           : Set IsActive explicitly
+ *   - POST   /api/badges/products/{productId}    : Replace a product's badges by codes
+ */
+using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -18,16 +35,25 @@ public class BadgesController : ControllerBase
     }
 
     [HttpGet]
+    /**
+     * Summary: Retrieve badge list with optional keyword and active filters; supports sorting.
+     * Route: GET /api/badges
+     * Params:
+     *   - keyword   (query, optional): search across BadgeCode, DisplayName, ColorHex, Icon
+     *   - active    (query, optional): filter by IsActive (true/false)
+     *   - sort      (query, optional): one of [code|name|color|active|icon], default "displayName"
+     *   - direction (query, optional): "asc" | "desc", default "asc"
+     * Returns: 200 OK with IEnumerable<BadgeListItemDto>
+     */
     public async Task<ActionResult<IEnumerable<BadgeListItemDto>>> List(
-    [FromQuery] string? keyword,
-    [FromQuery] bool? active,
-    [FromQuery] string? sort = "displayName",
-    [FromQuery] string? direction = "asc")
+        [FromQuery] string? keyword,
+        [FromQuery] bool? active,
+        [FromQuery] string? sort = "displayName",
+        [FromQuery] string? direction = "asc")
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Badges.AsNoTracking().AsQueryable();
 
-        // ==== FILTER (gộp 1 ô tìm kiếm) ====
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             var kw = keyword.Trim().ToLowerInvariant();
@@ -42,7 +68,6 @@ public class BadgesController : ControllerBase
         if (active is not null)
             q = q.Where(b => b.IsActive == active);
 
-        // ==== SORT ====
         sort = sort?.Trim().ToLowerInvariant();
         direction = direction?.Trim().ToLowerInvariant();
 
@@ -61,7 +86,6 @@ public class BadgesController : ControllerBase
             _ => q.OrderBy(b => b.DisplayName)
         };
 
-        // ==== RESULT ====
         var items = await q
             .Select(b => new BadgeListItemDto(
                 b.BadgeCode,
@@ -75,10 +99,14 @@ public class BadgesController : ControllerBase
         return Ok(items);
     }
 
-
-
-
     [HttpGet("{code}")]
+    /**
+     * Summary: Retrieve a single badge by code.
+     * Route: GET /api/badges/{code}
+     * Params:
+     *   - code (route): unique badge code
+     * Returns: 200 OK with BadgeListItemDto, or 404 Not Found
+     */
     public async Task<ActionResult<BadgeListItemDto>> Get(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -88,6 +116,12 @@ public class BadgesController : ControllerBase
     }
 
     [HttpPost]
+    /**
+     * Summary: Create a new badge.
+     * Route: POST /api/badges
+     * Body: BadgeCreateDto { BadgeCode, DisplayName, ColorHex?, Icon?, IsActive }
+     * Returns: 201 Created with Location header (Get by code), 409 if BadgeCode exists
+     */
     public async Task<IActionResult> Create(BadgeCreateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -108,6 +142,14 @@ public class BadgesController : ControllerBase
     }
 
     [HttpPut("{code}")]
+    /**
+     * Summary: Update an existing badge by code.
+     * Route: PUT /api/badges/{code}
+     * Params:
+     *   - code (route): badge code to update
+     * Body: BadgeUpdateDto { DisplayName, ColorHex?, Icon?, IsActive }
+     * Returns: 204 No Content, 404 Not Found
+     */
     public async Task<IActionResult> Update(string code, BadgeUpdateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -122,6 +164,13 @@ public class BadgesController : ControllerBase
     }
 
     [HttpDelete("{code}")]
+    /**
+     * Summary: Delete a badge by code.
+     * Route: DELETE /api/badges/{code}
+     * Params:
+     *   - code (route): badge code to delete
+     * Returns: 204 No Content, 404 Not Found
+     */
     public async Task<IActionResult> Delete(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -131,7 +180,15 @@ public class BadgesController : ControllerBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+
     [HttpPatch("{code}/toggle")]
+    /**
+     * Summary: Toggle the IsActive state of a badge.
+     * Route: PATCH /api/badges/{code}/toggle
+     * Params:
+     *   - code (route): badge code to toggle
+     * Returns: 200 OK with { BadgeCode, IsActive }, 404 Not Found
+     */
     public async Task<IActionResult> Toggle(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -142,7 +199,16 @@ public class BadgesController : ControllerBase
         await db.SaveChangesAsync();
         return Ok(new { e.BadgeCode, e.IsActive });
     }
+
     [HttpPatch("{code}/status")]
+    /**
+     * Summary: Set the IsActive state explicitly.
+     * Route: PATCH /api/badges/{code}/status
+     * Params:
+     *   - code (route): badge code
+     * Body: bool active
+     * Returns: 200 OK with { BadgeCode, IsActive }, 404 Not Found
+     */
     public async Task<IActionResult> SetStatus(string code, [FromBody] bool active)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -155,6 +221,15 @@ public class BadgesController : ControllerBase
     }
 
     [HttpPost("products/{productId:guid}")]
+    /**
+     * Summary: Replace a product's badges with a given set of active badge codes.
+     * Route: POST /api/badges/products/{productId}
+     * Params:
+     *   - productId (route, Guid): target product
+     * Body: IEnumerable<string> codes (badge codes)
+     * Behavior: Removes all existing ProductBadges then inserts provided active codes.
+     * Returns: 204 No Content, 404 if product not found
+     */
     public async Task<IActionResult> SetBadgesForProduct(Guid productId, [FromBody] IEnumerable<string> codes)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();

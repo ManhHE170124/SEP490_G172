@@ -1,0 +1,43 @@
+/*
+ * File: src/index.css
+ * Author: Keytietkiem Team
+ * Created: 2025-10-24
+ * Last Updated: 2025-10-24
+ * Version: 1.0.0
+ *
+ * Purpose:
+ *   Global stylesheet for the React application shell.
+ *   Provides CSS resets and base typography. Feature-level styles
+ *   should live in their own files (e.g., admin-user-management.css).
+ */
+
+:root {
+  --kt-primary: #0d6efd;
+  --kt-bg: #0b0f1a;
+  --kt-surface: #121826;
+  --kt-text: #e6e9ef;
+  --kt-muted: #9aa4b2;
+  --kt-border: #263043;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: var(--kt-text);
+  background: var(--kt-bg);
+}
+
+a { color: var(--kt-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}

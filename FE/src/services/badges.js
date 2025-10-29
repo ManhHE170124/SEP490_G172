@@ -1,12 +1,28 @@
-import api from "../apiClient"
+import axiosClient from "../api/axiosClient";
+
+const BADGE_ENDPOINTS = {
+  ROOT: "badges",
+  PRODUCT: "badges/products", // dùng badges/products/{productId}
+};
 
 export const BadgesApi = {
-  list: (params = {}) => api.get("/badges", { params }).then(r => r.data),
-  get: (code) => api.get(`/badges/${encodeURIComponent(code)}`).then(r => r.data),
-  create: (payload) => api.post(`/badges`, payload).then(r => r.data),
-  update: (code, payload) => api.put(`/badges/${encodeURIComponent(code)}`, payload).then(r => r.data),
-  remove: (code) => api.delete(`/badges/${encodeURIComponent(code)}`).then(r => r.data),
-  toggle: (code) => api.patch(`/badges/${encodeURIComponent(code)}/toggle`).then(r => r.data),
-  setStatus: (code, active) => api.patch(`/badges/${encodeURIComponent(code)}/status`, JSON.stringify(active), { headers: { 'Content-Type': 'application/json' } }).then(r => r.data),
-  setForProduct: (productId, codes) => api.post(`/badges/products/${productId}`, codes).then(r => r.data),
-}
+  list: (params = {}) => axiosClient.get(BADGE_ENDPOINTS.ROOT, { params }),
+  get: (code) => axiosClient.get(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
+  create: (payload) => axiosClient.post(BADGE_ENDPOINTS.ROOT, payload),
+  update: (code, payload) =>
+    axiosClient.put(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`, payload),
+  remove: (code) =>
+    axiosClient.delete(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
+  toggle: (code) =>
+    axiosClient.patch(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/toggle`),
+
+  // Nếu BE nhận JSON { active: boolean }
+  setStatus: (code, active) =>
+    axiosClient.patch(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/status`, { active }),
+
+  // Gán nhiều badge codes cho 1 product
+  setForProduct: (productId, codes) =>
+    axiosClient.post(`${BADGE_ENDPOINTS.PRODUCT}/${productId}`, codes),
+};
+
+export default BadgesApi;

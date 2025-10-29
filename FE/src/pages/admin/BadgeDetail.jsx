@@ -1,8 +1,7 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import AdminLayout from "../../components/admin/Layout";
 import { BadgesApi } from "../../services/badges";
-
+import "./admin.css";
 export default function BadgeDetail() {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -16,9 +15,9 @@ export default function BadgeDetail() {
   }, [code]);
 
   if (loading || !form) return (
-    <AdminLayout>
+    <div className="page">
       <div className="card">Đang tải…</div>
-    </AdminLayout>
+    </div>
   );
 
   const save = async (e) => {
@@ -39,7 +38,7 @@ export default function BadgeDetail() {
   };
 
   const remove = async () => {
-    if (!confirm('Xoá badge?')) return;
+    if (window.confirm("Bạn có chắc muốn xóa badge này?")) return;
     setLoading(true);
     try {
       await BadgesApi.remove(code);
@@ -50,7 +49,7 @@ export default function BadgeDetail() {
   };
 
   return (
-    <AdminLayout>
+    <div className="page">
       <div className="card">
         <h2>Chi tiết badge: {form.badgeCode}</h2>
         <form onSubmit={save} style={{ marginTop: 12 }}>
@@ -85,6 +84,6 @@ export default function BadgeDetail() {
           </div>
         </form>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

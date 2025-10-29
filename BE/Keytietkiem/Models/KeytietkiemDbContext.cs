@@ -17,8 +17,6 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Account> Accounts { get; set; }
 
-    public virtual DbSet<Article> Articles { get; set; }
-
     public virtual DbSet<AuditLog> AuditLogs { get; set; }
 
     public virtual DbSet<Badge> Badges { get; set; }
@@ -50,8 +48,6 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<RolePermission> RolePermissions { get; set; }
 
     public virtual DbSet<Supplier> Suppliers { get; set; }
-
-    public virtual DbSet<Tag> Tags { get; set; }
 
     public virtual DbSet<Ticket> Tickets { get; set; }
 
@@ -85,42 +81,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasOne(d => d.User).WithOne(p => p.Account)
                 .HasForeignKey<Account>(d => d.UserId)
                 .HasConstraintName("FK_Accounts_User");
-        });
-
-        modelBuilder.Entity<Article>(entity =>
-        {
-            entity.HasKey(e => e.ArticleId).HasName("PK__Articles__9C6270E81527D8E2");
-
-            entity.Property(e => e.ArticleId).HasDefaultValueSql("(newid())");
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.Status)
-                .HasMaxLength(15)
-                .IsUnicode(false);
-            entity.Property(e => e.Title).HasMaxLength(120);
-
-            entity.HasOne(d => d.Author).WithMany(p => p.Articles)
-                .HasForeignKey(d => d.AuthorId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Articles_Author");
-
-            entity.HasMany(d => d.Tags).WithMany(p => p.Articles)
-                .UsingEntity<Dictionary<string, object>>(
-                    "ArticleTag",
-                    r => r.HasOne<Tag>().WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK_ArticleTags_Tag"),
-                    l => l.HasOne<Article>().WithMany()
-                        .HasForeignKey("ArticleId")
-                        .OnDelete(DeleteBehavior.ClientSetNull)
-                        .HasConstraintName("FK_ArticleTags_Article"),
-                    j =>
-                    {
-                        j.HasKey("ArticleId", "TagId");
-                        j.ToTable("ArticleTags");
-                    });
         });
 
         modelBuilder.Entity<AuditLog>(entity =>
@@ -294,11 +254,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.ThumbnailUrl).HasMaxLength(512);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
-            entity.HasOne(d => d.Supplier).WithMany(p => p.Products)
-                .HasForeignKey(d => d.SupplierId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Products_Supplier");
-
             entity.HasMany(d => d.Categories).WithMany(p => p.Products)
                 .UsingEntity<Dictionary<string, object>>(
                     "ProductCategory",
@@ -370,6 +325,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductKeys_Product");
+
+            entity.HasOne(d => d.Supplier).WithMany(p => p.ProductKeys)
+                .HasForeignKey(d => d.SupplierId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductKeys_Supplier");
         });
 
         modelBuilder.Entity<RefundRequest>(entity =>
@@ -434,15 +394,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Name).HasMaxLength(100);
-        });
-
-        modelBuilder.Entity<Tag>(entity =>
-        {
-            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CF9AC1B1C0174");
-
-            entity.HasIndex(e => e.TagName, "UQ__Tags__BDE0FD1DFD8B4FBB").IsUnique();
-
-            entity.Property(e => e.TagName).HasMaxLength(50);
         });
 
         modelBuilder.Entity<Ticket>(entity =>

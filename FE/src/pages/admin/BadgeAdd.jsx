@@ -1,8 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { BadgesApi } from "../../services/badges";
-import AdminLayout from "../../components/admin/Layout";
-
+import "./admin.css";
 export default function BadgeAdd() {
   const navigate = useNavigate();
   const [form, setForm] = React.useState({ badgeCode: "", displayName: "", colorHex: "#2196f3", icon: "", isActive: true });
@@ -22,7 +21,7 @@ export default function BadgeAdd() {
   };
 
   return (
-    <AdminLayout>
+    <div className="page">
       <div className="card">
   <h2>Thêm nhãn</h2>
         <form onSubmit={submit} style={{ marginTop: 12 }}>
@@ -56,6 +55,6 @@ export default function BadgeAdd() {
           </div>
         </form>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

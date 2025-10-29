@@ -1,4 +1,22 @@
-﻿using CsvHelper;
+﻿/**
+ * File: CategoriesController.cs
+ * Author: ManhLDHE170124
+ * Created: 24/10/2025
+ * Last Updated: 28/10/2025
+ * Version: 1.0.0
+ * Purpose: Manage product categories (CRUD, toggle), bulk upsert, and CSV import/export.
+ * Endpoints:
+ *   - GET    /api/categories                     : List categories (keyword/active filter, sort)
+ *   - GET    /api/categories/{id}                : Get category by id
+ *   - POST   /api/categories                     : Create a new category
+ *   - PUT    /api/categories/{id}                : Update a category
+ *   - DELETE /api/categories/{id}                : Delete a category
+ *   - PATCH  /api/categories/{id}/toggle         : Toggle IsActive
+ *   - POST   /api/categories/bulk-upsert         : Bulk upsert categories
+ *   - GET    /api/categories/export.csv          : Export categories to CSV
+ *   - POST   /api/categories/import.csv          : Import categories from CSV
+ */
+using CsvHelper;
 using CsvHelper.Configuration;
 using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
@@ -35,19 +53,27 @@ public class CategoriesController : ControllerBase
         return s;
     }
 
-    // GET: api/categories?keyword=&code=&active=true
     [HttpGet]
     [HttpGet]
+    /**
+     * Summary: Retrieve category list with optional keyword and active filters; supports sorting.
+     * Route: GET /api/categories
+     * Params:
+     *   - keyword   (query, optional): search across CategoryCode, CategoryName, Description
+     *   - active    (query, optional): filter by IsActive (true/false)
+     *   - sort      (query, optional): one of [name|code|displayOrder|active], default "displayOrder"
+     *   - direction (query, optional): "asc" | "desc", default "asc"
+     * Returns: 200 OK with IEnumerable<CategoryListItemDto>
+     */
     public async Task<ActionResult<IEnumerable<CategoryListItemDto>>> Get(
-    [FromQuery] string? keyword,
-    [FromQuery] bool? active,
-    [FromQuery] string? sort = "displayOrder",
-    [FromQuery] string? direction = "asc")
+        [FromQuery] string? keyword,
+        [FromQuery] bool? active,
+        [FromQuery] string? sort = "displayOrder",
+        [FromQuery] string? direction = "asc")
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Categories.AsNoTracking();
 
-        // ==== FILTER (1 ô search tất cả) ====
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             var kw = keyword.Trim().ToLowerInvariant();
@@ -61,7 +87,6 @@ public class CategoriesController : ControllerBase
         if (active is not null)
             q = q.Where(c => c.IsActive == active);
 
-        // ==== SORT ====
         sort = sort?.Trim().ToLowerInvariant();
         direction = direction?.Trim().ToLowerInvariant();
 
@@ -78,7 +103,6 @@ public class CategoriesController : ControllerBase
             _ => q.OrderBy(c => c.DisplayOrder)
         };
 
-        // ==== RESULT ====
         var items = await q
             .Select(c => new CategoryListItemDto(
                 c.CategoryId,
@@ -93,18 +117,22 @@ public class CategoriesController : ControllerBase
         return Ok(items);
     }
 
-
-
-
     [HttpGet("{id:int}")]
+    /**
+     * Summary: Retrieve a single category by id.
+     * Route: GET /api/categories/{id}
+     * Params:
+     *   - id (route, int): category identifier
+     * Returns: 200 OK with CategoryDetailDto, or 404 Not Found
+     */
     public async Task<ActionResult<CategoryDetailDto>> GetById(int id)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var dto = await db.Categories
             .AsNoTracking()
-            .Where(c => c.CategoryId == id) 
-            .Select(c => new CategoryDetailDto( 
+            .Where(c => c.CategoryId == id)
+            .Select(c => new CategoryDetailDto(
                 c.CategoryId,
                 c.CategoryCode,
                 c.CategoryName,
@@ -118,6 +146,13 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPost]
+    /**
+     * Summary: Create a new category.
+     * Route: POST /api/categories
+     * Body: CategoryCreateDto { CategoryCode, CategoryName, Description?, IsActive, DisplayOrder }
+     * Behavior: Normalizes CategoryCode to slug; ensures uniqueness.
+     * Returns: 201 Created with Location header (GetById), 400/409 on validation errors
+     */
     public async Task<ActionResult<CategoryDetailDto>> Create(CategoryCreateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -147,6 +182,14 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    /**
+     * Summary: Update an existing category by id.
+     * Route: PUT /api/categories/{id}
+     * Params:
+     *   - id (route, int): category identifier
+     * Body: CategoryUpdateDto { CategoryName, Description?, IsActive, DisplayOrder }
+     * Returns: 204 No Content, 404 Not Found
+     */
     public async Task<IActionResult> Update(int id, CategoryUpdateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -164,6 +207,13 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    /**
+     * Summary: Delete a category by id.
+     * Route: DELETE /api/categories/{id}
+     * Params:
+     *   - id (route, int): category identifier
+     * Returns: 204 No Content, 404 Not Found
+     */
     public async Task<IActionResult> Delete(int id)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -176,6 +226,13 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:int}/toggle")]
+    /**
+     * Summary: Toggle the IsActive state of a category.
+     * Route: PATCH /api/categories/{id}/toggle
+     * Params:
+     *   - id (route, int): category identifier
+     * Returns: 200 OK with { CategoryId, IsActive }, 404 Not Found
+     */
     public async Task<IActionResult> Toggle(int id)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -189,8 +246,14 @@ public class CategoriesController : ControllerBase
         return Ok(new { e.CategoryId, e.IsActive });
     }
 
-    // BULK UPSERT: map với nút "Tải danh mục / Lưu danh mục" trên UI
     [HttpPost("bulk-upsert")]
+    /**
+     * Summary: Bulk upsert categories from payload items.
+     * Route: POST /api/categories/bulk-upsert
+     * Body: CategoryBulkUpsertDto { Items: List<{ CategoryCode, CategoryName, Description?, IsActive, DisplayOrder }> }
+     * Behavior: Insert if not exists (by normalized CategoryCode), else update fields.
+     * Returns: 200 OK with { created, updated, changed }
+     */
     public async Task<ActionResult<object>> BulkUpsert(CategoryBulkUpsertDto dto)
     {
         if (dto.Items is null || dto.Items.Count == 0)
@@ -232,8 +295,16 @@ public class CategoriesController : ControllerBase
         var changed = await db.SaveChangesAsync();
         return Ok(new { created, updated, changed });
     }
+
     public record CategoryCsvRow(string CategoryCode, string CategoryName, string Description, bool IsActive, int DisplayOrder);
+
     [HttpGet("export.csv")]
+    /**
+     * Summary: Export categories as CSV.
+     * Route: GET /api/categories/export.csv
+     * Params: none
+     * Returns: 200 OK with CSV file (text/csv)
+     */
     public async Task<IActionResult> ExportCsv()
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -254,6 +325,13 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPost("import.csv")]
+    /**
+     * Summary: Import categories from a CSV file.
+     * Route: POST /api/categories/import.csv
+     * Body: IFormFile file (CSV with headers: CategoryCode,CategoryName,Description,IsActive,DisplayOrder)
+     * Behavior: Upserts by normalized CategoryCode.
+     * Returns: 200 OK with { created, updated, total }
+     */
     public async Task<IActionResult> ImportCsv(IFormFile file)
     {
         if (file == null || file.Length == 0) return BadRequest(new { message = "CSV file is required" });

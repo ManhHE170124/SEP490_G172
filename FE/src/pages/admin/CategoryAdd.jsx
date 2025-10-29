@@ -1,8 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import AdminLayout from "../../components/admin/Layout";
 import { CategoryApi } from "../../services/categories";
-
+import "./admin.css";
 export default function CategoryAdd() {
   const nav = useNavigate();
   const [saving, setSaving] = React.useState(false);
@@ -31,7 +30,7 @@ export default function CategoryAdd() {
   };
 
   return (
-    <AdminLayout>
+    <div className="page">
       <div className="card">
         {/* Header chỉ còn tiêu đề, đã bỏ các nút góc phải */}
         <div style={{marginBottom:10}}>
@@ -83,6 +82,6 @@ export default function CategoryAdd() {
           <button className="btn primary" disabled={saving} onClick={() => save(true)}>Lưu & Kích hoạt</button>
         </div>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

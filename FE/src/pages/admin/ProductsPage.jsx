@@ -1,8 +1,8 @@
 import React from "react";
-import AdminLayout from "../../components/admin/Layout";
 import { CategoryApi } from "../../services/categories";
 import { ProductApi } from "../../services/products";
 import { Link } from "react-router-dom";
+import "./admin.css";
 // no confirmation for quick toggles
 
 export default function ProductsPage() {
@@ -10,7 +10,7 @@ export default function ProductsPage() {
 
   // Lightweight categories loader for product filters (category UI moved to CategoryPage)
   const [categories, setCategories] = React.useState([]);
-  const [catLoading, setCatLoading] = React.useState(false);
+  const [, setCatLoading] = React.useState(false);
 
   const loadCategoriesForProducts = React.useCallback(() => {
     setCatLoading(true);
@@ -36,8 +36,7 @@ export default function ProductsPage() {
     page: 1,
     pageSize: 10,
   });
-  const [prodLoading, setProdLoading] = React.useState(false);
-
+const [, setProdLoading] = React.useState(false);
   const loadProducts = React.useCallback(() => {
     setProdLoading(true);
     const params = { ...q };
@@ -63,11 +62,6 @@ export default function ProductsPage() {
     const t = setTimeout(loadProducts, 400);
     return () => clearTimeout(t);
   }, [q, loadProducts]);
-
-  const changeStatus = async (id, status) => {
-    await ProductApi.changeStatus(id, status);
-    loadProducts();
-  };
 const statusLabel = (s) =>
   s === "ACTIVE" ? "Hiện"
   : s === "INACTIVE" ? "Ẩn"
@@ -136,7 +130,7 @@ const toggleProductStatus = async (p) => {
 
 
   return (
-    <AdminLayout>
+    <div className="page">
        {/* ===== Khối 2: Sản phẩm ===== */}
       <div className="card" style={{ marginTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -337,6 +331,6 @@ const toggleProductStatus = async (p) => {
     <button className="btn primary" onClick={()=>alert("Đã lưu cấu hình (demo local)")}>Lưu cấu hình</button>
   </div>
 </div>
-    </AdminLayout>
+    </div>
   );
 }

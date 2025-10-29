@@ -17,7 +17,11 @@ public partial class ProductKey
 
     public DateTime ImportedAt { get; set; }
 
+    public int SupplierId { get; set; }
+
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
     public virtual Product Product { get; set; } = null!;
+
+    public virtual Supplier Supplier { get; set; } = null!;
 }
