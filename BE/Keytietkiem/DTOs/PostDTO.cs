@@ -40,6 +40,7 @@ namespace Keytietkiem.DTOs
     {
         public Guid PostId { get; set; }
         public string Title { get; set; } = null!;
+        public string Content { get; set; } = null!;
         public string? Thumbnail { get; set; }
         public int PostTypeId { get; set; }
         public Guid AuthorId { get; set; }
@@ -72,5 +73,17 @@ namespace Keytietkiem.DTOs
         public int PostTypeId { get; set; }
         public string Status { get; set; } = null!;
         public List<int> TagIds { get; set; } = new List<int>();
+        public DateTime? UpdatedAt { get; set; }
+
+    }
+
+    public class PostTypeDTO
+    {
+        public int PostTypeId { get; set; }
+        public string TypeName { get; set; } = null!;
+        public string Slug { get; set; } = null!;
+        public string? Description { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 }

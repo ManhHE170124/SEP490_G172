@@ -42,5 +42,6 @@ namespace Keytietkiem.DTOs
     {
         public string ModuleName { get; set; } = null!;
         public string? Description { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 }

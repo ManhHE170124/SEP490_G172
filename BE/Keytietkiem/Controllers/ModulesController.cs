@@ -29,14 +29,14 @@ namespace Keytietkiem.Controllers
         {
             _context = context;
         }
-        // GET: api/<ModulesController>
-        [HttpGet]
+
         /**
         * Summary: Retrieve all modules.
         * Route: GET /api/modules
         * Params: none
         * Returns: 200 OK with list of modules
         */
+        [HttpGet]
         public async Task<IActionResult> GetModules()
         {
             var modules = await _context.Modules
@@ -51,7 +51,7 @@ namespace Keytietkiem.Controllers
                 .ToListAsync();
             return Ok(modules);
         }
-        // GET api/<ModulesController>/5
+
         /**
          * Summary: Retrieve a module by id.
          * @Route: GET /api/modules/{id}
@@ -79,14 +79,14 @@ namespace Keytietkiem.Controllers
 
             return Ok(moduleDto);
         }
-        // POST api/<ModulesController>
-        [HttpPost]
+
         /**
          * Summary: Create a new module.
          * Route: POST /api/modules
          * Body: Module newModule
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
+        [HttpPost]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
             if (createModuleDto == null || string.IsNullOrWhiteSpace(createModuleDto.ModuleName))
@@ -143,8 +143,7 @@ namespace Keytietkiem.Controllers
 
             return CreatedAtAction(nameof(GetModuleById), new { id = newModule.ModuleId }, moduleDto);
         }
-        // PUT api/<ModulesController>/5
-        [HttpPut("{id}")]
+
         /**
          * Summary: Update an existing module by id.
          * Route: PUT /api/modules/{id}
@@ -152,6 +151,7 @@ namespace Keytietkiem.Controllers
          * Body: Module updatedModule
          * Returns: 204 No Content, 400/404 on errors
          */
+        [HttpPut("{id}")]
         public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
             if (updateModuleDto == null)
@@ -166,19 +166,19 @@ namespace Keytietkiem.Controllers
             }
             existing.ModuleName = updateModuleDto.ModuleName;
             existing.Description = updateModuleDto.Description;
-            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedAt = DateTime.Now;
             _context.Modules.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();
         }
-        // DELETE api/<ModulesController>/5
-        [HttpDelete("{id}")]
+
         /**
          * Summary: Delete a module by id and cascade remove related role-permissions.
          * Route: DELETE /api/modules/{id}
          * Params: id (long)
          * Returns: 204 No Content, 404 if not found
          */
+        [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules
