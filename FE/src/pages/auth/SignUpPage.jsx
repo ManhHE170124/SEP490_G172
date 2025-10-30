@@ -138,17 +138,37 @@ export default function SignUpPage() {
       setIsSubmitting(true);
       const response = await AuthService.verifyOtp(formData.email, otpCode);
 
-      if (response.isVerified) {
-        setFormData((prev) => ({
-          ...prev,
-          verificationToken: response.verificationToken,
-        }));
-        setSuccessMessage(response.message);
+      console.log("OTP Verification Response:", response);
+
+      const isSuccess =
+        response.isVerified === true ||
+        (response.verificationToken && response.isVerified !== false);
+
+      if (isSuccess) {
+        // Store verification token if available
+        const token =
+          response.verificationToken ||
+          response.token ||
+          response.verification_token;
+
+        if (token) {
+          setFormData((prev) => ({
+            ...prev,
+            verificationToken: token,
+          }));
+        }
+
+        setSuccessMessage(
+          response.message ||
+            "Xác thực OTP thành công! Vui lòng hoàn tất đăng ký."
+        );
         setCurrentStep("register");
       } else {
+        // Only show error if explicitly failed
         setErrorMessage(response.message || "Mã OTP không chính xác");
       }
     } catch (error) {
+      console.error("OTP Verification Error:", error);
       setErrorMessage(
         error?.response?.data?.message ||
           error?.response?.data ||
