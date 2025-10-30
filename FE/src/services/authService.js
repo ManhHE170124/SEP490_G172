@@ -1,4 +1,4 @@
-import api from "../apiClient";
+import axiosClient from "../api/axiosClient";
 
 /**
  * Authentication Service
@@ -11,7 +11,7 @@ export const AuthService = {
    * @returns {Promise<string>} Success message
    */
   sendOtp: (email) =>
-    api.post("/account/send-otp", { email }).then((r) => r.data),
+    axiosClient.post("/account/send-otp", { email }).then((r) => r.data),
 
   /**
    * Verify OTP code sent to email
@@ -20,7 +20,7 @@ export const AuthService = {
    * @returns {Promise<{isVerified: boolean, message: string, verificationToken?: string}>}
    */
   verifyOtp: (email, otp) =>
-    api.post("/account/verify-otp", { email, otp }).then((r) => r.data),
+    axiosClient.post("/account/verify-otp", { email, otp }).then((r) => r.data),
 
   /**
    * Register new user account with OTP verification
@@ -36,7 +36,7 @@ export const AuthService = {
    * @returns {Promise<{accessToken: string, refreshToken: string, expiresAt: string, user: Object}>}
    */
   register: (payload) =>
-    api.post("/account/register", payload).then((r) => r.data),
+    axiosClient.post("/account/register", payload).then((r) => r.data),
 
   /**
    * Login with username and password
@@ -45,7 +45,9 @@ export const AuthService = {
    * @returns {Promise<{accessToken: string, refreshToken: string, expiresAt: string, user: Object}>}
    */
   login: (username, password) =>
-    api.post("/account/login", { username, password }).then((r) => r.data),
+    axiosClient
+      .post("/account/login", { username, password })
+      .then((r) => r.data),
 
   /**
    * Refresh access token using refresh token
@@ -53,7 +55,9 @@ export const AuthService = {
    * @returns {Promise<{accessToken: string, refreshToken: string, expiresAt: string, user: Object}>}
    */
   refreshToken: (refreshToken) =>
-    api.post("/account/refresh-token", { refreshToken }).then((r) => r.data),
+    axiosClient
+      .post("/account/refresh-token", { refreshToken })
+      .then((r) => r.data),
 
   /**
    * Change password for authenticated user
@@ -62,7 +66,7 @@ export const AuthService = {
    * @returns {Promise<void>}
    */
   changePassword: (currentPassword, newPassword) =>
-    api
+    axiosClient
       .post("/account/change-password", { currentPassword, newPassword })
       .then((r) => r.data),
 
@@ -72,7 +76,7 @@ export const AuthService = {
    * @returns {Promise<boolean>}
    */
   checkUsernameExists: (username) =>
-    api.get(`/account/check-username/${username}`).then((r) => r.data),
+    axiosClient.get(`/account/check-username/${username}`).then((r) => r.data),
 
   /**
    * Check if email already exists
@@ -80,5 +84,5 @@ export const AuthService = {
    * @returns {Promise<boolean>}
    */
   checkEmailExists: (email) =>
-    api.get(`/account/check-email/${email}`).then((r) => r.data),
+    axiosClient.get(`/account/check-email/${email}`).then((r) => r.data),
 };
