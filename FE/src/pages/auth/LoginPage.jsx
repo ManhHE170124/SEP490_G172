@@ -80,11 +80,12 @@ export default function LoginPage() {
         navigate("/");
       }
     } catch (error) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data ||
+      const responseData = error?.response?.data;
+      const apiErrorMessage =
+        (typeof responseData === 'string' ? responseData : responseData?.message) ||
+        error?.message ||
         "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
-      setErrorMessage(errorMsg);
+      setErrorMessage(apiErrorMessage);
     } finally {
       setIsSubmitting(false);
     }

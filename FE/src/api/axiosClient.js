@@ -42,13 +42,12 @@ axiosClient.interceptors.response.use(
     });
     // ERR_CONNECTION_REFUSED / ERR_NETWORK -> không vào được server
     if (error.code === "ERR_NETWORK") {
-      return Promise.reject(new Error("Lỗi kết nối đến máy chủ"));
+      const networkError = new Error("Lỗi kết nối đến máy chủ");
+      networkError.isNetworkError = true;
+      return Promise.reject(networkError);
     }
-    const message =
-      error.response?.data?.message ||
-      error.response?.statusText ||
-      "Lỗi kết nối đến máy chủ";
-    return Promise.reject(new Error(message));
+    // Preserve the original error object so components can access error.response.data
+    return Promise.reject(error);
   }
 );
 
