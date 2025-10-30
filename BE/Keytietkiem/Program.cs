@@ -1,9 +1,16 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Options;
+using Keytietkiem.Repositories;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +21,20 @@ var connStr = builder.Configuration.GetConnectionString("MyCnn");
 // Dùng DbContextFactory để dễ test và control scope
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
     opt.UseSqlServer(connStr));
+
+// ===== Configuration Options =====
+builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
+builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
+
+// ===== Memory Cache =====
+builder.Services.AddMemoryCache();
+
+// ===== Repositories =====
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+
+// ===== Services =====
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -55,6 +76,32 @@ builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
      .WithExposedHeaders("Content-Disposition") // phục vụ export CSV
 ));
 
+// ===== JWT Authentication =====
+var jwtSecretKey = builder.Configuration["JwtConfig:SecretKey"]
+                   ?? throw new InvalidOperationException("JwtConfig:SecretKey not found in appsettings.json");
+var jwtIssuer = builder.Configuration["JwtConfig:Issuer"]
+                ?? throw new InvalidOperationException("JwtConfig:Issuer not found in appsettings.json");
+var jwtAudience = builder.Configuration["JwtConfig:Audience"]
+                  ?? throw new InvalidOperationException("JwtConfig:Audience not found in appsettings.json");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 // ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -84,6 +131,7 @@ app.UseSwaggerUI();
 // app.UseAuthentication();
 
 app.UseCors(FrontendCors);
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
