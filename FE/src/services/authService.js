@@ -11,7 +11,7 @@ export const AuthService = {
    * @returns {Promise<string>} Success message
    */
   sendOtp: (email) =>
-    axiosClient.post("/account/send-otp", { email }).then((r) => r.data),
+    axiosClient.post("/account/send-otp", { email }),
 
   /**
    * Verify OTP code sent to email
@@ -20,7 +20,7 @@ export const AuthService = {
    * @returns {Promise<{isVerified: boolean, message: string, verificationToken?: string}>}
    */
   verifyOtp: (email, otp) =>
-    axiosClient.post("/account/verify-otp", { email, otp }).then((r) => r.data),
+    axiosClient.post("/account/verify-otp", { email, otp }),
 
   /**
    * Register new user account with OTP verification
@@ -36,7 +36,7 @@ export const AuthService = {
    * @returns {Promise<{accessToken: string, refreshToken: string, expiresAt: string, user: Object}>}
    */
   register: (payload) =>
-    axiosClient.post("/account/register", payload).then((r) => r.data),
+    axiosClient.post("/account/register", payload),
 
   /**
    * Login with username and password
@@ -45,9 +45,7 @@ export const AuthService = {
    * @returns {Promise<{accessToken: string, refreshToken: string, expiresAt: string, user: Object}>}
    */
   login: (username, password) =>
-    axiosClient
-      .post("/account/login", { username, password })
-      .then((r) => r.data),
+    axiosClient.post("/account/login", { username, password }),
 
   /**
    * Refresh access token using refresh token
@@ -55,9 +53,7 @@ export const AuthService = {
    * @returns {Promise<{accessToken: string, refreshToken: string, expiresAt: string, user: Object}>}
    */
   refreshToken: (refreshToken) =>
-    axiosClient
-      .post("/account/refresh-token", { refreshToken })
-      .then((r) => r.data),
+    axiosClient.post("/account/refresh-token", { refreshToken }),
 
   /**
    * Change password for authenticated user
@@ -66,9 +62,7 @@ export const AuthService = {
    * @returns {Promise<void>}
    */
   changePassword: (currentPassword, newPassword) =>
-    axiosClient
-      .post("/account/change-password", { currentPassword, newPassword })
-      .then((r) => r.data),
+    axiosClient.post("/account/change-password", { currentPassword, newPassword }),
 
   /**
    * Check if username already exists
@@ -76,7 +70,7 @@ export const AuthService = {
    * @returns {Promise<boolean>}
    */
   checkUsernameExists: (username) =>
-    axiosClient.get(`/account/check-username/${username}`).then((r) => r.data),
+    axiosClient.get(`/account/check-username/${username}`),
 
   /**
    * Check if email already exists
@@ -84,5 +78,5 @@ export const AuthService = {
    * @returns {Promise<boolean>}
    */
   checkEmailExists: (email) =>
-    axiosClient.get(`/account/check-email/${email}`).then((r) => r.data),
+    axiosClient.get(`/account/check-email/${email}`),
 };
