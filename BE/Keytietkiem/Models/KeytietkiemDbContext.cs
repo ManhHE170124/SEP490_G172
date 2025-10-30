@@ -23,6 +23,8 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Category> Categories { get; set; }
 
+    public virtual DbSet<Comment> Comments { get; set; }
+
     public virtual DbSet<Module> Modules { get; set; }
 
     public virtual DbSet<Order> Orders { get; set; }
@@ -32,6 +34,12 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<Payment> Payments { get; set; }
 
     public virtual DbSet<Permission> Permissions { get; set; }
+
+    public virtual DbSet<Post> Posts { get; set; }
+
+    public virtual DbSet<PostImage> PostImages { get; set; }
+
+    public virtual DbSet<PostType> PostTypes { get; set; }
 
     public virtual DbSet<Product> Products { get; set; }
 
@@ -48,6 +56,8 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<RolePermission> RolePermissions { get; set; }
 
     public virtual DbSet<Supplier> Suppliers { get; set; }
+
+    public virtual DbSet<Tag> Tags { get; set; }
 
     public virtual DbSet<Ticket> Tickets { get; set; }
 
@@ -136,6 +146,31 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(200);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
+        });
+
+        modelBuilder.Entity<Comment>(entity =>
+        {
+            entity.HasKey(e => e.CommentId).HasName("PK__Comments__C3B4DFAA595FAAF2");
+
+            entity.Property(e => e.CommentId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("CommentID");
+            entity.Property(e => e.Content).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.IsApproved).HasDefaultValue(false);
+            entity.Property(e => e.PostId).HasColumnName("PostID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+
+            entity.HasOne(d => d.Post).WithMany(p => p.Comments)
+                .HasForeignKey(d => d.PostId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__Comments__PostID__24285DB4");
+
+            entity.HasOne(d => d.User).WithMany(p => p.Comments)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK__Comments__UserID__251C81ED");
         });
 
         modelBuilder.Entity<Module>(entity =>
@@ -227,6 +262,94 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(300);
             entity.Property(e => e.PermissionName).HasMaxLength(100);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
+        });
+
+        modelBuilder.Entity<Post>(entity =>
+        {
+            entity.HasKey(e => e.PostId).HasName("PK__Posts__AA126038756C45EC");
+
+            entity.HasIndex(e => e.Slug, "UQ__Posts__BC7B5FB6DC42C965").IsUnique();
+
+            entity.Property(e => e.PostId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("PostID");
+            entity.Property(e => e.AuthorId).HasColumnName("AuthorID");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.MetaDescription).HasMaxLength(255);
+            entity.Property(e => e.MetaTitle).HasMaxLength(255);
+            entity.Property(e => e.PostTypeId).HasColumnName("PostTypeID");
+            entity.Property(e => e.ShortDescription).HasMaxLength(500);
+            entity.Property(e => e.Slug).HasMaxLength(255);
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValue("Draft");
+            entity.Property(e => e.Thumbnail).HasMaxLength(255);
+            entity.Property(e => e.Title).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+            entity.Property(e => e.ViewCount).HasDefaultValue(0);
+
+            entity.HasOne(d => d.Author).WithMany(p => p.Posts)
+                .HasForeignKey(d => d.AuthorId)
+                .HasConstraintName("FK__Posts__AuthorID__10216507");
+
+            entity.HasOne(d => d.PostType).WithMany(p => p.Posts)
+                .HasForeignKey(d => d.PostTypeId)
+                .HasConstraintName("FK__Posts__PostTypeI__0F2D40CE");
+
+            entity.HasMany(d => d.Tags).WithMany(p => p.Posts)
+                .UsingEntity<Dictionary<string, object>>(
+                    "PostTag",
+                    r => r.HasOne<Tag>().WithMany()
+                        .HasForeignKey("TagId")
+                        .HasConstraintName("FK__PostTags__TagID__1B9317B3"),
+                    l => l.HasOne<Post>().WithMany()
+                        .HasForeignKey("PostId")
+                        .HasConstraintName("FK__PostTags__PostID__1A9EF37A"),
+                    j =>
+                    {
+                        j.HasKey("PostId", "TagId").HasName("PK__PostTags__7C45AF9C57A6D825");
+                        j.ToTable("PostTags");
+                        j.IndexerProperty<Guid>("PostId").HasColumnName("PostID");
+                        j.IndexerProperty<Guid>("TagId").HasColumnName("TagID");
+                    });
+        });
+
+        modelBuilder.Entity<PostImage>(entity =>
+        {
+            entity.HasKey(e => e.ImageId).HasName("PK__PostImag__7516F4ECB673F26D");
+
+            entity.Property(e => e.ImageId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("ImageID");
+            entity.Property(e => e.Caption).HasMaxLength(255);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.ImageUrl).HasMaxLength(255);
+            entity.Property(e => e.PostId).HasColumnName("PostID");
+
+            entity.HasOne(d => d.Post).WithMany(p => p.PostImages)
+                .HasForeignKey(d => d.PostId)
+                .HasConstraintName("FK__PostImage__PostI__1F63A897");
+        });
+
+        modelBuilder.Entity<PostType>(entity =>
+        {
+            entity.HasKey(e => e.PostTypeId).HasName("PK__PostType__AB21261006539149");
+
+            entity.HasIndex(e => e.Slug, "UQ__PostType__BC7B5FB6913FC67C").IsUnique();
+
+            entity.Property(e => e.PostTypeId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("PostTypeID");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.Description).HasMaxLength(255);
+            entity.Property(e => e.PostTypeName).HasMaxLength(100);
+            entity.Property(e => e.Slug).HasMaxLength(150);
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -394,6 +517,19 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Name).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<Tag>(entity =>
+        {
+            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CFA4C97F385E0");
+
+            entity.HasIndex(e => e.Slug, "UQ__Tags__BC7B5FB67661A1DA").IsUnique();
+
+            entity.Property(e => e.TagId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("TagID");
+            entity.Property(e => e.Slug).HasMaxLength(150);
+            entity.Property(e => e.TagName).HasMaxLength(100);
         });
 
         modelBuilder.Entity<Ticket>(entity =>
