@@ -2,14 +2,14 @@
  * File: CategoryDtos.cs
  * Author: ManhLDHE170124
  * Created: 24/10/2025
- * Last Updated: 28/10/2025
- * Version: 1.0.0
+ * Last Updated: 30/10/2025
+ * Version: 1.1.0
  * Purpose: Data Transfer Objects for Category operations. Provide request/response
  *          contracts between API and clients while hiding internal entity structure.
  *
  * DTOs Included:
  *   - CategoryListItemDto  : Lightweight item for listing categories
- *   - CategoryDetailDto    : Full details of a single category
+ *   - CategoryDetailDto    : Full details of a single category (includes ProductCount)
  *   - CategoryCreateDto    : Payload for creating a new category
  *   - CategoryUpdateDto    : Payload for updating an existing category
  *   - CategoryUpsertItem   : Item used in bulk upsert operations
@@ -22,13 +22,8 @@
  *   - Description (string?)  : Optional description
  *   - IsActive (bool)        : Active status
  *   - DisplayOrder (int)     : Ordering index for UI
- *   - ProductCount (int)     : Computed number of products (list view)
- *
- * Usage:
- *   - API request/response shaping for category features
- *   - Bulk import/export and admin management screens
+ *   - ProductCount (int)     : Computed number of products (list & detail view)
  */
-
 namespace Keytietkiem.DTOs;
 
 public record CategoryListItemDto(
@@ -46,7 +41,8 @@ public record CategoryDetailDto(
     string CategoryName,
     string? Description,
     bool IsActive,
-    int DisplayOrder
+    int DisplayOrder,
+    int ProductCount  
 );
 
 public record CategoryCreateDto(

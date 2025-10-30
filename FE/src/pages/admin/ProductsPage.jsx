@@ -63,7 +63,7 @@ const [, setProdLoading] = React.useState(false);
     return () => clearTimeout(t);
   }, [q, loadProducts]);
 const statusLabel = (s) =>
-  s === "ACTIVE" ? "Hiện"
+  s === "ACTIVE" ? "Hiển thị"
   : s === "INACTIVE" ? "Ẩn"
   : s === "OUT_OF_STOCK" ? "Hết hàng"
   : s || "-";
@@ -74,8 +74,8 @@ const statusClass = (s) =>
   : "badge gray";
 
 const typeLabel = (t) =>
-  t === "PERSONAL_KEY" ? "Key cá nhân"
-  : t === "SHARED_KEY" ? "Key dùng chung"
+  t === "PERSONAL_KEY" ? "Mã cá nhân"
+  : t === "SHARED_KEY" ? "Mã dùng chung"
   : t === "PERSONAL_ACCOUNT" ? "Tài khoản cá nhân"
   : t === "SHARED_ACCOUNT" ? "Tài khoản dùng chung"
   : t || "-";
@@ -91,6 +91,17 @@ const toggleProductStatus = async (p) => {
   }
   loadProducts();
 };
+const deleteProduct = async (p) => {
+  const ok = window.confirm(`Xoá sản phẩm "${p.productName}"? Hành động này không thể hoàn tác!`);
+  if (!ok) return;
+  try {
+    await ProductApi.remove(p.productId);
+    setProducts(prev => prev.filter(x => x.productId !== p.productId));
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || "Xoá thất bại");
+  }
+};
+
   // CSV + bulk % (Sản phẩm)
   const exportCsv = async () => {
     const blob = await ProductApi.exportCsv();
@@ -99,14 +110,17 @@ const toggleProductStatus = async (p) => {
     a.href = url; a.download = "products_price.csv"; a.click();
     URL.revokeObjectURL(url);
   };
-  const importCsv = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const res = await ProductApi.importPriceCsv(file);
-    alert(`Total: ${res.total}, updated: ${res.updated}, notFound: ${res.notFound}, invalid: ${res.invalid}`);
-    e.target.value = "";
-    loadProducts();
-  };
+const importCsv = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) { setBulkCsvName(""); return; }
+  setBulkCsvName(file.name);
+
+  const res = await ProductApi.importPriceCsv(file);
+  alert(`Total: ${res.total}, updated: ${res.updated}, notFound: ${res.notFound}, invalid: ${res.invalid}`);
+  e.target.value = "";
+  loadProducts();
+};
+
   const doBulkPercent = async () => {
     const percent = Number(prompt("Nhập % tăng/giảm (âm để giảm):", "5"));
     if (!percent || Number.isNaN(percent)) return;
@@ -114,6 +128,7 @@ const toggleProductStatus = async (p) => {
     alert(`Updated: ${res.updated} items`);
     loadProducts();
   };
+const [bulkCsvName, setBulkCsvName] = React.useState("");
 
   // ====== Cấu hình hiển thị (demo lưu local) ======
   const [ui, setUi] = React.useState({
@@ -147,15 +162,13 @@ const toggleProductStatus = async (p) => {
         </div>
 
   {/* Bộ lọc sản phẩm: bỏ nút Áp dụng, tự load 400ms */}
-  <div className="filter-inline" style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'nowrap', overflowX: 'auto', alignItems: 'end' }}>
-          <div className="group">
-            <span>Từ khoá</span>
-            <input
-              placeholder="Tên, SKU, mô tả…"
-              value={q.keyword}
-              onChange={(e) => setQ((s) => ({ ...s, keyword: e.target.value, page: 1 }))}
-            />
-          </div>
+  <div className="filter-inline input-group" style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'nowrap', overflowX: 'auto', alignItems: 'end' }}>
+         <div className="group w-180">
+  <span>Từ khoá</span>
+  <input placeholder="Tên, SKU, mô tả…" value={q.keyword}
+         onChange={(e)=>setQ(s=>({...s, keyword:e.target.value, page:1}))}/>
+        </div>
+
           <div className="group w-180">
             <span>Danh mục</span>
             <select
@@ -171,20 +184,22 @@ const toggleProductStatus = async (p) => {
           <div className="group w-160">
             <span>Loại</span>
             <select value={q.type} onChange={(e) => setQ((s) => ({ ...s, type: e.target.value, page: 1 }))}>
-              <option value="">Tất cả</option>
-              <option value="PERSONAL_KEY">Key cá nhân</option>
-              <option value="SHARED_KEY">Key dùng chung</option>
-              <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
+             <option value="">Tất cả</option>
+              <option value="PERSONAL_KEY">Mã cá nhân</option>
+             <option value="SHARED_KEY">Mã dùng chung</option>
+             <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
               <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
+
             </select>
           </div>
           <div className="group w-160">
             <span>Trạng thái</span>
             <select value={q.status} onChange={(e) => setQ((s) => ({ ...s, status: e.target.value, page: 1 }))}>
               <option value="">Tất cả</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="INACTIVE">INACTIVE</option>
-              <option value="OUT_OF_STOCK">OUT_OF_STOCK</option>
+             <option value="ACTIVE">Hiển thị</option>
+            <option value="INACTIVE">Ẩn</option>
+            <option value="OUT_OF_STOCK">Hết hàng</option>
+
             </select>
           </div>
           {/* Sort bằng cách nhấn vào tiêu đề bảng (th) - bộ lọc gọn gàng, giữ sort hiện tại */}
@@ -224,19 +239,33 @@ const toggleProductStatus = async (p) => {
                 <td>
                   <span className={statusClass(p.status)}>{statusLabel(p.status)}</span>
                 </td>
-                <td className="row" style={{ gap: 8 }}>
-                  <Link
-                    className="btn"
-                    to={`/admin/products/${p.productId}`}
-                    title="Xem chi tiết / chỉnh sửa"
-                  >
-                    ✏️
-                  </Link>
-                  <label className="switch" title="Bật/Tắt hiển thị">
-                    <input type="checkbox" checked={p.status === 'ACTIVE'} onChange={() => toggleProductStatus(p)} />
-                    <span className="slider" />
-                  </label>
-                </td>
+                <td style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <div className="action-buttons">
+    {/* Xem chi tiết / chỉnh sửa */}
+    <Link className="action-btn edit-btn" to={`/admin/products/${p.productId}`} title="Xem chi tiết / chỉnh sửa">
+      {/* Icon bút chì (giống RBAC) */}
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z"/>
+        <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
+      </svg>
+    </Link>
+
+    {/* Xoá sản phẩm */}
+    <button className="action-btn delete-btn" title="Xoá" onClick={() => deleteProduct(p)}>
+      {/* Icon thùng rác (giống RBAC) */}
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z"/>
+      </svg>
+    </button>
+  </div>
+
+  {/* Giữ công tắc bật/tắt hiển thị */}
+  <label className="switch" title="Bật/Tắt hiển thị">
+    <input type="checkbox" checked={p.status === 'ACTIVE'} onChange={() => toggleProductStatus(p)} />
+    <span className="slider" />
+  </label>
+</td>
+
               </tr>
             ))}
           </tbody>
@@ -266,10 +295,15 @@ const toggleProductStatus = async (p) => {
       <span>Giá trị</span>
       <input placeholder="% hoặc số tiền" />
     </div>
-    <div className="group" style={{ minWidth:260 }}>
-      <span>Tải tệp (tuỳ chọn)</span>
-      <input type="file" accept=".csv" onChange={importCsv} />
-    </div>
+  <div className="group" style={{ minWidth:260 }}>
+  <span>Tải tệp CSV (tùy chọn)</span>
+  <div className="file-upload">
+    <input id="bulkCsv" type="file" accept=".csv" onChange={importCsv} />
+    <label htmlFor="bulkCsv" className="btn btn-upload">Chọn tệp</label>
+    <span className="file-name">{bulkCsvName || "Chưa chọn tệp"}</span>
+  </div>
+</div>
+
     <div className="group" style={{ minWidth:260 }}>
       <span>Xem trước thay đổi</span>
       <div className="kbd">CSV: sku, new_price</div>

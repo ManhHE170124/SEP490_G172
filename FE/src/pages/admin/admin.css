@@ -151,3 +151,79 @@ table .row select {
 .filter-inline .group.w-180 { min-width: 180px; }
 .filter-inline .group.w-160 { min-width: 160px; }
 
+/* ==== Action buttons (match style RBAC) ==== */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s ease;
+}
+.action-btn svg { width: 16px; height: 16px; }
+
+.edit-btn {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+}
+.edit-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.delete-btn {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+.delete-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* ==== File upload (thuần Việt & đẹp) ==== */
+.file-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.file-upload input[type="file"] { display: none; }
+.file-upload .btn-upload {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+}
+.file-upload .btn-upload:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+.file-upload .file-name {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.label-chip {
+  --c: #1e40af;             
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--c);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  border: none;            
+}

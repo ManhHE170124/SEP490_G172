@@ -7,7 +7,15 @@ const CATEGORY_ENDPOINTS = {
 };
 
 export const CategoryApi = {
-  list: (params = {}) => axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params }),
+  // Luôn trả về mảng: res.items ?? res
+  list: (params = {}) =>
+    axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params })
+      .then((res) => res?.items ?? res ?? []),
+
+  // Trả nguyên object phân trang
+  listPaged: (params = {}) =>
+    axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params }),
+
   get: (id) => axiosClient.get(`${CATEGORY_ENDPOINTS.ROOT}/${id}`),
   create: (payload) => axiosClient.post(CATEGORY_ENDPOINTS.ROOT, payload),
   update: (id, payload) => axiosClient.put(`${CATEGORY_ENDPOINTS.ROOT}/${id}`, payload),
@@ -18,7 +26,6 @@ export const CategoryApi = {
 export const CategoryCsv = {
   exportCsv: () =>
     axiosClient.get(CATEGORY_ENDPOINTS.EXPORT, { responseType: "blob" }),
-
   importCsv: (file) => {
     const form = new FormData();
     form.append("file", file);

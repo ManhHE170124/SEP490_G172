@@ -5,9 +5,8 @@
 import axios from "axios";
 
 const baseURL =
-  process.env.REACT_APP_API_URL // CRA
-  || import.meta?.env?.VITE_API_BASE_URL // Vite (phòng hờ)
-  || "http://localhost:7292/api"; // fallback theo port mới của bạn
+  process.env.REACT_APP_API_URL 
+  || "http://localhost:7292/api"; 
 
 console.log("[axiosClient] baseURL =", baseURL);
 
