@@ -9,11 +9,16 @@ namespace Keytietkiem.Services;
 public class EmailService : IEmailService
 {
     private readonly MailConfig _mailConfig;
+    private readonly ClientConfig _clientConfig;
     private readonly ILogger<EmailService> _logger;
 
-    public EmailService(IOptions<MailConfig> mailOptions, ILogger<EmailService> logger)
+    public EmailService(
+        IOptions<MailConfig> mailOptions,
+        IOptions<ClientConfig> clientOptions,
+        ILogger<EmailService> logger)
     {
         _mailConfig = mailOptions?.Value ?? throw new ArgumentNullException(nameof(mailOptions));
+        _clientConfig = clientOptions?.Value ?? throw new ArgumentNullException(nameof(clientOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -57,7 +62,8 @@ public class EmailService : IEmailService
     public async Task SendPasswordResetEmailAsync(string toEmail, string resetToken, CancellationToken cancellationToken = default)
     {
         var subject = "Đặt lại mật khẩu - Keytietkiem";
-        var resetLink = $"http://localhost:5173/reset-password?token={resetToken}";
+        var resetLink = $"{_clientConfig.ClientUrl}/reset-password?token={resetToken}";
+        var expiryMinutes = _clientConfig.ResetLinkExpiryInMinutes;
         var body = $@"
             <html>
             <body style='font-family: Arial, sans-serif;'>
@@ -78,7 +84,7 @@ public class EmailService : IEmailService
                             </a>
                         </div>
                         <p style='color: #666; font-size: 14px; line-height: 1.6;'>
-                            Link này có hiệu lực trong <strong>30 phút</strong>.
+                            Link này có hiệu lực trong <strong>{expiryMinutes} phút</strong>.
                         </p>
                         <p style='color: #666; font-size: 14px; line-height: 1.6;'>
                             Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.

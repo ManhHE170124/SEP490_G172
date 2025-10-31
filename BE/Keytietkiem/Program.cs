@@ -25,6 +25,7 @@ builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
 // ===== Configuration Options =====
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
+builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();

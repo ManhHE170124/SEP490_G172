@@ -12,6 +12,9 @@ import ProductsPage from "../pages/admin/ProductsPage.jsx";
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
 import SignUpPage from "../pages/auth/SignUpPage.jsx";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage.jsx";
+import CheckEmailPage from "../pages/auth/CheckEmailPage.jsx";
+import ResetPasswordPage from "../pages/auth/ResetPasswordPage.jsx";
 
 // Other pages
 import Page404 from "../pages/NotFound/Page404";
@@ -24,6 +27,9 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<SignUpPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/check-reset-email" element={<CheckEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={<Navigate to="/admin/products" replace />} />
       <Route path="/admin" element={<div />} />
 

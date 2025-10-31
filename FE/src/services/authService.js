@@ -24,4 +24,10 @@ export const AuthService = {
     axiosClient.get(`/account/check-username/${username}`),
 
   checkEmailExists: (email) => axiosClient.get(`/account/check-email/${email}`),
+
+  forgotPassword: (email) =>
+    axiosClient.post("/account/forgot-password", { email }),
+
+  resetPassword: (token, newPassword) =>
+    axiosClient.post("/account/reset-password", { token, newPassword }),
 };

@@ -19,6 +19,7 @@ public class AccountService : IAccountService
 {
     private const string OtpCacheKeyPrefix = "OTP_";
     private const string VerificationTokenCacheKeyPrefix = "VERIFY_TOKEN_";
+    private const string ResetTokenCacheKeyPrefix = "RESET_TOKEN_";
     private const int OtpExpiryMinutes = 5;
     private const int VerificationTokenExpiryMinutes = 30;
     private readonly IGenericRepository<Account> _accountRepository;
@@ -27,6 +28,7 @@ public class AccountService : IAccountService
     private readonly KeytietkiemDbContext _context;
     private readonly IEmailService _emailService;
     private readonly JwtConfig _jwtConfig;
+    private readonly ClientConfig _clientConfig;
     private readonly IGenericRepository<User> _userRepository;
 
     public AccountService(
@@ -35,6 +37,7 @@ public class AccountService : IAccountService
         IGenericRepository<User> userRepository,
         IClock clock,
         IOptions<JwtConfig> jwtOptions,
+        IOptions<ClientConfig> clientOptions,
         IMemoryCache cache,
         IEmailService emailService)
     {
@@ -43,6 +46,7 @@ public class AccountService : IAccountService
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _jwtConfig = jwtOptions?.Value ?? throw new ArgumentNullException(nameof(jwtOptions));
+        _clientConfig = clientOptions?.Value ?? throw new ArgumentNullException(nameof(clientOptions));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
     }
@@ -302,38 +306,34 @@ public class AccountService : IAccountService
         if (user == null)
             throw new InvalidOperationException("Email không tồn tại trong hệ thống");
 
-        // Generate 6-digit OTP
-        var otp = GenerateOtp();
+        // Generate secure reset token
+        var resetToken = GenerateVerificationToken();
 
-        // Store OTP in cache with expiry
-        var cacheKey = $"{OtpCacheKeyPrefix}{forgotPasswordDto.Email}";
+        // Store reset token in cache with expiry
+        var cacheKey = $"{ResetTokenCacheKeyPrefix}{resetToken}";
         var cacheOptions = new MemoryCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(OtpExpiryMinutes)
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_clientConfig.ResetLinkExpiryInMinutes)
         };
-        _cache.Set(cacheKey, otp, cacheOptions);
+        _cache.Set(cacheKey, forgotPasswordDto.Email, cacheOptions);
 
-        // Send OTP via email
-        await _emailService.SendOtpEmailAsync(forgotPasswordDto.Email, otp, cancellationToken);
+        // Send password reset link via email
+        await _emailService.SendPasswordResetEmailAsync(forgotPasswordDto.Email, resetToken, cancellationToken);
 
         return
-            $"Mã OTP đã được gửi đến {forgotPasswordDto.Email}. Mã có hiệu lực trong {OtpExpiryMinutes} phút.";
+            $"Link đặt lại mật khẩu đã được gửi đến {forgotPasswordDto.Email}. Link có hiệu lực trong {_clientConfig.ResetLinkExpiryInMinutes} phút.";
     }
 
     public async Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
         CancellationToken cancellationToken = default)
     {
-        // Get OTP from cache
-        var cacheKey = $"{OtpCacheKeyPrefix}{resetPasswordDto.Email}";
-        if (!_cache.TryGetValue(cacheKey, out string? storedOtp))
-            throw new UnauthorizedAccessException("Mã OTP không tồn tại hoặc đã hết hạn");
-
-        // Verify OTP
-        if (storedOtp != resetPasswordDto.Otp)
-            throw new UnauthorizedAccessException("Mã OTP không chính xác");
+        // Get email from cache using reset token
+        var cacheKey = $"{ResetTokenCacheKeyPrefix}{resetPasswordDto.Token}";
+        if (!_cache.TryGetValue(cacheKey, out string? email))
+            throw new UnauthorizedAccessException("Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
 
         // Find user by email
-        var user = await _userRepository.FirstOrDefaultAsync(u => u.Email == resetPasswordDto.Email,
+        var user = await _userRepository.FirstOrDefaultAsync(u => u.Email == email,
             cancellationToken);
 
         if (user == null)
@@ -357,7 +357,7 @@ public class AccountService : IAccountService
         _accountRepository.Update(account);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Remove OTP from cache
+        // Remove reset token from cache
         _cache.Remove(cacheKey);
     }
 
