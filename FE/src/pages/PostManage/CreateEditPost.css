@@ -1,0 +1,252 @@
+.post-editor {
+  display: grid;
+  grid-template-columns: 7fr 3fr; /* 7:3 ratio */
+  gap: 24px;
+  padding: 24px;
+}
+
+.post-editor-left, .post-editor-right {
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: var(--ink, #111827);
+}
+
+.form-group input[type="text"] {
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--page, #f9fafb);
+  color: var(--ink, #111827);
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  row-gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--page, #f9fafb);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.toolbar-group {
+  display: inline-flex;
+  gap: 6px;
+  padding: 2px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+}
+
+.toolbar-group.flat {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.tool-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--line, #e5e7eb);
+  background: var(--card, #fff);
+  color: var(--ink, #111827);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tool-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--ink, #111827);
+  cursor: pointer;
+}
+
+.tool-icon:hover {
+  background: var(--page, #f3f4f6);
+}
+
+.tool-select {
+  height: 32px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--ink, #111827);
+  padding: 0 10px;
+  max-width: 160px;
+}
+
+.tool-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--line, #e5e7eb);
+}
+
+.tool-btn:hover {
+  background: var(--page, #f3f4f6);
+}
+
+.tool-btn strong,
+.tool-btn em,
+.tool-btn u {
+  pointer-events: none;
+}
+
+.tool-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--line, #e5e7eb);
+  margin: 0 4px;
+}
+
+.editor-textarea {
+  margin-top: 8px;
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--ink, #111827);
+}
+
+.editor-area {
+  margin-top: 8px;
+  width: 100%;
+  min-height: 420px;
+  padding: 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--ink, #111827);
+  outline: none;
+}
+
+.editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  background: var(--page, #f9fafb);
+  padding: 24px !important;
+  z-index: 999;
+  display: grid;
+  grid-template-columns: 1fr !important;
+}
+
+.side-card {
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.side-card-header {
+  padding: 12px;
+  font-weight: 600;
+  background: var(--page, #f9fafb);
+  border-bottom: 1px solid var(--line, #e5e7eb);
+}
+
+.side-card-body {
+  padding: 12px;
+}
+
+.hint {
+  font-size: 0.9rem;
+  color: var(--muted, #6b7280);
+}
+
+.required {
+  color: #ef4444;
+}
+
+.field-error {
+  color: #ef4444;
+  font-size: 0.85rem;
+}
+
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary, #2563eb);
+  color: #fff;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--ink, #111827);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--page, #f9fafb);
+  border-color: var(--primary, #2563eb);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.thumb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.thumb-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e5e7eb);
+}
+
+@media (max-width: 1024px) {
+  .post-editor {
+    grid-template-columns: 1fr; /* stack on small screens */
+  }
+}
+
+

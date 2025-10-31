@@ -22,33 +22,37 @@ namespace Keytietkiem.DTOs
     {
         public Guid PostId { get; set; }
         public string Title { get; set; } = null!;
-        public string Content { get; set; } = null!;
+        public string Slug { get; set; } = null!;
+        public string? ShortDescription { get; set; }
+        public string? Content { get; set; }
         public string? Thumbnail { get; set; }
-        public int PostTypeId { get; set; }
-        public Guid AuthorId { get; set; }
-        public string Status { get; set; } = null!;
-        public int ViewCount { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public int? PostTypeId { get; set; }
+        public Guid? AuthorId { get; set; }
+        public string? MetaTitle { get; set; }
+        public string? MetaDescription { get; set; }
+        public string? Status { get; set; }
+        public int? ViewCount { get; set; }
+        public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-        public DateTime? PublishedAt { get; set; }
         public string? AuthorName { get; set; }
         public string? PostTypeName { get; set; }
         public List<TagDTO> Tags { get; set; } = new List<TagDTO>();
+        public List<PostImageDTO> PostImages { get; set; } = new List<PostImageDTO>();
     }
 
     public class PostListItemDTO
     {
         public Guid PostId { get; set; }
         public string Title { get; set; } = null!;
-        public string Content { get; set; } = null!;
+        public string Slug { get; set; } = null!;
+        public string? ShortDescription { get; set; }
         public string? Thumbnail { get; set; }
-        public int PostTypeId { get; set; }
-        public Guid AuthorId { get; set; }
-        public string Status { get; set; } = null!;
-        public int ViewCount { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public int? PostTypeId { get; set; }
+        public Guid? AuthorId { get; set; }
+        public string? Status { get; set; }
+        public int? ViewCount { get; set; }
+        public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-        public DateTime? PublishedAt { get; set; }
         public string? AuthorName { get; set; }
         public string? PostTypeName { get; set; }
         public List<TagDTO> Tags { get; set; } = new List<TagDTO>();
@@ -57,33 +61,66 @@ namespace Keytietkiem.DTOs
     public class CreatePostDTO
     {
         public string Title { get; set; } = null!;
-        public string Content { get; set; } = null!;
+        public string? ShortDescription { get; set; }
+        public string? Content { get; set; }
         public string? Thumbnail { get; set; }
-        public int PostTypeId { get; set; }
-        public Guid AuthorId { get; set; }
-        public string Status { get; set; } = "Draft";
+        public int? PostTypeId { get; set; }
+        public Guid? AuthorId { get; set; }
+        public string? MetaTitle { get; set; }
+        public string? MetaDescription { get; set; }
+        public string? Status { get; set; }
         public List<int> TagIds { get; set; } = new List<int>();
+        public List<CreatePostImageDTO> PostImages { get; set; } = new List<CreatePostImageDTO>();
     }
 
     public class UpdatePostDTO
     {
         public string Title { get; set; } = null!;
-        public string Content { get; set; } = null!;
+        public string? ShortDescription { get; set; }
+        public string? Content { get; set; }
         public string? Thumbnail { get; set; }
-        public int PostTypeId { get; set; }
-        public string Status { get; set; } = null!;
+        public int? PostTypeId { get; set; }
+        public string? MetaTitle { get; set; }
+        public string? MetaDescription { get; set; }
+        public string? Status { get; set; }
         public List<int> TagIds { get; set; } = new List<int>();
-        public DateTime? UpdatedAt { get; set; }
-
     }
 
     public class PostTypeDTO
     {
         public int PostTypeId { get; set; }
-        public string TypeName { get; set; } = null!;
+        public string PostTypeName { get; set; } = null!;
         public string Slug { get; set; } = null!;
         public string? Description { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
+    }
+
+    public class ImageUploadRequest
+    {
+        public IFormFile File { get; set; }
+    }
+
+    public class PostImageDTO
+    {
+        public Guid ImageId { get; set; }
+        public Guid PostId { get; set; }
+        public string ImageUrl { get; set; } = null!;
+        public string? Caption { get; set; }
+        public int? DisplayOrder { get; set; }
+        public DateTime? CreatedAt { get; set; }
+    }
+
+    public class CreatePostImageDTO
+    {
+        public string ImageUrl { get; set; } = null!;
+        public string? Caption { get; set; }
+        public int? DisplayOrder { get; set; }
+    }
+
+    public class UpdatePostImageDTO
+    {
+        public string ImageUrl { get; set; } = null!;
+        public string? Caption { get; set; }
+        public int? DisplayOrder { get; set; }
     }
 }

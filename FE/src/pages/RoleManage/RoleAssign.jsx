@@ -1,12 +1,24 @@
-import React, { useEffect, useState } from "react";
-import { rbacApi } from "../../api";
+/**
+ * File: RoleAssign.jsx
+ * Author: Keytietkiem Team
+ * Created: 20/10/2025
+ * Last Updated: 25/10/2025
+ * Version: 1.0.0
+ * Purpose: Role permission assignment page for managing role-permission relationships.
+ */
+import React, { useEffect, useState, useCallback } from "react";
+import {rbacApi} from "../../services/rbacApi";
 import RBACModal from "../../components/RBACModal/RBACModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./RoleAssign.css";
 
+/**
+ * @summary: Role permission assignment page component.
+ * @returns {JSX.Element} - Role assignment interface with permission matrix
+ */
 export default function RoleAssign() {
-  const { toasts, showSuccess, showError, showWarning, removeToast } = useToast();
+  const { toasts, showSuccess, showError, showWarning, removeToast, confirmDialog } = useToast();
   
   // State for data
   const [roles, setRoles] = useState([]);
@@ -25,24 +37,29 @@ export default function RoleAssign() {
   const [addModuleOpen, setAddModuleOpen] = useState(false);
   const [addPermissionOpen, setAddPermissionOpen] = useState(false);
   
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, []);
-  
-  // Load role permissions when role is selected
-  useEffect(() => {
-    if (selectedRole) {
-      loadRolePermissions(selectedRole.roleId);
-      setHasUnsavedChanges(false);
+  /**
+   * @summary: Load role-permission matrix for a given role.
+   * @param {string} roleId - Role identifier
+   * @returns {Promise<void>}
+   */
+  const loadRolePermissions = useCallback(async (roleId) => {
+    try {
+      const response = await rbacApi.getRolePermissions(roleId);
+      setRolePermissions(response.rolePermissions || []);
+    } catch (error) {
+      showError("Lỗi tải quyền", error.message || "Không thể tải quyền của Vai trò");
     }
-  }, [selectedRole]);
+  }, [showError]);
   
-  const loadData = async () => {
+  /**
+   * @summary: Load initial data for roles, modules, and permissions in parallel.
+   * @returns {Promise<void>}
+   */
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [rolesData, modulesData, permissionsData] = await Promise.all([
-        rbacApi.GetActiveRoles(),
+        rbacApi.getActiveRoles(),
         rbacApi.getModules(),
         rbacApi.getPermissions()
       ]);
@@ -55,16 +72,20 @@ export default function RoleAssign() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showError]);
   
-  const loadRolePermissions = async (roleId) => {
-    try {
-      const response = await rbacApi.getRolePermissions(roleId);
-      setRolePermissions(response.rolePermissions || []);
-    } catch (error) {
-      showError("Lỗi tải quyền", error.message || "Không thể tải quyền của role");
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+  
+  // Load role permissions when role is selected
+  useEffect(() => {
+    if (selectedRole) {
+      loadRolePermissions(selectedRole.roleId);
+      setHasUnsavedChanges(false);
     }
-  };
+  }, [selectedRole, loadRolePermissions]);
   
   // Create handlers
   const handleCreateRole = async (form) => {
@@ -77,17 +98,22 @@ export default function RoleAssign() {
       setRoles(prev => [...prev, created]);
       setAddRoleOpen(false);
       showSuccess(
-        "Tạo Role thành công!",
-        `Role "${form.name}" đã được tạo và tự động gán quyền cho tất cả modules và permissions.`
+        "Tạo Vai trò thành công!",
+        `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Role";
-      showError("Tạo Role thất bại!", errorMessage);
+      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Vai trò";
+      showError("Tạo Vai trò thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
   
+  /**
+   * @summary: Create a new Module entity and add into local state.
+   * @param {{ moduleName: string, description?: string }} form - Module payload
+   * @returns {Promise<void>}
+   */
   const handleCreateModule = async (form) => {
     try {
       setSubmitting(true);
@@ -98,17 +124,22 @@ export default function RoleAssign() {
       setModules(prev => [...prev, created]);
       setAddModuleOpen(false);
       showSuccess(
-        "Tạo Module thành công!",
-        `Module "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả roles và permissions.`
+        "Tạo Mô-đun thành công!",
+        `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Quyền.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Module";
-      showError("Tạo Module thất bại!", errorMessage);
+      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Mô-đun";
+      showError("Tạo Mô-đun thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
   
+  /**
+   * @summary: Create a new Permission entity and add into local state.
+   * @param {{ permissionName: string, description?: string }} form - Permission payload
+   * @returns {Promise<void>}
+   */
   const handleCreatePermission = async (form) => {
     try {
       setSubmitting(true);
@@ -119,22 +150,26 @@ export default function RoleAssign() {
       setPermissions(prev => [...prev, created]);
       setAddPermissionOpen(false);
       showSuccess(
-        "Tạo Permission thành công!",
-        `Permission "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả roles và modules.`
+        "Tạo Quyền thành công!",
+        `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Permission";
-      showError("Tạo Permission thất bại!", errorMessage);
+      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Quyền";
+      showError("Tạo Quyền thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
   
-  // Handle role selection
+  /**
+   * @summary: Select a role for editing its permissions. Warn on unsaved changes.
+   * @param {Object} role - Role object
+   * @returns {void}
+   */
   const handleRoleSelect = (role) => {
     if (hasUnsavedChanges) {
       const confirmSwitch = window.confirm(
-        "Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển sang role khác? Thay đổi sẽ bị mất."
+        "Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển sang vai trò khác? Thay đổi sẽ bị mất."
       );
       if (!confirmSwitch) {
         return;
@@ -143,24 +178,29 @@ export default function RoleAssign() {
     setSelectedRole(role);
   };
   
-  // Handle cancel - reload permissions from server
+  /**
+   * @summary: Cancel edits and reload role-permissions from server.
+   * @returns {Promise<void>}
+   */
   const handleCancel = async () => {
     if (!selectedRole) return;
     
     try {
       await loadRolePermissions(selectedRole.roleId);
       setHasUnsavedChanges(false);
-      showSuccess("Đã hủy thay đổi", "Ma trận permissions đã được reset về trạng thái ban đầu");
+      showSuccess("Đã hủy thay đổi", "Ma trận Quyền đã được reset về trạng thái ban đầu");
     } catch (error) {
-      console.error("Error canceling changes:", error);
-      showError("Lỗi khi hủy", "Không thể reset ma trận permissions");
+      console.error("Lôi khi hủy thay đổi:", error);
+      showError("Lỗi khi hủy", "Không thể reset ma trận Quyền");
       throw error;
     }
   };
   
   /**
-   * Handle permission toggle in the matrix
-   * This only updates local state - changes are not persisted until save
+   * @summary: Toggle permission state locally (not persisted until saved).
+   * @param {number} moduleId - Module identifier
+   * @param {number} permissionId - Permission identifier
+   * @returns {void}
    */ 
    const handlePermissionToggle = (moduleId, permissionId) => {
     if (!selectedRole) return;
@@ -193,7 +233,12 @@ export default function RoleAssign() {
     setHasUnsavedChanges(true);
   };
   
-  // Check if permission is active
+  /**
+   * @summary: Check if a permission is active for the selected role and module.
+   * @param {number} moduleId - Module identifier
+   * @param {number} permissionId - Permission identifier
+   * @returns {boolean}
+   */
   const isPermissionActive = (moduleId, permissionId) => {
     const rolePermission = rolePermissions.find(rp => 
       rp.moduleId === moduleId && rp.permissionId === permissionId
@@ -202,12 +247,12 @@ export default function RoleAssign() {
   };
   
   /**
-   * Handle saving all permission changes to the server
-   * Creates a complete matrix of all module-permission combinations
+   * @summary: Save all permission changes by submitting a full matrix to server.
+   * @returns {Promise<void>}
    */
     const handleSaveChanges = async () => {
     if (!selectedRole) {
-      showWarning("Chưa chọn Role", "Vui lòng chọn một role để lưu thay đổi");
+      showWarning("Chưa chọn Vai trò", "Vui lòng chọn một Vai trò để lưu thay đổi");
       return;
     }
     
@@ -247,7 +292,7 @@ export default function RoleAssign() {
       
       showSuccess(
         "Lưu thay đổi thành công!",
-        `Đã cập nhật tất cả quyền cho role "${selectedRole.name}"`
+        `Đã cập nhật tất cả quyền cho Vai trò "${selectedRole.name}"`
       );
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
@@ -257,7 +302,10 @@ export default function RoleAssign() {
     }
   };
   
-  // Handle tick all/untick all (local state only)
+  /**
+   * @summary: Toggle all permissions (select/deselect all) in local state.
+   * @returns {void}
+   */
   const handleTickAll = () => {
     if (!selectedRole) return;
     
@@ -286,7 +334,10 @@ export default function RoleAssign() {
     setHasUnsavedChanges(true);
   };
   
-  // Check if all permissions are ticked
+  /**
+   * @summary: Determine if all permissions are currently selected for the role.
+   * @returns {boolean}
+   */
   const isAllTicked = permissions.every(permission => 
     modules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
   );
@@ -305,7 +356,7 @@ export default function RoleAssign() {
     <div className="role-assign-container">
       {/* Left Sidebar - Roles Panel */}
       <div className="roles-panel">
-        <h2 className="roles-title">Quản lý Role</h2>
+        <h2 className="roles-title">Quản lý Vai trò</h2>
         
         {/* Action Buttons */}
         <div className="sidebar-buttons">
@@ -313,19 +364,19 @@ export default function RoleAssign() {
             className="add-role-btn"
             onClick={() => setAddRoleOpen(true)}
           >
-            Thêm Role
+            Thêm Vai trò
           </button>
           <button 
             className="add-module-btn"
             onClick={() => setAddModuleOpen(true)}
           >
-            Thêm Module
+            Thêm Mô-đun
           </button>
           <button 
             className="add-permission-btn"
             onClick={() => setAddPermissionOpen(true)}
           >
-            Thêm Permission
+            Thêm Quyền
           </button>
         </div>
         
@@ -359,7 +410,7 @@ export default function RoleAssign() {
       <div className="permissions-panel">
          <div className="permissions-header">
            <h2 className="permissions-title">
-             {selectedRole ? `Quyền của Role: ${selectedRole.name}` : 'Chọn một Role để xem quyền'}
+             {selectedRole ? `Quyền của Vai trò: ${selectedRole.name}` : 'Chọn một Vai trò để xem quyền'}
              {hasUnsavedChanges && selectedRole && (
                <span style={{ 
                  color: '#ffc107', 
@@ -384,7 +435,7 @@ export default function RoleAssign() {
               onClick={handleTickAll}
               disabled={!selectedRole}
             >
-              {isAllTicked ? 'Untick All' : 'Tick All'}
+              {isAllTicked ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
             </button>
              <button 
                className="btn btn-save"
@@ -405,19 +456,19 @@ export default function RoleAssign() {
             <table className="permissions-table">
               <thead>
                 <tr>
-                  <th>Permission</th>
-                  {modules.map((module) => (
-                    <th key={module.moduleId} className="module-name">
-                      {module.moduleName}
+                  <th>Mô-đun\Quyền</th>
+                  {permissions.map((permission) => (
+                    <th key={permission.permissionId}  className="permission-name">
+                      {permission.permissionName}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {permissions.map((permission) => (
-                  <tr key={permission.permissionId}>
-                    <td className="permission-name">{permission.permissionName}</td>
-                    {modules.map((module) => (
+                {modules.map((module) => (
+                  <tr key={module.moduleId}>
+                    <td className="module-name">{module.moduleName}</td>
+                    {permissions.map((permission) => (
                       <td key={`${permission.permissionId}-${module.moduleId}`}>
                         <input
                           type="checkbox"
@@ -446,7 +497,7 @@ export default function RoleAssign() {
             }}
             aria-live="polite"
           >
-            Vui lòng chọn một Role để xem và chỉnh sửa quyền
+            Vui lòng chọn một Vai trò để xem và chỉnh sửa quyền
           </output>
         )}
       </div>
@@ -454,10 +505,9 @@ export default function RoleAssign() {
       {/* Modals */}
       <RBACModal
         isOpen={addRoleOpen}
-        title="Thêm Role"
+        title="Thêm Vai trò"
         fields={[
-          { name: "name", label: "Role Name", required: true },
-          { name: "isSystem", label: "System Role", type: "checkbox" },
+          { name: "name", label: "Tên Vai trò", required: true },
         ]}
         onClose={() => setAddRoleOpen(false)}
         onSubmit={handleCreateRole}
@@ -466,10 +516,10 @@ export default function RoleAssign() {
       
       <RBACModal
         isOpen={addModuleOpen}
-        title="Thêm Module"
+        title="Thêm Mô-đun"
         fields={[
-          { name: "moduleName", label: "Module Name", required: true },
-          { name: "description", label: "Description", type: "textarea" },
+          { name: "moduleName", label: "Tên Mô-đun", required: true },
+          { name: "description", label: "Mô tả", type: "textarea" },
         ]}
         onClose={() => setAddModuleOpen(false)}
         onSubmit={handleCreateModule}
@@ -478,10 +528,10 @@ export default function RoleAssign() {
       
       <RBACModal
         isOpen={addPermissionOpen}
-        title="Thêm Permission"
+        title="Thêm Quyền"
         fields={[
-          { name: "permissionName", label: "Permission Name", required: true },
-          { name: "description", label: "Description", type: "textarea" },
+          { name: "permissionName", label: "Tên Quyền", required: true },
+          { name: "description", label: "Mô tả", type: "textarea" },
         ]}
         onClose={() => setAddPermissionOpen(false)}
         onSubmit={handleCreatePermission}
@@ -490,7 +540,8 @@ export default function RoleAssign() {
       {/* Toast */}
       <ToastContainer 
         toasts={toasts} 
-        onRemove={removeToast} 
+        onRemove={removeToast}
+        confirmDialog={confirmDialog}
       />
     </div>
   );

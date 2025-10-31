@@ -1,11 +1,27 @@
+/**
+ * File: Header.jsx
+ * Author: HieuNDHE173169
+ * Created: 18/10/2025
+ * Last Updated: 29/10/2025
+ * Version: 1.0.0
+ * Purpose: Admin header component with search, notifications, and user dropdown menu.
+ *          Provides navigation and user account management interface.
+ */
 import React, { useState, useRef, useEffect } from "react";
 import "./Header.css";
 
+/**
+ * @summary: Header component for admin layout with search, notifications, and user menu.
+ * @returns {JSX.Element} - Header with search bar, notification icon, and user dropdown
+ */
 const Header = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Close dropdown when clicking outside
+  /**
+   * @summary: Close dropdown menu when clicking outside the avatar container.
+   * Effect: Attaches and cleans up click outside event listener.
+   */
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -19,10 +35,17 @@ const Header = () => {
     };
   }, []);
 
+  /**
+   * @summary: Toggle user dropdown menu visibility.
+   */
   const handleAvatarClick = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
 
+  /**
+   * @summary: Handle menu item click actions (profile, settings, logout, etc.).
+   * @param {string} action - Action identifier (e.g., 'profile', 'logout')
+   */
   const handleMenuAction = (action) => {
     console.log(`Action: ${action}`);
     setIsDropdownOpen(false);

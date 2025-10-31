@@ -1,16 +1,33 @@
+/**
+ * File: RoleManage.jsx
+ * Author: Keytietkiem Team
+ * Created: 20/10/2025
+ * Last Updated: 25/10/2025
+ * Version: 1.0.0
+ * Purpose: RBAC management page for Modules, Permissions, and Roles with tabbed navigation.
+ */
+
 import React, { useEffect, useMemo, useState } from "react";
-import { rbacApi } from "../../api";
+import { rbacApi } from "../../services/rbacApi";
 import RBACModal from "../../components/RBACModal/RBACModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
-import "./RBACManagement.css";
+import "./RoleManage.css"
 
+/** 
+ * @summary Tab constants for switching between different management views 
+*/
 const TABS = {
   ROLES: "roles",
   MODULES: "modules",
   PERMISSIONS: "permissions",
 };
 
+/**
+ * @summary Custom hook for fetching RBAC data dynamically based on the active tab.
+ * @param {string} activeTab - One of 'modules', 'permissions', or 'roles'.
+ * @returns {Object} - { data, loading, error, setData }
+ */
 function useFetchData(activeTab) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -25,7 +42,7 @@ function useFetchData(activeTab) {
         let res = [];
         if (activeTab === TABS.MODULES) res = await rbacApi.getModules();
         else if (activeTab === TABS.PERMISSIONS) res = await rbacApi.getPermissions();
-        else if (activeTab === TABS.ROLES) res = await rbacApi.getRoles();
+        else if (activeTab === TABS.ROLES) res = await rbacApi.getAllRoles();
         if (isMounted) setData(Array.isArray(res) ? res : []);
       } catch (e) {
         if (isMounted) setError(e.message || "Không thể tải dữ liệu");
@@ -41,7 +58,11 @@ function useFetchData(activeTab) {
 
   return { data, loading, error, setData };
 }
-
+/**
+ * @summary Formats a date string into a readable local string.
+ * @param {string|Date} value - The date value.
+ * @returns {string} - Formatted date string.
+ */
 function formatDate(value) {
   if (!value) return "";
   try {
@@ -52,11 +73,14 @@ function formatDate(value) {
     return "";
   }
 }
-
+/**
+ * @summary Handles the user interface and interaction logic for managing
+ * modules, permissions, and roles.
+ */
 export default function RBACManagement() {
   const [activeTab, setActiveTab] = useState(TABS.MODULES);
   const { data, loading, error, setData } = useFetchData(activeTab);
-  const { toasts, showSuccess, showError, showWarning, removeToast } = useToast();
+  const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
 
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("");
@@ -70,7 +94,7 @@ export default function RBACManagement() {
   const [submitting, setSubmitting] = useState(false);
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize] = useState(10); // Fixed at 10 items per page
 
   useEffect(() => {
     setSearch("");
@@ -80,44 +104,55 @@ export default function RBACManagement() {
     setRoleStatus("all");
   }, [activeTab]);
 
+  // Handle column sort
+  const handleColumnSort = (columnKey) => {
+    if (sortKey === columnKey) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(columnKey);
+      setSortOrder("asc");
+    }
+  };
+  /**
+   * @summary  Dynamically generates column definitions and the "Add" button label 
+   * based on the currently active tab (Modules, Permissions, or Roles).
+   * @returns column definitions and button labels dynamically per active tab.
+   */
   const { columns, addButtonText } = useMemo(() => {
     if (activeTab === TABS.MODULES) {
       return {
-        addButtonText: "Thêm Module",
+        addButtonText: "Thêm Mô-đun",
         columns: [
-          { key: "moduleName", label: "Module Name" },
-          { key: "description", label: "Description" },
-          { key: "createdAt", label: "Created At", render: formatDate },
-          { key: "updatedAt", label: "Updated At", render: formatDate },
+          { key: "moduleName", label: "Tên Mô-đun" },
+          { key: "description", label: "Mô tả" },
+          { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
+          { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
         ],
       };
     }
     if (activeTab === TABS.PERMISSIONS) {
       return {
-        addButtonText: "Thêm Permission",
+        addButtonText: "Thêm Quyền",
         columns: [
-          { key: "permissionName", label: "Permission Name" },
-          { key: "description", label: "Description" },
-          { key: "createdAt", label: "Created At", render: formatDate },
-          { key: "updatedAt", label: "Updated At", render: formatDate },
+          { key: "permissionName", label: "Tên quyền" },
+          { key: "description", label: "Mô tả" },
+          { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
+          { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
         ],
       };
     }
     return {
-      addButtonText: "Thêm Role",
+      addButtonText: "Thêm Vai trò",
       columns: [
-        { key: "name", label: "Role Name" },
-        { key: "isSystem", label: "System Role", render: (v) => (v ? "Yes" : "No") },
-        { key: "isActive", label: "Active", render: (v) => (v ? "Yes" : "No") },
-        { key: "createdAt", label: "Created At", render: formatDate },
-        { key: "updatedAt", label: "Updated At", render: formatDate },
+        { key: "name", label: "Tên Vai trò" },
+        { key: "isSystem", label: "System Role", render: (v) => (v ? "Có" : "Không") },
+        { key: "isActive", label: "Active", render: (v) => (v ? "Có" : "Không") },
+        { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
+        { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
       ],
     };
   }, [activeTab]);
 
-  const sortOptions = useMemo(() => {
-    return columns.map((c) => ({ value: c.key, label: c.label }));
-  }, [columns]);
 
   const filteredSorted = useMemo(() => {
     const normalized = (v) => (v ?? "").toString().toLowerCase();
@@ -158,7 +193,7 @@ export default function RBACManagement() {
       });
     }
     return rows;
-  }, [data, columns, search, sortKey, sortOrder]);
+   }, [data, columns, search, sortKey, sortOrder, roleStatus, activeTab]);
 
   const total = filteredSorted.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -171,6 +206,10 @@ export default function RBACManagement() {
   const [addModuleOpen, setAddModuleOpen] = useState(false);
   const [addPermissionOpen, setAddPermissionOpen] = useState(false);
 
+  /**
+   * @summary: Handle clicking the Add button based on active tab.
+   * @returns {void}
+   */
   function onClickAdd() {
     if (activeTab === TABS.ROLES) {
       setAddRoleOpen(true);
@@ -186,6 +225,11 @@ export default function RBACManagement() {
     }
   }
 
+  /**
+   * @summary: Create a new Role entity.
+   * @param {{ name: string, isSystem?: boolean }} form - Role form payload
+   * @returns {Promise<void>}
+   */
   async function handleCreateRole(form) {
     try {
       setSubmitting(true);
@@ -196,17 +240,22 @@ export default function RBACManagement() {
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddRoleOpen(false);
       showSuccess(
-        "Tạo Role thành công!",
-        `Role "${form.name}" đã được tạo và tự động gán quyền cho tất cả modules và permissions.`
+        "Tạo Vai trò thành công!",
+        `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Role";
-      showError("Tạo Role thất bại!", errorMessage);
+      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
+      showError("Tạo Vai trò thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
   }
 
+  /**
+   * @summary: Create a new Module entity.
+   * @param {{ moduleName: string, description?: string }} form - Module form payload
+   * @returns {Promise<void>}
+   */
   async function handleCreateModule(form) {
     try {
       setSubmitting(true);
@@ -217,17 +266,22 @@ export default function RBACManagement() {
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddModuleOpen(false);
       showSuccess(
-        "Tạo Module thành công!",
-        `Module "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả roles và permissions.`
+        "Tạo Mô-đun thành công!",
+        `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và quyền.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Module";
-      showError("Tạo Module thất bại!", errorMessage);
+      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
+      showError("Tạo Mô-đun thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
   }
 
+  /**
+   * @summary: Create a new Permission entity.
+   * @param {{ permissionName: string, description?: string }} form - Permission form payload
+   * @returns {Promise<void>}
+   */
   async function handleCreatePermission(form) {
     try {
       setSubmitting(true);
@@ -238,12 +292,12 @@ export default function RBACManagement() {
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddPermissionOpen(false);
       showSuccess(
-        "Tạo Permission thành công!",
-        `Permission "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả roles và modules.`
+        "Tạo Quyền thành công!",
+        `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Permission";
-      showError("Tạo Permission thất bại!", errorMessage);
+      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
+      showError("Tạo Quyền thất bại!", errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -255,30 +309,40 @@ export default function RBACManagement() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
 
+  /**
+   * @summary: Open edit modal for the selected row with dynamic fields.
+   * @param {Object} row - Selected row data
+   * @returns {void}
+   */
   function onEdit(row) {
     setEditingRow(row);
     if (activeTab === TABS.MODULES) {
-      setEditTitle("Sửa Module");
+      setEditTitle("Sửa Mô-đun");
       setEditFields([
-        { name: "moduleName", label: "Module Name", required: true, defaultValue: row.moduleName },
-        { name: "description", label: "Description", type: "textarea", defaultValue: row.description || "" },
+        { name: "moduleName", label: "Tên mô-đun", required: true, defaultValue: row.moduleName },
+        { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
-      setEditTitle("Sửa Permission");
+      setEditTitle("Sửa Quyền");
       setEditFields([
-        { name: "permissionName", label: "Permission Name", required: true, defaultValue: row.permissionName },
-        { name: "description", label: "Description", type: "textarea", defaultValue: row.description || "" },
+        { name: "permissionName", label: "Tên quyền", required: true, defaultValue: row.permissionName },
+        { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
-        { name: "name", label: "Role Name", required: true, defaultValue: row.name },
+        { name: "name", label: "Tên vai trò", required: true, defaultValue: row.name },
         { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
     setEditOpen(true);
   }
 
+  /**
+   * @summary: Delete an entity (Module/Permission/Role) after confirmation.
+   * @param {Object} row - Selected row data
+   * @returns {Promise<void>}
+   */
   async function onDelete(row) {
     const label = activeTab === TABS.MODULES ? row.moduleName : activeTab === TABS.PERMISSIONS ? row.permissionName : row.name;
     const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
@@ -288,27 +352,41 @@ export default function RBACManagement() {
       `Bạn sắp xóa ${entityType.toLowerCase()} "${label}". Hành động này không thể hoàn tác!`
     );
     
-    const ok = window.confirm(`Xoá mục: ${label}?`);
-    if (!ok) return;
-    
-    try {
-      if (activeTab === TABS.MODULES) await rbacApi.deleteModule(row.moduleId || row.id);
-      else if (activeTab === TABS.PERMISSIONS) await rbacApi.deletePermission(row.permissionId || row.id);
-      else await rbacApi.deleteRole(row.roleId || row.id);
-      setData((prev) => prev.filter((x) => {
-        const key = activeTab === TABS.MODULES ? "moduleId" : activeTab === TABS.PERMISSIONS ? "permissionId" : "roleId";
-        return x[key] !== row[key];
-      }));
-      showSuccess(
-        `Xóa ${entityType} thành công!`,
-        `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
-      );
-    } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
-      showError(`Xóa ${entityType} thất bại!`, errorMessage);
-    }
+    // Show confirm dialog instead of alert
+    showConfirm(
+      `Xác nhận xóa ${entityType}`,
+      `Bạn có chắc chắn muốn xóa "${label}"? Hành động này không thể hoàn tác.`,
+      async () => {
+        try {
+          if (activeTab === TABS.MODULES) await rbacApi.deleteModule(row.moduleId || row.id);
+          else if (activeTab === TABS.PERMISSIONS) await rbacApi.deletePermission(row.permissionId || row.id);
+          else await rbacApi.deleteRole(row.roleId || row.id);
+          setData((prev) => prev.filter((x) => {
+            const key = activeTab === TABS.MODULES ? "moduleId" : activeTab === TABS.PERMISSIONS ? "permissionId" : "roleId";
+            const targetId = row[key] ?? row.id;
+            const currentId = x[key] ?? x.id;
+            return currentId !== targetId;
+          }));
+          showSuccess(
+            `Xóa ${entityType} thành công!`,
+            `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
+          );
+        } catch (e) {
+          const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
+          showError(`Xóa ${entityType} thất bại!`, errorMessage);
+        }
+      },
+      () => {
+        // User cancelled, no action needed
+      }
+    );
   }
 
+  /**
+   * @summary: Submit edit modal and persist changes to server.
+   * @param {Object} form - Edited form data
+   * @returns {Promise<void>}
+   */
   async function onSubmitEdit(form) {
     try {
       setEditSubmitting(true);
@@ -323,7 +401,8 @@ export default function RBACManagement() {
         setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? { 
           ...x, 
           moduleName: form.moduleName, 
-          description: form.description 
+          description: form.description,
+          updatedAt: new Date().toISOString(),
         } : x));
       } else if (activeTab === TABS.PERMISSIONS) {
         await rbacApi.updatePermission(editingRow.permissionId, { 
@@ -333,7 +412,8 @@ export default function RBACManagement() {
         setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? { 
           ...x, 
           permissionName: form.permissionName, 
-          description: form.description 
+          description: form.description,
+          updatedAt: new Date().toISOString(),
         } : x));
       } else {
         const payload = { 
@@ -341,7 +421,11 @@ export default function RBACManagement() {
           isActive: form.isActive 
         };
         await rbacApi.updateRole(editingRow.roleId, payload);
-        setData((prev) => prev.map((x) => x.roleId === editingRow.roleId ? { ...x, ...payload } : x));
+        setData((prev) => prev.map((x) => x.roleId === editingRow.roleId ? { 
+          ...x, 
+          ...payload,
+          updatedAt: new Date().toISOString(),
+        } : x));
       }
       setEditOpen(false);
       showSuccess(
@@ -360,8 +444,8 @@ export default function RBACManagement() {
   return (
     <div className="rbac-management-container">
       <div className="rbac-header">
-        <h1 className="rbac-title">RBAC Management</h1>
-        <p className="rbac-subtitle">Quản lý Modules, Permissions, và Roles</p>
+        <h1 className="rbac-title">Quản lý phân quyền</h1>
+        <p className="rbac-subtitle">Quản lý Mô-đun, Quyền và Vai trò</p>
       </div>
 
       <div className="rbac-tabs">
@@ -369,27 +453,35 @@ export default function RBACManagement() {
           className={`tab-button ${activeTab === TABS.MODULES ? "active" : ""}`}
           onClick={() => setActiveTab(TABS.MODULES)}
         >
-          Modules
+          Mô-đun
         </button>
         <button
           className={`tab-button ${activeTab === TABS.PERMISSIONS ? "active" : ""}`}
           onClick={() => setActiveTab(TABS.PERMISSIONS)}
         >
-          Permissions
+          Quyền
         </button>
         <button
           className={`tab-button ${activeTab === TABS.ROLES ? "active" : ""}`}
           onClick={() => setActiveTab(TABS.ROLES)}
         >
-          Roles
+          Vai trò
         </button>
       </div>
 
       <div className="rbac-controls">
         <div className="controls-left">
-          <button className="add-button" onClick={onClickAdd}>{addButtonText}</button>
-        </div>
-        <div className="controls-right">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder={activeTab === TABS.MODULES ? "Tìm tên Mô-đun" : activeTab === TABS.PERMISSIONS ? "Tìm tên Quyền" : "Tìm tên Vai trò"}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
           {activeTab === TABS.ROLES && (
             <select
               aria-label="Lọc trạng thái"
@@ -400,60 +492,20 @@ export default function RBACManagement() {
             >
               <option value="all">Tất cả</option>
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="inactive">Không active</option>
             </select>
           )}
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder={activeTab === TABS.MODULES ? "Tìm Module name..." : activeTab === TABS.PERMISSIONS ? "Tìm Permission name..." : "Tìm Role name..."}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="sort-controls">
-            <select
-              value={sortKey}
-              onChange={(e) => {
-                setSortKey(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">-- Sắp xếp theo --</option>
-              {sortOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <button
-              className="sort-order-btn"
-              onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
-              title="Thay đổi thứ tự"
-            >
-              {sortOrder === "asc" ? "↑" : "↓"}
-            </button>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-            >
-              {[10, 20, 50].map((n) => (
-                <option key={n} value={n}>{n}/trang</option>
-              ))}
-            </select>
-          </div>
+        </div>
+        <div className="controls-right">
+          <button className="add-button" onClick={onClickAdd}>{addButtonText}</button>
         </div>
       </div>
       {activeTab === TABS.ROLES && (
         <RBACModal
           isOpen={addRoleOpen}
-          title="Thêm Role"
+          title="Thêm Vai trò"
           fields={[
-            { name: "name", label: "Role Name", required: true },
+            { name: "name", label: "Tên Vai trò", required: true },
             { name: "isSystem", label: "System Role", type: "checkbox" },
           ]}
           onClose={() => setAddRoleOpen(false)}
@@ -464,10 +516,10 @@ export default function RBACManagement() {
       {activeTab === TABS.MODULES && (
         <RBACModal
           isOpen={addModuleOpen}
-          title="Thêm Module"
+          title="Thêm Mô-đun"
           fields={[
-            { name: "moduleName", label: "Module Name", required: true },
-            { name: "description", label: "Description", type: "textarea" },
+            { name: "moduleName", label: "Tên Mô-đun", required: true },
+            { name: "description", label: "Mô tả", type: "textarea" },
           ]}
           onClose={() => setAddModuleOpen(false)}
           onSubmit={handleCreateModule}
@@ -477,10 +529,10 @@ export default function RBACManagement() {
       {activeTab === TABS.PERMISSIONS && (
         <RBACModal
           isOpen={addPermissionOpen}
-          title="Thêm Permission"
+          title="Thêm Quyền"
           fields={[
-            { name: "permissionName", label: "Permission Name", required: true },
-            { name: "description", label: "Description", type: "textarea" },
+            { name: "permissionName", label: "Tên Quyền", required: true },
+            { name: "description", label: "Mô tả", type: "textarea" },
           ]}
           onClose={() => setAddPermissionOpen(false)}
           onSubmit={handleCreatePermission}
@@ -507,7 +559,18 @@ export default function RBACManagement() {
             <thead>
               <tr>
                 {columns.map((col) => (
-                  <th key={col.key}>{col.label}</th>
+                  <th key={col.key}>
+                    <div 
+                      className="sortable-header" 
+                      onClick={() => handleColumnSort(col.key)}
+                      onKeyDown={(e) => e.key === "Enter" && handleColumnSort(col.key)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      {col.label}
+                      {sortKey === col.key && (sortOrder === "asc" ? " ↑" : " ↓")}
+                    </div>
+                  </th>
                 ))}
                 <th>Thao tác</th>
               </tr>
@@ -522,7 +585,7 @@ export default function RBACManagement() {
                   })}
                   <td>
                     <div className="action-buttons">
-                      <button className="action-btn edit-btn" title="Sửa" onClick={() => onEdit(row)}>
+                      <button className="action-btn update-btn" title="Sửa" onClick={() => onEdit(row)}>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
                       </button>
                       <button className="action-btn delete-btn" title="Xoá" onClick={() => onDelete(row)}>
@@ -583,7 +646,8 @@ export default function RBACManagement() {
        
        <ToastContainer 
          toasts={toasts} 
-         onRemove={removeToast} 
+         onRemove={removeToast}
+         confirmDialog={confirmDialog}
        />
      </div>
    );

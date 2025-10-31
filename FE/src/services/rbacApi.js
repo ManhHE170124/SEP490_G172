@@ -1,86 +1,68 @@
+/**
+ * File: rbacApi.js
+ * Author: HieuNDHE173169
+ * Created: 18/10/2025
+ * Last Updated: 29/10/2025
+ * Version: 1.0.0
+ * Purpose: REST client for Role management endpoints.
+ *          Provides API methods for managing roles, modules, permissions, and role-permissions.
+ * Endpoints:
+ *   Roles:
+ *     - GET    /api/roles/list           : List all roles
+ *     - GET    /api/roles                : Get all roles
+ *     - GET    /api/roles/{id}           : Get role by id
+ *     - POST   /api/roles                : Create a role
+ *     - PUT    /api/roles/{id}           : Update a role
+ *     - DELETE /api/roles/{id}           : Delete a role
+ *     - GET    /api/roles/active         : Get active roles
+ *   Role Permissions:
+ *     - GET    /api/roles/{id}/permissions : Get role permissions
+ *     - PUT    /api/roles/{id}/permissions : Update role permissions
+ *   Modules:
+ *     - GET    /api/modules              : List all modules
+ *     - POST   /api/modules               : Create a module
+ *     - PUT    /api/modules/{id}          : Update a module
+ *     - DELETE /api/modules/{id}          : Delete a module
+ *   Permissions:
+ *     - GET    /api/permissions          : List all permissions
+ *     - POST   /api/permissions           : Create a permission
+ *     - PUT    /api/permissions/{id}      : Update a permission
+ *     - DELETE /api/permissions/{id}       : Delete a permission
+ */
 import axiosClient from "../api/axiosClient";
 
-const RBAC_ENDPOINTS = {
-  ROLES: "roles",
-  MODULES: "modules",
-  PERMISSIONS: "permissions",
+const END = { 
+  ROLES: "roles", 
+  MODULES: "modules", 
+  PERMISSIONS: "permissions" 
 };
 
 export const rbacApi = {
-  async getRoles() {
-    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/list`);
-  },
-
-  async getRoleById(roleId) {
-    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/${roleId}`);
-  },
-
-  async createRole(payload) {
-    return axiosClient.post(`${RBAC_ENDPOINTS.ROLES}`, payload);
-  },
-  async updateRole(roleId, payload) {
-    return axiosClient.put(`${RBAC_ENDPOINTS.ROLES}/${roleId}`, payload);
-  },
-  async deleteRole(roleId) {
-    return axiosClient.delete(`${RBAC_ENDPOINTS.ROLES}/${roleId}`);
-  },
-
-  // Role Permissions methods
-  async getRolePermissions(roleId) {
-    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`);
-  },
-
-  async updateRolePermissions(roleId, payload) {
-    return axiosClient.put(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`, payload);
-  },
-
-  async createOrUpdateRolePermission(roleId, permissionData) {
-    // For single permission update, we'll use the bulk update endpoint
-    const payload = {
-      roleId: roleId,
-      rolePermissions: [permissionData]
-    };
-    return axiosClient.put(`${RBAC_ENDPOINTS.ROLES}/${roleId}/permissions`, payload);
-  },
-
-  async GetActiveRoles() {
-    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}/active`);
-  },
+  /// Roles
+  getAllRoles: () => axiosClient.get(`${END.ROLES}/list`),
+  getRoles: () => axiosClient.get(END.ROLES),
+  getRoleById: (id) => axiosClient.get(`${END.ROLES}/${id}`),
+  createRole: (data) => axiosClient.post(END.ROLES, data),
+  updateRole: (id, data) => axiosClient.put(`${END.ROLES}/${id}`, data),
+  deleteRole: (id) => axiosClient.delete(`${END.ROLES}/${id}`),
+  getActiveRoles: () => axiosClient.get(`${END.ROLES}/active`),
   
-   async getRoles() {
-    return axiosClient.get(`${RBAC_ENDPOINTS.ROLES}`);
-  },
+  /// Role Permissions
+  getRolePermissions: (id) => axiosClient.get(`${END.ROLES}/${id}/permissions`),
+  updateRolePermissions: (id, data) => axiosClient.put(`${END.ROLES}/${id}/permissions`, data),
   
-  async getModules() {
-    return axiosClient.get(`${RBAC_ENDPOINTS.MODULES}`);
-  },
-
-  async createModule(payload) {
-    return axiosClient.post(`${RBAC_ENDPOINTS.MODULES}`, payload);
-  },
-  async updateModule(moduleId, payload) {
-    return axiosClient.put(`${RBAC_ENDPOINTS.MODULES}/${moduleId}`, payload);
-  },
-  async deleteModule(moduleId) {
-    return axiosClient.delete(`${RBAC_ENDPOINTS.MODULES}/${moduleId}`);
-  },
-
-  async getPermissions() {
-    return axiosClient.get(`${RBAC_ENDPOINTS.PERMISSIONS}`);
-  },
-
-  async createPermission(payload) {
-    return axiosClient.post(`${RBAC_ENDPOINTS.PERMISSIONS}`, payload);
-  },
-  async updatePermission(permissionId, payload) {
-    return axiosClient.put(`${RBAC_ENDPOINTS.PERMISSIONS}/${permissionId}`, payload);
-  },
-  async deletePermission(permissionId) {
-    return axiosClient.delete(`${RBAC_ENDPOINTS.PERMISSIONS}/${permissionId}`);
-  },
-
+  /// Modules
+  getModules: () => axiosClient.get(END.MODULES),
+  createModule: (data) => axiosClient.post(END.MODULES, data),
+  updateModule: (id, data) => axiosClient.put(`${END.MODULES}/${id}`, data),
+  deleteModule: (id) => axiosClient.delete(`${END.MODULES}/${id}`),
   
+  /// Permissions
+  getPermissions: () => axiosClient.get(END.PERMISSIONS),
+  createPermission: (data) => axiosClient.post(END.PERMISSIONS, data),
+  updatePermission: (id, data) => axiosClient.put(`${END.PERMISSIONS}/${id}`, data),
+  deletePermission: (id) => axiosClient.delete(`${END.PERMISSIONS}/${id}`),
 };
 
-export default rbacApi;
+
 

@@ -104,7 +104,7 @@ namespace Keytietkiem.Controllers
             {
                 PermissionName = createPermissionDto.PermissionName,
                 Description = createPermissionDto.Description,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Permissions.Add(newPermission);
@@ -166,7 +166,7 @@ namespace Keytietkiem.Controllers
             }
             existing.PermissionName = updatePermissionDto.PermissionName;
             existing.Description = updatePermissionDto.Description;
-            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedAt = DateTime.Now;
             _context.Permissions.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();

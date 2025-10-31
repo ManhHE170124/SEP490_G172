@@ -1,4 +1,4 @@
-/* RBAC Management Styles */
+
 .rbac-management-container {
   padding: 2rem;
   background: var(--page);
@@ -201,6 +201,19 @@
   font-size: 0.9rem;
 }
 
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.2s;
+}
+
+.sortable-header:hover {
+  color: var(--primary, #007bff);
+}
+
 .rbac-table td {
   padding: 1rem;
   border-bottom: 1px solid var(--line);
@@ -262,22 +275,38 @@
 
 .edit-btn {
   background: rgba(37, 99, 235, 0.1);
-  color: var(--primary);
+  color: #2563eb;
 }
 
 .edit-btn:hover {
-  background: var(--primary);
+  background: #2563eb;
   color: white;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
+}
+
+.update-btn {
+  background: rgba(234, 179, 8, 0.1);
+  color: #eab308;
+}
+
+.update-btn:hover {
+  background: #eab308;
+  color: white;
+  box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3);
+  transform: translateY(-1px);
 }
 
 .delete-btn {
   background: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .delete-btn:hover {
-  background: var(--danger);
+  background: #ef4444;
   color: white;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
 }
 
 /* Loading State */

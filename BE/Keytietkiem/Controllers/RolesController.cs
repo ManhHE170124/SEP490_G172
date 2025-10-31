@@ -138,7 +138,7 @@ namespace Keytietkiem.Controllers
                 Name = createRoleDto.Name,
                 IsSystem = createRoleDto.IsSystem,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Roles.Add(newRole);
@@ -199,7 +199,7 @@ namespace Keytietkiem.Controllers
             }
             existingRole.Name = updateRoleDto.Name;
             existingRole.IsActive = updateRoleDto.IsActive;
-            existingRole.UpdatedAt = DateTime.UtcNow;
+            existingRole.UpdatedAt = DateTime.Now;
             _context.Roles.Update(existingRole);
             await _context.SaveChangesAsync();
             return NoContent();

@@ -104,7 +104,7 @@ namespace Keytietkiem.Controllers
             {
                 ModuleName = createModuleDto.ModuleName,
                 Description = createModuleDto.Description,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Modules.Add(newModule);
