@@ -65,6 +65,13 @@ public class AccountService : IAccountService
         if (await IsEmailExistsAsync(registerDto.Email, cancellationToken))
             throw new InvalidOperationException("Email đã được đăng ký");
 
+        // Get Customer role
+        var customerRole = await _context.Roles
+            .FirstOrDefaultAsync(r => r.RoleId == "Customer", cancellationToken);
+
+        if (customerRole == null)
+            throw new InvalidOperationException("Customer role không tồn tại. Vui lòng kiểm tra cấu hình hệ thống");
+
         // Create User entity
         var user = new User
         {
@@ -79,6 +86,9 @@ public class AccountService : IAccountService
             EmailVerified = true, // Email verified via OTP
             CreatedAt = _clock.UtcNow
         };
+
+        // Add Customer role to user
+        user.Roles.Add(customerRole);
 
         // Create Account entity
         var account = new Account
@@ -280,6 +290,75 @@ public class AccountService : IAccountService
             Message = "Xác thực OTP thành công",
             VerificationToken = verificationToken
         };
+    }
+
+    public async Task<string> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto,
+        CancellationToken cancellationToken = default)
+    {
+        // Check if user exists
+        var user = await _userRepository.FirstOrDefaultAsync(u => u.Email == forgotPasswordDto.Email,
+            cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Email không tồn tại trong hệ thống");
+
+        // Generate 6-digit OTP
+        var otp = GenerateOtp();
+
+        // Store OTP in cache with expiry
+        var cacheKey = $"{OtpCacheKeyPrefix}{forgotPasswordDto.Email}";
+        var cacheOptions = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(OtpExpiryMinutes)
+        };
+        _cache.Set(cacheKey, otp, cacheOptions);
+
+        // Send OTP via email
+        await _emailService.SendOtpEmailAsync(forgotPasswordDto.Email, otp, cancellationToken);
+
+        return
+            $"Mã OTP đã được gửi đến {forgotPasswordDto.Email}. Mã có hiệu lực trong {OtpExpiryMinutes} phút.";
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
+        CancellationToken cancellationToken = default)
+    {
+        // Get OTP from cache
+        var cacheKey = $"{OtpCacheKeyPrefix}{resetPasswordDto.Email}";
+        if (!_cache.TryGetValue(cacheKey, out string? storedOtp))
+            throw new UnauthorizedAccessException("Mã OTP không tồn tại hoặc đã hết hạn");
+
+        // Verify OTP
+        if (storedOtp != resetPasswordDto.Otp)
+            throw new UnauthorizedAccessException("Mã OTP không chính xác");
+
+        // Find user by email
+        var user = await _userRepository.FirstOrDefaultAsync(u => u.Email == resetPasswordDto.Email,
+            cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Người dùng không tồn tại");
+
+        // Find account by user ID
+        var account = await _accountRepository.FirstOrDefaultAsync(a => a.UserId == user.UserId,
+            cancellationToken);
+
+        if (account == null)
+            throw new InvalidOperationException("Tài khoản không tồn tại");
+
+        // Update password
+        account.PasswordHash = HashPassword(resetPasswordDto.NewPassword);
+        account.UpdatedAt = _clock.UtcNow;
+
+        // Reset failed login count and unlock account
+        account.FailedLoginCount = 0;
+        account.LockedUntil = null;
+
+        _accountRepository.Update(account);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Remove OTP from cache
+        _cache.Remove(cacheKey);
     }
 
     // Private helper methods

@@ -53,11 +53,32 @@ public class AccountController : ControllerBase
 
     [Authorize]
     [HttpPost("change-password")]
-    public async Task<IActionResult> ChangePassword([FromBody]                            
-        ChangePasswordDto dto)                                                                    
+    public async Task<IActionResult> ChangePassword([FromBody]
+        ChangePasswordDto dto)
     {
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
         await _accountService.ChangePasswordAsync(accountId, dto);
         return Ok(new { message = "Đổi mật khẩu thành công" });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        var response = await _accountService.ForgotPasswordAsync(dto);
+        return Ok(new { message = response });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        await _accountService.ResetPasswordAsync(dto);
+        return Ok(new { message = "Đặt lại mật khẩu thành công" });
+    }
+
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
+    {
+        var response = await _accountService.RefreshTokenAsync(dto);
+        return Ok(response);
     }
 }

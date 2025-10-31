@@ -35,6 +35,7 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 // ===== Services =====
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -107,6 +108,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// ===== Seed default roles at startup =====
+using (var scope = app.Services.CreateScope())
+{
+    var roleService = scope.ServiceProvider.GetRequiredService<IRoleService>();
+    await roleService.SeedDefaultRolesAsync();
+}
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====
 app.UseExceptionHandler(exApp =>

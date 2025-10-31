@@ -135,3 +135,33 @@ public class ChangePasswordDto
     [StringLength(100, MinimumLength = 6, ErrorMessage = "NewPassword phải từ 6-100 ký tự")]
     public string NewPassword { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Request DTO for initiating forgot password process
+/// </summary>
+public class ForgotPasswordDto
+{
+    [Required(ErrorMessage = "Email là bắt buộc")]
+    [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    [StringLength(254)]
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Request DTO for resetting password with OTP
+/// </summary>
+public class ResetPasswordDto
+{
+    [Required(ErrorMessage = "Email là bắt buộc")]
+    [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    [StringLength(254)]
+    public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "OTP là bắt buộc")]
+    [StringLength(6, MinimumLength = 6, ErrorMessage = "OTP phải có 6 ký tự")]
+    public string Otp { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "NewPassword là bắt buộc")]
+    [StringLength(100, MinimumLength = 6, ErrorMessage = "NewPassword phải từ 6-100 ký tự")]
+    public string NewPassword { get; set; } = string.Empty;
+}
