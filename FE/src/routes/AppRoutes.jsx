@@ -16,6 +16,10 @@ import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage.jsx";
 import CheckEmailPage from "../pages/auth/CheckEmailPage.jsx";
 import ResetPasswordPage from "../pages/auth/ResetPasswordPage.jsx";
 
+// Supplier pages
+import SuppliersPage from "../pages/supplier/SuppliersPage.jsx";
+import SupplierDetailPage from "../pages/supplier/SupplierDetailPage.jsx";
+
 // Other pages
 import Page404 from "../pages/NotFound/Page404";
 import RBACManagement from "../pages/RBAC/RBACManagement";
@@ -46,6 +50,11 @@ export default function AppRoutes() {
       {/* Badges */}
       <Route path="/admin/badges/add" element={<BadgeAdd />} />
       <Route path="/admin/badges/:code" element={<BadgeDetail />} />
+
+      {/* Suppliers */}
+      <Route path="/suppliers" element={<SuppliersPage />} />
+      <Route path="/suppliers/add" element={<SupplierDetailPage />} />
+      <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
 
       {/* RBAC & Users */}
       <Route path="/admin/users" element={<AdminUserManagement />} />

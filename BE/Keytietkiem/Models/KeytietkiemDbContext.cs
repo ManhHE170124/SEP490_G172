@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Models;
@@ -66,6 +68,8 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<WarrantyClaim> WarrantyClaims { get; set; }
+    
+    public virtual DbSet<LicensePackage> LicensePackages { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         => optionsBuilder.UseSqlServer("Name=ConnectionStrings:MyCnn");
@@ -444,6 +448,9 @@ public partial class KeytietkiemDbContext : DbContext
                 .IsUnicode(false)
                 .HasDefaultValue("Available");
 
+            entity.Property(e => e.SupplierId)
+                .IsRequired();
+
             entity.HasOne(d => d.Product).WithMany(p => p.ProductKeys)
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -517,6 +524,41 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Name).HasMaxLength(100);
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasConversion<string>()
+                .HasDefaultValue(SupplierStatus.Active);
+            entity.Property(e => e.LicenseTerms).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<LicensePackage>(entity =>
+        {
+            entity.HasKey(e => e.PackageId).HasName("PK__LicenseP__322035EC");
+
+            entity.Property(e => e.PackageId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.Quantity).IsRequired();
+            entity.Property(e => e.PricePerUnit)
+                .HasColumnType("decimal(12, 2)")
+                .IsRequired();
+            entity.Property(e => e.ImportedToStock)
+                .HasDefaultValue(0)
+                .IsRequired();
+            entity.Property(e => e.EffectiveDate).HasPrecision(3);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(d => d.Supplier).WithMany()
+                .HasForeignKey(d => d.SupplierId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_LicensePackages_Supplier");
+
+            entity.HasOne(d => d.Product).WithMany()
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_LicensePackages_Product");
         });
 
         modelBuilder.Entity<Tag>(entity =>
