@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Enums;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -129,7 +130,9 @@ public class LicensePackageController : ControllerBase
     public async Task<IActionResult> UploadLicenseCsv(
         [FromForm] Guid packageId,
         [FromForm] int supplierId,
-        IFormFile file)
+        IFormFile file,
+        [FromForm] string keyType = "Individual",
+        [FromForm] DateTime? expiryDate = null)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "File CSV là bắt buộc" });
@@ -140,12 +143,21 @@ public class LicensePackageController : ControllerBase
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
+        // Parse keyType to enum
+        ProductKeyType parsedKeyType;
+        if (!Enum.TryParse<ProductKeyType>(keyType, out parsedKeyType))
+        {
+            parsedKeyType = ProductKeyType.Individual;
+        }
+
         var result = await _licensePackageService.UploadLicenseCsvAsync(
             packageId,
             supplierId,
             file,
             actorId,
-            actorEmail);
+            actorEmail,
+            parsedKeyType,
+            expiryDate);
         return Ok(result);
     }
 

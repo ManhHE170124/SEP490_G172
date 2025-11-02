@@ -366,6 +366,8 @@ public class LicensePackageService : ILicensePackageService
         IFormFile file,
         Guid actorId,
         string actorEmail,
+        ProductKeyType keyType,
+        DateTime? expiryDate = null,
         CancellationToken cancellationToken = default)
     {
         // Validate package exists and belongs to the supplier
@@ -476,10 +478,12 @@ public class LicensePackageService : ILicensePackageService
                 {
                     ProductId = package.ProductId,
                     KeyString = key,
+                    Type = keyType,
                     Status = nameof(ProductKeyStatus.Available),
                     ImportedAt = _clock.UtcNow,
                     SupplierId = package.SupplierId,
-                    ImportedBy = actorId
+                    ImportedBy = actorId,
+                    ExpiryDate = expiryDate
                 };
 
                 _context.ProductKeys.Add(productKey);
@@ -489,6 +493,19 @@ public class LicensePackageService : ILicensePackageService
             // Update package's ImportedToStock
             package.ImportedToStock += successCount;
             _context.LicensePackages.Update(package);
+
+            // Update Product stock quantity and cost price
+            var product = await _context.Products
+                .FirstOrDefaultAsync(p => p.ProductId == package.ProductId, cancellationToken);
+
+            if (product != null)
+            {
+                // Increase stock quantity
+                product.StockQty += successCount;
+                product.UpdatedAt = DateTime.UtcNow;
+                product.Status = "ACTIVE";
+                _context.Products.Update(product);
+            }
 
             await _context.SaveChangesAsync(cancellationToken);
 

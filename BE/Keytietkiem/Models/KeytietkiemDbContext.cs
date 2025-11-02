@@ -451,6 +451,23 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.SupplierId)
                 .IsRequired();
 
+            entity.Property(e => e.Type)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasConversion<string>()
+                .HasDefaultValue(ProductKeyType.Individual);
+
+            entity.Property(e => e.ExpiryDate)
+                .HasPrecision(3);
+
+            entity.Property(e => e.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.AssignedToOrderId);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3);
+
             entity.HasOne(d => d.Product).WithMany(p => p.ProductKeys)
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)

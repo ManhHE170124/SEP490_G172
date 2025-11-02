@@ -4,11 +4,11 @@ import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
+import formatDate from "../../utils/formatDate";
 import "../admin/admin.css";
 
 export default function SuppliersPage() {
-  const { toasts, showSuccess, showError, removeToast } =
-    useToast();
+  const { toasts, showSuccess, showError, removeToast } = useToast();
   const [suppliers, setSuppliers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -100,12 +100,6 @@ export default function SuppliersPage() {
         }
       },
     });
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("vi-VN");
   };
 
   const getStatusBadge = (status) => {

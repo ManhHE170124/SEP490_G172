@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Keytietkiem.DTOs.Enums;
 using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.DTOs;
@@ -16,6 +17,16 @@ public class UploadLicenseCsvDto
 
     [Required(ErrorMessage = "File CSV là bắt buộc")]
     public IFormFile File { get; set; } = null!;
+
+    /// <summary>
+    /// Type of product key to apply to all imported keys
+    /// </summary>
+    public ProductKeyType KeyType { get; set; } = ProductKeyType.Individual;
+
+    /// <summary>
+    /// Optional expiry date to apply to all imported keys
+    /// </summary>
+    public DateTime? ExpiryDate { get; set; }
 }
 
 /// <summary>

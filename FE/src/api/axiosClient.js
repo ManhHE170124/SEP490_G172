@@ -3,11 +3,12 @@
  * Purpose: Axios instance with auth header, automatic token refresh, and normalized error messages.
  */
 import axios from "axios";
+import qs from "qs";
 
 const baseURL =
-  process.env.REACT_APP_API_URL // CRA
-  || import.meta?.env?.VITE_API_BASE_URL // Vite (phòng hờ)
-  || "http://localhost:7292/api"; // fallback theo port mới của bạn
+  process.env.REACT_APP_API_URL || // CRA
+  import.meta?.env?.VITE_API_BASE_URL || // Vite (phòng hờ)
+  "http://localhost:7292/api"; // fallback theo port mới của bạn
 
 console.log("[axiosClient] baseURL =", baseURL);
 
@@ -15,6 +16,7 @@ const axiosClient = axios.create({
   baseURL,
   timeout: 15000,
   headers: { "Content-Type": "application/json" },
+  paramsSerializer: (params) => qs.stringify(params, { arrayFormat: "repeat" }),
 });
 
 // Flag to prevent multiple refresh attempts
@@ -22,7 +24,7 @@ let isRefreshing = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
+  failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
@@ -69,12 +71,12 @@ axiosClient.interceptors.response.use(
     // Handle 401 Unauthorized - Token expired
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Don't retry refresh-token endpoint itself
-      if (originalRequest.url?.includes('/account/refresh-token')) {
+      if (originalRequest.url?.includes("/account/refresh-token")) {
         // Clear tokens and redirect to login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
         return Promise.reject(error);
       }
 
@@ -83,41 +85,43 @@ axiosClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-        .then(token => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return axiosClient(originalRequest);
-        })
-        .catch(err => Promise.reject(err));
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return axiosClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = localStorage.getItem("refresh_token");
 
       if (!refreshToken) {
         // No refresh token, redirect to login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
         return Promise.reject(error);
       }
 
       try {
         // Call refresh token endpoint
         const response = await axios.post(`${baseURL}/account/refresh-token`, {
-          refreshToken: refreshToken
+          refreshToken: refreshToken,
         });
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
         // Update tokens in localStorage
-        localStorage.setItem('access_token', accessToken);
-        localStorage.setItem('refresh_token', newRefreshToken);
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("refresh_token", newRefreshToken);
 
         // Update authorization header
-        axiosClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        axiosClient.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${accessToken}`;
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
 
         // Process queued requests
@@ -128,10 +132,10 @@ axiosClient.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed, clear tokens and redirect to login
         processQueue(refreshError, null);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -32,6 +32,36 @@ CREATE INDEX IX_ProductKeys_Supplier ON ProductKeys(SupplierId);
 
 GO
 
+ALTER TABLE ProductKeys
+    ADD Type VARCHAR(20) NOT NULL DEFAULT 'Individual';
+
+GO
+
+ALTER TABLE ProductKeys
+    ADD CONSTRAINT CK_ProductKeys_Type CHECK (Type IN ('Individual', 'Pool'));
+
+GO
+
+ALTER TABLE ProductKeys
+    ADD ExpiryDate DATETIME2(3) NULL;
+
+GO
+
+ALTER TABLE ProductKeys
+    ADD Notes NVARCHAR(1000) NULL;
+
+GO
+
+ALTER TABLE ProductKeys
+    ADD AssignedToOrderId UNIQUEIDENTIFIER NULL;
+
+GO
+
+ALTER TABLE ProductKeys
+    ADD UpdatedAt DATETIME2(3) NULL;
+
+GO
+
 ALTER TABLE Suppliers
     ADD Status VARCHAR(20) NOT NULL DEFAULT 'Active';
 GO
@@ -41,7 +71,6 @@ ALTER TABLE Suppliers
 
 GO
 
--- Add LicenseTerms column to Suppliers table
 ALTER TABLE Suppliers
     ADD LicenseTerms NVARCHAR(500) NULL;
 

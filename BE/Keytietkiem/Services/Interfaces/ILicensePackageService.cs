@@ -1,4 +1,5 @@
 using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Enums;
 using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Services.Interfaces;
@@ -101,6 +102,8 @@ public interface ILicensePackageService
         IFormFile file,
         Guid actorId,
         string actorEmail,
+        ProductKeyType keyType,
+        DateTime? expiryDate = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

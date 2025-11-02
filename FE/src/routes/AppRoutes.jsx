@@ -20,6 +20,10 @@ import ResetPasswordPage from "../pages/auth/ResetPasswordPage.jsx";
 import SuppliersPage from "../pages/supplier/SuppliersPage.jsx";
 import SupplierDetailPage from "../pages/supplier/SupplierDetailPage.jsx";
 
+// Storage pages
+import KeyManagementPage from "../pages/storage/KeyManagementPage.jsx";
+import KeyDetailPage from "../pages/storage/KeyDetailPage.jsx";
+
 // Other pages
 import Page404 from "../pages/NotFound/Page404";
 import RBACManagement from "../pages/RBAC/RBACManagement";
@@ -55,6 +59,11 @@ export default function AppRoutes() {
       <Route path="/suppliers" element={<SuppliersPage />} />
       <Route path="/suppliers/add" element={<SupplierDetailPage />} />
       <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+
+      {/* Product Keys */}
+      <Route path="/keys" element={<KeyManagementPage />} />
+      <Route path="/keys/add" element={<KeyDetailPage />} />
+      <Route path="/keys/:id" element={<KeyDetailPage />} />
 
       {/* RBAC & Users */}
       <Route path="/admin/users" element={<AdminUserManagement />} />

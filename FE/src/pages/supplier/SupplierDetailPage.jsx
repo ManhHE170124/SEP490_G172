@@ -5,7 +5,10 @@ import { LicensePackageApi } from "../../services/licensePackages";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import CsvUploadModal from "../../components/Modal/CsvUploadModal";
+import ViewKeysModal from "../../components/Modal/ViewKeysModal";
 import useToast from "../../hooks/useToast";
+import formatDate from "../../utils/formatDate";
 import "../admin/admin.css";
 
 export default function SupplierDetailPage() {
@@ -59,6 +62,8 @@ export default function SupplierDetailPage() {
   const [selectedPackageForImport, setSelectedPackageForImport] =
     useState(null);
   const [csvFile, setCsvFile] = useState(null);
+  const [csvKeyType, setCsvKeyType] = useState("Individual");
+  const [csvExpiryDate, setCsvExpiryDate] = useState("");
   const [uploading, setUploading] = useState(false);
 
   // View keys modal states
@@ -127,6 +132,7 @@ export default function SupplierDetailPage() {
           pageNumber: page,
           pageSize: 20,
           searchTerm: search || undefined,
+          type: ["PERSONAL_KEY", "SHARED_KEY"],
         });
 
         const newProducts = data.items || data.data || [];
@@ -369,6 +375,8 @@ export default function SupplierDetailPage() {
     setSelectedPackageForImport(pkg);
     setShowUploadModal(true);
     setCsvFile(null);
+    setCsvKeyType("Individual");
+    setCsvExpiryDate("");
   };
 
   const handleCsvFileChange = (e) => {
@@ -395,6 +403,14 @@ export default function SupplierDetailPage() {
       formData.append("packageId", selectedPackageForImport.packageId);
       formData.append("supplierId", id);
 
+      // Add keyType
+      formData.append("keyType", csvKeyType);
+
+      // Add expiryDate if provided
+      if (csvExpiryDate) {
+        formData.append("expiryDate", csvExpiryDate);
+      }
+
       await LicensePackageApi.uploadCsv(formData);
 
       showSuccess(
@@ -403,6 +419,8 @@ export default function SupplierDetailPage() {
       );
       setShowUploadModal(false);
       setCsvFile(null);
+      setCsvKeyType("Individual");
+      setCsvExpiryDate("");
       setSelectedPackageForImport(null);
       loadLicensePackages();
     } catch (err) {
@@ -420,6 +438,8 @@ export default function SupplierDetailPage() {
   const closeUploadModal = () => {
     setShowUploadModal(false);
     setCsvFile(null);
+    setCsvKeyType("Individual");
+    setCsvExpiryDate("");
     setSelectedPackageForImport(null);
   };
 
@@ -448,18 +468,6 @@ export default function SupplierDetailPage() {
   const closeKeysModal = () => {
     setShowKeysModal(false);
     setSelectedPackageKeys(null);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("vi-VN");
-  };
-
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "-";
-    const date = new Date(dateString);
-    return date.toLocaleString("vi-VN");
   };
 
   if (loading) {
@@ -928,260 +936,27 @@ export default function SupplierDetailPage() {
       )}
 
       {/* CSV Upload Modal */}
-      {showUploadModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-          onClick={closeUploadModal}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: "8px",
-              padding: "24px",
-              maxWidth: "500px",
-              width: "90%",
-              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: "0 0 16px" }}>Upload File CSV License Keys</h2>
-
-            {selectedPackageForImport && (
-              <div
-                style={{
-                  marginBottom: "16px",
-                  padding: "12px",
-                  background: "#f8fafc",
-                  borderRadius: "4px",
-                }}
-              >
-                <p style={{ margin: "0 0 8px", fontSize: "14px" }}>
-                  <strong>Sản phẩm:</strong>{" "}
-                  {selectedPackageForImport.productName}
-                </p>
-                <p style={{ margin: "0 0 8px", fontSize: "14px" }}>
-                  <strong>Số lượng còn lại:</strong>{" "}
-                  {selectedPackageForImport.remainingQuantity}
-                </p>
-                <p style={{ margin: "0", fontSize: "12px", color: "#666" }}>
-                  File CSV cần có cột "key" chứa license key (mỗi dòng một key)
-                </p>
-              </div>
-            )}
-
-            <div style={{ marginBottom: "16px" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "8px",
-                  fontWeight: "500",
-                }}
-              >
-                Chọn file CSV
-              </label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvFileChange}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "8px",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
-                }}
-              />
-              {csvFile && (
-                <p
-                  style={{
-                    margin: "8px 0 0",
-                    fontSize: "14px",
-                    color: "#059669",
-                  }}
-                >
-                  Đã chọn: {csvFile.name}
-                </p>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                className="btn"
-                onClick={closeUploadModal}
-                disabled={uploading}
-              >
-                Hủy
-              </button>
-              <button
-                className="btn primary"
-                onClick={handleUploadCsv}
-                disabled={!csvFile || uploading}
-              >
-                {uploading ? "Đang upload..." : "Upload"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CsvUploadModal
+        isOpen={showUploadModal}
+        onClose={closeUploadModal}
+        selectedPackage={selectedPackageForImport}
+        csvFile={csvFile}
+        uploading={uploading}
+        onFileChange={handleCsvFileChange}
+        onUpload={handleUploadCsv}
+        keyType={csvKeyType}
+        onKeyTypeChange={setCsvKeyType}
+        expiryDate={csvExpiryDate}
+        onExpiryDateChange={setCsvExpiryDate}
+      />
 
       {/* View Keys Modal */}
-      {showKeysModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-          onClick={closeKeysModal}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: "8px",
-              padding: "24px",
-              maxWidth: "800px",
-              width: "90%",
-              maxHeight: "80vh",
-              overflow: "auto",
-              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "16px",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>Chi tiết License Keys</h2>
-              <button
-                className="btn"
-                onClick={closeKeysModal}
-                style={{ padding: "4px 12px" }}
-              >
-                Đóng
-              </button>
-            </div>
-
-            {loadingKeys ? (
-              <p style={{ textAlign: "center", padding: "20px" }}>
-                Đang tải...
-              </p>
-            ) : selectedPackageKeys ? (
-              <>
-                <div
-                  style={{
-                    marginBottom: "16px",
-                    padding: "12px",
-                    background: "#f8fafc",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <p style={{ margin: "0 0 4px", fontSize: "14px" }}>
-                    <strong>Sản phẩm:</strong> {selectedPackageKeys.productName}
-                  </p>
-                  <p style={{ margin: "0 0 4px", fontSize: "14px" }}>
-                    <strong>Nhà cung cấp:</strong>{" "}
-                    {selectedPackageKeys.supplierName}
-                  </p>
-                  <p style={{ margin: "0", fontSize: "14px" }}>
-                    <strong>Tổng số keys:</strong>{" "}
-                    {selectedPackageKeys.totalKeys}
-                  </p>
-                </div>
-
-                <div style={{ overflowX: "auto" }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>License Key</th>
-                        <th>Trạng thái</th>
-                        <th>Ngày nhập</th>
-                        <th>Người nhập</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedPackageKeys.keys.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan="5"
-                            style={{ textAlign: "center", padding: "20px" }}
-                          >
-                            Chưa có key nào
-                          </td>
-                        </tr>
-                      ) : (
-                        selectedPackageKeys.keys.map((key, index) => (
-                          <tr key={key.keyId}>
-                            <td>{index + 1}</td>
-                            <td
-                              style={{
-                                fontFamily: "monospace",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {key.keyString}
-                            </td>
-                            <td>
-                              <span
-                                style={{
-                                  display: "inline-block",
-                                  padding: "2px 8px",
-                                  borderRadius: "4px",
-                                  fontSize: "12px",
-                                  background:
-                                    key.status === "Available"
-                                      ? "#d1fae5"
-                                      : "#fee2e2",
-                                  color:
-                                    key.status === "Available"
-                                      ? "#065f46"
-                                      : "#991b1b",
-                                }}
-                              >
-                                {key.status}
-                              </span>
-                            </td>
-                            <td>{formatDateTime(key.importedAt)}</td>
-                            <td>{key.importedByEmail || "-"}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
+      <ViewKeysModal
+        isOpen={showKeysModal}
+        onClose={closeKeysModal}
+        packageKeys={selectedPackageKeys}
+        loading={loadingKeys}
+      />
     </div>
   );
 }

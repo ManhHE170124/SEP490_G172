@@ -84,7 +84,7 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] int? categoryId,
-            [FromQuery(Name = "type")] string? productType,
+            [FromQuery(Name = "type")] string[]? productTypes,
             [FromQuery] string? status,
             [FromQuery] string? sort = "createdAt",
             [FromQuery] string? direction = "desc",
@@ -100,8 +100,14 @@ namespace Keytietkiem.Controllers
 
             if (!string.IsNullOrWhiteSpace(keyword))
                 q = q.Where(p => p.ProductName.Contains(keyword) || p.ProductCode.Contains(keyword));
-            if (!string.IsNullOrWhiteSpace(productType))
-                q = q.Where(p => p.ProductType == productType);
+            if (productTypes != null && productTypes.Length > 0)
+            {
+                // Normalize both filter and database values for case-insensitive comparison
+                var normalizedTypes = new HashSet<string>(
+                    productTypes.Select(t => t.ToUpperInvariant()),
+                    StringComparer.OrdinalIgnoreCase);
+                q = q.Where(p=> normalizedTypes.Contains(p.ProductType));
+            }
             if (!string.IsNullOrWhiteSpace(status))
                 q = q.Where(p => p.Status == status);
             if (categoryId is not null)
