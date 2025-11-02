@@ -33,3 +33,4 @@
 # EF/Secrets (tùy team)
 **/appsettings.*.local.json
 **/secrets.json
+BE/Keytietkiem/appsettings.json
