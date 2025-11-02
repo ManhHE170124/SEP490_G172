@@ -344,7 +344,7 @@ export default function RoleAssign() {
   
   if (loading) {
     return (
-      <div className="role-assign-container">
+      <div className="ra-container">
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
           <div>Đang tải dữ liệu...</div>
         </div>
@@ -353,27 +353,27 @@ export default function RoleAssign() {
   }
   
   return (
-    <div className="role-assign-container">
+    <div className="ra-container">
       {/* Left Sidebar - Roles Panel */}
-      <div className="roles-panel">
-        <h2 className="roles-title">Quản lý Vai trò</h2>
+      <div className="ra-roles-panel">
+        <h2 className="ra-roles-title">Quản lý Vai trò</h2>
         
         {/* Action Buttons */}
-        <div className="sidebar-buttons">
+        <div className="ra-sidebar-buttons">
           <button 
-            className="add-role-btn"
+            className="ra-add-role-btn"
             onClick={() => setAddRoleOpen(true)}
           >
             Thêm Vai trò
           </button>
           <button 
-            className="add-module-btn"
+            className="ra-add-module-btn"
             onClick={() => setAddModuleOpen(true)}
           >
             Thêm Mô-đun
           </button>
           <button 
-            className="add-permission-btn"
+            className="ra-add-permission-btn"
             onClick={() => setAddPermissionOpen(true)}
           >
             Thêm Quyền
@@ -381,21 +381,21 @@ export default function RoleAssign() {
         </div>
         
         {/* Role List */}
-        <div className="role-list">
+        <div className="ra-role-list">
           {loading ? (
-            <div className="loading-state">
-              <div className="loading-spinner" />
+            <div className="ra-loading-state">
+              <div className="ra-loading-spinner" />
               <div>Đang tải dữ liệu...</div>
             </div>
           ) : roles.length === 0 ? (
-            <div className="empty-state">
+            <div className="ra-empty-state">
               <div>Không có dữ liệu</div>
             </div>
           ) : (
             roles.map((role) => (
               <button
                 key={role.roleId}
-                className={`role-item ${selectedRole?.roleId === role.roleId ? 'selected' : ''}`}
+                className={`ra-role-item ${selectedRole?.roleId === role.roleId ? 'selected' : ''}`}
                 onClick={() => handleRoleSelect(role)}
                 type="button"
               >
@@ -407,9 +407,9 @@ export default function RoleAssign() {
       </div>
       
       {/* Right Panel - Permissions Matrix */}
-      <div className="permissions-panel">
-         <div className="permissions-header">
-           <h2 className="permissions-title">
+      <div className="ra-permissions-panel">
+         <div className="ra-permissions-header">
+           <h2 className="ra-permissions-title">
              {selectedRole ? `Quyền của Vai trò: ${selectedRole.name}` : 'Chọn một Vai trò để xem quyền'}
              {hasUnsavedChanges && selectedRole && (
                <span style={{ 
@@ -422,23 +422,23 @@ export default function RoleAssign() {
                </span>
              )}
            </h2>
-          <div className="action-buttons">
+          <div className="ra-action-buttons">
              <button 
-               className="btn btn-cancel"
+               className="ra-btn btn-cancel"
                onClick={handleCancel}
                disabled={!selectedRole}
              >
                Hủy
              </button>
             <button 
-              className="btn btn-tick-all"
+              className="ra-btn btn-tick-all"
               onClick={handleTickAll}
               disabled={!selectedRole}
             >
               {isAllTicked ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
             </button>
              <button 
-               className="btn btn-save"
+               className="ra-btn btn-save"
                onClick={handleSaveChanges}
                disabled={!selectedRole || submitting || !hasUnsavedChanges}
                style={{
@@ -452,13 +452,13 @@ export default function RoleAssign() {
         
         {/* Permissions Matrix */}
         {selectedRole && (
-          <div className="permissions-table-container">
-            <table className="permissions-table">
+          <div className="ra-permissions-table-container">
+            <table className="ra-permissions-table">
               <thead>
                 <tr>
                   <th>Mô-đun\Quyền</th>
                   {permissions.map((permission) => (
-                    <th key={permission.permissionId}  className="permission-name">
+                    <th key={permission.permissionId}  className="ra-permission-name">
                       {permission.permissionName}
                     </th>
                   ))}
@@ -467,12 +467,12 @@ export default function RoleAssign() {
               <tbody>
                 {modules.map((module) => (
                   <tr key={module.moduleId}>
-                    <td className="module-name">{module.moduleName}</td>
+                    <td className="ra-module-name">{module.moduleName}</td>
                     {permissions.map((permission) => (
                       <td key={`${permission.permissionId}-${module.moduleId}`}>
                         <input
                           type="checkbox"
-                          className="permission-checkbox"
+                          className="ra-permission-checkbox"
                           checked={isPermissionActive(module.moduleId, permission.permissionId)}
                           onChange={() => handlePermissionToggle(module.moduleId, permission.permissionId)}
                         />

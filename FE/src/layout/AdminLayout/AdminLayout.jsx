@@ -20,11 +20,11 @@ import "./AdminLayout.css";
  */
 const AdminLayout = ({ children }) => {
   return (
-    <div className="admin-layout">
+    <div className="al-admin-layout">
       <Sidebar />
-      <div className="admin-content">
+      <div className="al-admin-content">
         <Header />
-        <main className="admin-main">
+        <main className="al-admin-main">
           {children}
         </main>
       </div>

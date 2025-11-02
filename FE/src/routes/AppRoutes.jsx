@@ -6,13 +6,12 @@
  * Version: 1.0.0
  * Purpose: Application routes with layout separation (Client and Admin)
  */
-import { Routes, Route } from "react-router-dom";
+// import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
 // import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import RoleAssign from "../pages/RoleManage/RoleAssign";
 import RoleManage from "../pages/RoleManage/RoleManage";
 import Page404 from "../pages/NotFound/Page404";
-import AdminUserManagement from "../pages/admin-user-management";
 import AdminPostList from "../pages/PostManage/AdminPostList"
 import PostCreateEdit from "../pages/PostManage/CreateEditPost"
 
@@ -56,7 +55,6 @@ export default function AppRoutes() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<SignUpPage />} />
-      <Route path="/" element={<Navigate to="/admin/products" replace />} />
       <Route path="/admin" element={<div />} />
 
       {/* Tickets */}

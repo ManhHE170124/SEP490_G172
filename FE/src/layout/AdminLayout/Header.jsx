@@ -52,8 +52,8 @@ const Header = () => {
   };
 
   return (
-    <div className="header" role="banner">
-      <div className="search">
+    <div className="alh-header" role="banner">
+      <div className="alh-search">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path
             d="M21 21l-4.2-4.2M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
@@ -68,16 +68,16 @@ const Header = () => {
           aria-label="Tìm kiếm"
         />
       </div>
-      <div className="right">
-        <span className="pill" title="Tháng hiện tại" aria-label="Tháng 10/2025">
+      <div className="alh-right">
+        <span className="alh-pill" title="Tháng hiện tại" aria-label="Tháng 10/2025">
           10/2025
         </span>
-        <span className="pill" title="Thông báo" aria-label="Thông báo">
+        <span className="alh-pill" title="Thông báo" aria-label="Thông báo">
           🔔
         </span>
-        <div className="avatar-container" ref={dropdownRef}>
+        <div className="alh-avatar-container" ref={dropdownRef}>
           <div 
-            className="avatar" 
+            className="alh-avatar" 
             aria-label="Tài khoản"
             onClick={handleAvatarClick}
           >
@@ -85,22 +85,22 @@ const Header = () => {
           </div>
           
           {isDropdownOpen && (
-            <div className="dropdown-menu">
-              <div className="dropdown-header">
-                <div className="user-info">
-                  <div className="user-avatar">
+            <div className="alh-dropdown-menu">
+              <div className="alh-dropdown-header">
+                <div className="alh-user-info">
+                  <div className="alh-user-avatar">
                     <span>R</span>
                   </div>
-                  <div className="user-details">
-                    <div className="user-name">Admin User</div>
-                    <div className="user-email">admin@keytietkiem.com</div>
+                  <div className="alh-user-details">
+                    <div className="alh-user-name">Admin User</div>
+                    <div className="alh-user-email">admin@keytietkiem.com</div>
                   </div>
                 </div>
               </div>
               
-              <div className="dropdown-items">
+              <div className="alh-dropdown-items">
                 <button 
-                  className="dropdown-item"
+                  className="alh-dropdown-item"
                   onClick={() => handleMenuAction('profile')}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -117,7 +117,7 @@ const Header = () => {
                 </button>
                 
                 <button 
-                  className="dropdown-item"
+                  className="alh-dropdown-item"
                   onClick={() => handleMenuAction('change-avatar')}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -134,7 +134,7 @@ const Header = () => {
                 </button>
                 
                 <button 
-                  className="dropdown-item"
+                  className="alh-dropdown-item"
                   onClick={() => handleMenuAction('settings')}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -150,10 +150,10 @@ const Header = () => {
                   Cài đặt
                 </button>
                 
-                <div className="dropdown-divider"></div>
+                <div className="alh-dropdown-divider"></div>
                 
                 <button 
-                  className="dropdown-item logout"
+                  className="alh-dropdown-item logout"
                   onClick={() => handleMenuAction('logout')}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">

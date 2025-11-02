@@ -388,7 +388,7 @@ export default function AdminPostList() {
   }, [search, postTypeFilter, statusFilter, sortKey, sortOrder]);
 
   return (
-    <div className="post-list-container">
+    <div className="apl-post-list-container">
       <ToastContainer
         toasts={toasts}
         onRemove={removeToast}
@@ -396,32 +396,32 @@ export default function AdminPostList() {
       />
 
       {/* Header */}
-      <div className="post-list-header">
+      <div className="apl-post-list-header">
         <div>
-          <h1 className="post-list-title">Quản lý bài viết</h1>
-          <p className="post-list-subtitle">Quản lý, chỉnh sửa và xóa bài viết</p>
+          <h1 className="apl-post-list-title">Quản lý bài viết</h1>
+          <p className="apl-post-list-subtitle">Quản lý, chỉnh sửa và xóa bài viết</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button className="btn-secondary" onClick={handleExportCSV} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button className="apl-btn-secondary" onClick={handleExportCSV} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
             </svg>
             Xuất CSV
           </button>
-          <button className="add-button" onClick={handleCreate}>
+          <button className="apl-add-button" onClick={handleCreate}>
             + Tạo bài viết mới
           </button>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="post-list-controls">
-        <div className="controls-left">
+      <div className="apl-post-list-controls">
+        <div className="apl-controls-left">
           {selectedPosts.length > 0 && (
-            <div className="bulk-actions">
-              <span className="selected-count">{selectedPosts.length} đã chọn</span>
+            <div className="apl-bulk-actions">
+              <span className="apl-selected-count">{selectedPosts.length} đã chọn</span>
               <button
-                className="btn-secondary btn-danger"
+                className="apl-btn-secondary apl-btn-danger"
                 onClick={handleBulkDelete}
                 style={{ marginLeft: "8px" }}
               >
@@ -430,7 +430,7 @@ export default function AdminPostList() {
             </div>
           )}
           {/* Search - Always on left */}
-          <div className="search-box">
+          <div className="apl-search-box">
             <input
               type="text"
               placeholder="Tìm kiếm tiêu đề, nội dung..."
@@ -440,14 +440,14 @@ export default function AdminPostList() {
           </div>
         </div>
 
-        <div className="controls-right">
+        <div className="apl-controls-right">
           {/* Filters with labels */}
-          <div className="filter-group">
-            <label className="filter-label">Danh mục:</label>
+          <div className="apl-filter-group">
+            <label className="apl-filter-label">Danh mục:</label>
             <select
               value={postTypeFilter}
               onChange={(e) => setPostTypeFilter(e.target.value)}
-              className="filter-select"
+              className="apl-filter-select"
             >
               <option value="all">Tất cả</option>
               {postTypes.map((pt) => (
@@ -458,12 +458,12 @@ export default function AdminPostList() {
             </select>
           </div>
 
-          <div className="filter-group">
-            <label className="filter-label">Trạng thái:</label>
+          <div className="apl-filter-group">
+            <label className="apl-filter-label">Trạng thái:</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="filter-select"
+              className="apl-filter-select"
             >
               <option value="all">Tất cả</option>
               <option value="Published">Công khai</option>
@@ -479,7 +479,7 @@ export default function AdminPostList() {
               setPageSize(Number(e.target.value));
               setPage(1);
             }}
-            className="filter-select"
+            className="apl-filter-select"
           >
             <option value={5}>5/trang</option>
             <option value={10}>10/trang</option>
@@ -489,7 +489,7 @@ export default function AdminPostList() {
 
           {/* Reset Button */}
           <button
-            className="btn-secondary"
+            className="apl-btn-secondary"
             onClick={handleResetFilters}
             title="Đặt lại bộ lọc"
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
@@ -501,16 +501,16 @@ export default function AdminPostList() {
           </button>
 
           {/* View Mode Toggle */}
-          <div className="view-toggle">
+          <div className="apl-view-toggle">
             <button
-              className={`view-btn ${viewMode === "table" ? "active" : ""}`}
+              className={`apl-view-btn ${viewMode === "table" ? "active" : ""}`}
               onClick={() => setViewMode("table")}
               title="Xem dạng bảng"
             >
               ≡
             </button>
             <button
-              className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+              className={`apl-view-btn ${viewMode === "grid" ? "active" : ""}`}
               onClick={() => setViewMode("grid")}
               title="Xem dạng lưới"
             >
@@ -521,37 +521,37 @@ export default function AdminPostList() {
       </div>
 
       {/* Content */}
-      <div className="post-list-content">
+      <div className="apl-post-list-content">
         {loading ? (
-          <div className="loading-state">
-            <div className="loading-spinner" />
+          <div className="apl-loading-state">
+            <div className="apl-loading-spinner" />
             <div>Đang tải dữ liệu...</div>
           </div>
         ) : error ? (
-          <div className="empty-state">
+          <div className="apl-empty-state">
             <div>Lỗi: {error}</div>
-            <button className="btn-secondary" onClick={loadData} style={{ marginTop: "12px" }}>
+            <button className="apl-btn-secondary" onClick={loadData} style={{ marginTop: "12px" }}>
               Thử lại
             </button>
           </div>
         ) : total === 0 ? (
-          <div className="empty-state">
+          <div className="apl-empty-state">
             <div>Không có bài viết nào</div>
             {(search || postTypeFilter !== "all" || statusFilter !== "all") && (
-              <button className="btn-secondary" onClick={handleResetFilters} style={{ marginTop: "12px" }}>
+              <button className="apl-btn-secondary" onClick={handleResetFilters} style={{ marginTop: "12px" }}>
                 Đặt lại bộ lọc
               </button>
             )}
           </div>
         ) : paginated.length === 0 ? (
-          <div className="empty-state">
+          <div className="apl-empty-state">
             <div>Không có bài viết nào</div>
-            <button className="add-button" onClick={handleCreate} style={{ marginTop: "12px" }}>
+            <button className="apl-add-button" onClick={handleCreate} style={{ marginTop: "12px" }}>
               Tạo bài viết đầu tiên
             </button>
           </div>
         ) : viewMode === "table" ? (
-          <table className="post-list-table">
+          <table className="apl-post-list-table">
             <thead>
               <tr>
                 <th style={{ width: "40px" }}>
@@ -564,7 +564,7 @@ export default function AdminPostList() {
                 <th style={{ width: "80px" }}>Ảnh</th>
                 <th>
                   <div 
-                    className="sortable-header" 
+                    className="apl-sortable-header" 
                     onClick={() => handleColumnSort("title")}
                     onKeyDown={(e) => e.key === "Enter" && handleColumnSort("title")}
                     role="button"
@@ -576,7 +576,7 @@ export default function AdminPostList() {
                 </th>
                 <th style={{ width: "120px" }}>
                   <div 
-                    className="sortable-header" 
+                    className="apl-sortable-header" 
                     onClick={() => handleColumnSort("postTypeName")}
                     onKeyDown={(e) => e.key === "Enter" && handleColumnSort("postTypeName")}
                     role="button"
@@ -588,7 +588,7 @@ export default function AdminPostList() {
                 </th>
                 <th style={{ width: "120px" }}>
                   <div 
-                    className="sortable-header" 
+                    className="apl-sortable-header" 
                     onClick={() => handleColumnSort("authorName")}
                     onKeyDown={(e) => e.key === "Enter" && handleColumnSort("authorName")}
                     role="button"
@@ -600,7 +600,7 @@ export default function AdminPostList() {
                 </th>
                 <th style={{ width: "120px" }}>
                   <div 
-                    className="sortable-header" 
+                    className="apl-sortable-header" 
                     onClick={() => handleColumnSort("status")}
                     onKeyDown={(e) => e.key === "Enter" && handleColumnSort("status")}
                     role="button"
@@ -612,7 +612,7 @@ export default function AdminPostList() {
                 </th>
                 <th style={{ width: "100px" }}>
                   <div 
-                    className="sortable-header" 
+                    className="apl-sortable-header" 
                     onClick={() => handleColumnSort("viewCount")}
                     onKeyDown={(e) => e.key === "Enter" && handleColumnSort("viewCount")}
                     role="button"
@@ -624,7 +624,7 @@ export default function AdminPostList() {
                 </th>
                 <th style={{ width: "150px" }}>
                   <div 
-                    className="sortable-header" 
+                    className="apl-sortable-header" 
                     onClick={() => handleColumnSort("createdAt")}
                     onKeyDown={(e) => e.key === "Enter" && handleColumnSort("createdAt")}
                     role="button"
@@ -652,30 +652,30 @@ export default function AdminPostList() {
                       <img
                         src={post.thumbnail}
                         alt={post.title}
-                        className="post-thumbnail"
+                        className="apl-post-thumbnail"
                         onError={(e) => {
                           e.target.style.display = "none";
                         }}
                       />
                     ) : (
-                      <div className="post-thumbnail-placeholder">📄</div>
+                      <div className="apl-post-thumbnail-placeholder">📄</div>
                     )}
                   </td>
                   <td>
-                    <div className="post-title-cell">
-                      <div className="post-title">{post.title || "(Không có tiêu đề)"}</div>
+                    <div className="apl-post-title-cell">
+                      <div className="apl-post-title">{post.title || "(Không có tiêu đề)"}</div>
                       {post.shortDescription && (
-                        <div className="post-short-desc">{post.shortDescription}</div>
+                        <div className="apl-post-short-desc">{post.shortDescription}</div>
                       )}
                       {post.tags && post.tags.length > 0 && (
-                        <div className="post-tags">
+                        <div className="apl-post-tags">
                           {post.tags.slice(0, 3).map((tag) => (
-                            <span key={tag.tagId} className="tag-badge">
+                            <span key={tag.tagId} className="apl-tag-badge">
                               {tag.tagName}
                             </span>
                           ))}
                           {post.tags.length > 3 && (
-                            <span className="tag-badge">+{post.tags.length - 3}</span>
+                            <span className="apl-tag-badge">+{post.tags.length - 3}</span>
                           )}
                         </div>
                       )}
@@ -687,13 +687,13 @@ export default function AdminPostList() {
                     {getStatusBadge(post.status)}
                   </td>
                   <td>
-                    <span className="view-count">{post.viewCount || 0}</span>
+                    <span className="apl-view-count">{post.viewCount || 0}</span>
                   </td>
                   <td>{formatDate(post.createdAt)}</td>
                   <td>
-                    <div className="action-buttons">
+                    <div className="apl-action-buttons">
                       <button
-                        className="action-btn view-btn"
+                        className="apl-action-btn apl-view-btn"
                         title="Xem trước"
                         onClick={() => handlePreview(post)}
                       >
@@ -702,7 +702,7 @@ export default function AdminPostList() {
                         </svg>
                       </button>
                       <button
-                        className="action-btn update-btn"
+                        className="apl-action-btn apl-update-btn"
                         title="Sửa"
                         onClick={() => handleEdit(post.postId)}
                       >
@@ -711,7 +711,7 @@ export default function AdminPostList() {
                         </svg>
                       </button>
                       <button
-                        className="action-btn delete-btn"
+                        className="apl-action-btn apl-delete-btn"
                         title="Xóa"
                         onClick={() => handleDelete(post.postId)}
                       >
@@ -726,10 +726,10 @@ export default function AdminPostList() {
             </tbody>
           </table>
         ) : (
-          <div className="post-grid">
+          <div className="apl-post-grid">
             {paginated.map((post) => (
-              <div key={post.postId} className="post-card">
-                <div className="post-card-checkbox">
+              <div key={post.postId} className="apl-post-card">
+                <div className="apl-post-card-checkbox">
                   <input
                     type="checkbox"
                     checked={selectedPosts.includes(post.postId)}
@@ -740,29 +740,29 @@ export default function AdminPostList() {
                   <img
                     src={post.thumbnail}
                     alt={post.title}
-                    className="post-card-image"
+                    className="apl-post-card-image"
                     onError={(e) => {
                       e.target.style.display = "none";
                     }}
                   />
                 ) : (
-                  <div className="post-card-image-placeholder">📄</div>
+                  <div className="apl-post-card-image-placeholder">📄</div>
                 )}
-                <div className="post-card-content">
-                  <div className="post-card-title">{post.title || "(Không có tiêu đề)"}</div>
+                <div className="apl-post-card-content">
+                  <div className="apl-post-card-title">{post.title || "(Không có tiêu đề)"}</div>
                   {post.shortDescription && (
-                    <div className="post-card-desc">{post.shortDescription}</div>
+                    <div className="apl-post-card-desc">{post.shortDescription}</div>
                   )}
-                  <div className="post-card-meta">
+                  <div className="apl-post-card-meta">
                     <span>{post.postTypeName || "Không có danh mục"}</span>
                     <span>•</span>
                     <span>{formatDate(post.createdAt)}</span>
                   </div>
-                  <div className="post-card-footer">
-                    <div className="post-card-status">{getStatusBadge(post.status)}</div>
-                    <div className="post-card-actions">
+                  <div className="apl-post-card-footer">
+                    <div className="apl-post-card-status">{getStatusBadge(post.status)}</div>
+                    <div className="apl-post-card-actions">
                       <button
-                        className="action-btn view-btn"
+                        className="apl-action-btn apl-view-btn"
                         onClick={() => handlePreview(post)}
                         title="Xem trước"
                       >
@@ -771,7 +771,7 @@ export default function AdminPostList() {
                         </svg>
                       </button>
                       <button
-                        className="action-btn update-btn"
+                        className="apl-action-btn apl-update-btn"
                         onClick={() => handleEdit(post.postId)}
                         title="Sửa"
                       >
@@ -780,7 +780,7 @@ export default function AdminPostList() {
                         </svg>
                       </button>
                       <button
-                        className="action-btn delete-btn"
+                        className="apl-action-btn apl-delete-btn"
                         onClick={() => handleDelete(post.postId)}
                         title="Xóa"
                       >
@@ -798,34 +798,34 @@ export default function AdminPostList() {
       </div>
 
       {/* Pagination */}
-      <div className="post-list-pagination">
-        <div className="pagination-controls">
+      <div className="apl-post-list-pagination">
+        <div className="apl-pagination-controls">
           <button
-            className="btn-secondary"
+            className="apl-btn-secondary"
             onClick={() => setPage(1)}
             disabled={currentPage === 0 || currentPage === 1}
           >
             «
           </button>
           <button
-            className="btn-secondary"
+            className="apl-btn-secondary"
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 0 || currentPage === 1}
           >
             ‹
           </button>
-          <span className="pagination-page">
+          <span className="apl-pagination-page">
             Trang {currentPage}/{totalPages} ({total} bài viết)
           </span>
           <button
-            className="btn-secondary"
+            className="apl-btn-secondary"
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === 0 || currentPage >= totalPages}
           >
             ›
           </button>
           <button
-            className="btn-secondary"
+            className="apl-btn-secondary"
             onClick={() => setPage(totalPages)}
             disabled={currentPage === 0 || currentPage >= totalPages}
           >

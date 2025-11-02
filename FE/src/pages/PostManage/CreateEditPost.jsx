@@ -1,18 +1,18 @@
 /**
- * File: CreateEditPost.jsx
- * Author: HieuNDHE173169
- * Created: 30/10/2025
- * Last Updated: 30/10/2025
- * Version: 2.0.0
- * Purpose: Advanced post/blog/guide editor with full features:
- *          - Rich text editor with image insertion at multiple positions
- *          - Tag management (select from list or create new)
- *          - Post type selection
- *          - Link management
- *          - SEO metadata
- *          - Status management
+ * @file: CreateEditPost.jsx
+ * @author: HieuNDHE173169
+ * @created 2025-10-30
+ * @lastUpdated 2025-10-30
+ * @version 2.0.0
+ * @summary Provides a full-featured post editor (for blog/guide management) with:
+ * - Rich text editing (insert images, manage links)
+ * - Tag and post type selection
+ * - SEO metadata and status management
+ * - Auto-save, preview, and publishing features
+ * 
+ * @returns
+ * A React component that allows creating and editing posts with integrated tag, image, and SEO controls.
  */
-
 import React, { useCallback, useRef, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { postsApi } from "../../services/postsApi";
