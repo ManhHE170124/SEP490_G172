@@ -1,36 +1,87 @@
-# Visual Studio
+# ===== OS junk =====
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ===== Editor / IDE =====
+.vscode/
 .vs/
-*.suo
+.idea/
 *.user
-*.userosscache
-*.sln.docstates
+*.suo
 
-# .NET build
-**/bin/
-**/obj/
-**/TestResults/
-
-# VS Code (giữ file chia sẻ nếu muốn)
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
-!.vscode/launch.json
-
-# Logs
+# ===== Logs / caches =====
 *.log
+.eslintcache
+.stylelintcache
 
-# React/Node
-**/node_modules/
-**/dist/
-**/build/
-**/.cache/
+# ===== .NET / Visual Studio (BE) =====
+# Build outputs
+BE/**/[Bb]in/
+BE/**/[Oo]bj/
+BE/**/[Ll]og/
+BE/**/TestResult*/
+BE/**/artifacts/
 
-# Env
-*.env
-*.env.*
-!.env.example
+# ReSharper / Rider
+_ReSharper.Caches/
+*.DotSettings.user
 
-# EF/Secrets (tùy team)
-**/appsettings.*.local.json
-**/secrets.json
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# Designer / temp
+*.VisualState.xml
+*.designer.cs
+
+# ASP.NET static/publish outputs placed under wwwroot (nếu có)
+BE/**/wwwroot/bundle*.*
+BE/**/wwwroot/build/
+BE/**/wwwroot/dist/
+BE/**/wwwroot/lib/
+
+# Nếu muốn giữ wwwroot rỗng có .gitkeep
+# (Uncomment nếu bạn cần)
+#BE/**/wwwroot/*
+#!BE/**/wwwroot/.gitkeep
+
+# Secrets & local settings (được tạo trên máy dev – KHÔNG commit)
+BE/**/secrets.json
+BE/**/local.settings.json
+BE/**/appsettings.*.local.json
+
+# Cho phép commit appsettings "chuẩn" nếu bạn cần
+!BE/**/appsettings.json
+!BE/**/appsettings.Development.json
+
+# ===== Node / React (FE) =====
+FE/node_modules/
+FE/.next/
+FE/.nuxt/
+FE/dist/
+FE/build/
+FE/.cache/
+FE/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.turbo/
+.parcel-cache/
+
+# Env files (KHÔNG commit secrets)
+FE/.env
+FE/.env.*
+# Nhưng vẫn cho phép mẫu ví dụ
+!FE/.env.example
+
+# ===== General =====
+!.gitignore
+
 BE/Keytietkiem/appsettings.json

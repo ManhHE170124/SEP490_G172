@@ -67,6 +67,9 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<WarrantyClaim> WarrantyClaims { get; set; }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseSqlServer("Name=ConnectionStrings:MyCnn");
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>(entity =>
@@ -372,11 +375,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.ThumbnailUrl).HasMaxLength(512);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
-            entity.HasOne(d => d.Supplier).WithMany(p => p.Products)
-                .HasForeignKey(d => d.SupplierId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Products_Supplier");
-
             entity.HasMany(d => d.Categories).WithMany(p => p.Products)
                 .UsingEntity<Dictionary<string, object>>(
                     "ProductCategory",
@@ -448,6 +446,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductKeys_Product");
+
+            entity.HasOne(d => d.Supplier).WithMany(p => p.ProductKeys)
+                .HasForeignKey(d => d.SupplierId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductKeys_Supplier");
         });
 
         modelBuilder.Entity<RefundRequest>(entity =>

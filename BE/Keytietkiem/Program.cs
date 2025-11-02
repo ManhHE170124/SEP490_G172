@@ -1,17 +1,55 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Options;
+using Keytietkiem.Repositories;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers: JSON camelCase để khớp FE
-builder.Services.AddControllers().AddJsonOptions(opt =>
-{
-    opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-});
+// ===== Connection string =====
+var connStr = builder.Configuration.GetConnectionString("MyCnn");
 
-// Chuẩn hóa lỗi validate thành { message: "..." }
+// ===== DI (ưu tiên bản dưới) =====
+// Dùng DbContextFactory để dễ test và control scope
+builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
+    opt.UseSqlServer(connStr));
+
+// ===== Configuration Options =====
+builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
+builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
+
+// ===== Memory Cache =====
+builder.Services.AddMemoryCache();
+
+// ===== Repositories =====
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+
+// ===== Services =====
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
+
+// Clock (mockable for tests)
+builder.Services.AddSingleton<IClock, SystemClock>();
+
+// ===== Controllers + JSON (ưu tiên bản dưới, có Enum -> string) =====
+builder.Services.AddControllers()
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Nếu dùng DateOnly/TimeOnly => thêm converter custom ở đây
+        // o.JsonSerializerOptions.Converters.Add(new DateOnlyJsonConverter());
+    });
+
+// ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -24,30 +62,53 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
-// DbContext
-builder.Services.AddDbContext<KeytietkiemDbContext>(opt =>
-{
-    var conn = builder.Configuration.GetConnectionString("MyCnn");
-    opt.UseSqlServer(conn);
-});
+// ===== CORS (gộp: config + 5173 + 3000) =====
+const string FrontendCors = "Frontend";
+var cfgOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
+var defaultOrigins = new[] { "http://localhost:5173", "http://localhost:3000", "https://localhost:3000" };
+var corsOrigins = cfgOrigins.Union(defaultOrigins).Distinct().ToArray();
 
+builder.Services.AddCors(o => o.AddPolicy(FrontendCors, p =>
+    p.WithOrigins(corsOrigins)
+     .AllowAnyHeader()
+     .AllowAnyMethod()
+     .AllowCredentials()
+     .WithExposedHeaders("Content-Disposition") // phục vụ export CSV
+));
+
+// ===== JWT Authentication =====
+var jwtSecretKey = builder.Configuration["JwtConfig:SecretKey"]
+                   ?? throw new InvalidOperationException("JwtConfig:SecretKey not found in appsettings.json");
+var jwtIssuer = builder.Configuration["JwtConfig:Issuer"]
+                ?? throw new InvalidOperationException("JwtConfig:Issuer not found in appsettings.json");
+var jwtAudience = builder.Configuration["JwtConfig:Audience"]
+                  ?? throw new InvalidOperationException("JwtConfig:Audience not found in appsettings.json");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS cho React dev server
-builder.Services.AddCors(opt =>
-{
-    opt.AddPolicy("fe", p => p
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .WithOrigins("http://localhost:3000", "https://localhost:3000"));
-});
-
 var app = builder.Build();
-app.UseSwagger();
-app.UseSwaggerUI();
 
-// Global exception → { message: "..."}
+// ===== Global exception -> { message: "..." } (giữ bản dưới) =====
 app.UseExceptionHandler(exApp =>
 {
     exApp.Run(async context =>
@@ -59,9 +120,20 @@ app.UseExceptionHandler(exApp =>
     });
 });
 
-app.UseHttpsRedirection();
-app.UseCors("fe");
+// ===== Dev tools =====
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// Theo bản dưới: tắt redirect HTTPS trong môi trường dev để tránh CORS redirect
+// app.UseHttpsRedirection();
+
+// // (Tuỳ chọn) Auth
+// app.UseAuthentication();
+
+app.UseCors(FrontendCors);
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
 app.Run();

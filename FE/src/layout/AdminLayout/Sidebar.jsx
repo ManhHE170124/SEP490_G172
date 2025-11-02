@@ -28,7 +28,7 @@ const Sidebar = () => {
 
       <nav className="sb-nav">
         <div className="sb-section-title">Tổng quan</div>
-        <Link 
+        <Link
           className={`sb-item ${currentPage === "home" ? "active" : ""}`}
           to="/home"
         >
@@ -55,7 +55,7 @@ const Sidebar = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+            <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
             <path
               d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
               stroke="currentColor"
@@ -79,7 +79,7 @@ const Sidebar = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" stroke="currentColor" strokeWidth="2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" stroke="currentColor" strokeWidth="2" />
             <path
               d="M12 11h4M12 16h4M8 11h.01M8 16h.01"
               stroke="currentColor"
@@ -93,7 +93,7 @@ const Sidebar = () => {
 
         <div className="sb-section-title">Quản lý người dùng</div>
 
-        <Link 
+        <Link
           className={`sb-item ${currentPage === "admin-user-management" ? "active" : ""}`}
           to="/admin-user-management"
         >

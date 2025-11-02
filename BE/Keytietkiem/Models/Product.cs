@@ -11,8 +11,6 @@ public partial class Product
 
     public string ProductName { get; set; } = null!;
 
-    public int SupplierId { get; set; }
-
     public string ProductType { get; set; } = null!;
 
     public decimal? CostPrice { get; set; }
@@ -48,8 +46,6 @@ public partial class Product
     public virtual ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
 
     public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
-
-    public virtual Supplier Supplier { get; set; } = null!;
 
     public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
 }
