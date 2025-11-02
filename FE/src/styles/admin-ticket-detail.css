@@ -1,6 +1,7 @@
 :root{
   --card:#fff; --line:#e5e7eb; --radius:12px; --shadow:0 12px 30px rgba(15,23,42,.08);
   --ink:#0b2130; --muted:#6b7280;
+  --primary:#0d6efd; --warning:#f59e0b; --success:#16a34a; --danger:#dc2626;
 }
 
 .tkd-page{padding:24px}
@@ -40,8 +41,12 @@
 .kv{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
 .kv:last-child{border-bottom:none}
 
-.btn{padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.btn{padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;margin-left:8px}
 .btn.ghost:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.warning{background:var(--warning);color:#fff;border-color:var(--warning)}
+.btn.success{background:var(--success);color:#fff;border-color:var(--success)}
+.btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
 
 .loading,.error,.empty{padding:16px;text-align:center}
 .error{color:#b91c1c}

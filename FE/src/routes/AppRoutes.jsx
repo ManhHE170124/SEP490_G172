@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Suspense, lazy } from "react";
 // Admin pages
 import BadgeAdd from "../pages/admin/BadgeAdd.jsx";
 import BadgeDetail from "../pages/admin/BadgeDetail.jsx";
@@ -10,7 +11,6 @@ import ProductDetail from "../pages/admin/ProductDetail.jsx";
 import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
-import * as AdminTicketDetailModule from "../pages/admin/admin-ticket-detail.jsx";
 
 
 
@@ -22,8 +22,15 @@ import SignUpPage from "../pages/auth/SignUpPage.jsx";
 import Page404 from "../pages/NotFound/Page404";
 import RBACManagement from "../pages/RBAC/RBACManagement";
 import RoleAssign from "../pages/RBAC/RoleAssign";
+const AdminTicketDetail = lazy(() =>
+  import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
+    default:
+      typeof m.default === "function"
+        ? m.default
+        : (typeof m.AdminTicketDetail === "function" ? m.AdminTicketDetail : (() => null)),
+  }))
+);
 
-const AdminTicketDetail = AdminTicketDetailModule.default || AdminTicketDetailModule;
 export default function AppRoutes() {
   return (
     <Routes>
@@ -34,7 +41,15 @@ export default function AppRoutes() {
 
       {/* Tickets */}
       <Route path="/admin/tickets" element={<AdminTicketManagement />} />
-      <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
+      <Route
+        path="/admin/tickets/:id"
+        element={
+          <Suspense fallback={<div>Đang tải chi tiết...</div>}>
+            <AdminTicketDetail />
+          </Suspense>
+        }
+      />
+
 
       {/* Products */}
       <Route path="/admin/products" element={<ProductsPage />} />

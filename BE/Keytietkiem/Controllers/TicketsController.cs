@@ -14,7 +14,7 @@ public class TicketsController : ControllerBase
     private readonly KeytietkiemDbContext _db;
     public TicketsController(KeytietkiemDbContext db) => _db = db;
 
-    // Chuẩn hoá status: dữ liệu cũ "Open" quy về "New"; rỗng -> "New"
+    // Normalize: dữ liệu cũ "Open" quy về "New"; rỗng -> "New"
     private static string NormStatus(string? s)
     {
         var v = (s ?? "").Trim();
@@ -22,14 +22,12 @@ public class TicketsController : ControllerBase
         return string.IsNullOrWhiteSpace(v) ? "New" : v;
     }
 
-    // Chuẩn hoá phân công: rỗng -> "Unassigned"
-    private static string NormAssign(string? s)
-        => string.IsNullOrWhiteSpace(s) ? "Unassigned" : s!;
+    // Normalize assignment: rỗng -> "Unassigned"
+    private static string NormAssign(string? s) => string.IsNullOrWhiteSpace(s) ? "Unassigned" : s!;
 
-    private static IQueryable<Ticket> BaseQuery(KeytietkiemDbContext db)
-        => db.Tickets.AsNoTracking()
-            .Include(t => t.User)
-            .Include(t => t.Assignee);
+    private static IQueryable<Ticket> BaseQuery(KeytietkiemDbContext db) => db.Tickets.AsNoTracking()
+        .Include(t => t.User)
+        .Include(t => t.Assignee);
 
     // GET /api/tickets?q=&status=&severity=&sla=&assigned= | assignmentState=&page=&pageSize=
     [HttpGet]
@@ -48,7 +46,6 @@ public class TicketsController : ControllerBase
         pageSize = Math.Clamp(pageSize, 1, 100);
 
         var assignedFilter = string.IsNullOrWhiteSpace(assigned) ? assignmentState : assigned;
-
         var query = BaseQuery(_db);
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -58,13 +55,11 @@ public class TicketsController : ControllerBase
                 (t.TicketCode ?? "").Contains(kw) ||
                 (t.Subject ?? "").Contains(kw) ||
                 (t.User.FullName ?? "").Contains(kw) ||
-                (t.User.Email ?? "").Contains(kw)
-            );
+                (t.User.Email ?? "").Contains(kw));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            // Hỗ trợ cả dữ liệu cũ "Open" và mới "New"
             if (status == "New")
                 query = query.Where(t => (t.Status ?? "New") == "New" || t.Status == "Open");
             else
@@ -82,11 +77,8 @@ public class TicketsController : ControllerBase
 
         var total = await query.CountAsync();
 
-        var raw = await query
-            .OrderByDescending(t => t.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var raw = await query.OrderByDescending(t => t.CreatedAt)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
         var items = raw.Select(t => new TicketListItemDto
         {
@@ -121,7 +113,6 @@ public class TicketsController : ControllerBase
             .Include(x => x.User)
             .Include(x => x.Assignee)
             .FirstOrDefaultAsync(x => x.TicketId == id);
-
         if (t == null) return NotFound();
 
         var replies = await _db.TicketReplies.AsNoTracking()
@@ -167,7 +158,7 @@ public class TicketsController : ControllerBase
     }
 
     // POST /api/tickets/{id}/assign
-    // Khi ấn "Gán": từ "New" -> "InProgress", "Unassigned" -> "Assigned"; set Assignee nếu có user đăng nhập
+    // "Gán": New -> InProgress, Unassigned -> Assigned; set AssigneeId nếu có user đăng nhập
     [HttpPost("{id:guid}/assign")]
     public async Task<IActionResult> Assign(Guid id)
     {
@@ -192,7 +183,7 @@ public class TicketsController : ControllerBase
     }
 
     // POST /api/tickets/{id}/transfer-tech
-    // Khi ấn "Chuyển hỗ trợ": phải đã gán; AssignmentState -> "Technical"; nếu Status = "New" thì -> "InProgress"
+    // "Chuyển hỗ trợ": phải đã gán; AssignmentState -> "Technical"; New -> InProgress
     [HttpPost("{id:guid}/transfer-tech")]
     public async Task<IActionResult> TransferToTech(Guid id)
     {
@@ -216,7 +207,7 @@ public class TicketsController : ControllerBase
     }
 
     // POST /api/tickets/{id}/complete
-    // Khi ấn "Hoàn thành": chỉ cho "InProgress" -> "Completed"
+    // "Hoàn thành": chỉ cho InProgress -> Completed
     [HttpPost("{id:guid}/complete")]
     public async Task<IActionResult> Complete(Guid id)
     {
@@ -236,7 +227,7 @@ public class TicketsController : ControllerBase
     }
 
     // POST /api/tickets/{id}/close
-    // Khi ấn "Đóng": chỉ cho "New" -> "Closed"
+    // "Đóng": chỉ cho New -> Closed
     [HttpPost("{id:guid}/close")]
     public async Task<IActionResult> Close(Guid id)
     {
