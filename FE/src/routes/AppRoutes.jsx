@@ -8,6 +8,10 @@ import CategoryPage from "../pages/admin/CategoryPage.jsx";
 import ProductAdd from "../pages/admin/ProductAdd.jsx";
 import ProductDetail from "../pages/admin/ProductDetail.jsx";
 import ProductsPage from "../pages/admin/ProductsPage.jsx";
+import AdminUserManagement from "../pages/admin/admin-user-management";
+import TicketList from "../pages/admin/admin-ticket-management.jsx";
+import TicketDetail from "../pages/admin/TicketDetail";
+
 
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
@@ -17,7 +21,7 @@ import SignUpPage from "../pages/auth/SignUpPage.jsx";
 import Page404 from "../pages/NotFound/Page404";
 import RBACManagement from "../pages/RBAC/RBACManagement";
 import RoleAssign from "../pages/RBAC/RoleAssign";
-import AdminUserManagement from "../pages/admin-user-management";
+
 
 export default function AppRoutes() {
   return (
@@ -26,6 +30,10 @@ export default function AppRoutes() {
       <Route path="/register" element={<SignUpPage />} />
       <Route path="/" element={<Navigate to="/admin/products" replace />} />
       <Route path="/admin" element={<div />} />
+
+      {/* Tickets */}
+      <Route path="/admin/tickets" element={<TicketList />} />
+      <Route path="/admin/tickets/:id" element={<TicketDetail />} />
 
       {/* Products */}
       <Route path="/admin/products" element={<ProductsPage />} />
