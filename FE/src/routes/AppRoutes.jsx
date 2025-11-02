@@ -9,8 +9,9 @@ import ProductAdd from "../pages/admin/ProductAdd.jsx";
 import ProductDetail from "../pages/admin/ProductDetail.jsx";
 import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
-import TicketList from "../pages/admin/admin-ticket-management.jsx";
-import TicketDetail from "../pages/admin/TicketDetail";
+import AdminTicketManagement from "../pages/admin/admin-ticket-management";
+import * as AdminTicketDetailModule from "../pages/admin/admin-ticket-detail.jsx";
+
 
 
 // Auth pages
@@ -22,7 +23,7 @@ import Page404 from "../pages/NotFound/Page404";
 import RBACManagement from "../pages/RBAC/RBACManagement";
 import RoleAssign from "../pages/RBAC/RoleAssign";
 
-
+const AdminTicketDetail = AdminTicketDetailModule.default || AdminTicketDetailModule;
 export default function AppRoutes() {
   return (
     <Routes>
@@ -32,8 +33,8 @@ export default function AppRoutes() {
       <Route path="/admin" element={<div />} />
 
       {/* Tickets */}
-      <Route path="/admin/tickets" element={<TicketList />} />
-      <Route path="/admin/tickets/:id" element={<TicketDetail />} />
+      <Route path="/admin/tickets" element={<AdminTicketManagement />} />
+      <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
 
       {/* Products */}
       <Route path="/admin/products" element={<ProductsPage />} />

@@ -1,0 +1,47 @@
+:root{
+  --card:#fff; --line:#e5e7eb; --radius:12px; --shadow:0 12px 30px rgba(15,23,42,.08);
+  --ink:#0b2130; --muted:#6b7280;
+}
+
+.tkd-page{padding:24px}
+
+.ticket-header{
+  background:var(--card);
+  border-radius:var(--radius);
+  padding:24px;
+  border:1px solid var(--line);
+  margin-bottom:24px;
+  box-shadow:var(--shadow);
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+}
+.ticket-header .code{color:var(--muted)}
+.ticket-header .subject{margin:6px 0 10px;font-size:20px;color:var(--ink)}
+.ticket-header .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ticket-header .chip{padding:4px 8px;border-radius:8px;background:#f1f5f9;font-size:12px;font-weight:600}
+.ticket-header .sub{color:var(--muted);font-size:12px}
+
+.ticket-content{display:grid;grid-template-columns:2fr 1fr;gap:24px}
+.left-col{min-width:0}
+.right-col{min-width:0}
+
+.thread{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.thread-title{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
+.msg{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.msg:last-child{border-bottom:none}
+.avatar{width:36px;height:36px;border-radius:50%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:700;color:#111827;flex-shrink:0}
+.bubble{flex:1}
+.head{display:flex;justify-content:space-between;margin-bottom:4px}
+.name{font-weight:700}
+.time{color:var(--muted);font-size:12px}
+.text{white-space:pre-wrap}
+
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.card-title{font-weight:700;margin-bottom:12px}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.kv:last-child{border-bottom:none}
+
+.btn{padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.btn.ghost:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+
+.loading,.error,.empty{padding:16px;text-align:center}
+.error{color:#b91c1c}
