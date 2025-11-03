@@ -591,6 +591,19 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.TagName).HasMaxLength(100);
         });
 
+        modelBuilder.Entity<Tag>(entity =>
+        {
+            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CFA4C97F385E0");
+
+            entity.HasIndex(e => e.Slug, "UQ__Tags__BC7B5FB67661A1DA").IsUnique();
+
+            entity.Property(e => e.TagId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("TagID");
+            entity.Property(e => e.Slug).HasMaxLength(150);
+            entity.Property(e => e.TagName).HasMaxLength(100);
+        });
+
         modelBuilder.Entity<Ticket>(entity =>
         {
             entity.HasKey(e => e.TicketId).HasName("PK__Tickets__712CC6070FF23DDC");
