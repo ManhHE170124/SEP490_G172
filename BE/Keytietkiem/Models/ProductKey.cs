@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Keytietkiem.DTOs.Enums;
 
 namespace Keytietkiem.Models;
 
@@ -18,6 +19,16 @@ public partial class ProductKey
     public DateTime ImportedAt { get; set; }
 
     public int SupplierId { get; set; }
+
+    public ProductKeyType Type { get; set; } = ProductKeyType.Individual;
+
+    public DateTime? ExpiryDate { get; set; }
+
+    public string? Notes { get; set; }
+
+    public Guid? AssignedToOrderId { get; set; }
+
+    public DateTime? UpdatedAt { get; set; }
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 

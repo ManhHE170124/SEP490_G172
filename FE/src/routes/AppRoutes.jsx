@@ -17,6 +17,17 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
 import SignUpPage from "../pages/auth/SignUpPage.jsx";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage.jsx";
+import CheckEmailPage from "../pages/auth/CheckEmailPage.jsx";
+import ResetPasswordPage from "../pages/auth/ResetPasswordPage.jsx";
+
+// Supplier pages
+import SuppliersPage from "../pages/supplier/SuppliersPage.jsx";
+import SupplierDetailPage from "../pages/supplier/SupplierDetailPage.jsx";
+
+// Storage pages
+import KeyManagementPage from "../pages/storage/KeyManagementPage.jsx";
+import KeyDetailPage from "../pages/storage/KeyDetailPage.jsx";
 
 // Other pages
 import Page404 from "../pages/NotFound/Page404";
@@ -36,6 +47,9 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<SignUpPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/check-reset-email" element={<CheckEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={<Navigate to="/admin/products" replace />} />
       <Route path="/admin" element={<div />} />
 
@@ -64,6 +78,16 @@ export default function AppRoutes() {
       {/* Badges */}
       <Route path="/admin/badges/add" element={<BadgeAdd />} />
       <Route path="/admin/badges/:code" element={<BadgeDetail />} />
+
+      {/* Suppliers */}
+      <Route path="/suppliers" element={<SuppliersPage />} />
+      <Route path="/suppliers/add" element={<SupplierDetailPage />} />
+      <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+
+      {/* Product Keys */}
+      <Route path="/keys" element={<KeyManagementPage />} />
+      <Route path="/keys/add" element={<KeyDetailPage />} />
+      <Route path="/keys/:id" element={<KeyDetailPage />} />
 
       {/* RBAC & Users */}
       <Route path="/admin/users" element={<AdminUserManagement />} />

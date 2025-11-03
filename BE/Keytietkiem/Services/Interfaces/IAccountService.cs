@@ -67,4 +67,19 @@ public interface IAccountService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Verification response with token if successful</returns>
     Task<OtpVerificationResponseDto> VerifyOtpAsync(VerifyOtpDto verifyOtpDto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends an OTP code to the email for password reset
+    /// </summary>
+    /// <param name="forgotPasswordDto">Email to send OTP to</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Success message</returns>
+    Task<string> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resets the user's password using OTP verification
+    /// </summary>
+    /// <param name="resetPasswordDto">Password reset data with OTP</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken cancellationToken = default);
 }
