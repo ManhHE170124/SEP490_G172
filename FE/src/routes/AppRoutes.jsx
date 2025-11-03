@@ -11,6 +11,7 @@ import ProductDetail from "../pages/admin/ProductDetail.jsx";
 import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
+import WebsiteConfig from "../pages/admin/WebsiteConfig";
 
 
 
@@ -94,6 +95,8 @@ export default function AppRoutes() {
       <Route path="/admin-user-management" element={<AdminUserManagement />} />
       <Route path="/rbac" element={<RBACManagement />} />
       <Route path="/roleassign" element={<RoleAssign />} />
+
+      <Route path="/admin/website-config" element={<WebsiteConfig />} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />
