@@ -45,9 +45,17 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<ProductBadge> ProductBadges { get; set; }
 
+    public virtual DbSet<ProductFaq> ProductFaqs { get; set; }
+
     public virtual DbSet<ProductImage> ProductImages { get; set; }
 
     public virtual DbSet<ProductKey> ProductKeys { get; set; }
+
+    public virtual DbSet<ProductReview> ProductReviews { get; set; }
+
+    public virtual DbSet<ProductSection> ProductSections { get; set; }
+
+    public virtual DbSet<ProductVariant> ProductVariants { get; set; }
 
     public virtual DbSet<RefundRequest> RefundRequests { get; set; }
 
@@ -359,7 +367,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasIndex(e => e.ProductCode, "UQ__Products__2F4E024F4FF26E21").IsUnique();
 
             entity.Property(e => e.ProductId).HasDefaultValueSql("(newid())");
-            entity.Property(e => e.CostPrice).HasColumnType("decimal(12, 2)");
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
@@ -370,7 +377,10 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.ProductType)
                 .HasMaxLength(20)
                 .IsUnicode(false);
-            entity.Property(e => e.SalePrice).HasColumnType("decimal(12, 2)");
+            entity.Property(e => e.Slug)
+                .HasMaxLength(150)
+                .IsUnicode(false)
+                .HasDefaultValue("");
             entity.Property(e => e.Status)
                 .HasMaxLength(15)
                 .IsUnicode(false);
@@ -412,12 +422,32 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_ProductBadges_Products");
         });
 
+        modelBuilder.Entity<ProductFaq>(entity =>
+        {
+            entity.HasKey(e => e.FaqId);
+
+            entity.HasIndex(e => new { e.ProductId, e.SortOrder }, "IX_ProductFaqs_Product");
+
+            entity.Property(e => e.FaqId).HasDefaultValueSql("(newsequentialid())");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Question).HasMaxLength(500);
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductFaqs)
+                .HasForeignKey(d => d.ProductId)
+                .HasConstraintName("FK_ProductFaqs_Product");
+        });
+
         modelBuilder.Entity<ProductImage>(entity =>
         {
             entity.HasKey(e => e.ImageId).HasName("PK__ProductI__7516F70C233B7C73");
 
             entity.HasIndex(e => new { e.ProductId, e.SortOrder }, "IX_ProductImages_Product_Sort");
 
+            entity.Property(e => e.AltText).HasMaxLength(200);
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
@@ -453,6 +483,76 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.SupplierId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductKeys_Supplier");
+        });
+
+        modelBuilder.Entity<ProductReview>(entity =>
+        {
+            entity.HasKey(e => e.ReviewId);
+
+            entity.HasIndex(e => e.Rating, "IX_ProductReviews_Rating");
+
+            entity.HasIndex(e => e.VariantId, "IX_ProductReviews_Variant");
+
+            entity.Property(e => e.ReviewId).HasDefaultValueSql("(newsequentialid())");
+            entity.Property(e => e.Content).HasMaxLength(4000);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Title).HasMaxLength(120);
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasOne(d => d.Variant).WithMany(p => p.ProductReviews)
+                .HasForeignKey(d => d.VariantId)
+                .HasConstraintName("FK_ProductReviews_Variant");
+        });
+
+        modelBuilder.Entity<ProductSection>(entity =>
+        {
+            entity.HasKey(e => e.SectionId);
+
+            entity.HasIndex(e => new { e.VariantId, e.SortOrder }, "IX_ProductSections_Variant");
+
+            entity.Property(e => e.SectionId).HasDefaultValueSql("(newsequentialid())");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.SectionType)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.Title).HasMaxLength(200);
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasOne(d => d.Variant).WithMany(p => p.ProductSections)
+                .HasForeignKey(d => d.VariantId)
+                .HasConstraintName("FK_ProductSections_Variant");
+        });
+
+        modelBuilder.Entity<ProductVariant>(entity =>
+        {
+            entity.HasKey(e => e.VariantId);
+
+            entity.HasIndex(e => new { e.ProductId, e.Title }, "UX_ProductVariants_Product_Title").IsUnique();
+
+            entity.Property(e => e.VariantId).HasDefaultValueSql("(newsequentialid())");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.OriginalPrice).HasColumnType("decimal(12, 2)");
+            entity.Property(e => e.Price).HasColumnType("decimal(12, 2)");
+            entity.Property(e => e.Status)
+                .HasMaxLength(15)
+                .IsUnicode(false)
+                .HasDefaultValue("ACTIVE");
+            entity.Property(e => e.Title).HasMaxLength(60);
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
+            entity.Property(e => e.VariantCode)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductVariants)
+                .HasForeignKey(d => d.ProductId)
+                .HasConstraintName("FK_ProductVariants_Product");
         });
 
         modelBuilder.Entity<RefundRequest>(entity =>

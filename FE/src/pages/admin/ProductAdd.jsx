@@ -3,10 +3,24 @@ import { useNavigate } from "react-router-dom";
 import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
+import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
 
 export default function ProductAdd() {
   const nav = useNavigate();
+
+  // ===== Toasts =====
+  const [toasts, setToasts] = React.useState([]);
+  const removeToast = React.useCallback(
+    (id) => setToasts((ts) => ts.filter((t) => t.id !== id)),
+    []
+  );
+  const addToast = React.useCallback((type, title, message) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((ts) => [...ts, { id, type, title, message }]);
+    // tự ẩn sau 3.5s
+    setTimeout(() => removeToast(id), 3500);
+  }, [removeToast]);
 
   // ======= data sources =======
   const [cats, setCats] = React.useState([]);
@@ -24,6 +38,7 @@ export default function ProductAdd() {
   const [previews, setPreviews] = React.useState([]);
   const [primaryIndex, setPrimaryIndex] = React.useState(0);
   const [imagesName, setImagesName] = React.useState("");
+  const [autoDefaultOnImport, setAutoDefaultOnImport] = React.useState(true); // công tắc mới
 
   // form
   const [form, setForm] = React.useState({
@@ -45,9 +60,18 @@ export default function ProductAdd() {
   });
 
   React.useEffect(() => {
-    CategoryApi.list({ active: true }).then(setCats).catch(() => {});
-    BadgesApi.list({ active: true }).then(setBadges).catch(() => {});
-  }, []);
+    CategoryApi.list({ active: true })
+      .then(setCats)
+      .catch((e) => addToast("error", "Lỗi tải danh mục", e?.response?.data?.message || e.message));
+    BadgesApi.list({ active: true })
+      .then(setBadges)
+      .catch((e) => addToast("error", "Lỗi tải nhãn", e?.response?.data?.message || e.message));
+  }, [addToast]);
+
+  // revoke object URLs khi unmount / đổi danh sách
+  React.useEffect(() => {
+    return () => { previews.forEach((p) => URL.revokeObjectURL(p.url)); };
+  }, [previews]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -64,11 +88,27 @@ export default function ProductAdd() {
   }, [form.status]);
 
   const toggleStatus = () => {
-    set("status", form.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
+    const next = form.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    set("status", next);
+    addToast("info", "Trạng thái sản phẩm", next === "ACTIVE" ? "Bật hiển thị" : "Tắt hiển thị");
   };
 
   // ======= save =======
   const save = async (publish = true) => {
+    // validate cơ bản
+    if (!form.productName?.trim()) {
+      addToast("warning", "Thiếu tên sản phẩm", "Vui lòng nhập Tên sản phẩm");
+      return;
+    }
+    if (!form.productCode?.trim()) {
+      addToast("warning", "Thiếu mã định danh", "Vui lòng nhập Mã định danh sản phẩm");
+      return;
+    }
+    if ((Number(form.salePrice) || 0) <= 0) {
+      addToast("warning", "Giá bán không hợp lệ", "Giá bán phải lớn hơn 0");
+      return;
+    }
+
     try {
       setSaving(true);
       const payload = { ...form, status: publish ? form.status : "INACTIVE" };
@@ -80,10 +120,16 @@ export default function ProductAdd() {
       } else {
         await ProductApi.create(payload);
       }
-      alert(publish ? "Đã tạo & xuất bản sản phẩm" : "Đã lưu nháp sản phẩm");
-      nav("/admin/products");
+
+      addToast("success",
+        publish ? "Đã tạo & xuất bản sản phẩm" : "Đã lưu nháp sản phẩm",
+        publish ? "Sản phẩm đã hiển thị trên website" : "Bạn có thể xuất bản sau"
+      );
+
+      // điều hướng sau một nhịp ngắn để người dùng thấy toast
+      setTimeout(() => nav("/admin/products"), 400);
     } catch (e) {
-      alert(e?.response?.data?.message || e.message);
+      addToast("error", "Tạo sản phẩm thất bại", e?.response?.data?.message || e.message);
     } finally {
       setSaving(false);
     }
@@ -260,7 +306,6 @@ export default function ProductAdd() {
                     return (
                       <div key={code} className="list-row">
                         <div className="left">
-                          {/* Nền = màu, chữ trắng */}
                           <span
                             className="label-chip"
                             style={{ backgroundColor: color, color: "#fff" }}
@@ -330,96 +375,149 @@ export default function ProductAdd() {
             />
           </div>
 
-          {/* HÀNG 6: Ảnh (full width) */}
+          {/* HÀNG 6: Ảnh (cùng hàng: bên trái upload + công tắc; bên phải preview) */}
           <div className="group" style={{ gridColumn: "1 / 3" }}>
             <span>Ảnh sản phẩm</span>
-            <div className="file-upload">
-              <input
-                id="prodImages"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  setSelectedFiles(files);
-                  setImagesName(
-                    files.length > 0 ? `${files.length} ảnh đã chọn` : "Chưa chọn ảnh"
-                  );
-                  const urls = files.map((f) => ({
-                    name: f.name,
-                    url: URL.createObjectURL(f),
-                  }));
-                  previews.forEach((p) => URL.revokeObjectURL(p.url));
-                  setPreviews(urls);
-                  setPrimaryIndex(0);
-                }}
-              />
-              <label htmlFor="prodImages" className="btn btn-upload">
-                Chọn ảnh
-              </label>
-              <span className="file-name">{imagesName || "Chưa chọn ảnh"}</span>
-            </div>
-          </div>
 
-          {/* HÀNG 7: PREVIEW ẢNH (full width) */}
-          <div className="group" style={{ gridColumn: "1 / 3" }}>
-            {previews.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 4,
-                  flexWrap: "wrap",
-                  alignItems: "stretch",
-                }}
-              >
-                {previews.map((p, idx) => (
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+              }}
+            >
+              {/* Trái: điều khiển upload + công tắc */}
+              <div style={{ minWidth: 340, maxWidth: 420 }}>
+                <div className="file-upload">
+                  <input
+                    id="prodImages"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      // tạo URL preview
+                      const urls = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+                      // revoke previews cũ
+                      previews.forEach((p) => URL.revokeObjectURL(p.url));
+                      setSelectedFiles(files);
+                      setPreviews(urls);
+                      setImagesName(files.length > 0 ? `${files.length} ảnh đã chọn` : "Chưa chọn ảnh");
+
+                      // đặt mặc định theo công tắc
+                      const nextPrimary = files.length === 0
+                        ? 0
+                        : (autoDefaultOnImport ? 0 : Math.min(primaryIndex, Math.max(0, files.length - 1)));
+                      setPrimaryIndex(nextPrimary);
+
+                      if (files.length > 0) {
+                        addToast("info", "Đã chọn ảnh", `${files.length} ảnh • ${files[0].name}`);
+                      }
+                    }}
+                  />
+                  <label htmlFor="prodImages" className="btn btn-upload">
+                    Chọn ảnh
+                  </label>
+                  <span className="file-name">{imagesName || "Chưa chọn ảnh"}</span>
+                </div>
+
+                {/* Công tắc: Ảnh mới làm ảnh mặc định (giống switch trạng thái) */}
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                  <label className="switch" title="Đặt ảnh mới làm ảnh mặc định">
+                    <input
+                      type="checkbox"
+                      checked={autoDefaultOnImport}
+                      onChange={(e) => setAutoDefaultOnImport(e.target.checked)}
+                      aria-label="Ảnh mới làm ảnh mặc định"
+                    />
+                    <span className="slider" />
+                  </label>
+                  <span className="badge gray" style={{ textTransform: "none" }}>
+                    Ảnh mới → mặc định
+                  </span>
+                </div>
+              </div>
+
+              {/* Phải: PREVIEW (to hơn, cùng hàng, không mất ảnh) */}
+              <div style={{ flex: 1, minWidth: 360 }}>
+                {previews.length > 0 && (
                   <div
-                    key={p.url}
                     style={{
-                      border:
-                        primaryIndex === idx
-                          ? "2px solid var(--primary)"
-                          : "1px solid var(--line)",
-                      padding: 8,
-                      borderRadius: 10,
-                      background: "#fff",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                      gap: 12,
                     }}
                   >
-                    <img
-                      src={p.url}
-                      alt={p.name}
-                      style={{
-                        width: 160,
-                        height: 110,
-                        objectFit: "cover",
-                        display: "block",
-                      }}
-                    />
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginTop: 6,
-                      }}
-                    >
-                      <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input
-                          type="radio"
-                          name="primary"
-                          checked={primaryIndex === idx}
-                          onChange={() => setPrimaryIndex(idx)}
-                        />
-                        <span style={{ fontSize: 12 }}>
-                          {idx === 0 ? "Ảnh mặc định" : `Ảnh ${idx + 1}`}
-                        </span>
-                      </label>
-                    </div>
+                    {previews.map((p, idx) => (
+                      <div
+                        key={p.url}
+                        style={{
+                          border:
+                            primaryIndex === idx
+                              ? "2px solid var(--primary)"
+                              : "1px solid var(--line)",
+                          borderRadius: 12,
+                          background: "#fff",
+                          padding: 10,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "100%",
+                            height: 200,
+                            borderRadius: 8,
+                            background: "#fff",
+                            border: "1px solid var(--line)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                          }}
+                          title={p.name}
+                        >
+                          <img
+                            src={p.url}
+                            alt={p.name}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "contain", // không bị mất ảnh
+                              display: "block",
+                            }}
+                          />
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: 8,
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <input
+                              type="radio"
+                              name="primary"
+                              checked={primaryIndex === idx}
+                              onChange={() => {
+                                setPrimaryIndex(idx);
+                                addToast("info", "Đổi ảnh mặc định", p.name);
+                              }}
+                            />
+                            <span style={{ fontSize: 12 }}>
+                              {primaryIndex === idx ? "Ảnh mặc định" : `Ảnh ${idx + 1}`}
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -433,6 +531,9 @@ export default function ProductAdd() {
           </button>
         </div>
       </div>
+
+      {/* Toasts */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

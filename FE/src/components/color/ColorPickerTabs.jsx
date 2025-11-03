@@ -278,9 +278,9 @@ export function ColorPickerTabs({ value, onChange }) {
   return (
     <div>
       <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-        <button type="button" className={`btn ${tab === "sampler" ? "primary" : ""}`} onClick={() => setTab("sampler")}>Sampler</button>
-        <button type="button" className={`btn ${tab === "spectrum" ? "primary" : ""}`} onClick={() => setTab("spectrum")}>Spectrum</button>
-        <button type="button" className={`btn ${tab === "image" ? "primary" : ""}`} onClick={() => setTab("image")}>Image</button>
+        <button type="button" className={`btn ${tab === "sampler" ? "primary" : ""}`} onClick={() => setTab("sampler")}>Màu mẫu</button>
+        <button type="button" className={`btn ${tab === "spectrum" ? "primary" : ""}`} onClick={() => setTab("spectrum")}>Bảng màu</button>
+        <button type="button" className={`btn ${tab === "image" ? "primary" : ""}`} onClick={() => setTab("image")}>Ảnh màu</button>
       </div>
 
       {tab === "sampler" && <SamplerGrid value={value} onChange={onChange} />}
