@@ -8,7 +8,7 @@
  */
 // import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
-// import ClientLayout from "../layout/ClientLayout/ClientLayout";
+import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import RoleAssign from "../pages/RoleManage/RoleAssign";
 import RoleManage from "../pages/RoleManage/RoleManage";
 import Page404 from "../pages/NotFound/Page404";
@@ -66,41 +66,40 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* Default Access Routes */}
-      <Route path="/" element={<AdminLayout> {/* Todo: Link User Hompage and Client Layout */} </AdminLayout>} />
+      <Route path="/" element={<ClientLayout> <LoginPage /> </ClientLayout> } />
 
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<SignUpPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/check-reset-email" element={<CheckEmailPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/" element={<Navigate to="/admin/products" replace />} />
+      <Route path="/login" element={ <ClientLayout> <LoginPage /> </ClientLayout> } />
+      <Route path="/register" element={<ClientLayout> <SignUpPage /></ClientLayout>} />
+      <Route path="/forgot-password" element={<ClientLayout> <ForgotPasswordPage /></ClientLayout>} />
+      <Route path="/check-reset-email" element={<ClientLayout> <CheckEmailPage /></ClientLayout>} />
+      <Route path="/reset-password" element={<ClientLayout> <ResetPasswordPage /></ClientLayout>} />
       <Route path="/admin" element={<div />} />
 
       {/* Tickets */}
-      <Route path="/admin/tickets" element={<AdminTicketManagement />} />
+      <Route path="/admin/tickets" element={<AdminLayout><AdminTicketManagement /></AdminLayout>} />
       <Route
         path="/admin/tickets/:id"
         element={
           <Suspense fallback={<div>Đang tải chi tiết...</div>}>
-            <AdminTicketDetail />
+            <AdminLayout><AdminTicketDetail /></AdminLayout>
           </Suspense>
         }
       />
 
 
       {/* Products */}
-      <Route path="/admin/products" element={<ProductsPage />} />
-      <Route path="/admin/products/add" element={<ProductAdd />} />
-      <Route path="/admin/products/:id" element={<ProductDetail />} />
+      <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
+      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout> }/>
+      <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
 
       {/* Categories */}
-      <Route path="/admin/categories" element={<CategoryPage />} />
-      <Route path="/admin/categories/add" element={<CategoryAdd />} />
-      <Route path="/admin/categories/:id" element={<CategoryDetail />} />
+      <Route path="/admin/categories" element={<AdminLayout><CategoryPage /></AdminLayout>} />
+      <Route path="/admin/categories/add" element={<AdminLayout><CategoryAdd /></AdminLayout>} />
+      <Route path="/admin/categories/:id" element={<AdminLayout><CategoryDetail /></AdminLayout>} />
 
       {/* Badges */}
-      <Route path="/admin/badges/add" element={<BadgeAdd />} />
-      <Route path="/admin/badges/:code" element={<BadgeDetail />} />
+      <Route path="/admin/badges/add" element={<AdminLayout><BadgeAdd /></AdminLayout>} />
+      <Route path="/admin/badges/:code" element={<AdminLayout><BadgeDetail /> </AdminLayout>} />
       {/* Client/Public Routes */}
 
       {/* Admin Routes */}
@@ -116,22 +115,20 @@ export default function AppRoutes() {
       {/* 404 - Default to Client Layout - Fallbacks*/}
       <Route path="*" element={  <Page404 /> } /> 
       {/* Suppliers */}
-      <Route path="/suppliers" element={<SuppliersPage />} /> 
-      <Route path="/suppliers/add" element={<SupplierDetailPage />} />
-      <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+      <Route path="/suppliers" element={<AdminLayout><SuppliersPage /></AdminLayout>} /> 
+      <Route path="/suppliers/add" element={<AdminLayout><SupplierDetailPage /></AdminLayout>} />
+      <Route path="/suppliers/:id" element={<AdminLayout><SupplierDetailPage /></AdminLayout>} />
 
       {/* Product Keys */}
-      <Route path="/keys" element={<KeyManagementPage />} />
-      <Route path="/keys/add" element={<KeyDetailPage />} />
-      <Route path="/keys/:id" element={<KeyDetailPage />} />
+      <Route path="/keys" element={<AdminLayout><KeyManagementPage /></AdminLayout>} />
+      <Route path="/keys/add" element={<AdminLayout><KeyDetailPage /></AdminLayout>} />
+      <Route path="/keys/:id" element={<AdminLayout><KeyDetailPage /></AdminLayout>} />
 
       {/* RBAC & Users */}
-      <Route path="/admin/users" element={<AdminUserManagement />} />
-      <Route path="/admin-user-management" element={<AdminUserManagement />} />
-      <Route path="/rbac" element={<RBACManagement />} />
-      <Route path="/roleassign" element={<RoleAssign />} />
+      <Route path="/admin/users" element={<AdminLayout><AdminUserManagement /></AdminLayout>} />
+      <Route path="/admin-user-management" element={<AdminLayout><AdminUserManagement /></AdminLayout>} />
 
-      <Route path="/admin/website-config" element={<WebsiteConfig />} />
+      <Route path="/admin/website-config" element={<AdminLayout><WebsiteConfig /></AdminLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />

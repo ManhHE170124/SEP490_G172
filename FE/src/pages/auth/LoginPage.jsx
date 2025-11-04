@@ -105,7 +105,6 @@ export default function LoginPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
 
       <section className="container section auth-wrap">
         <div className="auth-card" role="form" aria-labelledby="loginTitle">
@@ -243,7 +242,6 @@ export default function LoginPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }
