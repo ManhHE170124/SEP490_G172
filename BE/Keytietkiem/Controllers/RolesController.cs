@@ -18,9 +18,9 @@
  */
 
 using Keytietkiem.Models;
-using Keytietkiem.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.DTOs.Roles;
 
 namespace Keytietkiem.Controllers
 {

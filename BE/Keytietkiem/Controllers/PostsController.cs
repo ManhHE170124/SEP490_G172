@@ -15,6 +15,9 @@
  *   - GET    /api/posts/{id}/images  : Get images for a post
  *   - POST   /api/posts/{id}/images  : Add image to a post
  *   - DELETE /api/posts/{id}/images/{imageId} : Delete a post image
+ *   - POST   /api/posts/upload       : Upload an image file
+ *   - GET    /api/posts/posttypes     : List all post types
+ *   - PUT    /api/posts/{id}/images/{imageId} : Update a post image
  */
 
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +25,8 @@ using Keytietkiem.Models;
 using Keytietkiem.DTOs;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using Keytietkiem.Services;
+using Keytietkiem.DTOs.Post;
 
 namespace Keytietkiem.Controllers
 {
@@ -30,10 +35,11 @@ namespace Keytietkiem.Controllers
     public class PostsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
-
-        public PostsController(KeytietkiemDbContext context)
+        private readonly IPhotoService _photoService;
+        public PostsController(KeytietkiemDbContext context, IPhotoService photoService)
         {
             _context = context;
+            _photoService = photoService;
         }
 
         /**
@@ -448,201 +454,5 @@ namespace Keytietkiem.Controllers
             return Ok(postTypes);
         }
 
-        /**
-         * Summary: Get images for a post.
-         * Route: GET /api/posts/{id}/images
-         * Params: id (Guid) - post identifier
-         * Returns: 200 OK with list of post images, 404 if post not found
-         */
-        [HttpGet("{id}/images")]
-        public async Task<IActionResult> GetPostImages(Guid id)
-        {
-            var post = await _context.Posts
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (post == null)
-            {
-                return NotFound(new { message = "Post not found." });
-            }
-
-            var images = await _context.PostImages
-                .Where(pi => pi.PostId == id)
-                .OrderBy(pi => pi.DisplayOrder ?? 0)
-                .Select(pi => new PostImageDTO
-                {
-                    ImageId = pi.ImageId,
-                    PostId = pi.PostId,
-                    ImageUrl = pi.ImageUrl,
-                    Caption = pi.Caption,
-                    DisplayOrder = pi.DisplayOrder,
-                    CreatedAt = pi.CreatedAt
-                })
-                .ToListAsync();
-
-            return Ok(images);
-        }
-
-        /**
-         * Summary: Add image to a post.
-         * Route: POST /api/posts/{id}/images
-         * Params: id (Guid) - post identifier
-         * Body: CreatePostImageDTO createPostImageDto
-         * Returns: 201 Created with created image, 400/404 on validation errors
-         */
-        [HttpPost("{id}/images")]
-        public async Task<IActionResult> AddPostImage(Guid id, [FromBody] CreatePostImageDTO createPostImageDto)
-        {
-            if (createPostImageDto == null || string.IsNullOrWhiteSpace(createPostImageDto.ImageUrl))
-            {
-                return BadRequest("Image URL is required.");
-            }
-
-            var post = await _context.Posts
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (post == null)
-            {
-                return NotFound(new { message = "Post not found." });
-            }
-
-            var newImage = new PostImage
-            {
-                PostId = id,
-                ImageUrl = createPostImageDto.ImageUrl,
-                Caption = createPostImageDto.Caption,
-                DisplayOrder = createPostImageDto.DisplayOrder,
-                CreatedAt = DateTime.Now
-            };
-
-            _context.PostImages.Add(newImage);
-            await _context.SaveChangesAsync();
-
-            var imageDto = new PostImageDTO
-            {
-                ImageId = newImage.ImageId,
-                PostId = newImage.PostId,
-                ImageUrl = newImage.ImageUrl,
-                Caption = newImage.Caption,
-                DisplayOrder = newImage.DisplayOrder,
-                CreatedAt = newImage.CreatedAt
-            };
-
-            return CreatedAtAction(nameof(GetPostImages), new { id = id }, imageDto);
-        }
-
-
-        /**
-         * Summary: Update a post image by id.
-         * Route: PUT /api/posts/{id}/images/{imageId}
-         * Params: id (Guid) - post identifier, imageId (Guid) - image identifier
-         * Body: CreatePostImageDTO (reuse) for update fields
-         * Returns: 204 No Content, 404 if not found
-         */
-        [HttpPut("{id}/images/{imageId}")]
-        public async Task<IActionResult> UpdatePostImage(Guid id, Guid imageId, [FromBody] CreatePostImageDTO updateDto)
-        {
-            var post = await _context.Posts
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (post == null)
-            {
-                return NotFound(new { message = "Post not found." });
-            }
-
-            var existingImage = await _context.PostImages
-                .FirstOrDefaultAsync(pi => pi.ImageId == imageId && pi.PostId == id);
-
-            if (existingImage == null)
-            {
-                return NotFound(new { message = "Post image not found." });
-            }
-
-            if (updateDto == null)
-            {
-                return BadRequest("Invalid image data.");
-            }
-
-            // Update allowed fields if provided
-            if (!string.IsNullOrWhiteSpace(updateDto.ImageUrl))
-            {
-                existingImage.ImageUrl = updateDto.ImageUrl;
-            }
-            existingImage.Caption = updateDto.Caption;
-            existingImage.DisplayOrder = updateDto.DisplayOrder;
-            existingImage.CreatedAt = existingImage.CreatedAt; // keep original
-
-            _context.PostImages.Update(existingImage);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-        
-        /**
-         * Summary: Delete a post image by id.
-         * Route: DELETE /api/posts/{id}/images/{imageId}
-         * Params: id (Guid) - post identifier, imageId (Guid) - image identifier
-         * Returns: 204 No Content, 404 if not found
-         */
-        [HttpDelete("{id}/images/{imageId}")]
-        public async Task<IActionResult> DeletePostImage(Guid id, Guid imageId)
-        {
-            var post = await _context.Posts
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (post == null)
-            {
-                return NotFound(new { message = "Post not found." });
-            }
-
-            var existingImage = await _context.PostImages
-                .FirstOrDefaultAsync(pi => pi.ImageId == imageId && pi.PostId == id);
-
-            if (existingImage == null)
-            {
-                return NotFound(new { message = "Post image not found." });
-            }
-
-            _context.PostImages.Remove(existingImage);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        /**
-         * Summary: Upload an image file.
-         * Route: POST /api/posts/upload
-         * Body: IFormFile file
-         * Returns: 200 OK with image path, 400 on errors
-         */
-        [HttpPost("upload")]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> Upload([FromForm] ImageUploadRequest request)
-        {
-            var file = request.File;
-
-            if (file == null || file.Length == 0)
-            {
-                return BadRequest(new { message = "No file uploaded." });
-            }
-
-            var uploadsRoot = Path.Combine(Directory.GetCurrentDirectory(), "Images");
-            if (!Directory.Exists(uploadsRoot))
-            {
-                Directory.CreateDirectory(uploadsRoot);
-            }
-
-            var safeFileName = Path.GetFileName(file.FileName);
-            var ext = Path.GetExtension(safeFileName);
-            var finalName = $"{Guid.NewGuid():N}{ext}";
-            var fullPath = Path.Combine(uploadsRoot, finalName);
-
-            using (var stream = new FileStream(fullPath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            var relativePath = $"/images/{finalName}";
-            return Ok(new { path = relativePath });
-        }
     }
 }

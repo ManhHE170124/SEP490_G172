@@ -15,7 +15,7 @@
 
 using System;
 
-namespace Keytietkiem.DTOs
+namespace Keytietkiem.DTOs.Roles
 {
     public class RoleDTO
     {

@@ -16,7 +16,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Keytietkiem.DTOs
+namespace Keytietkiem.DTOs.Post
 {
     public class PostDTO
     {
@@ -99,7 +99,10 @@ namespace Keytietkiem.DTOs
     {
         public IFormFile File { get; set; }
     }
-
+    public class ImageDeleteRequest
+    {
+        public string PublicId { get; set; }
+    }
     public class PostImageDTO
     {
         public Guid ImageId { get; set; }

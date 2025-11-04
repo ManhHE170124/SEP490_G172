@@ -16,8 +16,8 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
-using Keytietkiem.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.DTOs.Post;
 
 namespace Keytietkiem.Controllers
 {

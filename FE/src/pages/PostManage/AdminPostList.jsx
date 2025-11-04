@@ -1,10 +1,10 @@
 /**
- * File: AdminPostList.jsx
- * Author: HieuNDHE173169
- * Created: 30/10/2025
- * Last Updated: 30/10/2025
- * Version: 1.0.0
- * Purpose: Admin page for managing posts with full CRUD operations, search, filter, sort, and pagination
+ * @file: AdminPostList.jsx
+ * @author: HieuNDHE173169
+ * @created 2025-10-30
+ * @lastUpdated 2025-10-30
+ * @version: 1.0.0
+ * @summary: Admin page for managing posts with full CRUD operations, search, filter, sort, and pagination
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
@@ -181,7 +181,7 @@ export default function AdminPostList() {
   };
 
   const handleEdit = (postId) => {
-    navigate(`/post-create-edit?postId=${postId}`);
+      navigate(`/post-create-edit/${postId}`);
   };
 
   const handlePreview = (post) => {
@@ -471,21 +471,6 @@ export default function AdminPostList() {
               <option value="Draft">Bản nháp</option>
             </select>
           </div>
-
-          {/* Page Size */}
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-            className="apl-filter-select"
-          >
-            <option value={5}>5/trang</option>
-            <option value={10}>10/trang</option>
-            <option value={20}>20/trang</option>
-            <option value={50}>50/trang</option>
-          </select>
 
           {/* Reset Button */}
           <button

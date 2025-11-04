@@ -22,16 +22,15 @@
  *   PostTypes:
  *     - GET    /api/posts/posttypes       : List all post types
  *   Post Images:
- *     - GET    /api/posts/{postId}/images         : List images for a post
- *     - POST   /api/posts/{postId}/images        : Add image to a post
- *     - PUT    /api/posts/{postId}/images/{imageId} : Update post image
- *     - DELETE /api/posts/{postId}/images/{imageId} : Delete post image
+ *     - POST   /api/PostImages/uploadImage     : Upload a post image
+ *     - DELETE /api/PostImages/deleteImage : Delete a post image by publicId
  */
 import axiosClient from "../api/axiosClient";
 
 const END = {
   POSTS: "posts",
   TAGS: "tags",
+  POST_IMAGES: "PostImages"
 };
 
 export const postsApi = {
@@ -53,18 +52,32 @@ export const postsApi = {
   getAllPostTypes: () => axiosClient.get(`${END.POSTS}/posttypes`),
 
   // PostImage 
-  getPostImages: (postId) => axiosClient.get(`${END.POSTS}/${postId}/images`),
-  addPostImage: (postId, data) => axiosClient.post(`${END.POSTS}/${postId}/images`, data),
-  updatePostImage: (postId, imageId, data) => axiosClient.put(`${END.POSTS}/${postId}/images/${imageId}`, data),
-  deletePostImage: (postId, imageId) => axiosClient.delete(`${END.POSTS}/${postId}/images/${imageId}`),
   uploadImage: (file) => {
     const form = new FormData();
     form.append("file", file);
-    return axiosClient.post(`${END.POSTS}/upload`, form, {
+    return axiosClient.post(`${END.POST_IMAGES}/uploadImage`, form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
 
-
-  
+  deleteImage: (publicId) => {
+  return axiosClient.delete(`${END.POST_IMAGES}/deleteImage`, {
+    data: { publicId }, 
+    headers: { "Content-Type": "application/json" },
+  });
+  },
 };
+
+export function extractPublicId(imageUrl) {
+  if (!imageUrl) return null;
+
+  try {
+    // Tách phần sau "/upload/" và trước phần mở rộng (.jpg, .png, ...)
+    const regex = /\/upload\/(?:v\d+\/)?(.+?)\.[a-zA-Z]+$/;
+    const match = imageUrl.match(regex);
+    return match ? match[1] : null;
+  } catch (error) {
+    console.error("Error extracting publicId:", error);
+    return null;
+  }
+}

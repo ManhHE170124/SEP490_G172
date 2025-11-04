@@ -15,7 +15,7 @@
 
 using System;
 
-namespace Keytietkiem.DTOs
+namespace Keytietkiem.DTOs.Post
 {
     public class TagDTO
     {
