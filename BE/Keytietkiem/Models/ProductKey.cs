@@ -12,7 +12,7 @@ public partial class ProductKey
 
     public string KeyString { get; set; } = null!;
 
-    public string Status { get; set; } = null!;
+    public string Status { get; set; }
 
     public Guid? ImportedBy { get; set; }
 
@@ -20,7 +20,7 @@ public partial class ProductKey
 
     public int SupplierId { get; set; }
 
-    public ProductKeyType Type { get; set; } = ProductKeyType.Individual;
+    public ProductKeyType Type { get; set; }
 
     public DateTime? ExpiryDate { get; set; }
 

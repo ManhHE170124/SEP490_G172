@@ -1,6 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Keytietkiem.DTOs.Enums;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
 
@@ -446,7 +447,7 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Type)
                 .HasMaxLength(20)
                 .IsUnicode(false)
-                .HasDefaultValue("Individual");
+                .HasDefaultValue(ProductKeyType.Individual);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
             entity.HasOne(d => d.Product).WithMany(p => p.ProductKeys)
@@ -596,7 +597,7 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .IsUnicode(false)
-                .HasDefaultValue("Active");
+                .HasDefaultValue(SupplierStatus.Active);
         });
 
         modelBuilder.Entity<Tag>(entity =>
