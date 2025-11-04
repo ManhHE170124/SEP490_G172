@@ -21,12 +21,6 @@ export default function ProductDetail() {
   const [showCats, setShowCats] = React.useState(true);
   const [showBadgesPanel, setShowBadgesPanel] = React.useState(true);
 
-  const [images, setImages] = React.useState([]);
-  const [newFiles, setNewFiles] = React.useState([]);
-  const [newPreviews, setNewPreviews] = React.useState([]);
-  const [deleteImageIds, setDeleteImageIds] = React.useState([]);
-  const [primaryIndex, setPrimaryIndex] = React.useState(null);
-
   // images
   const [images, setImages] = React.useState([]);              // ảnh hiện có [{imageId,url,isPrimary,...}]
   const [newFiles, setNewFiles] = React.useState([]);          // file mới
