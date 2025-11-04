@@ -25,6 +25,7 @@ builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
 // ===== Configuration Options =====
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
+builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
@@ -36,6 +37,10 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<ISupplierService, SupplierService>();
+builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
+builder.Services.AddScoped<IProductKeyService, ProductKeyService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -108,6 +113,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// ===== Seed default roles at startup =====
+using (var scope = app.Services.CreateScope())
+{
+    var roleService = scope.ServiceProvider.GetRequiredService<IRoleService>();
+    await roleService.SeedDefaultRolesAsync();
+}
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====
 app.UseExceptionHandler(exApp =>

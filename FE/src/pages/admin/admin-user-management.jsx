@@ -1,11 +1,10 @@
 /**
  * File: admin-user-management.jsx
  * Purpose: React page for managing users in Keytietkiem admin.
- * Features:
- *  - Hide any role containing "admin" (case-insensitive) from UI options and list.
- *  - Filter only fetches when "Apply" is clicked; "Reset" clears filters and fetches immediately.
- *  - All API errors are shown in a modal dialog (not thrown).
- *  - CRUD via modal (view/edit/add) and toggle active/disabled.
+ * Notes (update):
+ *  - BỎ passwordPlain và toggle xem mật khẩu.
+ *  - THÊM input `username` (tạo/sửa). Nếu bỏ trống sẽ mặc định dùng email.
+ *  - Không thay đổi layout/flow. Chỉ thêm/bớt field theo API mới.
  */
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "../../styles/admin-user-management.css";
@@ -14,10 +13,6 @@ import { USER_STATUS, USER_STATUS_OPTIONS } from "../../constants/userStatus";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 
-/**
- * Error dialog for unified API error messages.
- * @param {{message:string, onClose:() => void}} props
- */
 function ErrorDialog({ message, onClose, showError }) {
   if (message) {
     showError("Thông báo lỗi", message);
@@ -35,13 +30,9 @@ const initialFilters = {
   sortDir: "desc",
 };
 
-/**
- * User Management page component.
- * @returns {JSX.Element}
- */
 export default function AdminUserManagement() {
   const { toasts, showSuccess, showError, showWarning, removeToast } = useToast();
-  
+
   const [uiFilters, setUiFilters] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
 
@@ -50,21 +41,19 @@ export default function AdminUserManagement() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // modal state
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState("view"); // 'view' | 'edit' | 'add'
-  const [showPw, setShowPw] = useState(false);
   const [form, setForm] = useState({
     userId: "",
     firstName: "",
     lastName: "",
     email: "",
+    username: "",      // NEW
     phone: "",
     address: "",
     status: USER_STATUS.Active,
     roleId: "",
     newPassword: "",
-    passwordPlain: "",
     hasAccount: false,
   });
 
@@ -73,10 +62,6 @@ export default function AdminUserManagement() {
     [data, applied.pageSize]
   );
 
-  /**
-   * Load roles from API, filtered to exclude names containing "admin".
-   * Shows modal on error.
-   */
   const fetchRoles = async () => {
     try {
       const res = await usersApi.roles();
@@ -86,11 +71,6 @@ export default function AdminUserManagement() {
     }
   };
 
-  /**
-   * Fetch paginated users according to current applied filters.
-   * Also filters out any item whose roleName contains "admin".
-   * @param {*} take
-   */
   const fetchList = useCallback(async (take = applied) => {
     setLoading(true);
     try {
@@ -109,80 +89,56 @@ export default function AdminUserManagement() {
   }, [applied]);
 
   useEffect(() => { fetchRoles(); }, []);
-
-  useEffect(() => {
-    fetchList(applied);
-  }, [
+  useEffect(() => { fetchList(applied); }, [
     applied.page, applied.pageSize, applied.sortBy, applied.sortDir,
     applied.q, applied.roleId, applied.status, fetchList
   ]);
 
-  /**
-   * Apply filter form — pushes UI state to applied state and resets to page 1.
-   * @param {React.FormEvent} e
-   */
   const onApply = (e) => {
     e.preventDefault();
     setApplied(prev => ({ ...prev, ...uiFilters, page: 1 }));
   };
 
-  /**
-   * Reset filters to defaults and refresh list immediately.
-   */
   const onReset = () => {
     setUiFilters({ ...initialFilters });
     setApplied({ ...initialFilters });
   };
 
-  /**
-   * Move to a specific page within bounds.
-   * @param {number} p
-   */
   const gotoPage = (p) => setApplied(prev => ({ ...prev, page: Math.max(1, Math.min(totalPages, p)) }));
 
-  /**
-   * Open "Add user" modal with pristine form.
-   */
   const openAdd = () => {
     setMode("add");
-    setShowPw(false);
     setForm({
       userId: "",
       firstName: "",
       lastName: "",
       email: "",
+      username: "", // NEW
       phone: "",
       address: "",
       status: USER_STATUS.Active,
       roleId: "",
       newPassword: "",
-      passwordPlain: "",
       hasAccount: false,
     });
     setOpen(true);
   };
 
-  /**
-   * Open modal for viewing or editing a specific user.
-   * @param {string} id
-   * @param {"view"|"edit"} m
-   */
   const openViewOrEdit = async (id, m) => {
     try {
       const u = await usersApi.get(id);
       setMode(m);
-      setShowPw(false);
       setForm({
         userId: u.userId,
         firstName: u.firstName,
         lastName: u.lastName,
         email: u.email,
+        username: u.username || "", // NEW
         phone: u.phone || "",
         address: u.address || "",
         status: u.status,
         roleId: u.roleId || "",
         newPassword: "",
-        passwordPlain: u.passwordPlain || "",
         hasAccount: !!u.hasAccount,
       });
       setOpen(true);
@@ -191,11 +147,6 @@ export default function AdminUserManagement() {
     }
   };
 
-  /**
-   * Submit add/update user form.
-   * Shows error modal if saving fails.
-   * @param {React.FormEvent} e
-   */
   const submit = async (e) => {
     e.preventDefault();
     try {
@@ -205,11 +156,12 @@ export default function AdminUserManagement() {
           email: form.email,
           firstName: form.firstName,
           lastName: form.lastName,
+          username: form.username || null, // NEW
           phone: form.phone,
           address: form.address,
           status: form.status,
           roleId: form.roleId,
-          newPassword: form.newPassword || null,
+          newPassword: form.newPassword || null, // chỉ gửi khi có
         });
       } else if (mode === "edit") {
         await usersApi.update(form.userId, {
@@ -217,11 +169,12 @@ export default function AdminUserManagement() {
           email: form.email,
           firstName: form.firstName,
           lastName: form.lastName,
+          username: form.username || null, // NEW
           phone: form.phone,
           address: form.address,
           status: form.status,
           roleId: form.roleId || null,
-          newPassword: form.newPassword || null,
+          newPassword: form.newPassword || null, // chỉ gửi khi muốn đổi
         });
       }
       setOpen(false);
@@ -231,10 +184,6 @@ export default function AdminUserManagement() {
     }
   };
 
-  /**
-   * Toggle active/disabled state for a user after confirmation.
-   * @param {*} u
-   */
   const toggleDisable = async (u) => {
     const goingDisable = u.status === USER_STATUS.Active;
     const msg = goingDisable ? "Disable tài khoản này?" : "Reactive (kích hoạt lại) tài khoản này?";
@@ -250,7 +199,6 @@ export default function AdminUserManagement() {
   return (
     <>
       <div className="kt-admin wrap">
-        
         <main className="main">
           <section className="card filters" aria-labelledby="title">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -261,7 +209,7 @@ export default function AdminUserManagement() {
             <form className="row" style={{ marginTop: 10 }} onSubmit={onApply}>
               <input
                 className="input"
-                placeholder="Tìm id, tên người dùng, email…"
+                placeholder="Tìm tên, email, username, điện thoại…"
                 value={uiFilters.q}
                 onChange={(e) => setUiFilters({ ...uiFilters, q: e.target.value })}
               />
@@ -342,7 +290,7 @@ export default function AdminUserManagement() {
           </section>
         </main>
 
-        {/* Modal - Redesigned based on RBACModal */}
+        {/* Modal */}
         {open && (
           <div className="modal-overlay active" onClick={() => setOpen(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -354,13 +302,11 @@ export default function AdminUserManagement() {
                   ×
                 </button>
               </div>
-              
+
               <form onSubmit={submit} className="modal-body">
                 <div className="form-grid">
                   <div className="form-group">
-                    <label className="form-label">
-                      Họ <span style={{ color: 'red' }}>*</span>
-                    </label>
+                    <label className="form-label">Họ <span style={{ color: 'red' }}>*</span></label>
                     <input
                       type="text"
                       className="form-input"
@@ -371,11 +317,9 @@ export default function AdminUserManagement() {
                       placeholder="Nhập họ"
                     />
                   </div>
-                  
+
                   <div className="form-group">
-                    <label className="form-label">
-                      Tên <span style={{ color: 'red' }}>*</span>
-                    </label>
+                    <label className="form-label">Tên <span style={{ color: 'red' }}>*</span></label>
                     <input
                       type="text"
                       className="form-input"
@@ -386,11 +330,9 @@ export default function AdminUserManagement() {
                       placeholder="Nhập tên"
                     />
                   </div>
-                  
+
                   <div className="form-group">
-                    <label className="form-label">
-                      Email <span style={{ color: 'red' }}>*</span>
-                    </label>
+                    <label className="form-label">Email <span style={{ color: 'red' }}>*</span></label>
                     <input
                       type="email"
                       className="form-input"
@@ -401,7 +343,19 @@ export default function AdminUserManagement() {
                       placeholder="Nhập email"
                     />
                   </div>
-                  
+
+                  <div className="form-group">
+                    <label className="form-label">Username</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={form.username}
+                      onChange={e => setForm({ ...form, username: e.target.value })}
+                      disabled={mode === "view"}
+                      placeholder="Để trống sẽ mặc định dùng email"
+                    />
+                  </div>
+
                   <div className="form-group">
                     <label className="form-label">Điện thoại</label>
                     <input
@@ -413,7 +367,7 @@ export default function AdminUserManagement() {
                       placeholder="Nhập số điện thoại"
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label className="form-label">Địa chỉ</label>
                     <input
@@ -425,11 +379,9 @@ export default function AdminUserManagement() {
                       placeholder="Nhập địa chỉ"
                     />
                   </div>
-                  
+
                   <div className="form-group">
-                    <label className="form-label">
-                      Vai trò <span style={{ color: 'red' }}>*</span>
-                    </label>
+                    <label className="form-label">Vai trò <span style={{ color: 'red' }}>*</span></label>
                     <select
                       className="form-input"
                       value={form.roleId}
@@ -442,7 +394,7 @@ export default function AdminUserManagement() {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div className="form-group">
                     <label className="form-label">Trạng thái</label>
                     <select
@@ -456,61 +408,33 @@ export default function AdminUserManagement() {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div className="form-group form-group-full">
-                    <label className="form-label">Mật khẩu</label>
-                    <div className="password-input-group">
-                      <input
-                        type={showPw ? "text" : "password"}
-                        className="form-input"
-                        placeholder={mode === "add" ? "Nhập mật khẩu" : (form.hasAccount ? "•••••••• (đang có)" : "Chưa có mật khẩu")}
-                        value={mode === "add" ? (form.newPassword || "") : (form.newPassword || form.passwordPlain || "")}
-                        onChange={e => setForm({ ...form, newPassword: e.target.value })}
-                        disabled={mode === "view"}
-                      />
-                      <button
-                        type="button"
-                        className="password-toggle"
-                        onClick={() => setShowPw(s => !s)}
-                        aria-label="Toggle password visibility"
-                      >
-                        {showPw ? "🙈" : "👁️"}
-                      </button>
-                    </div>
+                    <label className="form-label">Mật khẩu mới (tùy chọn)</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      value={form.newPassword}
+                      onChange={e => setForm({ ...form, newPassword: e.target.value })}
+                      disabled={mode === "view"}
+                      placeholder="Để trống nếu không thay đổi"
+                      autoComplete="new-password"
+                    />
                   </div>
                 </div>
+
+                <div className="modal-footer">
+                  <button className="btn" type="button" onClick={() => setOpen(false)}>Hủy</button>
+                  {mode !== "view" && <button className="btn primary" type="submit">Lưu</button>}
+                </div>
               </form>
-              
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-modal btn-modal-secondary"
-                  onClick={() => setOpen(false)}
-                >
-                  Hủy
-                </button>
-                {mode !== "view" && (
-                  <button
-                    type="submit"
-                    className="btn-modal btn-modal-primary"
-                    onClick={submit}
-                  >
-                    {mode === "add" ? "Thêm" : "Cập nhật"}
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         )}
-
-        <ErrorDialog message={errorMsg} onClose={() => setErrorMsg("")} showError={showError} />
-        
-        {/* Toast Container */}
-        <ToastContainer 
-          toasts={toasts} 
-          onRemove={removeToast} 
-        />
       </div>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <ErrorDialog message={errorMsg} onClose={() => setErrorMsg("")} showError={showError} />
     </>
   );
 }

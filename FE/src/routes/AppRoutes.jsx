@@ -28,9 +28,24 @@ import ProductDetail from "../pages/admin/ProductDetail.jsx";
 import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
+import WebsiteConfig from "../pages/admin/WebsiteConfig";
+
+
+
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
 import SignUpPage from "../pages/auth/SignUpPage.jsx";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage.jsx";
+import CheckEmailPage from "../pages/auth/CheckEmailPage.jsx";
+import ResetPasswordPage from "../pages/auth/ResetPasswordPage.jsx";
+
+// Supplier pages
+import SuppliersPage from "../pages/supplier/SuppliersPage.jsx";
+import SupplierDetailPage from "../pages/supplier/SupplierDetailPage.jsx";
+
+// Storage pages
+import KeyManagementPage from "../pages/storage/KeyManagementPage.jsx";
+import KeyDetailPage from "../pages/storage/KeyDetailPage.jsx";
 
 
 const AdminTicketDetail = lazy(() =>
@@ -55,6 +70,10 @@ export default function AppRoutes() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<SignUpPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/check-reset-email" element={<CheckEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/" element={<Navigate to="/admin/products" replace />} />
       <Route path="/admin" element={<div />} />
 
       {/* Tickets */}
@@ -95,6 +114,27 @@ export default function AppRoutes() {
       <Route path="post-create-edit" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
       <Route path="post-create-edit/:postId" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
       {/* 404 - Default to Client Layout - Fallbacks*/}
-      <Route path="*" element={  <Page404 /> } /> </Routes>
+      <Route path="*" element={  <Page404 /> } /> 
+      {/* Suppliers */}
+      <Route path="/suppliers" element={<SuppliersPage />} /> 
+      <Route path="/suppliers/add" element={<SupplierDetailPage />} />
+      <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+
+      {/* Product Keys */}
+      <Route path="/keys" element={<KeyManagementPage />} />
+      <Route path="/keys/add" element={<KeyDetailPage />} />
+      <Route path="/keys/:id" element={<KeyDetailPage />} />
+
+      {/* RBAC & Users */}
+      <Route path="/admin/users" element={<AdminUserManagement />} />
+      <Route path="/admin-user-management" element={<AdminUserManagement />} />
+      <Route path="/rbac" element={<RBACManagement />} />
+      <Route path="/roleassign" element={<RoleAssign />} />
+
+      <Route path="/admin/website-config" element={<WebsiteConfig />} />
+
+      {/* Fallbacks */}
+      <Route path="*" element={<Page404 />} />
+    </Routes>
   );
 }

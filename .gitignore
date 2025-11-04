@@ -74,6 +74,7 @@ yarn-error.log*
 pnpm-debug.log*
 .turbo/
 .parcel-cache/
+.yarn
 
 # Env files (KHÔNG commit secrets)
 FE/.env

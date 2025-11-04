@@ -19,6 +19,7 @@ public class AccountService : IAccountService
 {
     private const string OtpCacheKeyPrefix = "OTP_";
     private const string VerificationTokenCacheKeyPrefix = "VERIFY_TOKEN_";
+    private const string ResetTokenCacheKeyPrefix = "RESET_TOKEN_";
     private const int OtpExpiryMinutes = 5;
     private const int VerificationTokenExpiryMinutes = 30;
     private readonly IGenericRepository<Account> _accountRepository;
@@ -27,6 +28,7 @@ public class AccountService : IAccountService
     private readonly KeytietkiemDbContext _context;
     private readonly IEmailService _emailService;
     private readonly JwtConfig _jwtConfig;
+    private readonly ClientConfig _clientConfig;
     private readonly IGenericRepository<User> _userRepository;
 
     public AccountService(
@@ -35,6 +37,7 @@ public class AccountService : IAccountService
         IGenericRepository<User> userRepository,
         IClock clock,
         IOptions<JwtConfig> jwtOptions,
+        IOptions<ClientConfig> clientOptions,
         IMemoryCache cache,
         IEmailService emailService)
     {
@@ -43,6 +46,7 @@ public class AccountService : IAccountService
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _jwtConfig = jwtOptions?.Value ?? throw new ArgumentNullException(nameof(jwtOptions));
+        _clientConfig = clientOptions?.Value ?? throw new ArgumentNullException(nameof(clientOptions));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
     }
@@ -65,6 +69,13 @@ public class AccountService : IAccountService
         if (await IsEmailExistsAsync(registerDto.Email, cancellationToken))
             throw new InvalidOperationException("Email đã được đăng ký");
 
+        // Get Customer role
+        var customerRole = await _context.Roles
+            .FirstOrDefaultAsync(r => r.RoleId == "Customer", cancellationToken);
+
+        if (customerRole == null)
+            throw new InvalidOperationException("Customer role không tồn tại. Vui lòng kiểm tra cấu hình hệ thống");
+
         // Create User entity
         var user = new User
         {
@@ -79,6 +90,9 @@ public class AccountService : IAccountService
             EmailVerified = true, // Email verified via OTP
             CreatedAt = _clock.UtcNow
         };
+
+        // Add Customer role to user
+        user.Roles.Add(customerRole);
 
         // Create Account entity
         var account = new Account
@@ -280,6 +294,71 @@ public class AccountService : IAccountService
             Message = "Xác thực OTP thành công",
             VerificationToken = verificationToken
         };
+    }
+
+    public async Task<string> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto,
+        CancellationToken cancellationToken = default)
+    {
+        // Check if user exists
+        var user = await _userRepository.FirstOrDefaultAsync(u => u.Email == forgotPasswordDto.Email,
+            cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Email không tồn tại trong hệ thống");
+
+        // Generate secure reset token
+        var resetToken = GenerateVerificationToken();
+
+        // Store reset token in cache with expiry
+        var cacheKey = $"{ResetTokenCacheKeyPrefix}{resetToken}";
+        var cacheOptions = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_clientConfig.ResetLinkExpiryInMinutes)
+        };
+        _cache.Set(cacheKey, forgotPasswordDto.Email, cacheOptions);
+
+        // Send password reset link via email
+        await _emailService.SendPasswordResetEmailAsync(forgotPasswordDto.Email, resetToken, cancellationToken);
+
+        return
+            $"Link đặt lại mật khẩu đã được gửi đến {forgotPasswordDto.Email}. Link có hiệu lực trong {_clientConfig.ResetLinkExpiryInMinutes} phút.";
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
+        CancellationToken cancellationToken = default)
+    {
+        // Get email from cache using reset token
+        var cacheKey = $"{ResetTokenCacheKeyPrefix}{resetPasswordDto.Token}";
+        if (!_cache.TryGetValue(cacheKey, out string? email))
+            throw new UnauthorizedAccessException("Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
+
+        // Find user by email
+        var user = await _userRepository.FirstOrDefaultAsync(u => u.Email == email,
+            cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Người dùng không tồn tại");
+
+        // Find account by user ID
+        var account = await _accountRepository.FirstOrDefaultAsync(a => a.UserId == user.UserId,
+            cancellationToken);
+
+        if (account == null)
+            throw new InvalidOperationException("Tài khoản không tồn tại");
+
+        // Update password
+        account.PasswordHash = HashPassword(resetPasswordDto.NewPassword);
+        account.UpdatedAt = _clock.UtcNow;
+
+        // Reset failed login count and unlock account
+        account.FailedLoginCount = 0;
+        account.LockedUntil = null;
+
+        _accountRepository.Update(account);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Remove reset token from cache
+        _cache.Remove(cacheKey);
     }
 
     // Private helper methods

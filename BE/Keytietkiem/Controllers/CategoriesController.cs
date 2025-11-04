@@ -18,7 +18,7 @@
  */
 using CsvHelper;
 using CsvHelper.Configuration;
-using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -54,22 +54,26 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
-    [HttpGet]
     /**
-     * Summary: Retrieve category list with optional keyword and active filters; supports sorting.
+     * Summary: Retrieve category list with optional keyword/active filters; supports sorting & pagination.
      * Route: GET /api/categories
      * Params:
      *   - keyword   (query, optional): search across CategoryCode, CategoryName, Description
      *   - active    (query, optional): filter by IsActive (true/false)
      *   - sort      (query, optional): one of [name|code|displayOrder|active], default "displayOrder"
      *   - direction (query, optional): "asc" | "desc", default "asc"
-     * Returns: 200 OK with IEnumerable<CategoryListItemDto>
+     *   - page      (query, optional): page index starts from 1, default 1
+     *   - pageSize  (query, optional): page size (1..200), default 20
+     * Returns:
+     *   - 200 OK with { items, total, page, pageSize } where items is IEnumerable<CategoryListItemDto>
      */
-    public async Task<ActionResult<IEnumerable<CategoryListItemDto>>> Get(
-        [FromQuery] string? keyword,
-        [FromQuery] bool? active,
-        [FromQuery] string? sort = "displayOrder",
-        [FromQuery] string? direction = "asc")
+    public async Task<IActionResult> Get(
+     [FromQuery] string? keyword,
+     [FromQuery] bool? active,
+     [FromQuery] string? sort = "displayOrder",
+     [FromQuery] string? direction = "asc",
+     [FromQuery] int page = 1,
+     [FromQuery] int pageSize = 10)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Categories.AsNoTracking();
@@ -103,23 +107,33 @@ public class CategoriesController : ControllerBase
             _ => q.OrderBy(c => c.DisplayOrder)
         };
 
+        // ===== Pagination =====
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var total = await q.CountAsync();
+
         var items = await q
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(c => new CategoryListItemDto(
                 c.CategoryId,
                 c.CategoryCode,
                 c.CategoryName,
                 c.IsActive,
                 c.DisplayOrder,
-                c.Products.Count()
+                c.Products.Count() // productsCount giống trước đây
             ))
             .ToListAsync();
 
-        return Ok(items);
+        return Ok(new { items, total, page, pageSize });
     }
+
 
     [HttpGet("{id:int}")]
     /**
-     * Summary: Retrieve a single category by id.
+     * Summary: Retrieve a single category by id (includes ProductCount).
      * Route: GET /api/categories/{id}
      * Params:
      *   - id (route, int): category identifier
@@ -138,7 +152,8 @@ public class CategoriesController : ControllerBase
                 c.CategoryName,
                 c.Description,
                 c.IsActive,
-                c.DisplayOrder
+                c.DisplayOrder,
+                c.Products.Count()
             ))
             .FirstOrDefaultAsync();
 
@@ -177,9 +192,11 @@ public class CategoriesController : ControllerBase
         db.Categories.Add(e);
         await db.SaveChangesAsync();
 
+        // ProductCount = 0 khi mới tạo
         return CreatedAtAction(nameof(GetById), new { id = e.CategoryId },
-            new CategoryDetailDto(e.CategoryId, e.CategoryCode, e.CategoryName, e.Description, e.IsActive, e.DisplayOrder));
+            new CategoryDetailDto(e.CategoryId, e.CategoryCode, e.CategoryName, e.Description, e.IsActive, e.DisplayOrder, 0));
     }
+
 
     [HttpPut("{id:int}")]
     /**

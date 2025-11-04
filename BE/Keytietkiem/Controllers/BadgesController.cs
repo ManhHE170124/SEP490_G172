@@ -15,7 +15,7 @@
  *   - PATCH  /api/badges/{code}/status           : Set IsActive explicitly
  *   - POST   /api/badges/products/{productId}    : Replace a product's badges by codes
  */
-using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -36,20 +36,25 @@ public class BadgesController : ControllerBase
 
     [HttpGet]
     /**
-     * Summary: Retrieve badge list with optional keyword and active filters; supports sorting.
+     * Summary: Retrieve badge list with optional keyword/active filters; supports sorting & pagination.
      * Route: GET /api/badges
      * Params:
      *   - keyword   (query, optional): search across BadgeCode, DisplayName, ColorHex, Icon
      *   - active    (query, optional): filter by IsActive (true/false)
      *   - sort      (query, optional): one of [code|name|color|active|icon], default "displayName"
      *   - direction (query, optional): "asc" | "desc", default "asc"
-     * Returns: 200 OK with IEnumerable<BadgeListItemDto>
+     *   - page      (query, optional): page index starts from 1, default 1
+     *   - pageSize  (query, optional): page size (1..200), default 20
+     * Returns:
+     *   - 200 OK with { items, total, page, pageSize } where items is IEnumerable<BadgeListItemDto>
      */
-    public async Task<ActionResult<IEnumerable<BadgeListItemDto>>> List(
-        [FromQuery] string? keyword,
-        [FromQuery] bool? active,
-        [FromQuery] string? sort = "displayName",
-        [FromQuery] string? direction = "asc")
+    public async Task<IActionResult> List(
+    [FromQuery] string? keyword,
+    [FromQuery] bool? active,
+    [FromQuery] string? sort = "displayName",
+    [FromQuery] string? direction = "asc",
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 10)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Badges.AsNoTracking().AsQueryable();
@@ -86,22 +91,34 @@ public class BadgesController : ControllerBase
             _ => q.OrderBy(b => b.DisplayName)
         };
 
+        // ===== Pagination =====
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 200) pageSize = 200;
+
+        var total = await q.CountAsync();
+
         var items = await q
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(b => new BadgeListItemDto(
                 b.BadgeCode,
                 b.DisplayName,
                 b.ColorHex,
                 b.Icon,
-                b.IsActive
+                b.IsActive,
+                // ProductsCount: count products using this badge
+                db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
             ))
             .ToListAsync();
 
-        return Ok(items);
+        return Ok(new { items, total, page, pageSize });
     }
+
 
     [HttpGet("{code}")]
     /**
-     * Summary: Retrieve a single badge by code.
+     * Summary: Retrieve a single badge by code (includes ProductsCount).
      * Route: GET /api/badges/{code}
      * Params:
      *   - code (route): unique badge code
@@ -110,10 +127,24 @@ public class BadgesController : ControllerBase
     public async Task<ActionResult<BadgeListItemDto>> Get(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        var b = await db.Badges.AsNoTracking().FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (b is null) return NotFound();
-        return Ok(new BadgeListItemDto(b.BadgeCode, b.DisplayName, b.ColorHex, b.Icon, b.IsActive));
+
+        var dto = await db.Badges
+            .AsNoTracking()
+            .Where(b => b.BadgeCode == code)
+            .Select(b => new BadgeListItemDto(
+                b.BadgeCode,
+                b.DisplayName,
+                b.ColorHex,
+                b.Icon,
+                b.IsActive,
+                db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
+            ))
+            .FirstOrDefaultAsync();
+
+        return dto is null ? NotFound() : Ok(dto);
     }
+
+
 
     [HttpPost]
     /**
@@ -125,20 +156,35 @@ public class BadgesController : ControllerBase
     public async Task<IActionResult> Create(BadgeCreateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        if (await db.Badges.AnyAsync(x => x.BadgeCode == dto.BadgeCode))
+
+        var code = dto.BadgeCode.Trim();
+        if (await db.Badges.AnyAsync(x => x.BadgeCode == code))
             return Conflict(new { message = "BadgeCode already exists" });
 
-        db.Badges.Add(new Badge
+        var e = new Badge
         {
-            BadgeCode = dto.BadgeCode.Trim(),
+            BadgeCode = code,
             DisplayName = dto.DisplayName.Trim(),
             ColorHex = dto.ColorHex,
             Icon = dto.Icon,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow
-        });
+        };
+
+        db.Badges.Add(e);
         await db.SaveChangesAsync();
-        return CreatedAtAction(nameof(Get), new { code = dto.BadgeCode }, null);
+
+        // Trả về body để client có thể dùng ngay; ProductsCount = 0 khi mới tạo
+        var body = new BadgeListItemDto(
+            e.BadgeCode,
+            e.DisplayName,
+            e.ColorHex,
+            e.Icon,
+            e.IsActive,
+            0
+        );
+
+        return CreatedAtAction(nameof(Get), new { code = e.BadgeCode }, body);
     }
 
     [HttpPut("{code}")]

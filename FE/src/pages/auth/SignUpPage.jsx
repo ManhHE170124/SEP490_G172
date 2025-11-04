@@ -111,11 +111,15 @@ export default function SignUpPage() {
         });
       }, 1000);
     } catch (error) {
-      setErrorMessage(
-        error?.response?.data?.message ||
-          error?.response?.data ||
-          "Không thể gửi OTP. Vui lòng thử lại."
-      );
+      console.error("Send OTP Error:", error);
+      const responseData = error?.response?.data;
+      const apiErrorMessage =
+        (typeof responseData === "string"
+          ? responseData
+          : responseData?.message) ||
+        error?.message ||
+        "Không thể gửi OTP. Vui lòng thử lại.";
+      setErrorMessage(apiErrorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -169,11 +173,14 @@ export default function SignUpPage() {
       }
     } catch (error) {
       console.error("OTP Verification Error:", error);
-      setErrorMessage(
-        error?.response?.data?.message ||
-          error?.response?.data ||
-          "Xác thực OTP thất bại. Vui lòng thử lại."
-      );
+      const responseData = error?.response?.data;
+      const apiErrorMessage =
+        (typeof responseData === "string"
+          ? responseData
+          : responseData?.message) ||
+        error?.message ||
+        "Xác thực OTP thất bại. Vui lòng thử lại.";
+      setErrorMessage(apiErrorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -204,10 +211,14 @@ export default function SignUpPage() {
         });
       }, 1000);
     } catch (error) {
-      setErrorMessage(
-        error?.response?.data?.message ||
-          "Không thể gửi lại OTP. Vui lòng thử lại."
-      );
+      const responseData = error?.response?.data;
+      const apiErrorMessage =
+        (typeof responseData === "string"
+          ? responseData
+          : responseData?.message) ||
+        error?.message ||
+        "Không thể gửi lại OTP. Vui lòng thử lại.";
+      setErrorMessage(apiErrorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -284,11 +295,14 @@ export default function SignUpPage() {
       );
       navigate("/");
     } catch (error) {
-      setErrorMessage(
-        error?.response?.data?.message ||
-          error?.response?.data ||
-          "Đăng ký thất bại. Vui lòng thử lại."
-      );
+      const responseData = error?.response?.data;
+      const apiErrorMessage =
+        (typeof responseData === "string"
+          ? responseData
+          : responseData?.message) ||
+        error?.message ||
+        "Đăng ký thất bại. Vui lòng thử lại.";
+      setErrorMessage(apiErrorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -340,7 +354,7 @@ export default function SignUpPage() {
   // Render Step 2: OTP Verification
   const renderOtpStep = () => (
     <form onSubmit={handleVerifyOtp}>
-      <p className="helper" style={{ marginBottom: 12 }}>
+      <p className="helper" style={{ marginBottom: 12, textAlign: "center" }}>
         Nhập mã 6 chữ số được gửi tới <strong>{formData.email}</strong>
       </p>
 
@@ -350,6 +364,8 @@ export default function SignUpPage() {
           display: "flex",
           gap: "8px",
           margin: "12px 0",
+          alignItems: "center",
+          justifyContent: "center",
         }}
         aria-label="Nhập mã OTP"
       >
