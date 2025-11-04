@@ -15,12 +15,14 @@ export default function ProductAdd() {
     (id) => setToasts((ts) => ts.filter((t) => t.id !== id)),
     []
   );
-  const addToast = React.useCallback((type, title, message) => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setToasts((ts) => [...ts, { id, type, title, message }]);
-    // tự ẩn sau 3.5s
-    setTimeout(() => removeToast(id), 3500);
-  }, [removeToast]);
+  const addToast = React.useCallback(
+    (type, title, message) => {
+      const id = `${Date.now()}-${Math.random()}`;
+      setToasts((ts) => [...ts, { id, type, title, message }]);
+      setTimeout(() => removeToast(id), 3500);
+    },
+    [removeToast]
+  );
 
   // ======= data sources =======
   const [cats, setCats] = React.useState([]);
@@ -38,9 +40,9 @@ export default function ProductAdd() {
   const [previews, setPreviews] = React.useState([]);
   const [primaryIndex, setPrimaryIndex] = React.useState(0);
   const [imagesName, setImagesName] = React.useState("");
-  const [autoDefaultOnImport, setAutoDefaultOnImport] = React.useState(true); // công tắc mới
+  const [autoDefaultOnImport, setAutoDefaultOnImport] = React.useState(true);
 
-  // form
+  // form (vẫn giữ salePrice trong state để payload có field, nhưng không render input)
   const [form, setForm] = React.useState({
     productCode: "",
     productName: "",
@@ -62,50 +64,78 @@ export default function ProductAdd() {
   React.useEffect(() => {
     CategoryApi.list({ active: true })
       .then(setCats)
-      .catch((e) => addToast("error", "Lỗi tải danh mục", e?.response?.data?.message || e.message));
+      .catch((e) =>
+        addToast(
+          "error",
+          "Lỗi tải danh mục",
+          e?.response?.data?.message || e.message
+        )
+      );
     BadgesApi.list({ active: true })
       .then(setBadges)
-      .catch((e) => addToast("error", "Lỗi tải nhãn", e?.response?.data?.message || e.message));
+      .catch((e) =>
+        addToast(
+          "error",
+          "Lỗi tải nhãn",
+          e?.response?.data?.message || e.message
+        )
+      );
   }, [addToast]);
 
-  // revoke object URLs khi unmount / đổi danh sách
   React.useEffect(() => {
-    return () => { previews.forEach((p) => URL.revokeObjectURL(p.url)); };
+    return () => {
+      previews.forEach((p) => URL.revokeObjectURL(p.url));
+    };
   }, [previews]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const statusClass = (s) =>
-    s === "ACTIVE" ? "badge green" : s === "OUT_OF_STOCK" ? "badge warning" : "badge gray";
+    s === "ACTIVE"
+      ? "badge green"
+      : s === "OUT_OF_STOCK"
+      ? "badge warning"
+      : "badge gray";
 
   const statusText = React.useMemo(() => {
     switch (form.status) {
-      case "ACTIVE": return "Đang hiển thị";
-      case "INACTIVE": return "Đang ẩn";
-      case "OUT_OF_STOCK": return "Hết hàng";
-      default: return form.status || "-";
+      case "ACTIVE":
+        return "Đang hiển thị";
+      case "INACTIVE":
+        return "Đang ẩn";
+      case "OUT_OF_STOCK":
+        return "Hết hàng";
+      default:
+        return form.status || "-";
     }
   }, [form.status]);
 
   const toggleStatus = () => {
     const next = form.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
     set("status", next);
-    addToast("info", "Trạng thái sản phẩm", next === "ACTIVE" ? "Bật hiển thị" : "Tắt hiển thị");
+    addToast(
+      "info",
+      "Trạng thái sản phẩm",
+      next === "ACTIVE" ? "Bật hiển thị" : "Tắt hiển thị"
+    );
   };
 
   // ======= save =======
   const save = async (publish = true) => {
-    // validate cơ bản
     if (!form.productName?.trim()) {
-      addToast("warning", "Thiếu tên sản phẩm", "Vui lòng nhập Tên sản phẩm");
+      addToast(
+        "warning",
+        "Thiếu tên sản phẩm",
+        "Vui lòng nhập Tên sản phẩm"
+      );
       return;
     }
     if (!form.productCode?.trim()) {
-      addToast("warning", "Thiếu mã định danh", "Vui lòng nhập Mã định danh sản phẩm");
-      return;
-    }
-    if ((Number(form.salePrice) || 0) <= 0) {
-      addToast("warning", "Giá bán không hợp lệ", "Giá bán phải lớn hơn 0");
+      addToast(
+        "warning",
+        "Thiếu mã định danh",
+        "Vui lòng nhập Mã định danh sản phẩm"
+      );
       return;
     }
 
@@ -115,21 +145,35 @@ export default function ProductAdd() {
       payload.badgeCodes = payload.badgeCodes ?? [];
       if (!payload.expiryDate) payload.expiryDate = null;
 
+      // nếu muốn, có thể auto gán salePrice/costPrice = 0 hoặc logic khác
+      payload.salePrice = payload.salePrice || 0;
+      payload.costPrice = payload.costPrice || 0;
+
       if (selectedFiles && selectedFiles.length > 0) {
-        await ProductApi.createWithImages(payload, selectedFiles, primaryIndex);
+        await ProductApi.createWithImages(
+          payload,
+          selectedFiles,
+          primaryIndex
+        );
       } else {
         await ProductApi.create(payload);
       }
 
-      addToast("success",
+      addToast(
+        "success",
         publish ? "Đã tạo & xuất bản sản phẩm" : "Đã lưu nháp sản phẩm",
-        publish ? "Sản phẩm đã hiển thị trên website" : "Bạn có thể xuất bản sau"
+        publish
+          ? "Sản phẩm đã hiển thị trên website"
+          : "Bạn có thể xuất bản sau"
       );
 
-      // điều hướng sau một nhịp ngắn để người dùng thấy toast
       setTimeout(() => nav("/admin/products"), 400);
     } catch (e) {
-      addToast("error", "Tạo sản phẩm thất bại", e?.response?.data?.message || e.message);
+      addToast(
+        "error",
+        "Tạo sản phẩm thất bại",
+        e?.response?.data?.message || e.message
+      );
     } finally {
       setSaving(false);
     }
@@ -138,7 +182,7 @@ export default function ProductAdd() {
   return (
     <div className="page">
       <div className="card">
-        {/* Header: tiêu đề + công tắc trạng thái + nhãn + quay lại */}
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -160,18 +204,24 @@ export default function ProductAdd() {
                 />
                 <span className="slider" />
               </label>
-              <span className={statusClass(form.status)} style={{ textTransform: "none" }}>
+              <span
+                className={statusClass(form.status)}
+                style={{ textTransform: "none" }}
+              >
                 {statusText}
               </span>
             </div>
 
-            <button className="btn ghost" onClick={() => nav("/admin/products")}>
+            <button
+              className="btn ghost"
+              onClick={() => nav("/admin/products")}
+            >
               ⬅ Quay lại
             </button>
           </div>
         </div>
 
-        {/* GRID 2 cột + input-group để đồng bộ format */}
+        {/* GRID 2 cột */}
         <div className="grid cols-2 input-group">
           {/* HÀNG 1: Tên + Mã */}
           <div className="group" style={{ gridColumn: "1 / 2" }}>
@@ -191,7 +241,7 @@ export default function ProductAdd() {
             />
           </div>
 
-          {/* HÀNG 2: Loại + Bảo hành (ngày) */}
+          {/* HÀNG 2: Loại + Bảo hành */}
           <div className="group" style={{ gridColumn: "1 / 2" }}>
             <span>Loại</span>
             <select
@@ -212,18 +262,29 @@ export default function ProductAdd() {
               min={0}
               step={1}
               value={form.warrantyDays}
-              onChange={(e) => set("warrantyDays", Number(e.target.value) || 0)}
+              onChange={(e) =>
+                set("warrantyDays", Number(e.target.value) || 0)
+              }
               placeholder="VD: 365"
             />
           </div>
 
-          {/* HÀNG 3: Danh mục (c1) + Nhãn (c2) */}
+          {/* HÀNG 3: Danh mục + Nhãn */}
           <div className="group" style={{ gridColumn: "1 / 2" }}>
             <div className={`panel ${!showCats ? "collapsed" : ""}`}>
-              <div className="panel-header" onClick={() => setShowCats((s) => !s)}>
+              <div
+                className="panel-header"
+                onClick={() => setShowCats((s) => !s)}
+              >
                 <h4>
                   Danh mục sản phẩm{" "}
-                  <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      marginLeft: 8,
+                    }}
+                  >
                     ({cats.length})
                   </span>
                 </h4>
@@ -252,13 +313,17 @@ export default function ProductAdd() {
                         <label className="switch">
                           <input
                             type="checkbox"
-                            checked={(form.categoryIds || []).includes(c.categoryId)}
+                            checked={(form.categoryIds || []).includes(
+                              c.categoryId
+                            )}
                             onChange={(e) => {
                               const prev = form.categoryIds || [];
                               if (e.target.checked)
                                 set(
                                   "categoryIds",
-                                  Array.from(new Set([...prev, c.categoryId]))
+                                  Array.from(
+                                    new Set([...prev, c.categoryId])
+                                  )
                                 );
                               else
                                 set(
@@ -279,10 +344,19 @@ export default function ProductAdd() {
 
           <div className="group" style={{ gridColumn: "2 / 3" }}>
             <div className={`panel ${!showBadgesPanel ? "collapsed" : ""}`}>
-              <div className="panel-header" onClick={() => setShowBadgesPanel((s) => !s)}>
+              <div
+                className="panel-header"
+                onClick={() => setShowBadgesPanel((s) => !s)}
+              >
                 <h4>
                   Nhãn sản phẩm{" "}
-                  <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      marginLeft: 8,
+                    }}
+                  >
                     ({badges.length})
                   </span>
                 </h4>
@@ -293,7 +367,11 @@ export default function ProductAdd() {
                 <div className="panel-body">
                   {badges.map((b) => {
                     const color =
-                      b?.colorHex || b?.color || b?.colorhex || b?.ColorHex || "#1e40af";
+                      b?.colorHex ||
+                      b?.color ||
+                      b?.colorhex ||
+                      b?.ColorHex ||
+                      "#1e40af";
                     const name =
                       b?.displayName ||
                       b?.badgeName ||
@@ -318,12 +396,21 @@ export default function ProductAdd() {
                           <label className="switch">
                             <input
                               type="checkbox"
-                              checked={(form.badgeCodes || []).includes(code)}
+                              checked={(form.badgeCodes || []).includes(
+                                code
+                              )}
                               onChange={(e) => {
                                 const prev = form.badgeCodes || [];
                                 if (e.target.checked)
-                                  set("badgeCodes", Array.from(new Set([...prev, code])));
-                                else set("badgeCodes", prev.filter((x) => x !== code));
+                                  set(
+                                    "badgeCodes",
+                                    Array.from(new Set([...prev, code]))
+                                  );
+                                else
+                                  set(
+                                    "badgeCodes",
+                                    prev.filter((x) => x !== code)
+                                  );
                               }}
                             />
                             <span className="slider" />
@@ -337,27 +424,9 @@ export default function ProductAdd() {
             </div>
           </div>
 
-          {/* HÀNG 4: Giá bán + Giá niêm yết */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Giá bán (đ)</span>
-            <input
-              type="number"
-              value={form.salePrice}
-              onChange={(e) => set("salePrice", Number(e.target.value) || 0)}
-              placeholder="349000"
-            />
-          </div>
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Giá gốc/niêm yết (đ)</span>
-            <input
-              type="number"
-              value={form.costPrice}
-              onChange={(e) => set("costPrice", Number(e.target.value) || 0)}
-              placeholder="399000"
-            />
-          </div>
+          {/* KHÔNG CÒN Ô GIÁ BÁN */}
 
-          {/* HÀNG 5: Mô tả ngắn + Mô tả chi tiết */}
+          {/* Mô tả ngắn + chi tiết */}
           <div className="group" style={{ gridColumn: "1 / 2" }}>
             <span>Mô tả ngắn</span>
             <textarea
@@ -375,7 +444,7 @@ export default function ProductAdd() {
             />
           </div>
 
-          {/* HÀNG 6: Ảnh (cùng hàng: bên trái upload + công tắc; bên phải preview) */}
+          {/* Ảnh sản phẩm */}
           <div className="group" style={{ gridColumn: "1 / 3" }}>
             <span>Ảnh sản phẩm</span>
 
@@ -387,7 +456,6 @@ export default function ProductAdd() {
                 flexWrap: "wrap",
               }}
             >
-              {/* Trái: điều khiển upload + công tắc */}
               <div style={{ minWidth: 340, maxWidth: 420 }}>
                 <div className="file-upload">
                   <input
@@ -397,55 +465,88 @@ export default function ProductAdd() {
                     multiple
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
-                      // tạo URL preview
-                      const urls = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
-                      // revoke previews cũ
+                      const urls = files.map((f) => ({
+                        name: f.name,
+                        url: URL.createObjectURL(f),
+                      }));
                       previews.forEach((p) => URL.revokeObjectURL(p.url));
                       setSelectedFiles(files);
                       setPreviews(urls);
-                      setImagesName(files.length > 0 ? `${files.length} ảnh đã chọn` : "Chưa chọn ảnh");
+                      setImagesName(
+                        files.length > 0
+                          ? `${files.length} ảnh đã chọn`
+                          : "Chưa chọn ảnh"
+                      );
 
-                      // đặt mặc định theo công tắc
-                      const nextPrimary = files.length === 0
-                        ? 0
-                        : (autoDefaultOnImport ? 0 : Math.min(primaryIndex, Math.max(0, files.length - 1)));
+                      const nextPrimary =
+                        files.length === 0
+                          ? 0
+                          : autoDefaultOnImport
+                          ? 0
+                          : Math.min(
+                              primaryIndex,
+                              Math.max(0, files.length - 1)
+                            );
                       setPrimaryIndex(nextPrimary);
 
                       if (files.length > 0) {
-                        addToast("info", "Đã chọn ảnh", `${files.length} ảnh • ${files[0].name}`);
+                        addToast(
+                          "info",
+                          "Đã chọn ảnh",
+                          `${files.length} ảnh • ${files[0].name}`
+                        );
                       }
                     }}
                   />
-                  <label htmlFor="prodImages" className="btn btn-upload">
+                  <label
+                    htmlFor="prodImages"
+                    className="btn btn-upload"
+                  >
                     Chọn ảnh
                   </label>
-                  <span className="file-name">{imagesName || "Chưa chọn ảnh"}</span>
+                  <span className="file-name">
+                    {imagesName || "Chưa chọn ảnh"}
+                  </span>
                 </div>
 
-                {/* Công tắc: Ảnh mới làm ảnh mặc định (giống switch trạng thái) */}
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <label className="switch" title="Đặt ảnh mới làm ảnh mặc định">
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <label
+                    className="switch"
+                    title="Đặt ảnh mới làm ảnh mặc định"
+                  >
                     <input
                       type="checkbox"
                       checked={autoDefaultOnImport}
-                      onChange={(e) => setAutoDefaultOnImport(e.target.checked)}
+                      onChange={(e) =>
+                        setAutoDefaultOnImport(e.target.checked)
+                      }
                       aria-label="Ảnh mới làm ảnh mặc định"
                     />
                     <span className="slider" />
                   </label>
-                  <span className="badge gray" style={{ textTransform: "none" }}>
+                  <span
+                    className="badge gray"
+                    style={{ textTransform: "none" }}
+                  >
                     Ảnh mới → mặc định
                   </span>
                 </div>
               </div>
 
-              {/* Phải: PREVIEW (to hơn, cùng hàng, không mất ảnh) */}
               <div style={{ flex: 1, minWidth: 360 }}>
                 {previews.length > 0 && (
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(200px, 1fr))",
                       gap: 12,
                     }}
                   >
@@ -482,7 +583,7 @@ export default function ProductAdd() {
                             style={{
                               width: "100%",
                               height: "100%",
-                              objectFit: "contain", // không bị mất ảnh
+                              objectFit: "contain",
                               display: "block",
                             }}
                           />
@@ -497,18 +598,30 @@ export default function ProductAdd() {
                             justifyContent: "space-between",
                           }}
                         >
-                          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
                             <input
                               type="radio"
                               name="primary"
                               checked={primaryIndex === idx}
                               onChange={() => {
                                 setPrimaryIndex(idx);
-                                addToast("info", "Đổi ảnh mặc định", p.name);
+                                addToast(
+                                  "info",
+                                  "Đổi ảnh mặc định",
+                                  p.name
+                                );
                               }}
                             />
                             <span style={{ fontSize: 12 }}>
-                              {primaryIndex === idx ? "Ảnh mặc định" : `Ảnh ${idx + 1}`}
+                              {primaryIndex === idx
+                                ? "Ảnh mặc định"
+                                : `Ảnh ${idx + 1}`}
                             </span>
                           </label>
                         </div>
@@ -523,16 +636,23 @@ export default function ProductAdd() {
 
         {/* ACTIONS */}
         <div className="row" style={{ marginTop: 12 }}>
-          <button className="btn" disabled={saving} onClick={() => save(false)}>
+          <button
+            className="btn"
+            disabled={saving}
+            onClick={() => save(false)}
+          >
             Lưu nháp
           </button>
-          <button className="btn primary" disabled={saving} onClick={() => save(true)}>
+          <button
+            className="btn primary"
+            disabled={saving}
+            onClick={() => save(true)}
+          >
             Lưu &amp; Xuất bản
           </button>
         </div>
       </div>
 
-      {/* Toasts */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
