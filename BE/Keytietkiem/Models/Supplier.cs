@@ -18,7 +18,6 @@ public partial class Supplier
     public DateTime CreatedAt { get; set; }
 
     public SupplierStatus Status { get; set; }
-
     public string? LicenseTerms { get; set; }
 
     public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
