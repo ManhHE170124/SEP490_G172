@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Keytietkiem.DTOs.Enums;
 
 namespace Keytietkiem.Models;
 
@@ -19,7 +20,7 @@ public partial class ProductKey
 
     public int SupplierId { get; set; }
 
-    public string Type { get; set; } = null!;
+    public ProductKeyType Type { get; set; } = ProductKeyType.Individual;
 
     public DateTime? ExpiryDate { get; set; }
 

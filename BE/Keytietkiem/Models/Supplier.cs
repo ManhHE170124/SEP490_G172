@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Enums;
 
 namespace Keytietkiem.Models;
 
@@ -15,7 +17,7 @@ public partial class Supplier
 
     public DateTime CreatedAt { get; set; }
 
-    public string Status { get; set; } = null!;
+    public SupplierStatus Status { get; set; }
 
     public string? LicenseTerms { get; set; }
 
