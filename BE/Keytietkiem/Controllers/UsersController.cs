@@ -6,14 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Common;
 
-//namespace Keytietkiem.Controllers
-//{
-//    [ApiController]
-//    [Route("api/[controller]")]
-//    public class UsersController : ControllerBase
-//    {
-//        private readonly KeytietkiemDbContext _db;
-//        public UsersController(KeytietkiemDbContext db) => _db = db;
+namespace Keytietkiem.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UsersController : ControllerBase
+    {
+        private readonly KeytietkiemDbContext _db;
+        public UsersController(KeytietkiemDbContext db) => _db = db;
 
         // ===== Password hashing (PBKDF2 - 1 chiều) =====
         private static byte[] HashPassword(string password)
@@ -68,7 +68,7 @@ using Keytietkiem.DTOs.Common;
                 .Include(u => u.Account)
                 .AsQueryable();
 
-//            users = ExcludeAdminUsers(users);
+            users = ExcludeAdminUsers(users);
 
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -81,16 +81,16 @@ using Keytietkiem.DTOs.Common;
                 );
             }
 
-//            if (UserStatusHelper.IsValid(status))
-//            {
-//                var s = UserStatusHelper.Normalize(status!);
-//                users = users.Where(u => u.Status == s);
-//            }
+            if (UserStatusHelper.IsValid(status))
+            {
+                var s = UserStatusHelper.Normalize(status!);
+                users = users.Where(u => u.Status == s);
+            }
 
-//            if (!string.IsNullOrWhiteSpace(roleId))
-//            {
-//                users = users.Where(u => u.Roles.Any(r => r.RoleId == roleId));
-//            }
+            if (!string.IsNullOrWhiteSpace(roleId))
+            {
+                users = users.Where(u => u.Roles.Any(r => r.RoleId == roleId));
+            }
 
             bool desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
             users = (sortBy ?? "").ToLower() switch
@@ -103,31 +103,31 @@ using Keytietkiem.DTOs.Common;
                 _ => desc ? users.OrderByDescending(u => u.CreatedAt) : users.OrderBy(u => u.CreatedAt),
             };
 
-//            var total = await users.CountAsync();
+            var total = await users.CountAsync();
 
-//            var items = await users
-//                .Skip((page - 1) * pageSize)
-//                .Take(pageSize)
-//                .Select(u => new UserListItemDto
-//                {
-//                    UserId = u.UserId,
-//                    FullName = u.FullName ?? "",
-//                    Email = u.Email ?? "",
-//                    RoleName = u.Roles.Select(r => r.Name).FirstOrDefault(),
-//                    LastLoginAt = u.Account != null ? u.Account.LastLoginAt : null,
-//                    Status = u.Status,
-//                    CreatedAt = u.CreatedAt
-//                })
-//                .ToListAsync();
+            var items = await users
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new UserListItemDto
+                {
+                    UserId = u.UserId,
+                    FullName = u.FullName ?? "",
+                    Email = u.Email ?? "",
+                    RoleName = u.Roles.Select(r => r.Name).FirstOrDefault(),
+                    LastLoginAt = u.Account != null ? u.Account.LastLoginAt : null,
+                    Status = u.Status,
+                    CreatedAt = u.CreatedAt
+                })
+                .ToListAsync();
 
-//            return Ok(new PagedResult<UserListItemDto>
-//            {
-//                Page = page,
-//                PageSize = pageSize,
-//                TotalItems = total,
-//                Items = items
-//            });
-//        }
+            return Ok(new PagedResult<UserListItemDto>
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalItems = total,
+                Items = items
+            });
+        }
 
         // GET /api/users/{id}
         [HttpGet("{id:guid}")]
@@ -138,8 +138,8 @@ using Keytietkiem.DTOs.Common;
                 .Include(x => x.Account)
                 .FirstOrDefaultAsync(x => x.UserId == id);
 
-//            if (u == null) return NotFound();
-//            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
+            if (u == null) return NotFound();
+            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
 
             return Ok(new UserDetailDto
             {
@@ -170,33 +170,33 @@ using Keytietkiem.DTOs.Common;
                     return BadRequest(new { message = "Không được tạo người dùng với vai trò chứa 'admin'." });
             }
 
-//            if (await _db.Users.AnyAsync(x => x.Email == dto.Email))
-//                return Conflict(new { message = "Email đã tồn tại" });
+            if (await _db.Users.AnyAsync(x => x.Email == dto.Email))
+                return Conflict(new { message = "Email đã tồn tại" });
 
-//            var now = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
 
-//            var user = new User
-//            {
-//                UserId = Guid.NewGuid(),
-//                FirstName = dto.FirstName,
-//                LastName = dto.LastName,
-//                FullName = $"{dto.FirstName} {dto.LastName}".Trim(),
-//                Email = dto.Email,
-//                Phone = dto.Phone,
-//                Address = dto.Address,
-//                Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : "Active",
-//                EmailVerified = false,
-//                CreatedAt = now,
-//                UpdatedAt = now
-//            };
+            var user = new User
+            {
+                UserId = Guid.NewGuid(),
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                FullName = $"{dto.FirstName} {dto.LastName}".Trim(),
+                Email = dto.Email,
+                Phone = dto.Phone,
+                Address = dto.Address,
+                Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : "Active",
+                EmailVerified = false,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
 
-//            if (!string.IsNullOrEmpty(dto.RoleId))
-//            {
-//                var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == dto.RoleId);
-//                if (role != null) user.Roles.Add(role);
-//            }
+            if (!string.IsNullOrEmpty(dto.RoleId))
+            {
+                var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == dto.RoleId);
+                if (role != null) user.Roles.Add(role);
+            }
 
-//            await _db.Users.AddAsync(user);
+            await _db.Users.AddAsync(user);
 
             if (!string.IsNullOrWhiteSpace(dto.NewPassword))
             {
@@ -216,9 +216,9 @@ using Keytietkiem.DTOs.Common;
                 });
             }
 
-//            await _db.SaveChangesAsync();
-//            return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
-//        }
+            await _db.SaveChangesAsync();
+            return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
+        }
 
         // PUT /api/users/{id}
         [HttpPut("{id:guid}")]
@@ -226,32 +226,32 @@ using Keytietkiem.DTOs.Common;
         {
             if (id != dto.UserId) return BadRequest();
 
-//            var u = await _db.Users.Include(x => x.Roles).Include(x => x.Account).FirstOrDefaultAsync(x => x.UserId == id);
-//            if (u == null) return NotFound();
-//            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
+            var u = await _db.Users.Include(x => x.Roles).Include(x => x.Account).FirstOrDefaultAsync(x => x.UserId == id);
+            if (u == null) return NotFound();
+            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
 
-//            if (!string.IsNullOrEmpty(dto.RoleId))
-//            {
-//                var r = await _db.Roles.FirstOrDefaultAsync(x => x.RoleId == dto.RoleId);
-//                if (r != null && r.Name.Contains("admin", StringComparison.OrdinalIgnoreCase))
-//                    return BadRequest(new { message = "Không được gán vai trò chứa 'admin'." });
-//            }
+            if (!string.IsNullOrEmpty(dto.RoleId))
+            {
+                var r = await _db.Roles.FirstOrDefaultAsync(x => x.RoleId == dto.RoleId);
+                if (r != null && r.Name.Contains("admin", StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { message = "Không được gán vai trò chứa 'admin'." });
+            }
 
-//            u.FirstName = dto.FirstName;
-//            u.LastName = dto.LastName;
-//            u.FullName = $"{dto.FirstName} {dto.LastName}".Trim();
-//            u.Email = dto.Email;
-//            u.Phone = dto.Phone;
-//            u.Address = dto.Address;
-//            u.Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : u.Status;
-//            u.UpdatedAt = DateTime.UtcNow;
+            u.FirstName = dto.FirstName;
+            u.LastName = dto.LastName;
+            u.FullName = $"{dto.FirstName} {dto.LastName}".Trim();
+            u.Email = dto.Email;
+            u.Phone = dto.Phone;
+            u.Address = dto.Address;
+            u.Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : u.Status;
+            u.UpdatedAt = DateTime.UtcNow;
 
-//            u.Roles.Clear();
-//            if (!string.IsNullOrEmpty(dto.RoleId))
-//            {
-//                var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == dto.RoleId);
-//                if (role != null) u.Roles.Add(role);
-//            }
+            u.Roles.Clear();
+            if (!string.IsNullOrEmpty(dto.RoleId))
+            {
+                var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == dto.RoleId);
+                if (role != null) u.Roles.Add(role);
+            }
 
             // Username và password
             var newUsername = string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim();
@@ -303,9 +303,9 @@ using Keytietkiem.DTOs.Common;
                 }
             }
 
-//            await _db.SaveChangesAsync();
-//            return NoContent();
-//        }
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
 
         // DELETE /api/users/{id}  (giữ behavior toggle Active <-> Disabled như FE đang dùng)
         [HttpDelete("{id:guid}")]

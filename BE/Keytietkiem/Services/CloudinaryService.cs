@@ -16,9 +16,9 @@ namespace Keytietkiem.Services
         public CloudinaryService(IConfiguration configuration)
         {
             var acc = new Account(
-                configuration["Cloudinary:CloudName"],
-                configuration["Cloudinary:ApiKey"],
-                configuration["Cloudinary:ApiSecret"]
+                configuration["Cloudinary:CLOUD_NAME"],
+                configuration["Cloudinary:CLOUD_API_KEY"],
+                configuration["Cloudinary:CLOUD_API_SECRETS"]
             );
 
             _cloudinary = new Cloudinary(acc);
