@@ -7,14 +7,30 @@ const CATEGORY_ENDPOINTS = {
 };
 
 export const CategoryApi = {
-  // Luôn trả về mảng: res.items ?? res
-  list: (params = {}) =>
-    axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params })
-      .then((res) => res?.items ?? res ?? []),
+  // Trả về mảng categories
+  list: (params = {}) => axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params }),
 
-  // Trả nguyên object phân trang
-  listPaged: (params = {}) =>
-    axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params }),
+  // Trả về dạng phân trang: { items, total, pageNumber, pageSize }
+  listPaged: async (params = {}) => {
+    const res = await axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params });
+
+    // BE hiện tại đang trả về mảng thuần => tự bọc lại
+    if (Array.isArray(res)) {
+      const items = res;
+      const pageNumber = params.page || params.pageNumber || 1;
+      const pageSize = params.pageSize || items.length;
+
+      return {
+        items,
+        total: items.length,
+        pageNumber,
+        pageSize,
+      };
+    }
+
+    // Nếu sau này BE trả về dạng { items, total, ... } thì dùng luôn
+    return res;
+  },
 
   get: (id) => axiosClient.get(`${CATEGORY_ENDPOINTS.ROOT}/${id}`),
   create: (payload) => axiosClient.post(CATEGORY_ENDPOINTS.ROOT, payload),

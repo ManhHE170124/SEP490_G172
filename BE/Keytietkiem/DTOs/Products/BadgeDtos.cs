@@ -8,7 +8,7 @@
  *          between API and clients while hiding internal entity structure.
  *
  * DTOs Included:
- *   - BadgeListItemDto : Used for listing & showing summary badge info (includes ProductsCount)
+ *   - BadgeListItemDto : Used for listing & showing summary badge info
  *   - BadgeCreateDto   : Used for creating new badges
  *   - BadgeUpdateDto   : Used for updating existing badges
  *
@@ -18,7 +18,10 @@
  *   - ColorHex (string?)    : Hex color for UI styling
  *   - Icon (string?)        : Icon resource identifier
  *   - IsActive (bool)       : Visibility status (active/inactive)
- *   - ProductsCount (int)   : Number of products using this badge
+ *
+ * Usage:
+ *   - API request/response shaping
+ *   - Ensures separation between domain models & exposed data representation
  */
 namespace Keytietkiem.DTOs.Products;
 
@@ -27,8 +30,7 @@ public record BadgeListItemDto(
     string DisplayName,
     string? ColorHex,
     string? Icon,
-    bool IsActive,
-    int ProductsCount
+    bool IsActive
 );
 
 public record BadgeCreateDto(

@@ -6,26 +6,41 @@ const BADGE_ENDPOINTS = {
 };
 
 export const BadgesApi = {
-  // Luôn trả mảng
-  list: (params = {}) =>
-    axiosClient.get(BADGE_ENDPOINTS.ROOT, { params })
-      .then((res) => res?.items ?? res ?? []),
+  // Trả về mảng badges
+  list: (params = {}) => axiosClient.get(BADGE_ENDPOINTS.ROOT, { params }),
 
-  // Trả phân trang
-  listPaged: (params = {}) =>
-    axiosClient.get(BADGE_ENDPOINTS.ROOT, { params }),
+  // Trả về dạng phân trang: { items, total, pageNumber, pageSize }
+  listPaged: async (params = {}) => {
+    const res = await axiosClient.get(BADGE_ENDPOINTS.ROOT, { params });
 
-  get: (code) => axiosClient.get(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
+    if (Array.isArray(res)) {
+      const items = res;
+      const pageNumber = params.page || params.pageNumber || 1;
+      const pageSize = params.pageSize || items.length;
+
+      return {
+        items,
+        total: items.length,
+        pageNumber,
+        pageSize,
+      };
+    }
+
+    return res;
+  },
+
+  get: (code) =>
+    axiosClient.get(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
   create: (payload) => axiosClient.post(BADGE_ENDPOINTS.ROOT, payload),
   update: (code, payload) => axiosClient.put(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`, payload),
   remove: (code) => axiosClient.delete(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
   toggle: (code) => axiosClient.patch(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/toggle`),
 
-  // BE yêu cầu body là bool thuần (không phải {active})
   setStatus: (code, active) =>
-    axiosClient.patch(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/status`, active, {
-      headers: { "Content-Type": "application/json" },
-    }),
+    axiosClient.patch(
+      `${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/status`,
+      { active }
+    ),
 
   setForProduct: (productId, codes) =>
     axiosClient.post(`${BADGE_ENDPOINTS.PRODUCT}/${productId}`, codes),

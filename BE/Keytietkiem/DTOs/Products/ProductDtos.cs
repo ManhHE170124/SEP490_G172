@@ -1,5 +1,27 @@
-﻿// File: DTOs/Products/ProductDtos.cs
-// Updated: 2025-11-02
+﻿/**
+ * File: ProductDtos.cs
+ * Author: ManhLDHE170124
+ * Created: 24/10/2025
+ * Last Updated: 28/10/2025
+ * Version: 1.0.0
+ * Purpose: Data Transfer Objects and enums for Product feature. Provide request/response
+ *          contracts (list/detail/create/update), price-import/export payloads, and image DTOs.
+ *
+ * DTOs & Types Included:
+ *   - ProductEnums            : Stable string enums & validation sets (Types, Statuses)
+ *   - ProductImageDto         : Image metadata for a product
+ *   - ProductListItemDto      : Lightweight item for product listing
+ *   - ProductDetailDto        : Full product details
+ *   - ProductCreateDto        : Payload for creating a product (JSON)
+ *   - ProductUpdateDto        : Payload for updating a product (JSON)
+ *   - BulkPriceUpdateDto      : Payload for bulk percentage price updates
+ *   - PriceImportResult       : Result summary for CSV price import
+ *
+ * Usage:
+ *   - API request/response shaping for product management
+ *   - Admin screens: listing, detail, images, pricing tools, import/export
+ */
+
 using System;
 using System.Collections.Generic;
 
