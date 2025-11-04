@@ -10,10 +10,12 @@ export default function ProductDetail() {
   const productId = id;
   const nav = useNavigate();
 
+  // loading/ui
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [notFound, setNotFound] = React.useState(false);
 
+  // meta
   const [cats, setCats] = React.useState([]);
   const [badges, setBadges] = React.useState([]);
   const [showCats, setShowCats] = React.useState(true);
@@ -25,6 +27,14 @@ export default function ProductDetail() {
   const [deleteImageIds, setDeleteImageIds] = React.useState([]);
   const [primaryIndex, setPrimaryIndex] = React.useState(null);
 
+  // images
+  const [images, setImages] = React.useState([]);              // ảnh hiện có [{imageId,url,isPrimary,...}]
+  const [newFiles, setNewFiles] = React.useState([]);          // file mới
+  const [newPreviews, setNewPreviews] = React.useState([]);    // preview cho file mới [{name,url}]
+  const [deleteImageIds, setDeleteImageIds] = React.useState([]);
+  const [primaryIndex, setPrimaryIndex] = React.useState(null); // index tổng hợp: images.concat(newPreviews)
+
+  // form
   const [form, setForm] = React.useState({
     productCode: "",
     productName: "",
@@ -32,7 +42,7 @@ export default function ProductDetail() {
     productType: "PERSONAL_KEY",
     costPrice: 0,
     salePrice: 0,
-    stockQty: 0,
+    stockQty: 0,                    // CHỈ HIỂN THỊ (không cho sửa)
     warrantyDays: 0,
     expiryDate: "",
     autoDelivery: false,
@@ -58,11 +68,7 @@ export default function ProductDetail() {
     b?.colorHex || b?.color || b?.colorhex || b?.ColorHex || "#1e40af";
 
   const statusClass = (s) =>
-    s === "ACTIVE"
-      ? "badge green"
-      : s === "OUT_OF_STOCK"
-      ? "badge warning"
-      : "badge gray";
+    s === "ACTIVE" ? "badge green" : s === "OUT_OF_STOCK" ? "badge warning" : "badge gray";
 
   const load = React.useCallback(async () => {
     try {
@@ -98,7 +104,7 @@ export default function ProductDetail() {
         productType: dto.productType || "PERSONAL_KEY",
         costPrice: dto.costPrice ?? 0,
         salePrice: dto.salePrice ?? 0,
-        stockQty: dto.stockQty ?? 0,
+        stockQty: dto.stockQty ?? 0,              // chỉ hiển thị
         warrantyDays: dto.warrantyDays ?? 0,
         expiryDate: dto.expiryDate || "",
         autoDelivery: !!dto.autoDelivery,
@@ -136,6 +142,7 @@ export default function ProductDetail() {
     };
   }, [newPreviews]);
 
+  // save
   const save = async () => {
     try {
       setSaving(true);

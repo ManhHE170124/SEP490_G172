@@ -42,7 +42,6 @@ export const CategoryApi = {
 export const CategoryCsv = {
   exportCsv: () =>
     axiosClient.get(CATEGORY_ENDPOINTS.EXPORT, { responseType: "blob" }),
-
   importCsv: (file) => {
     const form = new FormData();
     form.append("file", file);

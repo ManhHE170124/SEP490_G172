@@ -2,8 +2,8 @@
  * File: BadgeDtos.cs
  * Author: ManhLDHE170124
  * Created: 24/10/2025
- * Last Updated: 28/10/2025
- * Version: 1.0.0
+ * Last Updated: 30/10/2025
+ * Version: 1.1.0
  * Purpose: Data Transfer Objects for Badge operations. Used to transfer badge data
  *          between API and clients while hiding internal entity structure.
  *

@@ -2,7 +2,7 @@ import axiosClient from "../api/axiosClient";
 
 const BADGE_ENDPOINTS = {
   ROOT: "badges",
-  PRODUCT: "badges/products", // dùng badges/products/{productId}
+  PRODUCT: "badges/products",
 };
 
 export const BadgesApi = {
@@ -32,12 +32,9 @@ export const BadgesApi = {
   get: (code) =>
     axiosClient.get(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
   create: (payload) => axiosClient.post(BADGE_ENDPOINTS.ROOT, payload),
-  update: (code, payload) =>
-    axiosClient.put(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`, payload),
-  remove: (code) =>
-    axiosClient.delete(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
-  toggle: (code) =>
-    axiosClient.patch(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/toggle`),
+  update: (code, payload) => axiosClient.put(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`, payload),
+  remove: (code) => axiosClient.delete(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}`),
+  toggle: (code) => axiosClient.patch(`${BADGE_ENDPOINTS.ROOT}/${encodeURIComponent(code)}/toggle`),
 
   setStatus: (code, active) =>
     axiosClient.patch(
@@ -48,5 +45,3 @@ export const BadgesApi = {
   setForProduct: (productId, codes) =>
     axiosClient.post(`${BADGE_ENDPOINTS.PRODUCT}/${productId}`, codes),
 };
-
-export default BadgesApi;

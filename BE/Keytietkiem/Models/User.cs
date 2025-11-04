@@ -31,6 +31,8 @@ public partial class User
 
     public virtual Account? Account { get; set; }
 
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
