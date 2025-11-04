@@ -1,18 +1,4 @@
-﻿/// <summary>
-/// File: UsersController.cs
-/// Layer: Web API (ASP.NET Core)
-/// Purpose:
-///   CRUD operations for users with the following guardrails:
-///   - Any user having a role with name containing "admin" is hidden from FE (404/filtered).
-///   - Admin-like roles cannot be assigned/created via these endpoints.
-///   - CreatedAt/UpdatedAt are set to UTC timestamps at operation time.
-/// Error Model:
-///   - All errors standardized to { message: string } at middleware level.
-/// Security Note:
-///   - Password is AES-encrypted (reversible) to support "show/edit" in admin UI.
-/// </summary>
-
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Keytietkiem.DTOs.Users;
 using Keytietkiem.Models;
@@ -29,52 +15,47 @@ namespace Keytietkiem.Controllers
         private readonly KeytietkiemDbContext _db;
         public UsersController(KeytietkiemDbContext db) => _db = db;
 
-        private static readonly byte[] AesKey =
-            SHA256.HashData(Encoding.UTF8.GetBytes("Keytietkiem::Users::Secret-v1"));
-
-        /// <summary>Encrypt plain password using AES with random IV (IV prefixed to ciphertext).</summary>
-        private static byte[] EncryptPassword(string plain)
+        // ===== Password hashing (PBKDF2 - 1 chiều) =====
+        private static byte[] HashPassword(string password)
         {
-            using var aes = Aes.Create();
-            aes.Key = AesKey;
-            aes.GenerateIV();
-            using var enc = aes.CreateEncryptor();
-            var src = Encoding.UTF8.GetBytes(plain);
-            var ct = enc.TransformFinalBlock(src, 0, src.Length);
-            var output = new byte[aes.IV.Length + ct.Length];
-            Buffer.BlockCopy(aes.IV, 0, output, 0, aes.IV.Length);
-            Buffer.BlockCopy(ct, 0, output, aes.IV.Length, ct.Length);
-            return output;
+            const int iterations = 100000;
+            const int keySize = 32;
+
+            using var rng = RandomNumberGenerator.Create();
+            var salt = new byte[16];
+            rng.GetBytes(salt);
+
+            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256);
+            var hash = pbkdf2.GetBytes(keySize);
+
+            var result = new byte[salt.Length + hash.Length];
+            Buffer.BlockCopy(salt, 0, result, 0, salt.Length);
+            Buffer.BlockCopy(hash, 0, result, salt.Length, hash.Length);
+            return result; // 48 bytes
         }
 
-        /// <summary>Decrypt AES-encrypted password (expects IV-prefixed buffer). Returns null on failure.</summary>
-        private static string? DecryptPassword(byte[]? data)
+        private static bool VerifyPassword(string password, byte[]? storedHash)
         {
-            if (data == null || data.Length < 17) return null;
-            using var aes = Aes.Create();
-            aes.Key = AesKey;
-            var iv = new byte[16];
-            Buffer.BlockCopy(data, 0, iv, 0, 16);
-            aes.IV = iv;
-            using var dec = aes.CreateDecryptor();
-            var ct = new byte[data.Length - 16];
-            Buffer.BlockCopy(data, 16, ct, 0, ct.Length);
-            try
-            {
-                var pt = dec.TransformFinalBlock(ct, 0, ct.Length);
-                return Encoding.UTF8.GetString(pt);
-            }
-            catch { return null; }
+            if (storedHash == null || storedHash.Length != 48) return false;
+            const int iterations = 100000;
+            const int keySize = 32;
+
+            var salt = new byte[16];
+            Buffer.BlockCopy(storedHash, 0, salt, 0, 16);
+
+            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256);
+            var hash = pbkdf2.GetBytes(keySize);
+
+            for (var i = 0; i < keySize; i++)
+                if (storedHash[i + 16] != hash[i])
+                    return false;
+            return true;
         }
 
-        /// <summary>Filter helper: exclude users who have any role whose name contains "admin" (case-insensitive).</summary>
         private static IQueryable<User> ExcludeAdminUsers(IQueryable<User> q)
             => q.Where(u => !u.Roles.Any(r => r.Name.ToLower().Contains("admin")));
 
-        /// <summary>
-        /// List users with filters, pagination and sorting.
-        /// Excludes users in admin-like roles.
-        /// </summary>
+        // GET /api/users
         [HttpGet]
         public async Task<ActionResult<PagedResult<UserListItemDto>>> GetUsers(
             string? q, string? roleId, string? status,
@@ -95,7 +76,9 @@ namespace Keytietkiem.Controllers
                 users = users.Where(u =>
                     (u.FullName ?? "").ToLower().Contains(key) ||
                     (u.Email ?? "").ToLower().Contains(key) ||
-                    (u.Phone ?? "").Contains(q));
+                    (u.Phone ?? "").Contains(q) ||
+                    (u.Account != null && u.Account.Username.ToLower().Contains(key))
+                );
             }
 
             if (UserStatusHelper.IsValid(status))
@@ -114,6 +97,7 @@ namespace Keytietkiem.Controllers
             {
                 "fullname" => desc ? users.OrderByDescending(u => u.FullName) : users.OrderBy(u => u.FullName),
                 "email" => desc ? users.OrderByDescending(u => u.Email) : users.OrderBy(u => u.Email),
+                "username" => desc ? users.OrderByDescending(u => u.Account!.Username) : users.OrderBy(u => u.Account!.Username),
                 "status" => desc ? users.OrderByDescending(u => u.Status) : users.OrderBy(u => u.Status),
                 "lastloginat" => desc ? users.OrderByDescending(u => u.Account!.LastLoginAt) : users.OrderBy(u => u.Account!.LastLoginAt),
                 _ => desc ? users.OrderByDescending(u => u.CreatedAt) : users.OrderBy(u => u.CreatedAt),
@@ -145,9 +129,7 @@ namespace Keytietkiem.Controllers
             });
         }
 
-        /// <summary>
-        /// Get user details by id. Returns 404 if the user belongs to admin-like role.
-        /// </summary>
+        // GET /api/users/{id}
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<UserDetailDto>> Get(Guid id)
         {
@@ -172,13 +154,12 @@ namespace Keytietkiem.Controllers
                 LastLoginAt = u.Account?.LastLoginAt,
                 RoleId = u.Roles.Select(r => r.RoleId).FirstOrDefault(),
                 HasAccount = u.Account != null,
-                PasswordPlain = DecryptPassword(u.Account?.PasswordHash)
+                Username = u.Account?.Username ?? ""
+                // KHÔNG trả mật khẩu nữa
             });
         }
 
-        /// <summary>
-        /// Create a new user. Rejects admin-like roles. Sets CreatedAt/UpdatedAt to UTC now.
-        /// </summary>
+        // POST /api/users
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] UserCreateDto dto)
         {
@@ -219,11 +200,16 @@ namespace Keytietkiem.Controllers
 
             if (!string.IsNullOrWhiteSpace(dto.NewPassword))
             {
+                // Bảo đảm Username là duy nhất
+                var username = string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim();
+                var exists = await _db.Accounts.AnyAsync(a => a.Username == username);
+                if (exists) return Conflict(new { message = "Username đã tồn tại." });
+
                 await _db.Accounts.AddAsync(new Account
                 {
                     AccountId = Guid.NewGuid(),
-                    Username = dto.Email,
-                    PasswordHash = EncryptPassword(dto.NewPassword),
+                    Username = username,
+                    PasswordHash = HashPassword(dto.NewPassword),
                     UserId = user.UserId,
                     CreatedAt = now,
                     UpdatedAt = now
@@ -234,9 +220,7 @@ namespace Keytietkiem.Controllers
             return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
         }
 
-        /// <summary>
-        /// Update an existing user. Rejects admin-like roles. Sets UpdatedAt to UTC now.
-        /// </summary>
+        // PUT /api/users/{id}
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UserUpdateDto dto)
         {
@@ -269,16 +253,24 @@ namespace Keytietkiem.Controllers
                 if (role != null) u.Roles.Add(role);
             }
 
+            // Username và password
+            var newUsername = string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim();
+
             if (!string.IsNullOrWhiteSpace(dto.NewPassword))
             {
                 var now = DateTime.UtcNow;
+
                 if (u.Account == null)
                 {
+                    // Kiểm tra trùng username trước khi tạo account
+                    var exists = await _db.Accounts.AnyAsync(a => a.Username == newUsername);
+                    if (exists) return Conflict(new { message = "Username đã tồn tại." });
+
                     u.Account = new Account
                     {
                         AccountId = Guid.NewGuid(),
-                        Username = dto.Email,
-                        PasswordHash = EncryptPassword(dto.NewPassword),
+                        Username = newUsername,
+                        PasswordHash = HashPassword(dto.NewPassword),
                         UserId = id,
                         CreatedAt = now,
                         UpdatedAt = now
@@ -287,9 +279,27 @@ namespace Keytietkiem.Controllers
                 }
                 else
                 {
-                    u.Account.Username = dto.Email;
-                    u.Account.PasswordHash = EncryptPassword(dto.NewPassword);
+                    // Nếu đổi username, check unique
+                    if (!string.Equals(u.Account.Username, newUsername, StringComparison.Ordinal))
+                    {
+                        var exists = await _db.Accounts.AnyAsync(a => a.Username == newUsername && a.AccountId != u.Account.AccountId);
+                        if (exists) return Conflict(new { message = "Username đã tồn tại." });
+                        u.Account.Username = newUsername;
+                    }
+
+                    u.Account.PasswordHash = HashPassword(dto.NewPassword);
                     u.Account.UpdatedAt = now;
+                }
+            }
+            else
+            {
+                // Không đổi password, nhưng có thể đổi username nếu có account
+                if (u.Account != null && !string.Equals(u.Account.Username, newUsername, StringComparison.Ordinal))
+                {
+                    var exists = await _db.Accounts.AnyAsync(a => a.Username == newUsername && a.AccountId != u.Account.AccountId);
+                    if (exists) return Conflict(new { message = "Username đã tồn tại." });
+                    u.Account.Username = newUsername;
+                    u.Account.UpdatedAt = DateTime.UtcNow;
                 }
             }
 
@@ -297,21 +307,15 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        /// <summary>
-        /// Toggle Active/Disabled status of a user. Returns 404 for admin-like users.
-        /// Sets UpdatedAt to UTC now.
-        /// </summary>
+        // DELETE /api/users/{id}  (giữ behavior toggle Active <-> Disabled như FE đang dùng)
         [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> ToggleDisable([FromRoute] Guid id)
+        public async Task<IActionResult> ToggleActive([FromRoute] Guid id)
         {
             var u = await _db.Users.Include(x => x.Roles).FirstOrDefaultAsync(x => x.UserId == id);
             if (u == null) return NotFound();
             if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
 
-            u.Status = u.Status == UserStatus.Active.ToString()
-                ? UserStatus.Disabled.ToString()
-                : UserStatus.Active.ToString();
-
+            u.Status = string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase) ? "Disabled" : "Active";
             u.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return NoContent();
