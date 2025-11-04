@@ -31,15 +31,15 @@ public partial class User
 
     public virtual Account? Account { get; set; }
 
-    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
-
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 
+    public virtual ICollection<Ticket> TicketAssignees { get; set; } = new List<Ticket>();
+
     public virtual ICollection<TicketReply> TicketReplies { get; set; } = new List<TicketReply>();
 
-    public virtual ICollection<Ticket> Tickets { get; set; } = new List<Ticket>();
+    public virtual ICollection<Ticket> TicketUsers { get; set; } = new List<Ticket>();
 
     public virtual ICollection<Role> Roles { get; set; } = new List<Role>();
 }

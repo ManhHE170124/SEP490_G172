@@ -85,7 +85,7 @@ namespace Keytietkiem.Services
                     Status = pk.Status,
                     Type = pk.Type,
                     UpdatedAt = pk.UpdatedAt,
-                    
+
                     ImportedAt = pk.ImportedAt
                 })
                 .ToListAsync(cancellationToken);
@@ -475,5 +475,13 @@ namespace Keytietkiem.Services
 
             return Encoding.UTF8.GetBytes(csv.ToString());
         }
+        private static ProductKeyType ParseProductKeyType(string type)
+        {
+            if (Enum.TryParse<ProductKeyType>(type, ignoreCase: true, out var value))
+                return value;
+
+            throw new InvalidOperationException($"Loại key không hợp lệ: {type}");
+        }
+
     }
 }

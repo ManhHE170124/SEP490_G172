@@ -15,7 +15,7 @@
  *   - PATCH  /api/badges/{code}/status           : Set IsActive explicitly
  *   - POST   /api/badges/products/{productId}    : Replace a product's badges by codes
  */
-using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;

@@ -155,7 +155,7 @@
 //                var existingTags = await _context.Tags
 //                    .Where(t => createPostDto.TagIds.Contains(t.TagId))
 //                    .ToListAsync();
-                
+
 //                if (existingTags.Count != createPostDto.TagIds.Count)
 //                {
 //                    return BadRequest("One or more TagIds are invalid.");
@@ -189,7 +189,7 @@
 //                var tags = await _context.Tags
 //                    .Where(t => createPostDto.TagIds.Contains(t.TagId))
 //                    .ToListAsync();
-                
+
 //                foreach (var tag in tags)
 //                {
 //                    newPost.Tags.Add(tag);
@@ -240,7 +240,7 @@
 //                var existingTags = await _context.Tags
 //                    .Where(t => updatePostDto.TagIds.Contains(t.TagId))
 //                    .ToListAsync();
-                
+
 //                if (existingTags.Count != updatePostDto.TagIds.Count)
 //                {
 //                    return BadRequest("One or more TagIds are invalid.");
@@ -267,7 +267,7 @@
 //                var tags = await _context.Tags
 //                    .Where(t => updatePostDto.TagIds.Contains(t.TagId))
 //                    .ToListAsync();
-                
+
 //                foreach (var tag in tags)
 //                {
 //                    existingPost.Tags.Add(tag);
