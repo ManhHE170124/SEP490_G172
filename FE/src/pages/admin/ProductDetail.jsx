@@ -27,12 +27,7 @@ export default function ProductDetail() {
   const [deleteImageIds, setDeleteImageIds] = React.useState([]);
   const [primaryIndex, setPrimaryIndex] = React.useState(null);
 
-  // images
-  const [images, setImages] = React.useState([]);              // ảnh hiện có [{imageId,url,isPrimary,...}]
-  const [newFiles, setNewFiles] = React.useState([]);          // file mới
-  const [newPreviews, setNewPreviews] = React.useState([]);    // preview cho file mới [{name,url}]
-  const [deleteImageIds, setDeleteImageIds] = React.useState([]);
-  const [primaryIndex, setPrimaryIndex] = React.useState(null); // index tổng hợp: images.concat(newPreviews)
+
 
   // form
   const [form, setForm] = React.useState({
