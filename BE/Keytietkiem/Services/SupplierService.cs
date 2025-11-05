@@ -52,7 +52,7 @@ public class SupplierService : ISupplierService
             ContactEmail = createDto.ContactEmail,
             ContactPhone = createDto.ContactPhone,
             CreatedAt = _clock.UtcNow,
-            Status = SupplierStatus.Active
+            Status = nameof(SupplierStatus.Active)
         };
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -194,6 +194,7 @@ public class SupplierService : ISupplierService
     public async Task<PagedResult<SupplierListDto>> GetAllSuppliersAsync(
         int pageNumber,
         int pageSize,
+        string? status,
         string? searchTerm,
         CancellationToken cancellationToken = default)
     {
@@ -208,6 +209,11 @@ public class SupplierService : ISupplierService
             query = query.Where(s =>
                 s.Name.ToLower().Contains(lowerSearchTerm) ||
                 (s.ContactEmail != null && s.ContactEmail.ToLower().Contains(lowerSearchTerm)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(s => s.Status == status);
         }
 
         var total = await query.CountAsync(cancellationToken);
@@ -244,7 +250,7 @@ public class SupplierService : ISupplierService
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
         var activeProducts = supplier.ProductKeys
-            .Where(pk => pk.Status == "Available" || pk.Status == "Reserved")
+            .Where(pk => pk.Status == nameof(ProductKeyStatus.Available))
             .Select(pk => pk.Product.ProductName)
             .Distinct()
             .ToList();
@@ -275,7 +281,7 @@ public class SupplierService : ISupplierService
         if (supplier == null)
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
-        if (supplier.Status == SupplierStatus.Deactive)
+        if (supplier.Status == nameof(SupplierStatus.Deactive))
             throw new InvalidOperationException("Nhà cung cấp đã bị vô hiệu hóa");
 
         var validation = await ValidateDeactivationAsync(deactivateDto.SupplierId, cancellationToken);
@@ -301,7 +307,7 @@ public class SupplierService : ISupplierService
                 if (newSupplier == null)
                     throw new InvalidOperationException("Nhà cung cấp mới không tồn tại");
 
-                if (newSupplier.Status == SupplierStatus.Deactive)
+                if (newSupplier.Status == nameof(SupplierStatus.Deactive))
                     throw new InvalidOperationException("Không thể chuyển sản phẩm sang nhà cung cấp đã bị vô hiệu hóa");
 
                 // Reassign all product keys to new supplier
@@ -312,7 +318,7 @@ public class SupplierService : ISupplierService
             }
 
             // Set supplier status to Deactive instead of deleting
-            supplier.Status = SupplierStatus.Deactive;
+            supplier.Status = nameof(SupplierStatus.Deactive);
             _supplierRepository.Update(supplier);
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -360,9 +366,9 @@ public class SupplierService : ISupplierService
         try
         {
             var oldStatus = supplier.Status;
-            var newStatus = supplier.Status == SupplierStatus.Active
-                ? SupplierStatus.Deactive
-                : SupplierStatus.Active;
+            var newStatus = supplier.Status == nameof(SupplierStatus.Active)
+                ? nameof(SupplierStatus.Deactive)
+                : nameof(SupplierStatus.Active);
 
             supplier.Status = newStatus;
             _supplierRepository.Update(supplier);
@@ -378,8 +384,8 @@ public class SupplierService : ISupplierService
                 new
                 {
                     supplier.Name,
-                    OldStatus = oldStatus.ToString(),
-                    NewStatus = newStatus.ToString()
+                    OldStatus = oldStatus,
+                    NewStatus = newStatus
                 },
                 cancellationToken);
 
@@ -407,7 +413,7 @@ public class SupplierService : ISupplierService
         CancellationToken cancellationToken = default)
     {
         var query = _context.Suppliers
-            .Where(s => s.Name.ToLower() == name.ToLower() && s.Status == SupplierStatus.Active);
+            .Where(s => s.Name.ToLower() == name.ToLower() && s.Status == nameof(SupplierStatus.Active));
 
         if (excludeSupplierId.HasValue)
             query = query.Where(s => s.SupplierId != excludeSupplierId.Value);

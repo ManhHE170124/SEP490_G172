@@ -35,6 +35,8 @@ public partial class Product
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
+    public virtual ICollection<ProductAccount> ProductAccounts { get; set; } = new List<ProductAccount>();
+
     public virtual ICollection<ProductBadge> ProductBadges { get; set; } = new List<ProductBadge>();
 
     public virtual ICollection<ProductFaq> ProductFaqs { get; set; } = new List<ProductFaq>();

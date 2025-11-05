@@ -63,9 +63,9 @@ namespace Keytietkiem.Services
                 query = query.Where(pk => pk.Status == filter.Status);
             }
 
-            if (filter.Type.HasValue)
+            if (!string.IsNullOrWhiteSpace(filter.Type))
             {
-                query = query.Where(pk => pk.Type == filter.Type.Value);
+                query = query.Where(pk => pk.Type == filter.Type);
             }
 
             // Get total count
@@ -227,8 +227,12 @@ namespace Keytietkiem.Services
             }
 
             var oldStatus = key.Status;
-            key.Status = dto.Status;
             key.ExpiryDate = dto.ExpiryDate;
+            key.Status = dto.Status;
+            if (key.ExpiryDate.HasValue && key.ExpiryDate < DateTime.UtcNow)
+            {
+                key.Status = nameof(ProductKeyStatus.Expired);
+            }
             key.Notes = dto.Notes;
             key.UpdatedAt = DateTime.UtcNow;
 
@@ -301,7 +305,7 @@ namespace Keytietkiem.Services
                 throw new InvalidOperationException("Product key không tồn tại");
             }
 
-            if (key.Status != "Available")
+            if (key.Status != nameof(ProductKeyStatus.Available))
             {
                 throw new InvalidOperationException("Product key không ở trạng thái Available");
             }
@@ -315,7 +319,7 @@ namespace Keytietkiem.Services
             }
 
             key.AssignedToOrderId = dto.OrderId;
-            key.Status = "Sold";
+            key.Status = nameof(ProductKeyStatus.Sold);
             key.UpdatedAt = DateTime.UtcNow;
 
             _productKeyRepository.Update(key);
@@ -356,7 +360,7 @@ namespace Keytietkiem.Services
 
             var orderId = key.AssignedToOrderId.Value;
             key.AssignedToOrderId = null;
-            key.Status = "Available";
+            key.Status = nameof(ProductKeyStatus.Available);
             key.UpdatedAt = DateTime.UtcNow;
 
             _productKeyRepository.Update(key);
@@ -445,9 +449,9 @@ namespace Keytietkiem.Services
                 query = query.Where(pk => pk.SupplierId == filter.SupplierId.Value);
             }
 
-            if (filter.Type.HasValue)
+            if (!string.IsNullOrWhiteSpace(filter.Type))
             {
-                query = query.Where(pk => pk.Type == filter.Type.Value);
+                query = query.Where(pk => pk.Type == filter.Type);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Status))

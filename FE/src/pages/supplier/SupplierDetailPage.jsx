@@ -132,7 +132,7 @@ export default function SupplierDetailPage() {
           pageNumber: page,
           pageSize: 20,
           searchTerm: search || undefined,
-          type: ["PERSONAL_KEY", "SHARED_KEY"],
+          productTypes: ["PERSONAL_KEY", "SHARED_KEY"],
         });
 
         const newProducts = data.items || data.data || [];
@@ -704,6 +704,20 @@ export default function SupplierDetailPage() {
             Thông tin gói mua (License bulk)
           </h2>
 
+          {supplierInfo?.status !== "Active" && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                background: "#fef3c7",
+                borderRadius: 8,
+                color: "#92400e",
+              }}
+            >
+              Nhà cung cấp đang tạm dừng. Không thể thêm gói hoặc nhập kho.
+            </div>
+          )}
+
           {/* Add Package Form */}
           <div
             className="grid"
@@ -731,6 +745,7 @@ export default function SupplierDetailPage() {
                     // Delay to allow click on dropdown item
                     setTimeout(() => setShowProductDropdown(false), 200);
                   }}
+                  disabled={supplierInfo?.status !== "Active"}
                 />
                 {showProductDropdown && (
                   <div
@@ -834,6 +849,7 @@ export default function SupplierDetailPage() {
                 onChange={(e) =>
                   handlePackageFormChange("quantity", e.target.value)
                 }
+                disabled={supplierInfo?.status !== "Active"}
               />
             </div>
             <div className="form-row">
@@ -846,6 +862,7 @@ export default function SupplierDetailPage() {
                 onChange={(e) =>
                   handlePackageFormChange("pricePerUnit", e.target.value)
                 }
+                disabled={supplierInfo?.status !== "Active"}
               />
             </div>
             <div className="form-row">
@@ -857,11 +874,16 @@ export default function SupplierDetailPage() {
                 onChange={(e) =>
                   handlePackageFormChange("effectiveDate", e.target.value)
                 }
+                disabled={supplierInfo?.status !== "Active"}
               />
             </div>
             <div className="form-row">
               <label>&nbsp;</label>
-              <button className="btn primary" onClick={handleAddPackage}>
+              <button
+                className="btn primary"
+                onClick={handleAddPackage}
+                disabled={supplierInfo?.status !== "Active"}
+              >
                 Thêm gói
               </button>
             </div>
@@ -910,6 +932,7 @@ export default function SupplierDetailPage() {
                           <button
                             className="btn"
                             onClick={() => handleImportToStock(pkg)}
+                            disabled={supplierInfo?.status !== "Active"}
                           >
                             Nhập kho
                           </button>

@@ -1,25 +1,28 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ProductKeyApi } from "../../services/productKeys";
+import { ProductAccountApi } from "../../services/productAccounts";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
-import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
+import {
+  getAccountStatusColor,
+  getAccountStatusLabel,
+} from "../../utils/productAccountHelper";
 
-export default function KeyManagementPage() {
+export default function AccountManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
 
   const [loading, setLoading] = useState(false);
-  const [keys, setKeys] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [products, setProducts] = useState([]);
 
   // Filter states
   const [filters, setFilters] = useState({
     searchTerm: "",
     productId: "",
-    type: "",
+    productType: "",
     status: "",
     pageNumber: 1,
     pageSize: 20,
@@ -42,6 +45,8 @@ export default function KeyManagementPage() {
       const data = await ProductApi.list({
         pageNumber: 1,
         pageSize: 100,
+        // Include both shared and personal account products
+        type: ["SHARED_ACCOUNT", "PERSONAL_ACCOUNT"],
       });
       setProducts(data.items || data.data || []);
     } catch (err) {
@@ -49,19 +54,19 @@ export default function KeyManagementPage() {
     }
   }, []);
 
-  const loadKeys = useCallback(async () => {
+  const loadAccounts = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await ProductKeyApi.list(filters);
-      setKeys(data.items || []);
+      const data = await ProductAccountApi.list(filters);
+      setAccounts(data.items || []);
       setTotalCount(data.totalCount || 0);
       setTotalPages(data.totalPages || 0);
     } catch (err) {
-      console.error("Failed to load keys:", err);
+      console.error("Failed to load accounts:", err);
       const errorMsg =
         err.response?.data?.message ||
         err.message ||
-        "Không thể tải danh sách key";
+        "Không thể tải danh sách tài khoản";
       showError("Lỗi tải dữ liệu", errorMsg);
     } finally {
       setLoading(false);
@@ -73,8 +78,8 @@ export default function KeyManagementPage() {
   }, [loadProducts]);
 
   useEffect(() => {
-    loadKeys();
-  }, [loadKeys]);
+    loadAccounts();
+  }, [loadAccounts]);
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -85,54 +90,36 @@ export default function KeyManagementPage() {
   };
 
   const handleApplyFilters = () => {
-    loadKeys();
+    loadAccounts();
   };
 
   const handlePageChange = (newPage) => {
     setFilters((prev) => ({ ...prev, pageNumber: newPage }));
   };
 
-  const handleDeleteKey = (keyId) => {
+  const handleDeleteAccount = (accountId) => {
     setConfirmDialog({
       isOpen: true,
-      title: "Xác nhận xóa key",
+      title: "Xác nhận xóa tài khoản",
       message:
-        "Bạn có chắc muốn xóa key này? Hành động này không thể hoàn tác.",
+        "Bạn có chắc muốn xóa tài khoản này? Hành động này không thể hoàn tác.",
       type: "danger",
       onConfirm: async () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
         try {
-          await ProductKeyApi.delete(keyId);
-          showSuccess("Thành công", "Key đã được xóa thành công");
-          loadKeys();
+          await ProductAccountApi.delete(accountId);
+          showSuccess("Thành công", "Tài khoản đã được xóa thành công");
+          loadAccounts();
         } catch (err) {
-          console.error("Failed to delete key:", err);
+          console.error("Failed to delete account:", err);
           const errorMsg =
-            err.response?.data?.message || err.message || "Không thể xóa key";
-          showError("Lỗi xóa key", errorMsg);
+            err.response?.data?.message ||
+            err.message ||
+            "Không thể xóa tài khoản";
+          showError("Lỗi xóa tài khoản", errorMsg);
         }
       },
     });
-  };
-
-  const handleExportCSV = async () => {
-    try {
-      const blob = await ProductKeyApi.export(filters);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `product-keys-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      showSuccess("Thành công", "Đã xuất file CSV thành công");
-    } catch (err) {
-      console.error("Failed to export CSV:", err);
-      const errorMsg =
-        err.response?.data?.message || err.message || "Không thể xuất file CSV";
-      showError("Lỗi xuất file", errorMsg);
-    }
   };
 
   const closeConfirmDialog = () => {
@@ -161,9 +148,9 @@ export default function KeyManagementPage() {
             marginBottom: 16,
           }}
         >
-          <h1 style={{ margin: 0 }}>Kho Key phần mềm</h1>
-          <Link className="btn primary" to="/keys/add">
-            + Tạo key mới
+          <h1 style={{ margin: 0 }}>Kho Tài khoản</h1>
+          <Link className="btn primary" to="/accounts/add">
+            + Tạo tài khoản mới
           </Link>
         </div>
 
@@ -178,7 +165,7 @@ export default function KeyManagementPage() {
             <label className="muted">Tìm kiếm</label>
             <input
               className="input"
-              placeholder="Tên/SKU/Key..."
+              placeholder="Email/Username/Sản phẩm..."
               value={filters.searchTerm}
               onChange={(e) => handleFilterChange("searchTerm", e.target.value)}
             />
@@ -201,15 +188,15 @@ export default function KeyManagementPage() {
           </div>
 
           <div className="form-row">
-            <label className="muted">Loại key</label>
+            <label className="muted">Loại tài khoản</label>
             <select
               className="input"
-              value={filters.type}
-              onChange={(e) => handleFilterChange("type", e.target.value)}
+              value={filters.productType}
+              onChange={(e) => handleFilterChange("productType", e.target.value)}
             >
               <option value="">Tất cả</option>
-              <option value="Individual">Cá nhân</option>
-              <option value="Pool">Dùng chung (pool)</option>
+              <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
+              <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
             </select>
           </div>
 
@@ -221,11 +208,11 @@ export default function KeyManagementPage() {
               onChange={(e) => handleFilterChange("status", e.target.value)}
             >
               <option value="">Tất cả</option>
-              <option value="Available">Còn</option>
-              <option value="Sold">Đã bán</option>
-              <option value="Error">Lỗi</option>
-              <option value="Recalled">Thu hồi</option>
+              <option value="Active">Hoạt động</option>
+              <option value="Full">Đầy</option>
               <option value="Expired">Hết hạn</option>
+              <option value="Error">Lỗi</option>
+              <option value="Inactive">Không hoạt động</option>
             </select>
           </div>
 
@@ -238,7 +225,7 @@ export default function KeyManagementPage() {
         </div>
       </section>
 
-      {/* Keys Table */}
+      {/* Accounts Table */}
       <section className="card" style={{ marginTop: 14 }}>
         <div
           style={{
@@ -248,15 +235,10 @@ export default function KeyManagementPage() {
             marginBottom: 12,
           }}
         >
-          <h2 style={{ margin: 0 }}>Danh sách Key</h2>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className="muted">
-              {totalCount} mục · Trang {filters.pageNumber}/{totalPages}
-            </span>
-            <button className="btn" onClick={handleExportCSV}>
-              Xuất CSV
-            </button>
-          </div>
+          <h2 style={{ margin: 0 }}>Danh sách Tài khoản</h2>
+          <span className="muted">
+            {totalCount} mục · Trang {filters.pageNumber}/{totalPages}
+          </span>
         </div>
 
         {loading ? (
@@ -268,50 +250,56 @@ export default function KeyManagementPage() {
                 <thead>
                   <tr>
                     <th>Sản phẩm</th>
-                    <th>Key/Pool</th>
-                    <th>Loại</th>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Slot</th>
                     <th>Trạng thái</th>
-                    <th>Gắn đơn</th>
-                    <th>Cập nhật</th>
+                    <th>Hết hạn</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {keys.length === 0 ? (
+                  {accounts.length === 0 ? (
                     <tr>
                       <td
                         colSpan="7"
                         style={{ textAlign: "center", padding: 20 }}
                       >
-                        Không có key nào
+                        Không có tài khoản nào
                       </td>
                     </tr>
                   ) : (
-                    keys.map((key) => {
-                      const statusStyle = getStatusColor(key.status);
+                    accounts.map((account) => {
+                      const statusStyle = getAccountStatusColor(account.status);
                       return (
-                        <tr key={key.keyId}>
-                          <td>{key.productName}</td>
+                        <tr key={account.productAccountId}>
+                          <td>{account.productName}</td>
                           <td>
                             <Link
-                              to={`/keys/${key.keyId}`}
+                              to={`/accounts/${account.productAccountId}`}
                               style={{ fontFamily: "monospace" }}
                             >
-                              {key.keyString.substring(0, 20)}...
+                              {account.accountEmail}
                             </Link>
                           </td>
+                          <td>{account.accountUsername || "—"}</td>
                           <td>
                             <span
                               style={{
                                 padding: "4px 8px",
                                 borderRadius: "4px",
                                 fontSize: "12px",
-                                background: "#f3f4f6",
+                                background:
+                                  account.currentUsers >= account.maxUsers
+                                    ? "#fef3c7"
+                                    : "#f3f4f6",
+                                color:
+                                  account.currentUsers >= account.maxUsers
+                                    ? "#92400e"
+                                    : "#374151",
                               }}
                             >
-                              {key.type === "Individual"
-                                ? "Cá nhân"
-                                : "Dùng chung"}
+                              {account.currentUsers}/{account.maxUsers}
                             </span>
                           </td>
                           <td>
@@ -326,13 +314,12 @@ export default function KeyManagementPage() {
                                 fontWeight: 600,
                               }}
                             >
-                              {getStatusLabel(key.status)}
+                              {getAccountStatusLabel(account.status)}
                             </span>
                           </td>
-                          <td>{key.orderCode || "—"}</td>
                           <td>
-                            {key.updatedAt
-                              ? new Date(key.updatedAt).toLocaleDateString(
+                            {account.expiryDate
+                              ? new Date(account.expiryDate).toLocaleDateString(
                                   "vi-VN"
                                 )
                               : "—"}
@@ -341,26 +328,19 @@ export default function KeyManagementPage() {
                             <div style={{ display: "flex", gap: 6 }}>
                               <Link
                                 className="btn"
-                                to={`/keys/${key.keyId}`}
+                                to={`/accounts/${account.productAccountId}`}
                                 style={{ padding: "4px 8px", fontSize: "13px" }}
                               >
                                 Chi tiết
                               </Link>
-                              {key.status === "Available" && (
+                              {account.currentUsers === 0 && (
                                 <button
                                   className="btn"
-                                  style={{
-                                    padding: "4px 8px",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Gắn đơn
-                                </button>
-                              )}
-                              {!key.orderCode && (
-                                <button
-                                  className="btn"
-                                  onClick={() => handleDeleteKey(key.keyId)}
+                                  onClick={() =>
+                                    handleDeleteAccount(
+                                      account.productAccountId
+                                    )
+                                  }
                                   style={{
                                     padding: "4px 8px",
                                     fontSize: "13px",

@@ -29,6 +29,8 @@ import SupplierDetailPage from "../pages/supplier/SupplierDetailPage.jsx";
 // Storage pages
 import KeyManagementPage from "../pages/storage/KeyManagementPage.jsx";
 import KeyDetailPage from "../pages/storage/KeyDetailPage.jsx";
+import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
+import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
 
 // Other pages
 import Page404 from "../pages/NotFound/Page404";
@@ -89,6 +91,11 @@ export default function AppRoutes() {
       <Route path="/keys" element={<KeyManagementPage />} />
       <Route path="/keys/add" element={<KeyDetailPage />} />
       <Route path="/keys/:id" element={<KeyDetailPage />} />
+
+      {/* Product Accounts */}
+      <Route path="/accounts" element={<AccountManagementPage />} />
+      <Route path="/accounts/add" element={<AccountDetailPage />} />
+      <Route path="/accounts/:id" element={<AccountDetailPage />} />
 
       {/* RBAC & Users */}
       <Route path="/admin/users" element={<AdminUserManagement />} />

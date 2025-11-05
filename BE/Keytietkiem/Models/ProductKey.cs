@@ -20,7 +20,7 @@ public partial class ProductKey
 
     public int SupplierId { get; set; }
 
-    public ProductKeyType Type { get; set; } 
+    public string Type { get; set; } 
 
     public DateTime? ExpiryDate { get; set; }
 

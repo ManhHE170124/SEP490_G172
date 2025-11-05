@@ -159,6 +159,30 @@ const Sidebar = () => {
           <span className="sb-label">Quản lý kho Key</span>
         </Link>
 
+        <Link
+          className={`sb-item ${currentPage === "accounts" || currentPage.startsWith("accounts/") ? "active" : ""}`}
+          to="/accounts"
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            <path
+              d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+            <path
+              d="M23 21v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="sb-label">Tài khoản chia sẻ</span>
+        </Link>
+
         <div className="sb-section-title">Quản lý người dùng</div>
 
         <Link

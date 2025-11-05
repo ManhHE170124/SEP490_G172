@@ -40,6 +40,7 @@ builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
 builder.Services.AddScoped<IProductKeyService, ProductKeyService>();
+builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();

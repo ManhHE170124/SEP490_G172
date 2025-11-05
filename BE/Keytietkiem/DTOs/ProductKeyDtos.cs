@@ -19,7 +19,7 @@ namespace Keytietkiem.DTOs
         [StringLength(500, ErrorMessage = "License key không được vượt quá 500 ký tự")]
         public string KeyString { get; set; } = string.Empty;
 
-        public ProductKeyType Type { get; set; } = ProductKeyType.Individual;
+        public string Type { get; set; } = nameof(ProductKeyType.Individual);
 
         public DateTime? ExpiryDate { get; set; }
 
@@ -57,7 +57,7 @@ namespace Keytietkiem.DTOs
         public int SupplierId { get; set; }
         public string SupplierName { get; set; } = string.Empty;
         public string KeyString { get; set; } = string.Empty;
-        public ProductKeyType Type { get; set; }
+        public string Type { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime? ExpiryDate { get; set; }
         public string? Notes { get; set; }
@@ -79,7 +79,7 @@ namespace Keytietkiem.DTOs
         public string ProductSku { get; set; } = string.Empty;
         public string KeyString { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
-        public ProductKeyType Type { get; set; }
+        public string Type { get; set; }
         public string? OrderCode { get; set; }
         public DateTime? ImportedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -94,7 +94,7 @@ namespace Keytietkiem.DTOs
         public Guid? ProductId { get; set; }
         public int? SupplierId { get; set; }
         public string? Status { get; set; } // Available, Sold, Error, Recalled
-        public ProductKeyType? Type { get; set; } // Individual or Pool
+        public string? Type { get; set; } // Individual or Pool
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 20;
     }

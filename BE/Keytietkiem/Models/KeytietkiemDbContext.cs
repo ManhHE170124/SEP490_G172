@@ -42,6 +42,12 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Product> Products { get; set; }
 
+    public virtual DbSet<ProductAccount> ProductAccounts { get; set; }
+
+    public virtual DbSet<ProductAccountCustomer> ProductAccountCustomers { get; set; }
+
+    public virtual DbSet<ProductAccountHistory> ProductAccountHistories { get; set; }
+
     public virtual DbSet<ProductBadge> ProductBadges { get; set; }
 
     public virtual DbSet<ProductFaq> ProductFaqs { get; set; }
@@ -385,6 +391,93 @@ public partial class KeytietkiemDbContext : DbContext
                         j.HasKey("ProductId", "CategoryId");
                         j.ToTable("ProductCategories");
                     });
+        });
+
+        modelBuilder.Entity<ProductAccount>(entity =>
+        {
+            entity.HasKey(e => e.ProductAccountId).HasName("PK__ProductA__5E9F3E07E1F63A8D");
+
+            entity.HasIndex(e => e.ProductId, "IX_ProductAccounts_Product");
+
+            entity.HasIndex(e => e.Status, "IX_ProductAccounts_Status");
+
+            entity.Property(e => e.ProductAccountId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.AccountEmail).HasMaxLength(254);
+            entity.Property(e => e.AccountUsername).HasMaxLength(100);
+            entity.Property(e => e.AccountPassword).HasMaxLength(512);
+            entity.Property(e => e.MaxUsers).HasDefaultValue(1);
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Active");
+            entity.Property(e => e.ExpiryDate).HasPrecision(3);
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductAccounts)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccounts_Product");
+        });
+
+        modelBuilder.Entity<ProductAccountCustomer>(entity =>
+        {
+            entity.HasKey(e => e.ProductAccountCustomerId).HasName("PK__ProductA__8B3E4C0D2F5A8C9A");
+
+            entity.HasIndex(e => new { e.ProductAccountId, e.UserId }, "IX_ProductAccountCustomers_Account_User");
+
+            entity.HasIndex(e => e.UserId, "IX_ProductAccountCustomers_User");
+
+            entity.HasIndex(e => e.IsActive, "IX_ProductAccountCustomers_Active");
+
+            entity.Property(e => e.AddedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.RemovedAt).HasPrecision(3);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(d => d.ProductAccount).WithMany(p => p.ProductAccountCustomers)
+                .HasForeignKey(d => d.ProductAccountId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccountCustomers_Account");
+
+            entity.HasOne(d => d.User).WithMany(p => p.ProductAccountCustomers)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccountCustomers_User");
+        });
+
+        modelBuilder.Entity<ProductAccountHistory>(entity =>
+        {
+            entity.HasKey(e => e.HistoryId).HasName("PK__ProductA__4D7B4ADD1C9F3E8B");
+
+            entity.HasIndex(e => e.ProductAccountId, "IX_ProductAccountHistory_Account");
+
+            entity.HasIndex(e => e.UserId, "IX_ProductAccountHistory_User");
+
+            entity.HasIndex(e => e.ActionAt, "IX_ProductAccountHistory_ActionAt").IsDescending();
+
+            entity.Property(e => e.Action)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+            entity.Property(e => e.ActionAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(d => d.ProductAccount).WithMany(p => p.ProductAccountHistories)
+                .HasForeignKey(d => d.ProductAccountId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccountHistory_Account");
+
+            entity.HasOne(d => d.User).WithMany(p => p.ProductAccountHistories)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccountHistory_User");
         });
 
         modelBuilder.Entity<ProductBadge>(entity =>
