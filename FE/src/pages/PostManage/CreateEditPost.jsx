@@ -31,7 +31,7 @@ const CreateEditPost = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
-  const { toasts, showSuccess, showError, removeToast } = useToast();
+  const { toasts, showSuccess, showError, showInfo, removeToast , confirmDialog, showConfirm } = useToast();
   const [status, setStatus] = useState('Draft');
   const [postTypeId, setPostTypeId] = useState('');
   const [postTypes, setPostTypes] = useState([]);
@@ -130,7 +130,7 @@ const CreateEditPost = () => {
       return newTag;
     } catch (err) {
       console.error('Failed to create tag:', err);
-      throw new Error('Không thể tạo tag mới. Vui lòng thử lại.');
+      showError('Lỗi tạo tag mới','Không thể tạo tag mới. Vui lòng thử lại.');
     }
   };
 
@@ -292,35 +292,56 @@ const CreateEditPost = () => {
   const handlePreview = () => {
     // TODO: Open preview in new tab
     console.log('Previewing post...', { title, content, thumbnail: featuredImageUrl });
-    showSuccess('Preview', 'Chức năng xem trước đang được phát triển.');
+    showInfo('Preview', 'Chức năng xem trước đang được phát triển.');
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài viết này?')) {
-      return;
-    }
+  // const handleDelete = async () => {
+  //   if (!window.confirm('Bạn có chắc chắn muốn xóa bài viết này?')) {
+  //     return;
+  //   }
 
-    try {
-      setSaving(true);
-      await postsApi.deletePost(postId);
-      showSuccess('Đã xóa', 'Bài viết đã được xóa thành công.');
-      setTimeout(() => {
-        navigate('/admin/posts');
-      }, 1500);
-    } catch (err) {
-      console.error('Failed to delete post:', err);
-      showError('Lỗi xóa bài viết', 'Không thể xóa bài viết. Vui lòng thử lại.');
-    } finally {
-      setSaving(false);
-    }
+  //   try {
+  //     setSaving(true);
+  //     await postsApi.deletePost(postId);
+  //     showSuccess('Đã xóa', 'Bài viết đã được xóa thành công.');
+  //     setTimeout(() => {
+  //       navigate('/admin/posts');
+  //     }, 1500);
+  //   } catch (err) {
+  //     console.error('Failed to delete post:', err);
+  //     showError('Lỗi xóa bài viết', 'Không thể xóa bài viết. Vui lòng thử lại.');
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
+ const handleDelete = () => {
+    showConfirm(
+      'Xác nhận xóa bài viết',
+      `Bạn có chắc chắn muốn xóa bài viết "${title}"?\n\nHành động này sẽ xóa vĩnh viễn bài viết và tất cả ảnh liên quan. Không thể hoàn tác.`,
+      async () => {
+        try {
+          setSaving(true);
+          await postsApi.deletePost(postId);
+          showSuccess('Đã xóa bài viết', 'Bài viết đã được xóa thành công.');
+          setTimeout(() => {
+            navigate('/admin/posts');
+          }, 1500);
+        } catch (err) {
+          console.error('Failed to delete post:', err);
+          showError('Lỗi xóa bài viết', err.message || 'Không thể xóa bài viết. Vui lòng thử lại.');
+        } finally {
+          setSaving(false);
+        }
+      }
+    );
   };
-
   // Quill setup
   useEffect(() => {
     console.log('Quill useEffect running');
     
     if (quillRef.current) {
       console.log('Quill already initialized');
+      showError('Trình soạn thảo đã được khởi tạo', 'Trình soạn thảo nội dung chỉ được khởi tạo một lần.');
       return;
     }
     
@@ -415,16 +436,19 @@ const CreateEditPost = () => {
               if (publicId) {
                 postsApi.deleteImage(publicId).catch((err) => {
                   console.error('Failed to delete image:', err);
+                  showError('Lỗi xóa ảnh', `Không thể xóa ảnh với ID: ${publicId}. Lỗi: ${err.message || err}`);
                 });
               }
             } catch (err) {
               console.error('Error deleting image:', err);
+              showError('Lỗi xóa ảnh', `Không thể xóa ảnh. Lỗi: ${err.message || err}`);
             }
           }
         }
         prevImagesRef.current = newImages;
       } catch (err) {
         console.error('Error processing image changes:', err);
+        showError('Lỗi xử lý ảnh', `Có lỗi xảy ra khi xử lý ảnh trong nội dung. Lỗi: ${err.message || err}`); 
       }
     });
 
@@ -478,15 +502,15 @@ const CreateEditPost = () => {
   };
 
   return (
-    <main className="main">
-      <div className="blog-create-container">
+    <main className="cep-main">
+      <div className="cep-blog-create-container">
         {/* Left Column */}
-        <div className="main-content">
+        <div className="cep-main-content">
           {/* Title */}
-          <div className="post-title-section">
-            <div className="label-row">
-              <label htmlFor="post-title">Tiêu đề bài viết</label>
-              <div className="field-meta">{title.length}/250</div>
+          <div className="cep-post-title-section">
+            <div className="cep-label-row">
+              <label htmlFor="cep-post-title">Tiêu đề bài viết</label>
+              <div className="cep-field-meta">{title.length}/250</div>
             </div>
             <input
               type="text"
@@ -509,14 +533,14 @@ const CreateEditPost = () => {
               className={errors.title ? 'error' : ''}
               disabled={saving}
             />
-            {errors.title && <div className="error-message">{errors.title}</div>}
+            {errors.title && <div className="cep-error-message">{errors.title}</div>}
           </div>
 
           {/* Description */}
-          <div className="post-description-section">
-            <div className="label-row">
-              <label htmlFor="post-description">Mô tả ngắn</label>
-              <div className="field-meta">{description.length}/5000</div>
+          <div className="cep-post-description-section">
+            <div className="cep-label-row">
+              <label htmlFor="cep-post-description">Mô tả ngắn</label>
+              <div className="cep-field-meta">{description.length}/5000</div>
             </div>
             <textarea
               id="post-description"
@@ -536,14 +560,14 @@ const CreateEditPost = () => {
               className={errors.description ? 'error' : ''}
               disabled={saving}
             />
-            {errors.description && <div className="error-message">{errors.description}</div>}
+            {errors.description && <div className="cep-error-message">{errors.description}</div>}
           </div>
 
           {/* Content */}
-          <div className="post-content-section">
-            <label htmlFor="post-content">Nội dung bài viết</label>
-            <div className="rich-text-editor">
-              <div ref={editorContainerRef} className="editor-content" />
+          <div className="cep-post-content-section">
+            <label htmlFor="cep-post-content">Nội dung bài viết</label>
+            <div className="cep-rich-text-editor">
+              <div ref={editorContainerRef} className="cep-editor-content" />
               <input
                 type="file"
                 accept="image/*"
@@ -556,10 +580,10 @@ const CreateEditPost = () => {
         </div>
 
         {/* Right Column - Sidebar */}
-        <div className="sidebar-content">
+        <div className="cep-sidebar-content">
           {/* Action Buttons */}
-          <div className="sidebar-section">
-            <div className="action-buttons">
+          <div className="cep-sidebar-section">
+            <div className="cep-action-buttons">
               {!isEditMode && (
                 <button 
                   className="btn secondary" 
@@ -613,7 +637,7 @@ const CreateEditPost = () => {
 
           {/* Status */}
           {isEditMode && (
-            <div className="sidebar-section">
+            <div className="cep-sidebar-section">
               <label htmlFor="post-status">Trạng thái</label>
               <select
                 id="post-status"
@@ -629,7 +653,7 @@ const CreateEditPost = () => {
           )}
 
           {/* Category */}
-          <div className="sidebar-section">
+          <div className="cep-sidebar-section">
             <label htmlFor="post-category">Danh mục</label>
             {loading ? (
               <div className="loading-text">Đang tải...</div>
@@ -651,7 +675,7 @@ const CreateEditPost = () => {
           </div>
 
           {/* Tags */}
-          <div className="sidebar-section">
+          <div className="cep-sidebar-section">
             <label>Tags</label>
             <TagsInput
               tags={tags}
@@ -662,7 +686,7 @@ const CreateEditPost = () => {
           </div>
 
           {/* Featured Image */}
-          <div className="sidebar-section">
+          <div className="cep-sidebar-section">
             <label htmlFor="featured-image">Hình đại diện</label>
             <input
               id="featured-image"
@@ -674,7 +698,7 @@ const CreateEditPost = () => {
             />
             <button
               type="button"
-              className={`featured-image-upload ${featuredImage ? 'has-image' : ''}`}
+              className={`cep-featured-image-upload ${featuredImage ? 'has-image' : ''}`}
               onClick={handleImageClick}
               disabled={saving}
             >
@@ -682,7 +706,7 @@ const CreateEditPost = () => {
                 <img
                   src={featuredImage}
                   alt="Featured"
-                  className="featured-image-preview"
+                  className="cep-featured-image-preview"
                 />
               ) : (
                 <div>Chọn hình ảnh</div>
@@ -690,7 +714,7 @@ const CreateEditPost = () => {
             </button>
             {featuredImage && (
               <button 
-                className="remove-image-btn" 
+                className="cep-remove-image-btn" 
                 onClick={removeImage}
                 disabled={saving}
               >
@@ -700,7 +724,7 @@ const CreateEditPost = () => {
           </div>
         </div>
       </div>
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <ToastContainer toasts={toasts} onRemove={removeToast} confirmDialog={confirmDialog}/>
     </main>
   );
 };

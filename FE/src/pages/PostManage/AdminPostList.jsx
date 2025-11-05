@@ -234,7 +234,8 @@ export default function AdminPostList() {
           setSelectedPosts(prev => prev.filter(id => id !== postId));
           showSuccess("Thành công", "Bài viết đã được xóa");
         } catch (err) {
-          showError("Lỗi", err.message || "Không thể xóa bài viết");
+          console.log("Lỗi khi xóa bài viết:", err);
+          showError("Lỗi khi xóa bài viết", err.message || "Không thể xóa bài viết");
         }
       }
     );
@@ -256,7 +257,8 @@ export default function AdminPostList() {
           setSelectedPosts([]);
           showSuccess("Thành công", `Đã xóa ${selectedPosts.length} bài viết`);
         } catch (err) {
-          showError("Lỗi", err.message || "Không thể xóa bài viết");
+          console.log("Lỗi khi xóa nhiều bài viết:", err);
+          showError("Lỗi khi xóa nhiều bài viết", err.message || "Không thể xóa bài viết");
         }
       }
     );
@@ -286,7 +288,8 @@ export default function AdminPostList() {
       );
       showSuccess("Thành công", "Trạng thái đã được cập nhật");
     } catch (err) {
-      showError("Lỗi", err.message || "Không thể cập nhật trạng thái");
+      console.log("Lỗi khi thay đổi trạng thái:", err);
+      showError("Lỗi thay đổi trạng thái", err.message || "Không thể cập nhật trạng thái");
     }
   };
 
@@ -321,7 +324,8 @@ export default function AdminPostList() {
       document.body.removeChild(link);
       showSuccess("Thành công", "Đã xuất file CSV");
     } catch (err) {
-      showError("Lỗi", err.message || "Không thể xuất file CSV");
+      console.log("Lỗi khi xuất file CSV:", err);
+      showError("Lỗi khi xuất file CSV", err.message || "Không thể xuất file CSV");
     }
   };
 

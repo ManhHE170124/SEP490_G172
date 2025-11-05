@@ -14,10 +14,10 @@
 }
 
 /* ===== Main content ===== */
-.main{ padding:20px; display:grid; gap:16px; }
+.cep-main{ padding:20px; display:grid; gap:16px; }
 
 /* ===== Blog Create Layout ===== */
-.blog-create-container {
+.cep-blog-create-container {
   display: grid;
   grid-template-columns: 1fr 350px;
   gap: 24px;
@@ -31,15 +31,15 @@
 }
 
 /* ===== Left Column - Main Content ===== */
-.main-content {
+.cep-main-content {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
 /* ===== Post Title Section ===== */
-.post-title-section,
-.post-description-section {
+.cep-post-title-section,
+.cep-post-description-section {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -48,34 +48,34 @@
 }
 
 /* label-row keeps the label and the small meta (counter) on one line */
-.label-row {
+.cep-label-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.field-meta {
+.cep-field-meta {
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
 }
 
-.error-message {
+.cep-error-message {
   color: var(--danger);
   font-size: 12px;
   margin-top: 4px;
 }
 
-.character-count {
+.cep-character-count {
   color: var(--muted);
   font-size: 12px;
   text-align: right;
   margin-top: 4px;
 }
 
-.post-title-section label,
-.post-description-section label {
+.cep-post-title-section label,
+.cep-post-description-section label {
   display: block;
   font-weight: 600;
   color: var(--ink);
@@ -83,8 +83,8 @@
   font-size: 14px;
 }
 
-.post-title-section input,
-.post-description-section textarea {
+.cep-post-title-section input,
+.cep-post-description-section textarea {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--line);
@@ -94,24 +94,24 @@
   transition: border-color 0.2s;
 }
 
-.post-description-section textarea {
+.cep-post-description-section textarea {
   resize: vertical;
   min-height: 100px;
   line-height: 1.5;
 }
 
-.post-title-section input:focus,
-.post-description-section textarea:focus {
+.cep-post-title-section input:focus,
+.cep-post-description-section textarea:focus {
   border-color: var(--primary);
 }
 
-.post-title-section input.error,
-.post-description-section textarea.error {
+.cep-post-title-section input.error,
+.cep-post-description-section textarea.error {
   border-color: var(--danger);
 }
 
 /* ===== Post Content Section ===== */
-.post-content-section {
+.cep-post-content-section {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -119,7 +119,7 @@
   padding: 20px;
 }
 
-.post-content-section label {
+.cep-post-content-section label {
   display: block;
   font-weight: 600;
   color: var(--ink);
@@ -128,7 +128,7 @@
 }
 
 /* ===== Rich Text Editor ===== */
-.rich-text-editor {
+.cep-rich-text-editor {
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -137,7 +137,7 @@
 
 /* Scoped toolbar styles so component's own CSS (EditorToolbar.css) can apply without conflicts.
    These match the toolbar component styling and integrate it with the editor card. */
-.rich-text-editor .editor-toolbar {
+.cep-rich-text-editor .cep-editor-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -149,24 +149,24 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
-.rich-text-editor .editor-toolbar.disabled {
+.cep-rich-text-editor .cep-editor-toolbar.disabled {
   opacity: 0.6;
   pointer-events: none;
   background: #f5f5f5;
 }
 
-.rich-text-editor .toolbar-group {
+.cep-rich-text-editor .cep-toolbar-group {
   display: flex;
   gap: 4px;
   padding: 0 8px;
   border-right: 1px solid #e0e0e0;
 }
 
-.rich-text-editor .toolbar-group:last-child {
+.cep-rich-text-editor .cep-toolbar-group:last-child {
   border-right: none;
 }
 
-.rich-text-editor .toolbar-btn {
+.cep-rich-text-editor .cep-toolbar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,31 +184,31 @@
   user-select: none;
 }
 
-.rich-text-editor .toolbar-btn:hover:not(:disabled) {
+.cep-rich-text-editor .cep-toolbar-btn:hover:not(:disabled) {
   background: #f0f0f0;
   border-color: #999999;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.rich-text-editor .toolbar-btn:active:not(:disabled) {
+.cep-rich-text-editor .cep-toolbar-btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   background: #e8e8e8;
 }
 
-.rich-text-editor .toolbar-btn:disabled {
+.cep-rich-text-editor .cep-toolbar-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.rich-text-editor .toolbar-btn.active {
+.cep-rich-text-editor .cep-toolbar-btn.active {
   background: #007bff;
   color: #ffffff;
   border-color: #0056b3;
 }
 
-.rich-text-editor .toolbar-select {
+.cep-rich-text-editor .cep-toolbar-select {
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -218,7 +218,7 @@
   cursor: pointer;
 }
 
-.editor-content {
+.cep-editor-content {
   min-height: 400px;
   padding: 20px;
   border: none;
@@ -228,18 +228,18 @@
   resize: vertical;
 }
 
-.editor-content::placeholder {
+.cep-editor-content::placeholder {
   color: var(--muted);
 }
 
 /* ===== Right Column - Sidebar ===== */
-.sidebar-content {
+.cep-sidebar-content {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.sidebar-section {
+.cep-sidebar-section {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -247,14 +247,14 @@
   padding: 20px;
 }
 
-.sidebar-section h3 {
+.cep-sidebar-section h3 {
   font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   margin: 0 0 16px 0;
 }
 
-.sidebar-section label {
+.cep-sidebar-section label {
   display: block;
   font-weight: 500;
   color: var(--ink);
@@ -262,9 +262,9 @@
   font-size: 14px;
 }
 
-.sidebar-section input,
-.sidebar-section select,
-.sidebar-section textarea {
+.cep-sidebar-section input,
+.cep-sidebar-section select,
+.cep-sidebar-section textarea {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -275,26 +275,26 @@
   margin-bottom: 16px;
 }
 
-.sidebar-section input:focus,
-.sidebar-section select:focus,
-.sidebar-section textarea:focus {
+.cep-sidebar-section input:focus,
+.cep-sidebar-section select:focus,
+.cep-sidebar-section textarea:focus {
   border-color: var(--primary);
 }
 
-.sidebar-section textarea {
+.cep-sidebar-section textarea {
   resize: vertical;
   min-height: 80px;
 }
 
 /* ===== Action Buttons ===== */
-.action-buttons {
+.cep-action-buttons {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin-bottom: 20px;
 }
 
-.btn {
+.cep-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,54 +310,54 @@
   text-decoration: none;
 }
 
-.btn.primary {
+.cep-btn.primary {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
 
-.btn.primary:hover {
+.cep-btn.primary:hover {
   background: #1d4ed8;
   border-color: #1d4ed8;
 }
 
-.btn.secondary {
+.cep-btn.secondary {
   background: #f9fafb;
   border-color: var(--line);
   color: var(--ink);
 }
 
-.btn.secondary:hover {
+.cep-btn.secondary:hover {
   background: #f3f4f6;
 }
 
-.btn.danger {
+.cep-btn.danger {
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
 }
 
-.btn.danger:hover {
+.cep-btn.danger:hover {
   background: #dc2626;
   border-color: #dc2626;
 }
 
 /* ===== Tags ===== */
-.tags-container {
+.cep-tags-container {
   margin-bottom: 16px;
 }
 
-.tags-input {
+.cep-tags-input {
   margin-bottom: 12px;
 }
 
-.tags-list {
+.cep-tags-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.tag-item {
+.cep-tag-item {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -369,7 +369,7 @@
   font-weight: 500;
 }
 
-.tag-remove {
+.cep-tag-remove {
   background: none;
   border: none;
   color: var(--muted);
@@ -383,13 +383,13 @@
   height: 16px;
 }
 
-.tag-remove:hover {
+.cep-tag-remove:hover {
   background: #e5e7eb;
   color: var(--ink);
 }
 
 /* ===== Featured Image ===== */
-.featured-image-upload {
+.cep-featured-image-upload {
   border: 2px dashed var(--line);
   border-radius: 10px;
   padding: 40px 20px;
@@ -400,24 +400,24 @@
   margin-bottom: 12px;
 }
 
-.featured-image-upload:hover {
+.cep-featured-image-upload:hover {
   border-color: var(--primary);
   color: var(--primary);
 }
 
-.featured-image-upload.has-image {
+.cep-featured-image-upload.has-image {
   padding: 0;
   border: 1px solid var(--line);
 }
 
-.featured-image-preview {
+.cep-featured-image-preview {
   width: 100%;
   height: 200px;
   object-fit: cover;
   border-radius: 8px;
 }
 
-.remove-image-btn {
+.cep-remove-image-btn {
   background: var(--danger);
   color: #fff;
   border: none;
@@ -429,7 +429,7 @@
   transition: background 0.2s;
 }
 
-.remove-image-btn:hover {
+.cep-remove-image-btn:hover {
   background: #dc2626;
 }
 
