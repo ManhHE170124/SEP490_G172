@@ -36,4 +36,6 @@ public partial class Post
     public virtual User? Author { get; set; }
 
     public virtual PostType? PostType { get; set; }
+
+    public virtual ICollection<Tag> Tags { get; set; } = new List<Tag>();
 }

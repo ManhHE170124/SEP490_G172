@@ -1,7 +1,7 @@
-﻿using Keytietkiem.DTOs.Enums;
-using Microsoft.EntityFrameworkCore;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Keytietkiem.DTOs.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Models;
 
@@ -306,6 +306,23 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasOne(d => d.PostType).WithMany(p => p.Posts)
                 .HasForeignKey(d => d.PostTypeId)
                 .HasConstraintName("FK__Posts__PostTypeI__5E8A0973");
+
+            entity.HasMany(d => d.Tags).WithMany(p => p.Posts)
+                .UsingEntity<Dictionary<string, object>>(
+                    "PostTag",
+                    r => r.HasOne<Tag>().WithMany()
+                        .HasForeignKey("TagId")
+                        .HasConstraintName("FK__PostTags__TagID__2F9A1060"),
+                    l => l.HasOne<Post>().WithMany()
+                        .HasForeignKey("PostId")
+                        .HasConstraintName("FK__PostTags__PostID__2EA5EC27"),
+                    j =>
+                    {
+                        j.HasKey("PostId", "TagId").HasName("PK__PostTags__7C45AF9CB85BF7D8");
+                        j.ToTable("PostTags");
+                        j.IndexerProperty<Guid>("PostId").HasColumnName("PostID");
+                        j.IndexerProperty<Guid>("TagId").HasColumnName("TagID");
+                    });
         });
 
         modelBuilder.Entity<PostType>(entity =>
@@ -607,17 +624,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.TagId)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("TagID");
-            entity.Property(e => e.Slug).HasMaxLength(150);
-            entity.Property(e => e.TagName).HasMaxLength(100);
-        });
-
-        modelBuilder.Entity<Tag>(entity =>
-        {
-            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CFA4CCE0B4C7D");
-
-            entity.HasIndex(e => e.Slug, "UQ__Tags__BC7B5FB65AE175D8").IsUnique();
-
-            entity.Property(e => e.TagId).HasColumnName("TagID");
             entity.Property(e => e.Slug).HasMaxLength(150);
             entity.Property(e => e.TagName).HasMaxLength(100);
         });
