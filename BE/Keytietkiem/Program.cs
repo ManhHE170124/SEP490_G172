@@ -35,6 +35,9 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 // ===== Services =====
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
+builder.Services.AddScoped<ILayoutSectionService, LayoutSectionService>();
+builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();

@@ -2,46 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import '../../styles/WebsiteConfig.css';
 import settingsService from '../../services/settings';
 
-// Mock data for testing UI
-const MOCK_DATA = {
-    name: 'Keytietkiem',
-    slogan: 'Nền tảng mua bán key game uy tín',
-    primaryColor: '#2563EB',
-    secondaryColor: '#111827',
-    font: 'Inter (khuyên dùng)',
-    sections: [
-        { id: 'home.hero', title: 'Hero Header', order: 1, visible: true },
-        { id: 'home.products', title: 'Danh sách sản phẩm', order: 2, visible: true },
-        { id: 'home.faq', title: 'Câu hỏi thường gặp', order: 3, visible: false }
-    ],
-    contact: {
-        address: '123 Đường ABC, Quận 1, TP.HCM',
-        phone: '+84 901 234 567',
-        email: 'support@keytietkiem.com'
-    },
-    smtp: {
-        server: 'smtp.gmail.com',
-        port: 587,
-        user: 'no-reply@keytietkiem.com',
-        password: '',
-        tls: true,
-        dkim: false
-    },
-    media: { uploadLimitMB: 10, formats: ['jpg', 'png', 'webp'] },
-    social: {
-        facebook: 'https://facebook.com/keytietkiem',
-        instagram: 'https://instagram.com/keytietkiem',
-        zalo: 'https://zalo.me/keytietkiem',
-        tiktok: 'https://tiktok.com/@keytietkiem'
-    },
-    payments: [
-        { name: 'MoMo', callback: 'https://domain.com/api/pay/momo/callback', enabled: true },
-        { name: 'ZaloPay', callback: 'https://domain.com/api/pay/zalopay/callback', enabled: true },
-        { name: 'Viettel Money', callback: 'https://domain.com/api/pay/vtmoney/callback', enabled: false },
-        { name: 'BIDV', callback: 'https://domain.com/api/pay/bidv/callback', enabled: true }
-    ]
-};
-
+// Reuse any project Toast or modal if available; here we use simple alert for demo.
 const WebsiteConfig = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -53,7 +14,7 @@ const WebsiteConfig = () => {
         font: 'Inter (khuyên dùng)',
         sections: [],
         contact: { address: '', phone: '', email: '' },
-        smtp: { server: '', port: 587, user: '', password: '', tls: false, dkim: false },
+        smtp: { server: '', port: 587, user: '', tls: false, dkim: false },
         media: { uploadLimitMB: 10, formats: ['jpg', 'png', 'webp'] },
         social: { facebook: '', instagram: '', zalo: '', tiktok: '' },
         payments: []
@@ -69,15 +30,13 @@ const WebsiteConfig = () => {
                 const data = await settingsService.getSettings();
                 if (!mounted) return;
                 if (data) {
+                    // merge safely
                     setConfig(prev => ({ ...prev, ...data }));
                     if (data.logoUrl) setLogoPreviewUrl(data.logoUrl);
                 }
             } catch (err) {
                 console.error('Load settings error', err);
-                // Use mock data if API fails
-                if (mounted) {
-                    setConfig(prev => ({ ...prev, ...MOCK_DATA }));
-                }
+                // optionally show toast
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -86,6 +45,7 @@ const WebsiteConfig = () => {
         return () => { mounted = false; };
     }, []);
 
+    // Helpers to update nested config
     const update = (patch) => setConfig(prev => ({ ...prev, ...patch }));
     const updateNested = (path, value) => {
         setConfig(prev => {
@@ -100,38 +60,45 @@ const WebsiteConfig = () => {
         });
     };
 
+    // Logo file change
     const onLogoChange = (e) => {
         const f = e.target.files?.[0];
         if (!f) return;
         const url = URL.createObjectURL(f);
         setLogoPreviewUrl(url);
+        // store file object for upload on save
         logoFileRef.current = f;
     };
 
+    // Sections actions
+    const toggleSectionVisibility = (id) => {
+        updateNested(`sections.${config.sections.findIndex(s => s.id === id)}.visible`,
+            !config.sections.find(s => s.id === id)?.visible);
+    };
     const deleteSection = (id) => {
         if (!window.confirm('Xoá section này?')) return;
         update({ sections: config.sections.filter(s => s.id !== id) });
     };
-
     const addSection = () => {
         const id = 'custom.' + Date.now();
         update({ sections: [...config.sections, { id, title: 'New Section', order: config.sections.length + 1, visible: true }] });
+        // scroll into view: after DOM render, not implemented here (ok).
     };
 
+    // Payments actions: for demo we keep simple
     const copyPaymentLink = async (index) => {
         const link = config.payments?.[index]?.callback || '';
         if (navigator.clipboard) {
-            try {
-                await navigator.clipboard.writeText(link);
-                alert('Đã sao chép URL');
-            } catch {
-                alert('Không thể sao chép');
-            }
+            try { await navigator.clipboard.writeText(link); alert('Đã sao chép URL'); }
+            catch { alert('Không thể sao chép'); }
         }
     };
 
     const collectPayload = () => {
-        return { ...config };
+        // prepare payload for backend (strip any preview-only fields)
+        const payload = { ...config };
+        // If logo file present, backend should accept multipart/form-data. We'll handle in service.
+        return payload;
     };
 
     const onSave = async () => {
@@ -143,9 +110,7 @@ const WebsiteConfig = () => {
         } catch (err) {
             console.error(err);
             alert('Lưu thất bại');
-        } finally {
-            setSaving(false);
-        }
+        } finally { setSaving(false); }
     };
 
     const onExport = () => {
@@ -163,10 +128,7 @@ const WebsiteConfig = () => {
             const resp = await settingsService.testSmtp(config.smtp);
             if (resp?.ok) alert('Yêu cầu gửi email thử đã được gửi.');
             else alert('Gửi email thử thất bại.');
-        } catch (err) {
-            console.error(err);
-            alert('Lỗi gửi email thử');
-        }
+        } catch (err) { console.error(err); alert('Lỗi gửi email thử'); }
     };
 
     if (loading) return <div className="card" style={{ padding: 20 }}>Đang tải...</div>;
@@ -174,7 +136,7 @@ const WebsiteConfig = () => {
     return (
         <main className="main" id="site-config-main">
             {/* Thông tin chung */}
-            <details open>
+            <details open className="card">
                 <summary>Thông tin chung</summary>
                 <div className="content">
                     <div className="field">
@@ -190,12 +152,9 @@ const WebsiteConfig = () => {
                         <div className="control">
                             <div className="file"><input id="logo-file" type="file" accept="image/*" onChange={onLogoChange} /></div>
                             <div className="small">Khuyến nghị PNG/SVG nền trong suốt, chiều cao ~48px.</div>
-                            {logoPreviewUrl && (
-                                <div style={{ marginTop: 8 }}>
-                                    <img src={logoPreviewUrl} alt="logo" style={{ height: 40, borderRadius: 6, boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }} />
-                                </div>
-                            )}
-                            {!logoPreviewUrl && <div className="small" style={{ marginTop: 8 }}>Chưa có logo</div>}
+                            <div style={{ marginTop: 8 }}>
+                                {logoPreviewUrl ? <img src={logoPreviewUrl} alt="logo" style={{ height: 40, borderRadius: 6, boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }} /> : <span className="small">Chưa có logo</span>}
+                            </div>
                         </div>
                     </div>
 
@@ -210,7 +169,7 @@ const WebsiteConfig = () => {
             </details>
 
             {/* Màu sắc & Giao diện */}
-            <details open>
+            <details open className="card">
                 <summary>Màu sắc & Giao diện</summary>
                 <div className="content">
                     <div className="grid-3">
@@ -259,41 +218,41 @@ const WebsiteConfig = () => {
             </details>
 
             {/* Layout */}
-            <details>
+            <details className="card">
                 <summary>Layout</summary>
                 <div className="content">
-                    <div className="small" style={{ margin: '4px 0 8px' }}>Sắp xếp thứ tự section trên trang chủ. Trạng thái "Ẩn/Hiện" chỉ ảnh hưởng frontend.</div>
+                    <div className="small" style={{ margin: '8px 0 12px' }}>Sắp xếp thứ tự section trên trang chủ. Trạng thái “Ẩn/Hiện” chỉ ảnh hưởng frontend.</div>
                     <div className="table">
-                        <table>
+                        <table id="sections-table">
                             <thead><tr><th>SectionID</th><th>Tên section</th><th>Thứ tự</th><th>Trạng thái</th><th>Tùy chọn</th></tr></thead>
                             <tbody>
-                                {config.sections && config.sections.length ? config.sections.map((s) => (
-                                    <tr key={s.id}>
+                                {config.sections && config.sections.length ? config.sections.map((s, i) => (
+                                    <tr key={s.id} data-id={s.id}>
                                         <td>{s.id}</td>
                                         <td>{s.title}</td>
-                                        <td><input type="number" value={s.order} min="1" onChange={e => {
+                                        <td><input className="number" type="number" value={s.order} min="1" onChange={e => {
                                             const v = parseInt(e.target.value || 0, 10);
                                             update({ sections: config.sections.map(x => x.id === s.id ? { ...x, order: v } : x) });
-                                        }} style={{ width: 60, padding: '4px 6px', borderRadius: 6, border: '1px solid #e5e7eb' }} /></td>
+                                        }} style={{ width: 70, padding: 6, borderRadius: 8 }} /></td>
                                         <td><span className={`status ${s.visible ? 'on' : 'off'}`}>{s.visible ? 'Hiện' : 'Ẩn'}</span></td>
                                         <td className="row-actions">
-                                            <button className="icon-btn" onClick={() => alert('Edit modal - implement if needed')} title="Sửa">✏️</button>
-                                            <button className="icon-btn" onClick={() => update({ sections: config.sections.map(x => x.id === s.id ? { ...x, visible: !x.visible } : x) })} title="Ẩn/Hiện">👁️</button>
-                                            <button className="icon-btn" onClick={() => deleteSection(s.id)} title="Xoá">🗑️</button>
+                                            <button className="icon-btn" onClick={() => alert('Edit modal - implement if needed')}>✏️</button>
+                                            <button className="icon-btn" onClick={() => update({ sections: config.sections.map(x => x.id === s.id ? { ...x, visible: !x.visible } : x) })}>👁️</button>
+                                            <button className="icon-btn" onClick={() => deleteSection(s.id)}>🗑️</button>
                                         </td>
                                     </tr>
                                 )) : (
-                                    <tr><td colSpan="5" style={{ padding: 12, textAlign: 'center' }}>Chưa có section</td></tr>
+                                    <tr><td colSpan="5" style={{ padding: 12 }}>Chưa có section</td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
-                    <div style={{ marginTop: 8 }}><button className="btn" onClick={addSection}>+ Thêm Section</button></div>
+                    <div style={{ marginTop: 10 }}><button className="btn" onClick={addSection}>+ Thêm Section</button></div>
                 </div>
             </details>
 
             {/* Contact */}
-            <details>
+            <details className="card">
                 <summary>Thông tin liên hệ</summary>
                 <div className="content">
                     <div className="field"><label>Địa chỉ công ty</label><div className="control"><div className="input"><input type="text" value={config.contact.address || ''} onChange={e => updateNested('contact.address', e.target.value)} placeholder="Số nhà, đường, quận/huyện, tỉnh/thành" /></div></div></div>
@@ -303,7 +262,7 @@ const WebsiteConfig = () => {
             </details>
 
             {/* SMTP */}
-            <details>
+            <details className="card">
                 <summary>Cấu hình Server (SMTP)</summary>
                 <div className="content">
                     <div className="grid-2">
@@ -318,9 +277,10 @@ const WebsiteConfig = () => {
                         <label><input type="checkbox" checked={!!config.smtp.dkim} onChange={e => updateNested('smtp.dkim', e.target.checked)} /> Bật DKIM/DMARC (đã cấu hình DNS)</label>
                     </div>
 
-                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                    <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                         <button className="btn" onClick={onSendTestEmail}>Gửi email thử</button>
                         <button className="btn ghost" onClick={() => {
+                            // download example .env
                             const content = `# Example .env\nSMTP_HOST=${config.smtp.server || ''}\nSMTP_PORT=${config.smtp.port || ''}\nSMTP_USER=${config.smtp.user || ''}\n`;
                             const blob = new Blob([content], { type: 'text/plain' });
                             const url = URL.createObjectURL(blob);
@@ -331,7 +291,7 @@ const WebsiteConfig = () => {
             </details>
 
             {/* Media */}
-            <details>
+            <details className="card">
                 <summary>Cấu hình hình ảnh</summary>
                 <div className="content">
                     <div className="field"><label>Giới hạn upload (MB)</label><div className="control"><div className="number"><input type="number" min="1" value={config.media.uploadLimitMB || 10} onChange={e => updateNested('media.uploadLimitMB', parseInt(e.target.value || 1, 10))} /></div></div></div>
@@ -352,7 +312,7 @@ const WebsiteConfig = () => {
             </details>
 
             {/* Social */}
-            <details>
+            <details className="card">
                 <summary>Cấu hình mạng xã hội</summary>
                 <div className="content">
                     <div className="grid-2">
@@ -365,11 +325,11 @@ const WebsiteConfig = () => {
             </details>
 
             {/* Payment gateways */}
-            <details>
+            <details className="card">
                 <summary>Cấu hình cổng thanh toán</summary>
                 <div className="content">
                     <div className="table">
-                        <table>
+                        <table id="payments-table">
                             <thead><tr><th>Tên cổng</th><th>Link/Callback</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
                             <tbody>
                                 {config.payments && config.payments.length ? config.payments.map((p, idx) => (
@@ -378,21 +338,21 @@ const WebsiteConfig = () => {
                                         <td>{p.callback}</td>
                                         <td><span className={`status ${p.enabled ? 'on' : 'off'}`}>{p.enabled ? 'Bật' : 'Tắt'}</span></td>
                                         <td className="row-actions">
-                                            <button className="icon-btn" onClick={() => copyPaymentLink(idx)} title="Sao chép URL">📄</button>
-                                            <button className="icon-btn" onClick={() => alert('Chỉnh sửa cổng - modal')} title="Chỉnh sửa">✏️</button>
-                                            <button className="icon-btn" onClick={() => alert('Bật/Tắt cổng - implement')} title="Tắt/Bật">⚙️</button>
+                                            <button className="icon-btn" onClick={() => copyPaymentLink(idx)}>📄</button>
+                                            <button className="icon-btn" onClick={() => alert('Chỉnh sửa cổng - modal')}>✏️</button>
+                                            <button className="icon-btn" onClick={() => alert('Bật/Tắt cổng - implement')}>⚙️</button>
                                         </td>
                                     </tr>
-                                )) : <tr><td colSpan="4" style={{ padding: 12, textAlign: 'center' }}>Chưa có cổng thanh toán</td></tr>}
+                                )) : <tr><td colSpan="4" style={{ padding: 12 }}>Chưa có cổng thanh toán</td></tr>}
                             </tbody>
                         </table>
                     </div>
-                    <div style={{ marginTop: 8 }}><button className="btn" onClick={() => alert('Form thêm cổng')}>+ Thêm cổng thanh toán</button></div>
+                    <div style={{ marginTop: 10 }}><button className="btn" onClick={() => alert('Form thêm cổng')}>+ Thêm cổng thanh toán</button></div>
                 </div>
             </details>
 
             {/* Save bar */}
-            <div className="savebar">
+            <div className="savebar" role="toolbar" aria-label="Lưu cấu hình" style={{ marginTop: 12 }}>
                 <button className="btn ghost" onClick={() => window.location.reload()}>Hoàn tác</button>
                 <button className="btn" onClick={onExport}>Xuất cấu hình</button>
                 <button className="btn primary" onClick={onSave} disabled={saving}>{saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}</button>
