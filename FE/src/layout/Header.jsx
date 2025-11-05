@@ -1,9 +1,25 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { AuthService } from "../services/authService";
 import "./Header.css";
 
 const Header = () => {
+  const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [user, setUser] = useState(null);
   const dropdownRef = useRef(null);
+
+  // Load user from localStorage
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+      }
+    }
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -24,8 +40,52 @@ const Header = () => {
   };
 
   const handleMenuAction = (action) => {
-    console.log(`Action: ${action}`);
     setIsDropdownOpen(false);
+
+    switch (action) {
+      case 'profile':
+        // Navigate to profile page
+        console.log('Navigate to profile');
+        break;
+      case 'change-avatar':
+        // Navigate to change avatar
+        console.log('Navigate to change avatar');
+        break;
+      case 'settings':
+        // Navigate to settings
+        console.log('Navigate to settings');
+        break;
+      case 'logout':
+        handleLogout();
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Call logout API to revoke tokens
+      await AuthService.logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Clear tokens from localStorage even if API call fails
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user");
+    } finally {
+      // Redirect to login page
+      navigate("/login");
+    }
+  };
+
+  const getInitials = (fullName) => {
+    if (!fullName) return "U";
+    const nameParts = fullName.trim().split(" ");
+    if (nameParts.length === 1) {
+      return nameParts[0].charAt(0).toUpperCase();
+    }
+    return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
   };
 
   return (
@@ -53,24 +113,24 @@ const Header = () => {
           🔔
         </span>
         <div className="avatar-container" ref={dropdownRef}>
-          <div 
-            className="avatar" 
+          <div
+            className="avatar"
             aria-label="Tài khoản"
             onClick={handleAvatarClick}
           >
-            <span>R</span>
+            <span>{getInitials(user?.fullName)}</span>
           </div>
-          
+
           {isDropdownOpen && (
             <div className="dropdown-menu">
               <div className="dropdown-header">
                 <div className="user-info">
                   <div className="user-avatar">
-                    <span>R</span>
+                    <span>{getInitials(user?.fullName)}</span>
                   </div>
                   <div className="user-details">
-                    <div className="user-name">Admin User</div>
-                    <div className="user-email">admin@keytietkiem.com</div>
+                    <div className="user-name">{user?.fullName || "User"}</div>
+                    <div className="user-email">{user?.email || ""}</div>
                   </div>
                 </div>
               </div>

@@ -159,3 +159,15 @@ public class ResetPasswordDto
     [StringLength(100, MinimumLength = 6, ErrorMessage = "NewPassword phải từ 6-100 ký tự")]
     public string NewPassword { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Request DTO for revoking access token and refresh token (logout)
+/// </summary>
+public class RevokeTokenDto
+{
+    [Required(ErrorMessage = "AccessToken là bắt buộc")]
+    public string AccessToken { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "RefreshToken là bắt buộc")]
+    public string RefreshToken { get; set; } = string.Empty;
+}

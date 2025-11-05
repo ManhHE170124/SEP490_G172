@@ -118,6 +118,8 @@ using (var scope = app.Services.CreateScope())
 {
     var roleService = scope.ServiceProvider.GetRequiredService<IRoleService>();
     await roleService.SeedDefaultRolesAsync();
+    var accountService = scope.ServiceProvider.GetRequiredService<IAccountService>();
+    await accountService.SeedDataAsync();
 }
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====

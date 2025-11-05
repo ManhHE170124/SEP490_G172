@@ -30,4 +30,29 @@ export const AuthService = {
 
   resetPassword: (token, newPassword) =>
     axiosClient.post("/account/reset-password", { token, newPassword }),
+
+  revokeToken: (accessToken, refreshToken) =>
+    axiosClient.post("/account/revoke-token", { accessToken, refreshToken }),
+
+  logout: async () => {
+    const accessToken = localStorage.getItem("access_token");
+    const refreshToken = localStorage.getItem("refresh_token");
+
+    if (accessToken && refreshToken) {
+      try {
+        await axiosClient.post("/account/revoke-token", {
+          accessToken,
+          refreshToken,
+        });
+      } catch (error) {
+        // Ignore errors during logout - token might already be expired
+        console.error("Error revoking token:", error);
+      }
+    }
+
+    // Clear local storage regardless of API call result
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+  },
 };

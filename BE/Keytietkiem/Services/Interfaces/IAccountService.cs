@@ -82,4 +82,18 @@ public interface IAccountService
     /// <param name="resetPasswordDto">Password reset data with OTP</param>
     /// <param name="cancellationToken">Cancellation token</param>
     Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Revokes access token and refresh token (logout)
+    /// </summary>
+    /// <param name="revokeTokenDto">Tokens to revoke</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task RevokeTokenAsync(RevokeTokenDto revokeTokenDto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Seed admin account
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task SeedDataAsync(CancellationToken cancellationToken = default);
 }

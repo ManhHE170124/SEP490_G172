@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
@@ -8,7 +8,6 @@ import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
 
 export default function KeyManagementPage() {
-  const navigate = useNavigate();
   const { toasts, showSuccess, showError, showWarning, removeToast } =
     useToast();
 
@@ -114,7 +113,8 @@ export default function KeyManagementPage() {
     setConfirmDialog({
       isOpen: true,
       title: "Xác nhận xóa key",
-      message: "Bạn có chắc muốn xóa key này? Hành động này không thể hoàn tác.",
+      message:
+        "Bạn có chắc muốn xóa key này? Hành động này không thể hoàn tác.",
       type: "danger",
       onConfirm: async () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
@@ -183,9 +183,7 @@ export default function KeyManagementPage() {
     } catch (err) {
       console.error("Failed to export CSV:", err);
       const errorMsg =
-        err.response?.data?.message ||
-        err.message ||
-        "Không thể xuất file CSV";
+        err.response?.data?.message || err.message || "Không thể xuất file CSV";
       showError("Lỗi xuất file", errorMsg);
     }
   };
@@ -340,8 +338,7 @@ export default function KeyManagementPage() {
                       <input
                         type="checkbox"
                         checked={
-                          selectedKeys.length === keys.length &&
-                          keys.length > 0
+                          selectedKeys.length === keys.length && keys.length > 0
                         }
                         onChange={handleSelectAll}
                       />
@@ -358,7 +355,10 @@ export default function KeyManagementPage() {
                 <tbody>
                   {keys.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: "center", padding: 20 }}>
+                      <td
+                        colSpan="8"
+                        style={{ textAlign: "center", padding: 20 }}
+                      >
                         Không có key nào
                       </td>
                     </tr>
@@ -392,7 +392,9 @@ export default function KeyManagementPage() {
                                 background: "#f3f4f6",
                               }}
                             >
-                              {key.type === "Individual" ? "Cá nhân" : "Dùng chung"}
+                              {key.type === "Individual"
+                                ? "Cá nhân"
+                                : "Dùng chung"}
                             </span>
                           </td>
                           <td>
@@ -413,7 +415,9 @@ export default function KeyManagementPage() {
                           <td>{key.orderCode || "—"}</td>
                           <td>
                             {key.updatedAt
-                              ? new Date(key.updatedAt).toLocaleDateString("vi-VN")
+                              ? new Date(key.updatedAt).toLocaleDateString(
+                                  "vi-VN"
+                                )
                               : "—"}
                           </td>
                           <td>
@@ -428,7 +432,10 @@ export default function KeyManagementPage() {
                               {key.status === "Available" && (
                                 <button
                                   className="btn"
-                                  style={{ padding: "4px 8px", fontSize: "13px" }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: "13px",
+                                  }}
                                 >
                                   Gắn đơn
                                 </button>
@@ -487,7 +494,9 @@ export default function KeyManagementPage() {
                           <span style={{ padding: "8px 4px" }}>...</span>
                           <button
                             className={
-                              page === filters.pageNumber ? "btn primary" : "btn"
+                              page === filters.pageNumber
+                                ? "btn primary"
+                                : "btn"
                             }
                             onClick={() => handlePageChange(page)}
                           >
