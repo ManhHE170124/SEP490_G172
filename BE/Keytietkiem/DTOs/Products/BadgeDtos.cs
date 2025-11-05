@@ -30,8 +30,10 @@ public record BadgeListItemDto(
     string DisplayName,
     string? ColorHex,
     string? Icon,
-    bool IsActive
+    bool IsActive,
+    int ProductsCount  
 );
+
 
 public record BadgeCreateDto(
     string BadgeCode,

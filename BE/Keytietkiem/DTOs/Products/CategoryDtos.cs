@@ -45,8 +45,11 @@ public record CategoryDetailDto(
     string CategoryName,
     string? Description,
     bool IsActive,
-    int DisplayOrder
+    int DisplayOrder,
+    int ProductCount   
 );
+
+
 
 public record CategoryCreateDto(
     string CategoryCode,
