@@ -31,7 +31,7 @@ const CreateEditPost = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
-  const { toasts, showSuccess, showError, showInfo, removeToast , confirmDialog, showConfirm } = useToast();
+  const { toasts, showSuccess, showError, showInfo, removeToast, confirmDialog, showConfirm } = useToast();
   const [status, setStatus] = useState('Draft');
   const [postTypeId, setPostTypeId] = useState('');
   const [postTypes, setPostTypes] = useState([]);
@@ -90,7 +90,7 @@ const CreateEditPost = () => {
       try {
         setLoading(true);
         const postData = await postsApi.getPostById(postId);
-        
+
         setTitle(postData.title || '');
         setDescription(postData.shortDescription || '');
         setContent(postData.content || '');
@@ -98,7 +98,7 @@ const CreateEditPost = () => {
         setPostTypeId(postData.postTypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
         setFeaturedImage(postData.thumbnail || null);
-        
+
         if (postData.tags && Array.isArray(postData.tags)) {
           setTags(postData.tags);
         }
@@ -120,9 +120,9 @@ const CreateEditPost = () => {
   // Handle creating new tag with slug
   const handleCreateNewTag = async (tagName, slug) => {
     try {
-      const newTag = await postsApi.createTag({ 
+      const newTag = await postsApi.createTag({
         tagName: tagName,
-        slug: slug 
+        slug: slug
       });
       const tagsList = await postsApi.getTags();
       setAvailableTags(tagsList || []);
@@ -130,7 +130,7 @@ const CreateEditPost = () => {
       return newTag;
     } catch (err) {
       console.error('Failed to create tag:', err);
-      showError('Lỗi tạo tag mới','Không thể tạo tag mới. Vui lòng thử lại.');
+      showError('Lỗi tạo tag mới', 'Không thể tạo tag mới. Vui lòng thử lại.');
     }
   };
 
@@ -148,7 +148,7 @@ const CreateEditPost = () => {
       // Upload to Cloudinary
       showSuccess('Đang tải ảnh...', 'Vui lòng đợi');
       const resp = await postsApi.uploadImage(file);
-      
+
       let imageUrl = null;
       if (typeof resp === 'string') imageUrl = resp;
       else if (resp.path) imageUrl = resp.path;
@@ -191,7 +191,7 @@ const CreateEditPost = () => {
         showError('Lỗi xóa ảnh', 'Không thể xóa ảnh khỏi server.');
       }
     }
-    
+
     setFeaturedImage(null);
     setFeaturedImageUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -242,10 +242,8 @@ const CreateEditPost = () => {
         shortDescription: description,
         content: content || '',
         thumbnail: featuredImageUrl,
-        postTypeId: postTypeId ? parseInt(postTypeId) : null,
+        postTypeId: postTypeId || null,
         authorId: null, // TODO: Get from auth context
-        metaTitle: title,
-        metaDescription: description,
         status: publishStatus,
         tagIds: tagIds
       };
@@ -255,17 +253,17 @@ const CreateEditPost = () => {
         // Update existing post
         await postsApi.updatePost(postId, postData);
         showSuccess(
-          'Lưu thành công', 
+          'Lưu thành công',
           publishStatus === 'Published' ? 'Bài viết đã được cập nhật và công khai!' : 'Bài viết đã được lưu nháp.'
         );
       } else {
         // Create new post
         result = await postsApi.createPost(postData);
         showSuccess(
-          'Tạo thành công', 
+          'Tạo thành công',
           publishStatus === 'Published' ? 'Bài viết đã được đăng!' : 'Bài viết đã được lưu nháp.'
         );
-        
+
         // Redirect to edit page of newly created post
         if (result && result.postId) {
           setTimeout(() => {
@@ -281,12 +279,115 @@ const CreateEditPost = () => {
     }
   };
 
-  const handleSaveDraft = () => {
-    savePost('Draft');
+  const handleSaveDraft = async () => {
+    if (!validateForm()) {
+      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const tagIds = tags.filter(t => t.tagId).map(t => t.tagId);
+
+      const postData = {
+        title,
+        shortDescription: description,
+        content: content || '',
+        thumbnail: featuredImageUrl,
+        postTypeId: postTypeId || null,
+        authorId: null, // TODO: lấy từ auth context
+        status: 'Draft',
+        tagIds: tagIds
+      };
+
+      const result = await postsApi.createPost(postData);
+
+      showSuccess('Lưu thành công', 'Bài viết đã được lưu nháp.');
+      if (result && result.postId) {
+        setTimeout(() => navigate(`/post-create-edit/${result.postId}`), 1500);
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Lỗi lưu bài viết', err.message || 'Không thể lưu bài viết. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handlePublish = () => {
-    savePost('Published');
+  const handlePublish = async () => {
+    if (!validateForm()) {
+      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const tagIds = tags.filter(t => t.tagId).map(t => t.tagId);
+
+      const postData = {
+        title,
+        shortDescription: description,
+        content: content || '',
+        thumbnail: featuredImageUrl,
+        postTypeId: postTypeId || null,
+        authorId: null,
+        status: 'Published',
+        tagIds: tagIds
+      };
+
+      const result = await postsApi.createPost(postData);
+
+      showSuccess('Đăng bài thành công', 'Bài viết đã được đăng công khai!');
+      if (result && result.postId) {
+        setTimeout(() => navigate(`/post-create-edit/${result.postId}`), 1500);
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Lỗi đăng bài', err.message || 'Không thể đăng bài. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  const handleSaveChange = async () => {
+    if (!validateForm()) {
+      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const tagIds = tags.filter(t => t.tagId).map(t => t.tagId);
+
+      const postData = {
+        title,
+        shortDescription: description,
+        content: content || '',
+        thumbnail: featuredImageUrl,
+        postTypeId: postTypeId || null,
+        authorId: null,
+        status: status,
+        tagIds: tagIds
+      };
+
+      await postsApi.updatePost(postId, postData);
+
+      showSuccess(
+        'Cập nhật thành công',
+        status === 'Published'
+          ? 'Bài viết đã được công khai.'
+          : 'Bài viết đã được lưu ở chế độ riêng tư.'
+      );
+    } catch (err) {
+      console.error(err);
+      showError('Lỗi cập nhật', err.message || 'Không thể cập nhật bài viết.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePreview = () => {
@@ -295,26 +396,7 @@ const CreateEditPost = () => {
     showInfo('Preview', 'Chức năng xem trước đang được phát triển.');
   };
 
-  // const handleDelete = async () => {
-  //   if (!window.confirm('Bạn có chắc chắn muốn xóa bài viết này?')) {
-  //     return;
-  //   }
-
-  //   try {
-  //     setSaving(true);
-  //     await postsApi.deletePost(postId);
-  //     showSuccess('Đã xóa', 'Bài viết đã được xóa thành công.');
-  //     setTimeout(() => {
-  //       navigate('/admin/posts');
-  //     }, 1500);
-  //   } catch (err) {
-  //     console.error('Failed to delete post:', err);
-  //     showError('Lỗi xóa bài viết', 'Không thể xóa bài viết. Vui lòng thử lại.');
-  //   } finally {
-  //     setSaving(false);
-  //   }
-  // };
- const handleDelete = () => {
+  const handleDelete = () => {
     showConfirm(
       'Xác nhận xóa bài viết',
       `Bạn có chắc chắn muốn xóa bài viết "${title}"?\n\nHành động này sẽ xóa vĩnh viễn bài viết và tất cả ảnh liên quan. Không thể hoàn tác.`,
@@ -324,7 +406,7 @@ const CreateEditPost = () => {
           await postsApi.deletePost(postId);
           showSuccess('Đã xóa bài viết', 'Bài viết đã được xóa thành công.');
           setTimeout(() => {
-            navigate('/admin/posts');
+            navigate('/post-create-edit');
           }, 1500);
         } catch (err) {
           console.error('Failed to delete post:', err);
@@ -338,13 +420,13 @@ const CreateEditPost = () => {
   // Quill setup
   useEffect(() => {
     console.log('Quill useEffect running');
-    
+
     if (quillRef.current) {
       console.log('Quill already initialized');
       showError('Trình soạn thảo đã được khởi tạo', 'Trình soạn thảo nội dung chỉ được khởi tạo một lần.');
       return;
     }
-    
+
     if (!editorContainerRef.current) return;
 
     const toolbarOptions = [
@@ -352,9 +434,9 @@ const CreateEditPost = () => {
       ['blockquote', 'code-block'],
       ['link', 'image', 'video', 'formula'],
       [{ 'header': 1 }, { 'header': 2 }],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'list': 'check' }],
-      [{ 'script': 'sub'}, { 'script': 'super' }],
-      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'list': 'check' }],
+      [{ 'script': 'sub' }, { 'script': 'super' }],
+      [{ 'indent': '-1' }, { 'indent': '+1' }],
       [{ 'direction': 'rtl' }],
       [{ 'size': ['small', false, 'large', 'huge'] }],
       [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
@@ -395,7 +477,7 @@ const CreateEditPost = () => {
       theme: 'snow',
       placeholder: 'Nhập nội dung bài viết tại đây...'
     });
-    
+
     quillRef.current = q;
 
     if (content) {
@@ -426,11 +508,11 @@ const CreateEditPost = () => {
         const newImages = getImageSrcsFromHTML(html);
         const prevImages = prevImagesRef.current || [];
         const removed = prevImages.filter((src) => !newImages.includes(src));
-        
+
         if (removed.length) {
           for (const src of removed) {
             if (!src || src.startsWith('data:')) continue;
-            
+
             try {
               const publicId = extractPublicId(src);
               if (publicId) {
@@ -448,7 +530,7 @@ const CreateEditPost = () => {
         prevImagesRef.current = newImages;
       } catch (err) {
         console.error('Error processing image changes:', err);
-        showError('Lỗi xử lý ảnh', `Có lỗi xảy ra khi xử lý ảnh trong nội dung. Lỗi: ${err.message || err}`); 
+        showError('Lỗi xử lý ảnh', `Có lỗi xảy ra khi xử lý ảnh trong nội dung. Lỗi: ${err.message || err}`);
       }
     });
 
@@ -471,10 +553,10 @@ const CreateEditPost = () => {
     if (!file || !quillRef.current) return;
 
     const range = quillRef.current.getSelection(true) || { index: 0 };
-    
+
     try {
       const resp = await postsApi.uploadImage(file);
-      
+
       let imageUrl = null;
       if (typeof resp === 'string') imageUrl = resp;
       else if (resp.path) imageUrl = resp.path;
@@ -521,13 +603,13 @@ const CreateEditPost = () => {
                 const newTitle = e.target.value;
                 setTitle(newTitle);
                 if (newTitle.length === 0) {
-                  setErrors(prev => ({...prev, title: 'Tiêu đề không được để trống'}));
+                  setErrors(prev => ({ ...prev, title: 'Tiêu đề không được để trống' }));
                 } else if (newTitle.length < 10) {
-                  setErrors(prev => ({...prev, title: 'Tiêu đề phải có ít nhất 10 ký tự'}));
+                  setErrors(prev => ({ ...prev, title: 'Tiêu đề phải có ít nhất 10 ký tự' }));
                 } else if (newTitle.length > 250) {
-                  setErrors(prev => ({...prev, title: 'Tiêu đề không được vượt quá 250 ký tự'}));
+                  setErrors(prev => ({ ...prev, title: 'Tiêu đề không được vượt quá 250 ký tự' }));
                 } else {
-                  setErrors(prev => ({...prev, title: ''}));
+                  setErrors(prev => ({ ...prev, title: '' }));
                 }
               }}
               className={errors.title ? 'error' : ''}
@@ -550,9 +632,9 @@ const CreateEditPost = () => {
                 const newDesc = e.target.value;
                 setDescription(newDesc);
                 if (newDesc.length > 5000) {
-                  setErrors(prev => ({...prev, description: 'Mô tả không được vượt quá 5000 ký tự'}));
+                  setErrors(prev => ({ ...prev, description: 'Mô tả không được vượt quá 5000 ký tự' }));
                 } else {
-                  setErrors(prev => ({...prev, description: ''}));
+                  setErrors(prev => ({ ...prev, description: '' }));
                 }
               }}
               maxLength={5000}
@@ -585,50 +667,64 @@ const CreateEditPost = () => {
           <div className="cep-sidebar-section">
             <div className="cep-action-buttons">
               {!isEditMode && (
-                <button 
-                  className="btn secondary" 
+                <button
+                  className="btn secondary"
                   onClick={handleSaveDraft}
                   disabled={saving}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   {saving ? 'Đang lưu...' : 'Lưu nháp'}
                 </button>
               )}
-              <button 
-                className="btn primary" 
-                onClick={handlePublish}
-                disabled={saving}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                {saving ? 'Đang lưu...' : (isEditMode ? 'Lưu & Đăng' : 'Đăng bài')}
-              </button>
+              {!isEditMode && (
+                <button
+                  className="btn primary"
+                  onClick={handlePublish}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {saving ? 'Đang lưu...' : 'Đăng bài'}
+                </button>
+              )}
               {isEditMode && (
-                <button 
-                  className="btn secondary" 
+                <button
+                  className="btn primary"
+                  onClick={handleSaveChange}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              )}
+              {isEditMode && (
+                <button
+                  className="btn secondary"
                   onClick={handlePreview}
                   disabled={saving}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12Zm11 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12Zm11 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                   Xem trước
                 </button>
               )}
             </div>
-            
+
             {isEditMode && (
-              <button 
-                className="btn danger" 
-                style={{ width: '100%', marginTop: '12px' }} 
+              <button
+                className="btn danger"
+                style={{ width: '100%', marginTop: '12px' }}
                 onClick={handleDelete}
                 disabled={saving}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 {saving ? 'Đang xóa...' : 'Xóa bài'}
               </button>
@@ -645,7 +741,6 @@ const CreateEditPost = () => {
                 onChange={(e) => setStatus(e.target.value)}
                 disabled={saving}
               >
-                <option value="Draft">Bản nháp</option>
                 <option value="Private">Riêng tư</option>
                 <option value="Published">Công khai</option>
               </select>
@@ -713,8 +808,8 @@ const CreateEditPost = () => {
               )}
             </button>
             {featuredImage && (
-              <button 
-                className="cep-remove-image-btn" 
+              <button
+                className="cep-remove-image-btn"
                 onClick={removeImage}
                 disabled={saving}
               >
@@ -724,7 +819,7 @@ const CreateEditPost = () => {
           </div>
         </div>
       </div>
-      <ToastContainer toasts={toasts} onRemove={removeToast} confirmDialog={confirmDialog}/>
+      <ToastContainer toasts={toasts} onRemove={removeToast} confirmDialog={confirmDialog} />
     </main>
   );
 };

@@ -227,7 +227,7 @@ const TagsInput = ({
             <div 
               key={index} 
               className={`tag-item ${isNew ? 'new-tag' : 'existing-tag'}`}
-              title={isNew ? 'Tag mới' : 'Tag từ database'}
+              title={isNew ? 'Tag mới' : 'Tag có sẵn'}
             >
               {tagName}
               {isNew && <span className="new-badge">Mới</span>}
