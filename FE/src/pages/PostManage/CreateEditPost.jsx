@@ -269,7 +269,7 @@ const CreateEditPost = () => {
         // Redirect to edit page of newly created post
         if (result && result.postId) {
           setTimeout(() => {
-            navigate(`/admin/posts/edit/${result.postId}`);
+            navigate(`/post-create-edit/${result.postId}`);
           }, 1500);
         }
       }

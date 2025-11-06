@@ -6,17 +6,22 @@
  * Version: 1.0.0
  * Purpose: Application routes with layout separation (Client and Admin)
  */
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Suspense, lazy } from "react";
 // import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
 import ClientLayout from "../layout/ClientLayout/ClientLayout";
+import Page404 from "../pages/NotFound/Page404";
+
+//Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
 import RoleManage from "../pages/RoleManage/RoleManage";
-import Page404 from "../pages/NotFound/Page404";
+// Post Management Pages
 import AdminPostList from "../pages/PostManage/AdminPostList"
 import PostCreateEdit from "../pages/PostManage/CreateEditPost"
+import PostTypeManage from "../pages/PostManage/PostTypeManage"
 
-import { Navigate, Route, Routes } from "react-router-dom";
-import { Suspense, lazy } from "react";
+
 // Admin pages
 import BadgeAdd from "../pages/admin/BadgeAdd.jsx";
 import BadgeDetail from "../pages/admin/BadgeDetail.jsx";
@@ -108,10 +113,11 @@ export default function AppRoutes() {
       <Route path="/admin-user-management" element={ <AdminLayout> <AdminUserManagement /> </AdminLayout> } />
       <Route path="/role-manage" element={ <AdminLayout> <RoleManage /> </AdminLayout> } />
       <Route path="/role-assign" element={ <AdminLayout> <RoleAssign /> </AdminLayout> } />
-
+      {/* Post Routes */}
       <Route path="admin-post-list" element={ <AdminLayout> <AdminPostList /> </AdminLayout> } />
       <Route path="post-create-edit" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
       <Route path="post-create-edit/:postId" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
+      <Route path="post-type-manage" element={ <AdminLayout> <PostTypeManage /> </AdminLayout> } />
       {/* 404 - Default to Client Layout - Fallbacks*/}
       <Route path="*" element={  <Page404 /> } /> 
       {/* Suppliers */}

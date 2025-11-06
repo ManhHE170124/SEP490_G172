@@ -93,7 +93,7 @@ namespace Keytietkiem.Controllers
             var posts = await _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
-                //.Include(p => p.Tags)
+                .Include(p => p.Tags)
                 .Select(p => new PostListItemDTO
                 {
                     PostId = p.PostId,
@@ -109,12 +109,12 @@ namespace Keytietkiem.Controllers
                     UpdatedAt = p.UpdatedAt,
                     AuthorName = p.Author != null ? (p.Author.FullName ?? $"{p.Author.FirstName} {p.Author.LastName}".Trim()) : null,
                     PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null,
-                    //Tags = p.Tags.Select(t => new TagDTO
-                    //{
-                    //    TagId = t.TagId,
-                    //    TagName = t.TagName,
-                    //    Slug = t.Slug
-                    //}).ToList()
+                    Tags = p.Tags.Select(t => new TagDTO
+                    {
+                        TagId = t.TagId,
+                        TagName = t.TagName,
+                        Slug = t.Slug
+                    }).ToList()
                 })
                 .ToListAsync();
             return Ok(posts);
@@ -132,7 +132,7 @@ namespace Keytietkiem.Controllers
             var post = await _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
-                //.Include(p => p.Tags)
+                .Include(p => p.Tags)
                 .FirstOrDefaultAsync(p => p.PostId == id);
 
             if (post == null)
@@ -158,12 +158,12 @@ namespace Keytietkiem.Controllers
                 UpdatedAt = post.UpdatedAt,
                 AuthorName = post.Author != null ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim()) : null,
                 PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
-                //Tags = post.Tags.Select(t => new TagDTO
-                //{
-                //    TagId = t.TagId,
-                //    TagName = t.TagName,
-                //    Slug = t.Slug
-                //}).ToList()
+                Tags = post.Tags.Select(t => new TagDTO
+                {
+                    TagId = t.TagId,
+                    TagName = t.TagName,
+                    Slug = t.Slug
+                }).ToList()
             };
 
             return Ok(postDto);
@@ -239,20 +239,20 @@ namespace Keytietkiem.Controllers
             await _context.SaveChangesAsync();
 
             // Add Tags
-            //if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
-            //{
-            //    var tags = await _context.Tags
-            //        .Where(t => createPostDto.TagIds.Contains(t.TagId))
-            //        .ToListAsync();
-            //    newPost.Tags = tags;
-            //    await _context.SaveChangesAsync();
-            //}
+            if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
+            {
+                var tags = await _context.Tags
+                    .Where(t => createPostDto.TagIds.Contains(t.TagId))
+                    .ToListAsync();
+                newPost.Tags = tags;
+                await _context.SaveChangesAsync();
+            }
 
             // Reload post with relations
             var createdPost = await _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
-                //.Include(p => p.Tags)
+                .Include(p => p.Tags)
                 .FirstOrDefaultAsync(p => p.PostId == newPost.PostId);
 
             var postDto = new PostDTO
@@ -273,12 +273,12 @@ namespace Keytietkiem.Controllers
                 UpdatedAt = createdPost.UpdatedAt,
                 AuthorName = createdPost.Author != null ? (createdPost.Author.FullName ?? $"{createdPost.Author.FirstName} {createdPost.Author.LastName}".Trim()) : null,
                 PostTypeName = createdPost.PostType != null ? createdPost.PostType.PostTypeName : null,
-                //Tags = createdPost.Tags.Select(t => new TagDTO
-                //{
-                //    TagId = t.TagId,
-                //    TagName = t.TagName,
-                //    Slug = t.Slug
-                //}).ToList()
+                Tags = createdPost.Tags.Select(t => new TagDTO
+                {
+                    TagId = t.TagId,
+                    TagName = t.TagName,
+                    Slug = t.Slug
+                }).ToList()
             };
 
             return CreatedAtAction(nameof(GetPostById), new { id = createdPost.PostId }, postDto);
@@ -305,7 +305,7 @@ namespace Keytietkiem.Controllers
             }
 
             var existing = await _context.Posts
-                //.Include(p => p.Tags)
+                .Include(p => p.Tags)
                 .FirstOrDefaultAsync(p => p.PostId == id);
 
             if (existing == null)
@@ -357,7 +357,7 @@ namespace Keytietkiem.Controllers
                 var tags = await _context.Tags
                     .Where(t => updatePostDto.TagIds.Contains(t.TagId))
                     .ToListAsync();
-                //existing.Tags = tags;
+                existing.Tags = tags;
             }
 
             _context.Posts.Update(existing);

@@ -1,4 +1,15 @@
-﻿using Azure.Core;
+﻿/**
+ * File: PostImagesController.cs
+ * Author: HieuNDHE173169
+ * Created: 24/10/2025
+ * Last Updated: 24/10/2025
+ * Version: 1.0.0
+ * Purpose:
+ * Endpoints:
+ *   - POST    /api/postimages/uploadImage              : Upload image to Cloudinary cloud storage and return the image URL.
+ *   - DELETE  /api/postimages/deleteImage              : Delete image from Cloudinary using public ID.
+ */
+using Azure.Core;
 using Keytietkiem.DTOs.Post;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
@@ -19,6 +30,7 @@ namespace Keytietkiem.Controllers
             _context = context;
             _photoService = photoService;
         }
+
 
         /**
          * Summary: Upload an image file.
@@ -71,5 +83,6 @@ namespace Keytietkiem.Controllers
                 return StatusCode(500, new { message = $"Error deleting image: {ex.Message}" });
             }
         }
+
     }
 }

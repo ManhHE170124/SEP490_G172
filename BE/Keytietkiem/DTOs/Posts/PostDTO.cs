@@ -26,7 +26,7 @@ namespace Keytietkiem.DTOs.Post
         public string? ShortDescription { get; set; }
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
-        public int? PostTypeId { get; set; }
+        public Guid? PostTypeId { get; set; }
         public Guid? AuthorId { get; set; }
         public string? MetaTitle { get; set; }
         public string? MetaDescription { get; set; }
@@ -47,7 +47,7 @@ namespace Keytietkiem.DTOs.Post
         public string Slug { get; set; } = null!;
         public string? ShortDescription { get; set; }
         public string? Thumbnail { get; set; }
-        public int? PostTypeId { get; set; }
+        public Guid? PostTypeId { get; set; }
         public Guid? AuthorId { get; set; }
         public string? Status { get; set; }
         public int? ViewCount { get; set; }
@@ -64,13 +64,12 @@ namespace Keytietkiem.DTOs.Post
         public string? ShortDescription { get; set; }
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
-        public int? PostTypeId { get; set; }
+        public Guid? PostTypeId { get; set; }
         public Guid? AuthorId { get; set; }
         public string? MetaTitle { get; set; }
         public string? MetaDescription { get; set; }
         public string? Status { get; set; }
-        public List<int> TagIds { get; set; } = new List<int>();
-        public List<CreatePostImageDTO> PostImages { get; set; } = new List<CreatePostImageDTO>();
+        public List<Guid> TagIds { get; set; } = new List<Guid>();
     }
 
     public class UpdatePostDTO
@@ -79,16 +78,16 @@ namespace Keytietkiem.DTOs.Post
         public string? ShortDescription { get; set; }
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
-        public int? PostTypeId { get; set; }
+        public Guid? PostTypeId { get; set; }
         public string? MetaTitle { get; set; }
         public string? MetaDescription { get; set; }
         public string? Status { get; set; }
-        public List<int> TagIds { get; set; } = new List<int>();
+        public List<Guid> TagIds { get; set; } = new List<Guid>();
     }
 
     public class PostTypeDTO
     {
-        public int PostTypeId { get; set; }
+        public Guid PostTypeId { get; set; }
         public string PostTypeName { get; set; } = null!;
         public string Slug { get; set; } = null!;
         public string? Description { get; set; }

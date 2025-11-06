@@ -106,9 +106,9 @@ public class BadgesController : ControllerBase
                 b.DisplayName,
                 b.ColorHex,
                 b.Icon,
-                b.IsActive
+                b.IsActive,
                 // ProductsCount: count products using this badge
-                //db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
+                db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
             ))
             .ToListAsync();
 
@@ -136,8 +136,8 @@ public class BadgesController : ControllerBase
                 b.DisplayName,
                 b.ColorHex,
                 b.Icon,
-                b.IsActive
-                //db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
+                b.IsActive,
+                db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
             ))
             .FirstOrDefaultAsync();
 
@@ -180,8 +180,8 @@ public class BadgesController : ControllerBase
             e.DisplayName,
             e.ColorHex,
             e.Icon,
-            e.IsActive
-            //0
+            e.IsActive,
+            0
         );
 
         return CreatedAtAction(nameof(Get), new { code = e.BadgeCode }, body);

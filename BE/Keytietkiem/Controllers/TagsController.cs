@@ -55,11 +55,11 @@ namespace Keytietkiem.Controllers
        /**
         * Summary: Retrieve a tag by id.
         * Route: GET /api/tags/{id}
-        * Params: id (int) - tag identifier
+        * Params: id (Guid) - tag identifier
         * Returns: 200 OK with tag, 404 if not found
         */
        [HttpGet("{id}")]
-       public async Task<IActionResult> GetTagById(int id)
+       public async Task<IActionResult> GetTagById(Guid id)
        {
            var tag = await _context.Tags
                .FirstOrDefaultAsync(t => t.TagId == id);
@@ -133,12 +133,12 @@ namespace Keytietkiem.Controllers
        /**
         * Summary: Update an existing tag by id.
         * Route: PUT /api/tags/{id}
-        * Params: id (int)
+        * Params: id (Guid)
         * Body: UpdateTagDTO updateTagDto
         * Returns: 204 No Content, 400/404/409 on errors
         */
        [HttpPut("{id}")]
-       public async Task<IActionResult> UpdateTag(int id, [FromBody] UpdateTagDTO updateTagDto)
+       public async Task<IActionResult> UpdateTag(Guid id, [FromBody] UpdateTagDTO updateTagDto)
        {
            if (updateTagDto == null)
            {
@@ -188,11 +188,11 @@ namespace Keytietkiem.Controllers
        /**
         * Summary: Delete a tag by id.
         * Route: DELETE /api/tags/{id}
-        * Params: id (int)
+        * Params: id (Guid)
         * Returns: 204 No Content, 404 if not found
         */
        [HttpDelete("{id}")]
-       public async Task<IActionResult> DeleteTag(int id)
+       public async Task<IActionResult> DeleteTag(Guid id)
        {
            var existingTag = await _context.Tags
                .FirstOrDefaultAsync(t => t.TagId == id);

@@ -19,7 +19,7 @@ namespace Keytietkiem.DTOs.Post
 {
     public class TagDTO
     {
-        public int TagId { get; set; }
+        public Guid TagId { get; set; }
         public string TagName { get; set; } = null!;
         public string Slug { get; set; } = null!;
     }

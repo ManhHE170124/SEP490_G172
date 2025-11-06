@@ -152,8 +152,8 @@ public class CategoriesController : ControllerBase
                 c.CategoryName,
                 c.Description,
                 c.IsActive,
-                c.DisplayOrder
-                //c.Products.Count()
+                c.DisplayOrder,
+                c.Products.Count()
             ))
             .FirstOrDefaultAsync();
 
@@ -194,7 +194,7 @@ public class CategoriesController : ControllerBase
 
         // ProductCount = 0 khi mới tạo
         return CreatedAtAction(nameof(GetById), new { id = e.CategoryId },
-            new CategoryDetailDto(e.CategoryId, e.CategoryCode, e.CategoryName, e.Description, e.IsActive, e.DisplayOrder/*, 0 */ ));
+            new CategoryDetailDto(e.CategoryId, e.CategoryCode, e.CategoryName, e.Description, e.IsActive, e.DisplayOrder, 0 ));
     }
 
 

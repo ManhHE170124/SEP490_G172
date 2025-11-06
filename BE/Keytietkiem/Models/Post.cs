@@ -17,7 +17,7 @@ public partial class Post
 
     public string? Thumbnail { get; set; }
 
-    public int? PostTypeId { get; set; }
+    public Guid? PostTypeId { get; set; }
 
     public Guid? AuthorId { get; set; }
 

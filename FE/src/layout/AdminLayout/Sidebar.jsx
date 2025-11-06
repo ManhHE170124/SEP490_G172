@@ -183,6 +183,26 @@ const Sidebar = () => {
           <span className="sb-label">Tạo bài viết</span>
         </Link>
 
+<Link 
+          className={`sb-item ${currentPage === "post-type-manage" ? "active" : ""}`}
+          to="/post-type-manage"
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            <path
+              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <line x1="9" y1="15" x2="15" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <line x1="12" y1="12" x2="12" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="sb-label">Quản lý danh mục bài viết</span>
+        </Link>
+
+
         <div className="sb-section-title">Cài đặt</div>
         <Link
           className={`sb-item ${currentPage === "admin/website-config" ? "active" : ""}`}
