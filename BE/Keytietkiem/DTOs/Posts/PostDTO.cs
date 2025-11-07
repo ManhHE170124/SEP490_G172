@@ -15,6 +15,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Post
 {
@@ -61,6 +62,7 @@ namespace Keytietkiem.DTOs.Post
     public class CreatePostDTO
     {
         public string Title { get; set; } = null!;
+        public string Slug { get; set; } = null!;
         public string? ShortDescription { get; set; }
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
@@ -75,6 +77,7 @@ namespace Keytietkiem.DTOs.Post
     public class UpdatePostDTO
     {
         public string Title { get; set; } = null!;
+        public string Slug { get; set; } = null!;
         public string? ShortDescription { get; set; }
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
@@ -92,6 +95,52 @@ namespace Keytietkiem.DTOs.Post
         public string Slug { get; set; } = null!;
         public string? Description { get; set; }
         public DateTime? CreatedAt { get; set; }
+    }
+    public class PostTypeDto
+    {
+        public Guid PostTypeId { get; set; }
+        public string PostTypeName { get; set; }
+        public string Description { get; set; }
+        public string Slug { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public int PostCount { get; set; } 
+    }
+
+    public class CreatePostTypeDTO
+    {
+        public string PostTypeName { get; set; }
+
+        public string Description { get; set; }
+
+        public string Slug { get; set; }
+    }
+
+    public class UpdatePostTypeDTO
+    {
+        public string PostTypeName { get; set; }
+
+        public string Description { get; set; }
+
+    }
+
+    public class TagDto
+    {
+        public Guid TagId { get; set; }
+        public string TagName { get; set; }
+        public string Slug { get; set; }
+        public int PostCount { get; set; } 
+    }
+
+    public class CreateTagDto
+    {
+        public string TagName { get; set; }
+
+        public string Slug { get; set; }
+    }
+
+    public class UpdateTagDto : CreateTagDto
+    {
+        public bool IsActive { get; set; } = true;
     }
 
     public class ImageUploadRequest

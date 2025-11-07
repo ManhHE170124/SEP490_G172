@@ -19,8 +19,7 @@ import RoleManage from "../pages/RoleManage/RoleManage";
 // Post Management Pages
 import AdminPostList from "../pages/PostManage/AdminPostList"
 import PostCreateEdit from "../pages/PostManage/CreateEditPost"
-import PostTypeManage from "../pages/PostManage/PostTypeManage"
-
+import TagPostTypeManage from "../pages/PostManage/TagAndPostTypeManage";
 
 // Admin pages
 import BadgeAdd from "../pages/admin/BadgeAdd.jsx";
@@ -117,7 +116,7 @@ export default function AppRoutes() {
       <Route path="admin-post-list" element={ <AdminLayout> <AdminPostList /> </AdminLayout> } />
       <Route path="post-create-edit" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
       <Route path="post-create-edit/:postId" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
-      <Route path="post-type-manage" element={ <AdminLayout> <PostTypeManage /> </AdminLayout> } />
+      <Route path="tag-post-type-manage" element={ <AdminLayout> <TagPostTypeManage /> </AdminLayout> }/>
       {/* 404 - Default to Client Layout - Fallbacks*/}
       <Route path="*" element={  <Page404 /> } /> 
       {/* Suppliers */}

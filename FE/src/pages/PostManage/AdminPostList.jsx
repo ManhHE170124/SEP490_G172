@@ -20,13 +20,13 @@ export default function AdminPostList() {
 
   // Data state
   const [posts, setPosts] = useState([]);
-  const [postTypes, setPostTypes] = useState([]);
+  const [posttypes, setPosttypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Filter & Search state
   const [search, setSearch] = useState("");
-  const [postTypeFilter, setPostTypeFilter] = useState("all");
+  const [posttypeFilter, setPosttypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortKey, setSortKey] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -48,12 +48,12 @@ export default function AdminPostList() {
     setLoading(true);
     setError("");
     try {
-      const [postsData, postTypesData] = await Promise.all([
+      const [postsData, posttypesData] = await Promise.all([
         postsApi.getAllPosts(),
-        postsApi.getAllPostTypes()
+        postsApi.getPosttypes()
       ]);
       setPosts(Array.isArray(postsData) ? postsData : []);
-      setPostTypes(Array.isArray(postTypesData) ? postTypesData : []);
+      setPosttypes(Array.isArray(posttypesData) ? posttypesData : []);
     } catch (err) {
       setError(err.message || "Không thể tải dữ liệu");
       showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
@@ -95,9 +95,9 @@ export default function AdminPostList() {
     }
 
     // PostType filter
-    if (postTypeFilter !== "all") {
-      const typeId = Number.parseInt(postTypeFilter, 10);
-      filtered = filtered.filter(post => post.postTypeId === typeId);
+    if (posttypeFilter !== "all") {
+      const typeId = Number.parseInt(posttypeFilter, 10);
+      filtered = filtered.filter(post => post.posttypeId === typeId);
     }
 
     // Status filter
@@ -109,10 +109,10 @@ export default function AdminPostList() {
     filtered.sort((a, b) => {
       let aVal, bVal;
 
-      // Handle postTypeName (special case - nested property)
-      if (sortKey === "postTypeName") {
-        aVal = a.postTypeName || "";
-        bVal = b.postTypeName || "";
+      // Handle posttypeName (special case - nested property)
+      if (sortKey === "posttypeName") {
+        aVal = a.posttypeName || "";
+        bVal = b.posttypeName || "";
       } else {
         aVal = a[sortKey];
         bVal = b[sortKey];
@@ -146,7 +146,7 @@ export default function AdminPostList() {
     });
 
     return filtered;
-  }, [posts, search, postTypeFilter, statusFilter, sortKey, sortOrder]);
+  }, [posts, search, posttypeFilter, statusFilter, sortKey, sortOrder]);
 
   // Pagination
   const total = filteredSorted.length;
@@ -274,7 +274,7 @@ export default function AdminPostList() {
         shortDescription: post.shortDescription || "",
         content: post.content || "",
         thumbnail: post.thumbnail || "",
-        postTypeId: post.postTypeId,
+        posttypeId: post.posttypeId,
         status: newStatus,
         metaTitle: post.metaTitle || "",
         metaDescription: post.metaDescription || "",
@@ -302,7 +302,7 @@ export default function AdminPostList() {
       filteredSorted.forEach(post => {
         const row = [
           `"${(post.title || "").replace(/"/g, '""')}"`,
-          `"${(post.postTypeName || "").replace(/"/g, '""')}"`,
+          `"${(post.posttypeName || "").replace(/"/g, '""')}"`,
           `"${(post.authorName || "").replace(/"/g, '""')}"`,
           `"${getStatusLabel(post.status).replace(/"/g, '""')}"`,
           post.viewCount || 0,
@@ -334,7 +334,6 @@ export default function AdminPostList() {
     const statusMap = {
       Draft: "Bản nháp",
       Published: "Công khai",
-      Archived: "Đã lưu trữ",
       Private: "Riêng tư"
     };
     return statusMap[status] || status;
@@ -343,7 +342,7 @@ export default function AdminPostList() {
   // Reset filters
   const handleResetFilters = () => {
     setSearch("");
-    setPostTypeFilter("all");
+    setPosttypeFilter("all");
     setStatusFilter("all");
     setSortKey("createdAt");
     setSortOrder("desc");
@@ -365,8 +364,7 @@ export default function AdminPostList() {
     const statusMap = {
       Draft: { label: "Bản nháp", color: "#6c757d" },
       Published: { label: "Công khai", color: "#28a745" },
-      Archived: { label: "Đã lưu trữ", color: "#ffc107" },
-      Private: { label: "Riêng tư", color: "#007bff" }
+      Private: { label: "Riêng tư", color: "#dc3545" }
     };
     const statusInfo = statusMap[status] || { label: status, color: "#6c757d" };
     return (
@@ -389,7 +387,7 @@ export default function AdminPostList() {
   // Reset filters when change
   useEffect(() => {
     setPage(1);
-  }, [search, postTypeFilter, statusFilter, sortKey, sortOrder]);
+  }, [search, posttypeFilter, statusFilter, sortKey, sortOrder]);
 
   return (
     <div className="apl-post-list-container">
@@ -449,14 +447,14 @@ export default function AdminPostList() {
           <div className="apl-filter-group">
             <label className="apl-filter-label">Danh mục:</label>
             <select
-              value={postTypeFilter}
-              onChange={(e) => setPostTypeFilter(e.target.value)}
+              value={posttypeFilter}
+              onChange={(e) => setPosttypeFilter(e.target.value)}
               className="apl-filter-select"
             >
               <option value="all">Tất cả</option>
-              {postTypes.map((pt) => (
-                <option key={pt.postTypeId} value={pt.postTypeId}>
-                  {pt.postTypeName}
+              {posttypes.map((pt) => (
+                <option key={pt.posttypeId} value={pt.posttypeId}>
+                  {pt.posttypeName}
                 </option>
               ))}
             </select>
@@ -526,7 +524,7 @@ export default function AdminPostList() {
         ) : total === 0 ? (
           <div className="apl-empty-state">
             <div>Không có bài viết nào</div>
-            {(search || postTypeFilter !== "all" || statusFilter !== "all") && (
+            {(search || posttypeFilter !== "all" || statusFilter !== "all") && (
               <button className="apl-btn-secondary" onClick={handleResetFilters} style={{ marginTop: "12px" }}>
                 Đặt lại bộ lọc
               </button>
@@ -566,13 +564,13 @@ export default function AdminPostList() {
                 <th style={{ width: "120px" }}>
                   <div 
                     className="apl-sortable-header" 
-                    onClick={() => handleColumnSort("postTypeName")}
-                    onKeyDown={(e) => e.key === "Enter" && handleColumnSort("postTypeName")}
+                    onClick={() => handleColumnSort("posttypeName")}
+                    onKeyDown={(e) => e.key === "Enter" && handleColumnSort("posttypeName")}
                     role="button"
                     tabIndex={0}
                   >
                     Danh mục
-                    {sortKey === "postTypeName" && (sortOrder === "asc" ? " ↑" : " ↓")}
+                    {sortKey === "posttypeName" && (sortOrder === "asc" ? " ↑" : " ↓")}
                   </div>
                 </th>
                 <th style={{ width: "120px" }}>
@@ -670,7 +668,7 @@ export default function AdminPostList() {
                       )}
                     </div>
                   </td>
-                  <td>{post.postTypeName || "-"}</td>
+                  <td>{post.posttypeName || "-"}</td>
                   <td>{post.authorName || "-"}</td>
                   <td>
                     {getStatusBadge(post.status)}
@@ -743,7 +741,7 @@ export default function AdminPostList() {
                     <div className="apl-post-card-desc">{post.shortDescription}</div>
                   )}
                   <div className="apl-post-card-meta">
-                    <span>{post.postTypeName || "Không có danh mục"}</span>
+                    <span>{post.posttypeName || "Không có danh mục"}</span>
                     <span>•</span>
                     <span>{formatDate(post.createdAt)}</span>
                   </div>

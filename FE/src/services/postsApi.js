@@ -49,8 +49,11 @@ export const postsApi = {
   deleteTag: (id) => axiosClient.delete(`${END.TAGS}/${id}`),
 
   // PostType 
-  getAllPostTypes: () => axiosClient.get(`${END.POSTS}/posttypes`),
-
+  getPosttypes: () => axiosClient.get(`${END.POSTS}/posttypes`),
+  getPosttypeById: (id) => axiosClient.get(`${END.POSTS}/posttypes/${id}`),
+  createPosttype: (data) => axiosClient.post(`${END.POSTS}/posttypes`, data),
+  updatePosttype: (id, data) => axiosClient.put(`${END.POSTS}/posttypes/${id}`, data),
+  deletePosttype: (id) => axiosClient.delete(`${END.POSTS}/posttypes/${id}`),
   // PostImage 
   uploadImage: (file) => {
     const form = new FormData();

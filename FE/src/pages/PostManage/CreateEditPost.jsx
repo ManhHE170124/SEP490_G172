@@ -33,8 +33,8 @@ const CreateEditPost = () => {
   const [content, setContent] = useState('');
   const { toasts, showSuccess, showError, showInfo, removeToast, confirmDialog, showConfirm } = useToast();
   const [status, setStatus] = useState('Draft');
-  const [postTypeId, setPostTypeId] = useState('');
-  const [postTypes, setPostTypes] = useState([]);
+  const [posttypeId, setPosttypeId] = useState('');
+  const [posttypes, setPosttypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({ title: '', description: '' });
@@ -66,11 +66,11 @@ const CreateEditPost = () => {
 
   // Fetch post types
   useEffect(() => {
-    const fetchPostTypes = async () => {
+    const fetchPosttypes = async () => {
       try {
         setLoading(true);
-        const types = await postsApi.getAllPostTypes();
-        setPostTypes(types || []);
+        const types = await postsApi.getPosttypes();
+        setPosttypes(types || []);
       } catch (err) {
         console.error('Failed to fetch post types:', err);
         showError('Lỗi tải danh mục', 'Không thể tải danh sách danh mục bài viết.');
@@ -79,7 +79,7 @@ const CreateEditPost = () => {
       }
     };
 
-    fetchPostTypes();
+    fetchPosttypes();
   }, [showError]);
 
   // Fetch post data in edit mode
@@ -95,7 +95,7 @@ const CreateEditPost = () => {
         setDescription(postData.shortDescription || '');
         setContent(postData.content || '');
         setStatus(postData.status || 'Draft');
-        setPostTypeId(postData.postTypeId || '');
+        setPosttypeId(postData.posttypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
         setFeaturedImage(postData.thumbnail || null);
 
@@ -223,7 +223,7 @@ const CreateEditPost = () => {
   };
 
   // Save post (draft or publish)
-  const savePost = async (publishStatus) => {
+  const handlePostAction = async (postStatus, successTitle, successMessage) => {
     if (!validateForm()) {
       showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
       return;
@@ -239,12 +239,13 @@ const CreateEditPost = () => {
 
       const postData = {
         title,
+        slug: toSlug(title),
         shortDescription: description,
         content: content || '',
         thumbnail: featuredImageUrl,
-        postTypeId: postTypeId || null,
+        posttypeId: posttypeId || null,
         authorId: null, // TODO: Get from auth context
-        status: publishStatus,
+        status: postStatus,
         tagIds: tagIds
       };
 
@@ -253,18 +254,17 @@ const CreateEditPost = () => {
         // Update existing post
         await postsApi.updatePost(postId, postData);
         showSuccess(
-          'Lưu thành công',
-          publishStatus === 'Published' ? 'Bài viết đã được cập nhật và công khai!' : 'Bài viết đã được lưu nháp.'
+          successTitle,
+          successMessage
         );
       } else {
         // Create new post
         result = await postsApi.createPost(postData);
         showSuccess(
-          'Tạo thành công',
-          publishStatus === 'Published' ? 'Bài viết đã được đăng!' : 'Bài viết đã được lưu nháp.'
+          successTitle,
+          successMessage
         );
 
-        // Redirect to edit page of newly created post
         if (result && result.postId) {
           setTimeout(() => {
             navigate(`/post-create-edit/${result.postId}`);
@@ -272,123 +272,39 @@ const CreateEditPost = () => {
         }
       }
     } catch (err) {
-      console.error('Failed to save post:', err);
-      showError('Lỗi lưu bài viết', err.message || 'Không thể lưu bài viết. Vui lòng thử lại.');
-    } finally {
-      setSaving(false);
-    }
+    console.error(err);
+    showError(
+      'Lỗi xử lý bài viết',
+      err.message || 'Không thể thực hiện thao tác. Vui lòng thử lại.'
+    );
+  } finally {
+    setSaving(false);
+  }
   };
 
-  const handleSaveDraft = async () => {
-    if (!validateForm()) {
-      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
-      return;
-    }
+  const handleSaveDraft = () =>
+  handlePostAction({
+    status: 'Draft',
+    successTitle: 'Lưu nháp thành công',
+    successMessage: 'Bài viết đã được lưu nháp.',
+  });
 
-    try {
-      setSaving(true);
+ const handlePublish = () =>
+  handlePostAction({
+    status: 'Published',
+    successTitle: 'Đăng bài thành công',
+    successMessage: 'Bài viết đã được đăng công khai!',
+  });
 
-      const tagIds = tags.filter(t => t.tagId).map(t => t.tagId);
-
-      const postData = {
-        title,
-        shortDescription: description,
-        content: content || '',
-        thumbnail: featuredImageUrl,
-        postTypeId: postTypeId || null,
-        authorId: null, // TODO: lấy từ auth context
-        status: 'Draft',
-        tagIds: tagIds
-      };
-
-      const result = await postsApi.createPost(postData);
-
-      showSuccess('Lưu thành công', 'Bài viết đã được lưu nháp.');
-      if (result && result.postId) {
-        setTimeout(() => navigate(`/post-create-edit/${result.postId}`), 1500);
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Lỗi lưu bài viết', err.message || 'Không thể lưu bài viết. Vui lòng thử lại.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePublish = async () => {
-    if (!validateForm()) {
-      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const tagIds = tags.filter(t => t.tagId).map(t => t.tagId);
-
-      const postData = {
-        title,
-        shortDescription: description,
-        content: content || '',
-        thumbnail: featuredImageUrl,
-        postTypeId: postTypeId || null,
-        authorId: null,
-        status: 'Published',
-        tagIds: tagIds
-      };
-
-      const result = await postsApi.createPost(postData);
-
-      showSuccess('Đăng bài thành công', 'Bài viết đã được đăng công khai!');
-      if (result && result.postId) {
-        setTimeout(() => navigate(`/post-create-edit/${result.postId}`), 1500);
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Lỗi đăng bài', err.message || 'Không thể đăng bài. Vui lòng thử lại.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-
-  const handleSaveChange = async () => {
-    if (!validateForm()) {
-      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const tagIds = tags.filter(t => t.tagId).map(t => t.tagId);
-
-      const postData = {
-        title,
-        shortDescription: description,
-        content: content || '',
-        thumbnail: featuredImageUrl,
-        postTypeId: postTypeId || null,
-        authorId: null,
-        status: status,
-        tagIds: tagIds
-      };
-
-      await postsApi.updatePost(postId, postData);
-
-      showSuccess(
-        'Cập nhật thành công',
-        status === 'Published'
-          ? 'Bài viết đã được công khai.'
-          : 'Bài viết đã được lưu ở chế độ riêng tư.'
-      );
-    } catch (err) {
-      console.error(err);
-      showError('Lỗi cập nhật', err.message || 'Không thể cập nhật bài viết.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const handleSaveChange = () =>
+  handlePostAction({
+    status,
+    successTitle: 'Cập nhật thông tin bài viết thành công',
+    successMessage:
+      status === 'Published'
+        ? 'Bài viết đã được công khai.'
+        : 'Bài viết đã được lưu ở chế độ riêng tư.',
+  });
 
   const handlePreview = () => {
     // TODO: Open preview in new tab
@@ -417,6 +333,19 @@ const CreateEditPost = () => {
       }
     );
   };
+
+  const toSlug = (text) => {
+  return text
+    .normalize('NFD') 
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D') 
+    .replace(/[^a-zA-Z0-9\s-]/g, '') 
+    .trim() 
+    .replace(/\s+/g, '-') 
+    .replace(/-+/g, '-') 
+    .toLowerCase(); 
+};
+
   // Quill setup
   useEffect(() => {
     console.log('Quill useEffect running');
@@ -755,14 +684,14 @@ const CreateEditPost = () => {
             ) : (
               <select
                 id="post-category"
-                value={postTypeId}
-                onChange={(e) => setPostTypeId(e.target.value)}
+                value={posttypeId}
+                onChange={(e) => setPosttypeId(e.target.value)}
                 disabled={saving}
               >
                 <option value="">Chọn danh mục</option>
-                {postTypes.map((type) => (
-                  <option key={type.postTypeId} value={type.postTypeId}>
-                    {type.postTypeName}
+                {posttypes.map((type) => (
+                  <option key={type.posttypeId} value={type.posttypeId}>
+                    {type.posttypeName}
                   </option>
                 ))}
               </select>

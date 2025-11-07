@@ -43,45 +43,6 @@ namespace Keytietkiem.Controllers
         }
 
         /**
-         * Summary: Generate slug from title.
-         * @Params: title (string)
-         * @Returns: slug (string)
-         */
-        private static string GenerateSlug(string title)
-        {
-            if (string.IsNullOrWhiteSpace(title))
-                return string.Empty;
-
-            string slug = title.ToLowerInvariant();
-            slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "");
-            slug = Regex.Replace(slug, @"\s+", " ").Trim();
-            slug = slug.Substring(0, slug.Length <= 100 ? slug.Length : 100).Trim();
-            slug = Regex.Replace(slug, @"\s", "-");
-
-            return slug;
-        }
-
-        /**
-         * Summary: Generate unique slug from title.
-         * @Params: title (string)
-         * @Returns: unique slug (string)
-         */
-        private async Task<string> GenerateUniqueSlugAsync(string title)
-        {
-            string baseSlug = GenerateSlug(title);
-            string slug = baseSlug;
-            int counter = 1;
-
-            while (await _context.Posts.AnyAsync(p => p.Slug == slug))
-            {
-                slug = $"{baseSlug}-{counter}";
-                counter++;
-            }
-
-            return slug;
-        }
-
-        /**
          * Summary: Retrieve all posts.
          * Route: GET /api/posts
          * Params: none
@@ -216,13 +177,11 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Generate unique slug
-            string slug = await GenerateUniqueSlugAsync(createPostDto.Title);
 
             var newPost = new Post
             {
                 Title = createPostDto.Title,
-                Slug = slug,
+                Slug = createPostDto.Slug,
                 ShortDescription = createPostDto.ShortDescription,
                 Content = createPostDto.Content,
                 Thumbnail = createPostDto.Thumbnail,
@@ -335,13 +294,8 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Generate new slug if title changed
-            if (existing.Title != updatePostDto.Title)
-            {
-                existing.Slug = await GenerateUniqueSlugAsync(updatePostDto.Title);
-            }
-
             existing.Title = updatePostDto.Title;
+            existing.Slug = updatePostDto.Slug;
             existing.ShortDescription = updatePostDto.ShortDescription;
             existing.Content = updatePostDto.Content;
             existing.Thumbnail = updatePostDto.Thumbnail;
@@ -376,7 +330,7 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> DeletePost(Guid id)
         {
             var existingPost = await _context.Posts
-                
+
                 .FirstOrDefaultAsync(p => p.PostId == id);
 
             if (existingPost == null)
@@ -410,6 +364,32 @@ namespace Keytietkiem.Controllers
                 .ToListAsync();
             return Ok(postTypes);
         }
+
+        [HttpPost("posttypes")]
+        public async Task<IActionResult> CreatePostType([FromBody] CreatePostTypeDTO createPostTypeDto)
+        {
+            if (createPostTypeDto == null || string.IsNullOrWhiteSpace(createPostTypeDto.PostTypeName))
+            {
+                return BadRequest("Post type name is required.");
+            }
+            var newPostType = new PostType
+            {
+                PostTypeName = createPostTypeDto.PostTypeName,
+                Description = createPostTypeDto.Description
+            };
+            _context.PostTypes.Add(newPostType);
+            await _context.SaveChangesAsync();
+            var postTypeDto = new PostTypeDTO
+            {
+                PostTypeId = newPostType.PostTypeId,
+                PostTypeName = newPostType.PostTypeName,
+                Slug = newPostType.Slug,
+                Description = newPostType.Description
+            };
+            return CreatedAtAction(nameof(GetPostTypes), new { id = newPostType.PostTypeId }, postTypeDto);
+        }
+
+
 
     }
 }

@@ -44,43 +44,17 @@ const TagsInput = ({
   }, []);
 
   // Generate slug from Vietnamese text
-  const generateSlug = (text) => {
-    if (!text) return '';
-    
-    // Convert to lowercase
-    let slug = text.toLowerCase();
-    
-    // Remove Vietnamese diacritics
-    const vietnameseMap = {
-      'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
-      'ă': 'a', 'ắ': 'a', 'ằ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
-      'â': 'a', 'ấ': 'a', 'ầ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
-      'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
-      'ê': 'e', 'ế': 'e', 'ề': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
-      'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
-      'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
-      'ô': 'o', 'ố': 'o', 'ồ': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
-      'ơ': 'o', 'ớ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
-      'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
-      'ư': 'u', 'ứ': 'u', 'ừ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
-      'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
-      'đ': 'd'
-    };
-    
-    // Replace Vietnamese characters
-    slug = slug.split('').map(char => vietnameseMap[char] || char).join('');
-    
-    // Remove invalid characters, keep only a-z, 0-9, spaces, and hyphens
-    slug = slug.replace(/[^a-z0-9\s-]/g, '');
-    
-    // Replace multiple spaces/hyphens with single hyphen
-    slug = slug.replace(/[\s-]+/g, '-');
-    
-    // Trim hyphens from start and end
-    slug = slug.replace(/^-+|-+$/g, '');
-    
-    return slug;
-  };
+ const toSlug = (text) => {
+  return text
+    .normalize('NFD') 
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D') 
+    .replace(/[^a-zA-Z0-9\s-]/g, '') 
+    .trim() 
+    .replace(/\s+/g, '-') 
+    .replace(/-+/g, '-') 
+    .toLowerCase(); 
+};
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -132,7 +106,7 @@ const TagsInput = ({
     // Create new tag with auto-generated slug
     try {
       if (onCreateNewTag) {
-        const slug = generateSlug(trimmedInput);
+        const slug = toSlug(trimmedInput);
         const newTag = await onCreateNewTag(trimmedInput, slug);
         setTags(prev => [...prev, newTag]);
       } else {

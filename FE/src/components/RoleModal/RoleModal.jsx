@@ -1,16 +1,16 @@
 /**
- * File: RBACModal.jsx
+ * File: RoleModal.jsx
  * Author: HieuNDHE173169
  * Created: 20/10/2025
  * Last Updated: 29/10/2025
  * Version: 1.0.0
- * Purpose: Reusable modal form component for RBAC operations (roles, modules, permissions).
+ * Purpose: Reusable modal form component for Role operations (roles, modules, permissions).
  */
 import React, { useState } from 'react';
-import './RBACModal.css';
+import './RoleModal.css';
 
 /**
- * @summary: Reusable modal form component for RBAC entity creation and editing.
+ * @summary: Reusable modal form component for Role entity creation and editing.
  * @param {Object} props - Component props
  * @param {boolean} props.isOpen - Whether modal is visible
  * @param {string} props.title - Modal title
@@ -20,7 +20,7 @@ import './RBACModal.css';
  * @param {boolean} props.submitting - Whether form is being submitted
  * @returns {JSX.Element|null} - Modal form element or null if not open
  */
-const RBACModal = ({ 
+const RoleModal = ({ 
   isOpen, 
   title, 
   fields, 
@@ -182,4 +182,4 @@ const RBACModal = ({
   );
 };
 
-export default RBACModal;
+export default RoleModal;

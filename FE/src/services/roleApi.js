@@ -1,5 +1,5 @@
 /**
- * File: rbacApi.js
+ * File: roleApi.js
  * Author: HieuNDHE173169
  * Created: 18/10/2025
  * Last Updated: 29/10/2025
@@ -37,7 +37,7 @@ const END = {
   PERMISSIONS: "permissions" 
 };
 
-export const rbacApi = {
+export const roleApi = {
   /// Roles
   getAllRoles: () => axiosClient.get(`${END.ROLES}/list`),
   getRoles: () => axiosClient.get(END.ROLES),

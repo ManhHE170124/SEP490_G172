@@ -4,12 +4,12 @@
  * Created: 20/10/2025
  * Last Updated: 25/10/2025
  * Version: 1.0.0
- * Purpose: RBAC management page for Modules, Permissions, and Roles with tabbed navigation.
+ * Purpose: Role management page for Modules, Permissions, and Roles with tabbed navigation.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { rbacApi } from "../../services/rbacApi";
-import RBACModal from "../../components/RBACModal/RBACModal";
+import { roleApi } from "../../services/roleApi";
+import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./RoleManage.css"
@@ -24,7 +24,7 @@ const TABS = {
 };
 
 /**
- * @summary Custom hook for fetching RBAC data dynamically based on the active tab.
+ * @summary Custom hook for fetching Role data dynamically based on the active tab.
  * @param {string} activeTab - One of 'modules', 'permissions', or 'roles'.
  * @returns {Object} - { data, loading, error, setData }
  */
@@ -40,9 +40,9 @@ function useFetchData(activeTab) {
       setError("");
       try {
         let res = [];
-        if (activeTab === TABS.MODULES) res = await rbacApi.getModules();
-        else if (activeTab === TABS.PERMISSIONS) res = await rbacApi.getPermissions();
-        else if (activeTab === TABS.ROLES) res = await rbacApi.getAllRoles();
+        if (activeTab === TABS.MODULES) res = await roleApi.getModules();
+        else if (activeTab === TABS.PERMISSIONS) res = await roleApi.getPermissions();
+        else if (activeTab === TABS.ROLES) res = await roleApi.getAllRoles();
         if (isMounted) setData(Array.isArray(res) ? res : []);
       } catch (e) {
         if (isMounted) setError(e.message || "Không thể tải dữ liệu");
@@ -77,7 +77,7 @@ function formatDate(value) {
  * @summary Handles the user interface and interaction logic for managing
  * modules, permissions, and roles.
  */
-export default function RBACManagement() {
+export default function RoleManagement() {
   const [activeTab, setActiveTab] = useState(TABS.MODULES);
   const { data, loading, error, setData } = useFetchData(activeTab);
   const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
@@ -89,7 +89,7 @@ export default function RBACManagement() {
   // Roles-only status filter
   const [roleStatus, setRoleStatus] = useState("all"); // all | active | inactive
 
-  // Modal for adding role (RBACModal)
+  // Modal for adding role (Modal)
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -193,7 +193,7 @@ export default function RBACManagement() {
       });
     }
     return rows;
-   }, [data, columns, search, sortKey, sortOrder, roleStatus, activeTab]);
+  }, [data, columns, search, sortKey, sortOrder, roleStatus, activeTab]);
 
   const total = filteredSorted.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -233,9 +233,9 @@ export default function RBACManagement() {
   async function handleCreateRole(form) {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createRole({ 
-        name: form.name, 
-        isSystem: form.isSystem || false 
+      const created = await roleApi.createRole({
+        name: form.name,
+        isSystem: form.isSystem || false
       });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddRoleOpen(false);
@@ -259,7 +259,7 @@ export default function RBACManagement() {
   async function handleCreateModule(form) {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createModule({ 
+      const created = await roleApi.createModule({
         moduleName: form.moduleName,
         description: form.description || ""
       });
@@ -285,8 +285,8 @@ export default function RBACManagement() {
   async function handleCreatePermission(form) {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createPermission({ 
-        permissionName: form.permissionName, 
+      const created = await roleApi.createPermission({
+        permissionName: form.permissionName,
         description: form.description || ""
       });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
@@ -346,21 +346,21 @@ export default function RBACManagement() {
   async function onDelete(row) {
     const label = activeTab === TABS.MODULES ? row.moduleName : activeTab === TABS.PERMISSIONS ? row.permissionName : row.name;
     const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
-    
+
     showWarning(
       `Xác nhận xóa ${entityType}`,
       `Bạn sắp xóa ${entityType.toLowerCase()} "${label}". Hành động này không thể hoàn tác!`
     );
-    
+
     // Show confirm dialog instead of alert
     showConfirm(
       `Xác nhận xóa ${entityType}`,
       `Bạn có chắc chắn muốn xóa "${label}"? Hành động này không thể hoàn tác.`,
       async () => {
         try {
-          if (activeTab === TABS.MODULES) await rbacApi.deleteModule(row.moduleId || row.id);
-          else if (activeTab === TABS.PERMISSIONS) await rbacApi.deletePermission(row.permissionId || row.id);
-          else await rbacApi.deleteRole(row.roleId || row.id);
+          if (activeTab === TABS.MODULES) await roleApi.deleteModule(row.moduleId || row.id);
+          else if (activeTab === TABS.PERMISSIONS) await roleApi.deletePermission(row.permissionId || row.id);
+          else await roleApi.deleteRole(row.roleId || row.id);
           setData((prev) => prev.filter((x) => {
             const key = activeTab === TABS.MODULES ? "moduleId" : activeTab === TABS.PERMISSIONS ? "permissionId" : "roleId";
             const targetId = row[key] ?? row.id;
@@ -392,37 +392,37 @@ export default function RBACManagement() {
       setEditSubmitting(true);
       const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
       const entityName = activeTab === TABS.MODULES ? form.moduleName : activeTab === TABS.PERMISSIONS ? form.permissionName : form.name;
-      
+
       if (activeTab === TABS.MODULES) {
-        await rbacApi.updateModule(editingRow.moduleId, { 
-          moduleName: form.moduleName, 
+        await roleApi.updateModule(editingRow.moduleId, {
+          moduleName: form.moduleName,
           description: form.description || ""
         });
-        setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? { 
-          ...x, 
-          moduleName: form.moduleName, 
+        setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? {
+          ...x,
+          moduleName: form.moduleName,
           description: form.description,
           updatedAt: new Date().toISOString(),
         } : x));
       } else if (activeTab === TABS.PERMISSIONS) {
-        await rbacApi.updatePermission(editingRow.permissionId, { 
-          permissionName: form.permissionName, 
+        await roleApi.updatePermission(editingRow.permissionId, {
+          permissionName: form.permissionName,
           description: form.description || ""
         });
-        setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? { 
-          ...x, 
-          permissionName: form.permissionName, 
+        setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? {
+          ...x,
+          permissionName: form.permissionName,
           description: form.description,
           updatedAt: new Date().toISOString(),
         } : x));
       } else {
-        const payload = { 
-          name: form.name, 
-          isActive: form.isActive 
+        const payload = {
+          name: form.name,
+          isActive: form.isActive
         };
-        await rbacApi.updateRole(editingRow.roleId, payload);
-        setData((prev) => prev.map((x) => x.roleId === editingRow.roleId ? { 
-          ...x, 
+        await roleApi.updateRole(editingRow.roleId, payload);
+        setData((prev) => prev.map((x) => x.roleId === editingRow.roleId ? {
+          ...x,
           ...payload,
           updatedAt: new Date().toISOString(),
         } : x));
@@ -442,36 +442,36 @@ export default function RBACManagement() {
   }
 
   return (
-    <div className="rbac-management-container">
-      <div className="rbac-header">
-        <h1 className="rbac-title">Quản lý phân quyền</h1>
-        <p className="rbac-subtitle">Quản lý Mô-đun, Quyền và Vai trò</p>
+    <div className="role-management-container">
+      <div className="role-header">
+        <h1 className="role-title">Quản lý phân quyền</h1>
+        <p className="role-subtitle">Quản lý Mô-đun, Quyền và Vai trò</p>
       </div>
 
-      <div className="rbac-tabs">
+      <div className="role-tabs">
         <button
-          className={`tab-button ${activeTab === TABS.MODULES ? "active" : ""}`}
+          className={`role-tab-button ${activeTab === TABS.MODULES ? "active" : ""}`}
           onClick={() => setActiveTab(TABS.MODULES)}
         >
           Mô-đun
         </button>
         <button
-          className={`tab-button ${activeTab === TABS.PERMISSIONS ? "active" : ""}`}
+          className={`role-tab-button ${activeTab === TABS.PERMISSIONS ? "active" : ""}`}
           onClick={() => setActiveTab(TABS.PERMISSIONS)}
         >
           Quyền
         </button>
         <button
-          className={`tab-button ${activeTab === TABS.ROLES ? "active" : ""}`}
+          className={`role-tab-button ${activeTab === TABS.ROLES ? "active" : ""}`}
           onClick={() => setActiveTab(TABS.ROLES)}
         >
           Vai trò
         </button>
       </div>
 
-      <div className="rbac-controls">
-        <div className="controls-left">
-          <div className="search-box">
+      <div className="role-controls">
+        <div className="role-controls-left">
+          <div className="role-search-box">
             <input
               type="text"
               placeholder={activeTab === TABS.MODULES ? "Tìm tên Mô-đun" : activeTab === TABS.PERMISSIONS ? "Tìm tên Quyền" : "Tìm tên Vai trò"}
@@ -487,7 +487,7 @@ export default function RBACManagement() {
               aria-label="Lọc trạng thái"
               value={roleStatus}
               onChange={(e) => { setRoleStatus(e.target.value); setPage(1); }}
-              className="btn-secondary"
+              className="role-btn-secondary"
               style={{ padding: "8px 12px" }}
             >
               <option value="all">Tất cả</option>
@@ -496,12 +496,13 @@ export default function RBACManagement() {
             </select>
           )}
         </div>
-        <div className="controls-right">
-          <button className="add-button" onClick={onClickAdd}>{addButtonText}</button>
+        <div className="role-controls-right">
+
+          <button className="role-add-button" onClick={onClickAdd}>{addButtonText}</button>
         </div>
       </div>
       {activeTab === TABS.ROLES && (
-        <RBACModal
+        <RoleModal
           isOpen={addRoleOpen}
           title="Thêm Vai trò"
           fields={[
@@ -514,7 +515,7 @@ export default function RBACManagement() {
         />
       )}
       {activeTab === TABS.MODULES && (
-        <RBACModal
+        <RoleModal
           isOpen={addModuleOpen}
           title="Thêm Mô-đun"
           fields={[
@@ -527,7 +528,7 @@ export default function RBACManagement() {
         />
       )}
       {activeTab === TABS.PERMISSIONS && (
-        <RBACModal
+        <RoleModal
           isOpen={addPermissionOpen}
           title="Thêm Quyền"
           fields={[
@@ -540,28 +541,28 @@ export default function RBACManagement() {
         />
       )}
 
-      <div className="rbac-table-container">
+      <div className="role-table-container">
         {loading ? (
-          <div className="loading-state">
-            <div className="loading-spinner" />
+          <div className="role-loading-state">
+            <div className="role-loading-spinner" />
             <div>Đang tải dữ liệu...</div>
           </div>
         ) : error ? (
-          <div className="empty-state">
+          <div className="role-empty-state">
             <div>Lỗi: {error}</div>
           </div>
         ) : paginated.length === 0 ? (
-          <div className="empty-state">
+          <div className="role-empty-state">
             <div>Không có dữ liệu</div>
           </div>
         ) : (
-          <table className="rbac-table">
+          <table className="role-table">
             <thead>
               <tr>
                 {columns.map((col) => (
                   <th key={col.key}>
-                    <div 
-                      className="sortable-header" 
+                    <div
+                      className="role-sortable-header"
                       onClick={() => handleColumnSort(col.key)}
                       onKeyDown={(e) => e.key === "Enter" && handleColumnSort(col.key)}
                       role="button"
@@ -584,12 +585,12 @@ export default function RBACManagement() {
                     return <td key={col.key}>{value}</td>;
                   })}
                   <td>
-                    <div className="action-buttons">
-                      <button className="action-btn update-btn" title="Sửa" onClick={() => onEdit(row)}>
-                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+                    <div className="role-action-buttons">
+                      <button className="role-action-btn role-update-btn" title="Sửa" onClick={() => onEdit(row)}>
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
                       </button>
-                      <button className="action-btn delete-btn" title="Xoá" onClick={() => onDelete(row)}>
-                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z"/></svg>
+                      <button className="role-action-btn role-delete-btn" title="Xoá" onClick={() => onDelete(row)}>
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" /></svg>
                       </button>
                     </div>
                   </td>
@@ -603,14 +604,14 @@ export default function RBACManagement() {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
-            className="btn-secondary"
+            className="role-btn-secondary"
             onClick={() => setPage(1)}
             disabled={currentPage === 1}
           >
             «
           </button>
           <button
-            className="btn-secondary"
+            className="role-btn-secondary"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
           >
@@ -620,14 +621,14 @@ export default function RBACManagement() {
             Trang {currentPage}/{totalPages} ({total} bản ghi)
           </span>
           <button
-            className="btn-secondary"
+            className="role-btn-secondary"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage >= totalPages}
           >
             ›
           </button>
           <button
-            className="btn-secondary"
+            className="role-btn-secondary"
             onClick={() => setPage(totalPages)}
             disabled={currentPage >= totalPages}
           >
@@ -635,21 +636,21 @@ export default function RBACManagement() {
           </button>
         </div>
       </div>
-       <RBACModal
-         isOpen={editOpen}
-         title={editTitle}
-         fields={editFields}
-         onClose={() => setEditOpen(false)}
-         onSubmit={onSubmitEdit}
-         submitting={editSubmitting}
-       />
-       
-       <ToastContainer 
-         toasts={toasts} 
-         onRemove={removeToast}
-         confirmDialog={confirmDialog}
-       />
-     </div>
-   );
- }
+      <RoleModal
+        isOpen={editOpen}
+        title={editTitle}
+        fields={editFields}
+        onClose={() => setEditOpen(false)}
+        onSubmit={onSubmitEdit}
+        submitting={editSubmitting}
+      />
+
+      <ToastContainer
+        toasts={toasts}
+        onRemove={removeToast}
+        confirmDialog={confirmDialog}
+      />
+    </div>
+  );
+}
 

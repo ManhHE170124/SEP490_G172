@@ -7,8 +7,8 @@
  * Purpose: Role permission assignment page for managing role-permission relationships.
  */
 import React, { useEffect, useState, useCallback } from "react";
-import {rbacApi} from "../../services/rbacApi";
-import RBACModal from "../../components/RBACModal/RBACModal";
+import {roleApi} from "../../services/roleApi";
+import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./RoleAssign.css";
@@ -44,7 +44,7 @@ export default function RoleAssign() {
    */
   const loadRolePermissions = useCallback(async (roleId) => {
     try {
-      const response = await rbacApi.getRolePermissions(roleId);
+      const response = await roleApi.getRolePermissions(roleId);
       setRolePermissions(response.rolePermissions || []);
     } catch (error) {
       showError("Lỗi tải quyền", error.message || "Không thể tải quyền của Vai trò");
@@ -59,9 +59,9 @@ export default function RoleAssign() {
     try {
       setLoading(true);
       const [rolesData, modulesData, permissionsData] = await Promise.all([
-        rbacApi.getActiveRoles(),
-        rbacApi.getModules(),
-        rbacApi.getPermissions()
+        roleApi.getActiveRoles(),
+        roleApi.getModules(),
+        roleApi.getPermissions()
       ]);
       
       setRoles(rolesData || []);
@@ -91,7 +91,7 @@ export default function RoleAssign() {
   const handleCreateRole = async (form) => {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createRole({ 
+      const created = await roleApi.createRole({ 
         name: form.name, 
         isSystem: form.isSystem || false 
       });
@@ -117,7 +117,7 @@ export default function RoleAssign() {
   const handleCreateModule = async (form) => {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createModule({ 
+      const created = await roleApi.createModule({ 
         moduleName: form.moduleName,
         description: form.description || ""
       });
@@ -143,7 +143,7 @@ export default function RoleAssign() {
   const handleCreatePermission = async (form) => {
     try {
       setSubmitting(true);
-      const created = await rbacApi.createPermission({ 
+      const created = await roleApi.createPermission({ 
         permissionName: form.permissionName, 
         description: form.description || ""
       });
@@ -279,7 +279,7 @@ export default function RoleAssign() {
       }
 
       // Send complete matrix to server
-      await rbacApi.updateRolePermissions(selectedRole.roleId, {
+      await roleApi.updateRolePermissions(selectedRole.roleId, {
         roleId: selectedRole.roleId,
         rolePermissions: allRolePermissions
       });
@@ -424,21 +424,21 @@ export default function RoleAssign() {
            </h2>
           <div className="ra-action-buttons">
              <button 
-               className="ra-btn btn-cancel"
+               className="ra-btn ra-btn-cancel"
                onClick={handleCancel}
                disabled={!selectedRole}
              >
                Hủy
              </button>
             <button 
-              className="ra-btn btn-tick-all"
+              className="ra-btn ra-btn-tick-all"
               onClick={handleTickAll}
               disabled={!selectedRole}
             >
               {isAllTicked ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
             </button>
              <button 
-               className="ra-btn btn-save"
+               className="ra-btn ra-btn-save"
                onClick={handleSaveChanges}
                disabled={!selectedRole || submitting || !hasUnsavedChanges}
                style={{
@@ -503,7 +503,7 @@ export default function RoleAssign() {
       </div>
       
       {/* Modals */}
-      <RBACModal
+      <RoleModal
         isOpen={addRoleOpen}
         title="Thêm Vai trò"
         fields={[
@@ -514,7 +514,7 @@ export default function RoleAssign() {
         submitting={submitting}
       />
       
-      <RBACModal
+      <RoleModal
         isOpen={addModuleOpen}
         title="Thêm Mô-đun"
         fields={[
@@ -526,7 +526,7 @@ export default function RoleAssign() {
         submitting={submitting}
       />
       
-      <RBACModal
+      <RoleModal
         isOpen={addPermissionOpen}
         title="Thêm Quyền"
         fields={[
