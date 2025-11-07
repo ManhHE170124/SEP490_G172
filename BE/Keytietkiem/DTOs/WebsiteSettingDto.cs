@@ -1,4 +1,15 @@
-﻿namespace Keytietkiem.DTOs
+﻿/**
+ * File: WebsiteSettingDto.cs
+ * Author: TungNVHE170677
+ * Created: 26/10/2025
+ * Last Updated: 
+ * Purpose:
+ *   Data Transfer Object (DTO) representing website-wide configuration settings.
+ *   These settings control appearance, branding, SEO metadata, and SMTP configuration
+ *   for system-wide usage across frontend and backend modules.
+ */
+
+namespace Keytietkiem.DTOs
 {
     public class WebsiteSettingDto
 {

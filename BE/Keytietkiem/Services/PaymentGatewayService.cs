@@ -1,4 +1,14 @@
-﻿using Keytietkiem.DTOs;
+﻿/**
+ * File: PaymentGatewayService.cs
+ * Author: TungNVHE170677
+ * Created: 26/10/2025
+ * Last Updated: 
+ * Description:
+ *   Service implementation for managing payment gateway configurations.
+ *   Provides CRUD operations for PaymentGateway entities and DTO mapping.
+ */
+
+using Keytietkiem.DTOs;
 using Keytietkiem.Models;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;

@@ -1,4 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿/**
+ * File: LayoutSectionService.cs
+ * Author: TungNVHE170677
+ * Created: 26/10/2025
+ * Last Updated: 
+ * Purpose:
+ *   Service implementation for managing layout sections within the website.
+ *   Provides CRUD operations for layout sections (e.g., header, footer, sidebar, etc.)
+ *   that define configurable display areas of the web application.
+ */
+using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs;
 using Keytietkiem.Models;
 using Keytietkiem.Services.Interfaces;
@@ -13,6 +23,10 @@ using Keytietkiem.Services.Interfaces;
         {
             _context = context;
         }
+        /**
+         * Summary: Retrieve all layout sections ordered by display order.
+         * Returns: IEnumerable of LayoutSectionDto
+         */
 
         public async Task<IEnumerable<LayoutSectionDto>> GetAllAsync()
         {
@@ -29,7 +43,11 @@ using Keytietkiem.Services.Interfaces;
                     UpdatedAt = x.UpdatedAt
                 }).ToListAsync();
         }
-
+        /**
+         * Summary: Retrieve a layout section by ID.
+         * Params: id (int) - layout section identifier
+         * Returns: LayoutSectionDto or null if not found
+         */
         public async Task<LayoutSectionDto> GetByIdAsync(int id)
         {
             var x = await _context.LayoutSections.FindAsync(id);
@@ -45,7 +63,11 @@ using Keytietkiem.Services.Interfaces;
                 UpdatedAt = x.UpdatedAt
             };
         }
-
+        /**
+         * Summary: Create a new layout section.
+         * Params: dto (LayoutSectionDto) - layout section data
+         * Returns: LayoutSectionDto - created layout section
+         */
         public async Task<LayoutSectionDto> CreateAsync(LayoutSectionDto dto)
         {
             var entity = new LayoutSection
@@ -64,7 +86,12 @@ using Keytietkiem.Services.Interfaces;
             dto.UpdatedAt = entity.UpdatedAt;
             return dto;
         }
-
+        /**
+       * Summary: Update an existing layout section.
+       * Params: id (int) - layout section identifier
+       *         dto (LayoutSectionDto) - updated section data
+       * Returns: LayoutSectionDto - updated layout section, or null if not found
+       */
         public async Task<LayoutSectionDto> UpdateAsync(int id, LayoutSectionDto dto)
         {
             var entity = await _context.LayoutSections.FindAsync(id);
@@ -78,7 +105,11 @@ using Keytietkiem.Services.Interfaces;
             await _context.SaveChangesAsync();
             return dto;
         }
-
+        /**
+         * Summary: Delete a layout section by ID.
+         * Params: id (int) - layout section identifier
+         * Returns: true if deleted successfully, false if not found
+         */
         public async Task<bool> DeleteAsync(int id)
         {
             var entity = await _context.LayoutSections.FindAsync(id);

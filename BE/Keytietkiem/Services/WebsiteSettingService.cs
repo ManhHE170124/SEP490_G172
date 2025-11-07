@@ -1,4 +1,14 @@
-﻿using Keytietkiem.DTOs;
+﻿/**
+ * File: WebsiteSettingService.cs
+ * Author: TungNVHE170677
+ * Created: 26/10/2025
+ * Last Updated: 
+ * Description:
+ *   Service implementation for managing website configuration and metadata.
+ *   Provides read and update operations for WebsiteSetting entities.
+ */
+
+using Keytietkiem.DTOs;
 using Keytietkiem.Models;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;

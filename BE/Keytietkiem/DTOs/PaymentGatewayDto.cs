@@ -1,4 +1,14 @@
-﻿namespace Keytietkiem.DTOs
+﻿/**
+ * File: PaymentGatewayDto.cs
+ * Author: TungNVHE170677
+ * Created: 26/10/2025
+ * Last Updated: 
+ * Purpose:
+ *   Data Transfer Object (DTO) representing a payment gateway configuration.
+ *   Used to define available payment methods, their callback URLs, and activation state
+ *   for integration with checkout or donation workflows.
+ */
+namespace Keytietkiem.DTOs
 {
     public class PaymentGatewayDto
     {
