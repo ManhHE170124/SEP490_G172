@@ -7,6 +7,7 @@ const PRODUCT_KEY_ENDPOINTS = {
   UNASSIGN: (id) => `/ProductKey/${id}/unassign`,
   BULK_UPDATE: "/ProductKey/bulk-update-status",
   EXPORT: "/ProductKey/export",
+  IMPORT_CSV: "/ProductKey/import-csv",
 };
 
 export const ProductKeyApi = {
@@ -41,5 +42,11 @@ export const ProductKeyApi = {
     axiosClient.get(PRODUCT_KEY_ENDPOINTS.EXPORT, {
       params,
       responseType: "blob",
+    }),
+
+  // Import keys from CSV (new endpoint)
+  importCsv: (formData) =>
+    axiosClient.post(PRODUCT_KEY_ENDPOINTS.IMPORT_CSV, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
 };

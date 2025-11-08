@@ -31,6 +31,7 @@ import KeyManagementPage from "../pages/storage/KeyManagementPage.jsx";
 import KeyDetailPage from "../pages/storage/KeyDetailPage.jsx";
 import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
 import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
+import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
 // Other pages
 import Page404 from "../pages/NotFound/Page404";
@@ -91,6 +92,9 @@ export default function AppRoutes() {
       <Route path="/keys" element={<KeyManagementPage />} />
       <Route path="/keys/add" element={<KeyDetailPage />} />
       <Route path="/keys/:id" element={<KeyDetailPage />} />
+
+      {/* Key Monitor */}
+      <Route path="/key-monitor" element={<KeyMonitorPage />} />
 
       {/* Product Accounts */}
       <Route path="/accounts" element={<AccountManagementPage />} />
