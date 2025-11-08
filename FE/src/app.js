@@ -11,9 +11,9 @@ import "./App.css";
 const App = () => {
   return (
     <div className="app">
-      <Sidebar />
       <div className="content">
         <Header />
+        <Sidebar />
         <AppRoutes />
       </div>
     </div>

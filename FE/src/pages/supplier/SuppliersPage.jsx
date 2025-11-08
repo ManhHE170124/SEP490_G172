@@ -102,41 +102,6 @@ export default function SuppliersPage() {
     });
   };
 
-  const getStatusBadge = (status) => {
-    if (status === "Active") {
-      return (
-        <span
-          style={{
-            display: "inline-block",
-            padding: "2px 8px",
-            border: "1px solid #d1fae5",
-            borderRadius: "999px",
-            fontSize: "12px",
-            background: "#d1fae5",
-            color: "#065f46",
-          }}
-        >
-          Đang hợp tác
-        </span>
-      );
-    }
-    return (
-      <span
-        style={{
-          display: "inline-block",
-          padding: "2px 8px",
-          border: "1px solid #fee2e2",
-          borderRadius: "999px",
-          fontSize: "12px",
-          background: "#fee2e2",
-          color: "#991b1b",
-        }}
-      >
-        Tạm dừng
-      </span>
-    );
-  };
-
   // Consistent badge rendering using shared styles
   const renderStatusBadge = (status) =>
     status === "Active" ? (
