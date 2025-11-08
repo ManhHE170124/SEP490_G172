@@ -37,6 +37,16 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime SentAt { get; set; }
     }
 
+    // Đơn hàng gần nhất (hiển thị bên phải)
+    public class LatestOrderMiniDto
+    {
+        public Guid OrderId { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal FinalAmount { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+    }
+
     public class TicketDetailDto
     {
         public Guid TicketId { get; set; }
@@ -47,7 +57,6 @@ namespace Keytietkiem.DTOs.Tickets
         public SlaState SlaStatus { get; set; } = SlaState.OK;
         public AssignmentState AssignmentState { get; set; } = AssignmentState.Unassigned;
 
-
         public string CustomerName { get; set; } = "";
         public string? CustomerEmail { get; set; }
         public string? CustomerPhone { get; set; }
@@ -56,7 +65,14 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
+        // Lịch sử trao đổi
         public List<TicketReplyDto> Replies { get; set; } = new();
+
+        // Ticket liên quan (các ticket khác cùng khách hàng)
+        public List<TicketListItemDto> RelatedTickets { get; set; } = new();
+
+        // Đơn hàng gần nhất của khách hàng
+        public LatestOrderMiniDto? LatestOrder { get; set; }
     }
 
     // DTO tạo tin nhắn chat
