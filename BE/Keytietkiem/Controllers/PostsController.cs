@@ -375,7 +375,8 @@ namespace Keytietkiem.Controllers
             var newPostType = new PostType
             {
                 PostTypeName = createPostTypeDto.PostTypeName,
-                Description = createPostTypeDto.Description
+                Description = createPostTypeDto.Description,
+                Slug = createPostTypeDto.Slug
             };
             _context.PostTypes.Add(newPostType);
             await _context.SaveChangesAsync();
@@ -389,7 +390,45 @@ namespace Keytietkiem.Controllers
             return CreatedAtAction(nameof(GetPostTypes), new { id = newPostType.PostTypeId }, postTypeDto);
         }
 
+        [HttpPut("posttypes/{id}")]
+        public async Task<IActionResult> UpdatePostType(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
+        {
+            if (updatePostTypeDto == null || string.IsNullOrWhiteSpace(updatePostTypeDto.PostTypeName))
+            {
+                return BadRequest("Post type name is required.");
+            }
+            var existing = await _context.PostTypes
+                .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
+            if (existing == null)
+            {
+                return NotFound();
+            }
+            existing.PostTypeName = updatePostTypeDto.PostTypeName;
+            existing.Description = updatePostTypeDto.Description;
+            _context.PostTypes.Update(existing);
+            await _context.SaveChangesAsync();
+            return NoContent();
 
+        }
+    
 
+    [HttpDelete("posttypes/{id}")]
+        public async Task<IActionResult> DeletePostType(Guid id)
+        {
+            var existing = await _context.PostTypes
+                .Include(pt => pt.Posts)
+                .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
+            if (existing == null)
+            {
+                return NotFound();
+            }
+            if (existing.Posts != null && existing.Posts.Any())
+            {
+                return BadRequest("Cannot delete post type with associated posts.");
+            }
+            _context.PostTypes.Remove(existing);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
     }
 }
