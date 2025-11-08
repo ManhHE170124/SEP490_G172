@@ -356,7 +356,9 @@ export default function AccountDetailPage() {
   // If product type is PERSONAL_ACCOUNT, force maxUsers to 1
   useEffect(() => {
     if (selectedProduct?.productType === "PERSONAL_ACCOUNT") {
-      setFormData((prev) => (prev.maxUsers !== "1" ? { ...prev, maxUsers: "1" } : prev));
+      setFormData((prev) =>
+        prev.maxUsers !== "1" ? { ...prev, maxUsers: "1" } : prev
+      );
     }
   }, [selectedProduct]);
 
@@ -367,7 +369,7 @@ export default function AccountDetailPage() {
   if (loading) {
     return (
       <div className="page">
-        <div className="card">
+        <div className="card ">
           <p style={{ textAlign: "center", padding: 40 }}>Đang tải...</p>
         </div>
       </div>
@@ -386,7 +388,7 @@ export default function AccountDetailPage() {
         onCancel={closeConfirmDialog}
       />
 
-      <section className="card">
+      <section className="card ">
         <div
           style={{
             display: "flex",
@@ -722,7 +724,7 @@ export default function AccountDetailPage() {
 
           {/* Full users list in product account */}
           {!isNew && accountInfo && (
-            <section className="card" style={{ marginTop: 16 }}>
+            <section className="card " style={{ marginTop: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, flex: 1 }}>
                   Người dùng trong tài khoản
@@ -841,7 +843,7 @@ export default function AccountDetailPage() {
 
           {/* History with paging and sort by created date */}
           {!isNew && (
-            <section className="card" style={{ marginTop: 16 }}>
+            <section className="card " style={{ marginTop: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, flex: 1 }}>Lịch sử</h3>
                 <label

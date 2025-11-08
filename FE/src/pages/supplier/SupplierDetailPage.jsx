@@ -496,7 +496,7 @@ export default function SupplierDetailPage() {
         onCancel={closeConfirmDialog}
       />
 
-      <section className="card">
+      <section className="card ">
         <div
           style={{
             display: "flex",
@@ -511,7 +511,7 @@ export default function SupplierDetailPage() {
               : `Chi tiết nhà cung cấp — ${formData.name}`}
           </h1>
           <Link className="btn" to="/suppliers">
-            ← Quay lại
+            Quay lại
           </Link>
         </div>
 
@@ -670,7 +670,7 @@ export default function SupplierDetailPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <div className="row" style={{ marginTop: 16 }}>
             <button type="submit" className="btn primary" disabled={saving}>
               {saving ? "Đang lưu..." : "Lưu"}
             </button>
@@ -684,7 +684,11 @@ export default function SupplierDetailPage() {
             {!isNew && supplierInfo && (
               <button
                 type="button"
-                className="btn"
+                className={
+                  supplierInfo?.status === "Active"
+                    ? "btn secondary"
+                    : "btn success"
+                }
                 onClick={handleToggleStatus}
                 style={{ marginLeft: "auto" }}
               >
@@ -699,10 +703,8 @@ export default function SupplierDetailPage() {
 
       {/* License Packages Section - Only shown for existing suppliers */}
       {!isNew && (
-        <section className="card" style={{ marginTop: 14 }}>
-          <h2 style={{ margin: "0 0 12px" }}>
-            Thông tin gói mua (License bulk)
-          </h2>
+        <section className="card " style={{ marginTop: 14 }}>
+          <h2 style={{ margin: "0 0 12px" }}>Thông tin gói mua</h2>
 
           {supplierInfo?.status !== "Active" && (
             <div
@@ -927,7 +929,7 @@ export default function SupplierDetailPage() {
                     <td>{pkg.importedToStock}</td>
                     <td>{pkg.remainingQuantity}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 6 }}>
+                      <div className="action-buttons">
                         {pkg.remainingQuantity > 0 && (
                           <button
                             className="btn"

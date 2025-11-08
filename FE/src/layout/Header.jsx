@@ -29,9 +29,9 @@ const Header = () => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -43,19 +43,19 @@ const Header = () => {
     setIsDropdownOpen(false);
 
     switch (action) {
-      case 'profile':
+      case "profile":
         // Navigate to profile page
-        console.log('Navigate to profile');
+        console.log("Navigate to profile");
         break;
-      case 'change-avatar':
+      case "change-avatar":
         // Navigate to change avatar
-        console.log('Navigate to change avatar');
+        console.log("Navigate to change avatar");
         break;
-      case 'settings':
+      case "settings":
         // Navigate to settings
-        console.log('Navigate to settings');
+        console.log("Navigate to settings");
         break;
-      case 'logout':
+      case "logout":
         handleLogout();
         break;
       default:
@@ -85,11 +85,13 @@ const Header = () => {
     if (nameParts.length === 1) {
       return nameParts[0].charAt(0).toUpperCase();
     }
-    return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+    return (
+      nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)
+    ).toUpperCase();
   };
 
   return (
-    <div className="header" role="banner">
+    <div className="header">
       <div className="search">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path
@@ -106,7 +108,11 @@ const Header = () => {
         />
       </div>
       <div className="right">
-        <span className="pill" title="Tháng hiện tại" aria-label="Tháng 10/2025">
+        <span
+          className="pill"
+          title="Tháng hiện tại"
+          aria-label="Tháng 10/2025"
+        >
           10/2025
         </span>
         <span className="pill" title="Thông báo" aria-label="Thông báo">
@@ -134,11 +140,11 @@ const Header = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="dropdown-items">
-                <button 
+                <button
                   className="dropdown-item"
-                  onClick={() => handleMenuAction('profile')}
+                  onClick={() => handleMenuAction("profile")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path
@@ -148,14 +154,20 @@ const Header = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
-                    <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+                    <circle
+                      cx="12"
+                      cy="7"
+                      r="4"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
                   </svg>
                   Xem Profile
                 </button>
-                
-                <button 
+
+                <button
                   className="dropdown-item"
-                  onClick={() => handleMenuAction('change-avatar')}
+                  onClick={() => handleMenuAction("change-avatar")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path
@@ -165,17 +177,29 @@ const Header = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
-                    <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2"/>
+                    <circle
+                      cx="12"
+                      cy="13"
+                      r="4"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
                   </svg>
                   Thay Avatar
                 </button>
-                
-                <button 
+
+                <button
                   className="dropdown-item"
-                  onClick={() => handleMenuAction('settings')}
+                  onClick={() => handleMenuAction("settings")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="3"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
                     <path
                       d="M12 1v6m0 6v6m11-7h-6m-6 0H1m15.5-6.5l-4.24 4.24M8.76 8.76 4.52 4.52m14.96 14.96-4.24-4.24M8.76 15.24 4.52 19.48"
                       stroke="currentColor"
@@ -186,12 +210,12 @@ const Header = () => {
                   </svg>
                   Cài đặt
                 </button>
-                
+
                 <div className="dropdown-divider"></div>
-                
-                <button 
+
+                <button
                   className="dropdown-item logout"
-                  onClick={() => handleMenuAction('logout')}
+                  onClick={() => handleMenuAction("logout")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path

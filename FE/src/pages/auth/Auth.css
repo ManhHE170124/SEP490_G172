@@ -116,7 +116,7 @@ hr {
   background: #fff;
 }
 
-.header {
+.header-public {
   display: grid;
   grid-template-columns: 180px 1fr auto;
   gap: 16px;

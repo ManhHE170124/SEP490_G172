@@ -137,6 +137,14 @@ export default function SuppliersPage() {
     );
   };
 
+  // Consistent badge rendering using shared styles
+  const renderStatusBadge = (status) =>
+    status === "Active" ? (
+      <span className="badge green">Đang hợp tác</span>
+    ) : (
+      <span className="badge gray">Tạm dừng</span>
+    );
+
   const closeConfirmDialog = () => {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
   };
@@ -154,7 +162,7 @@ export default function SuppliersPage() {
       />
 
       {/* Supplier List Section */}
-      <section className="card">
+      <section className="card ">
         <div
           style={{
             display: "flex",
@@ -268,10 +276,12 @@ export default function SuppliersPage() {
                   <td>{supplier.contactEmail || "-"}</td>
                   <td>{supplier.contactPhone || "-"}</td>
                   <td>{supplier.activeProductCount || 0}</td>
-                  <td>{getStatusBadge(supplier.status)}</td>
+                  <td className="col-status">
+                    {renderStatusBadge(supplier.status)}
+                  </td>
                   <td>{formatDate(supplier.createdAt)}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div className="action-buttons">
                       <Link
                         className="btn"
                         to={`/suppliers/${supplier.supplierId}`}
