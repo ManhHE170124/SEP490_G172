@@ -14,21 +14,25 @@ namespace Keytietkiem.DTOs.Tickets
         public Guid TicketId { get; set; }
         public string TicketCode { get; set; } = "";
         public string Subject { get; set; } = "";
-        public string Status { get; set; } = "New"; // New | InProgress | Completed | Closed
+        public string Status { get; set; } = "New";
         public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
         public SlaState SlaStatus { get; set; } = SlaState.OK;
         public AssignmentState AssignmentState { get; set; } = AssignmentState.Unassigned;
 
         public string? CustomerName { get; set; }
         public string? CustomerEmail { get; set; }
+
+        // NEW:
+        public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
+        public string? AssigneeEmail { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
 
     public class TicketReplyDto
     {
-        // IMPORTANT: bigint -> long (KHÔNG phải Guid)
         public long ReplyId { get; set; }
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = "";
@@ -37,7 +41,6 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime SentAt { get; set; }
     }
 
-    // Đơn hàng gần nhất (hiển thị bên phải)
     public class LatestOrderMiniDto
     {
         public Guid OrderId { get; set; }
@@ -60,22 +63,20 @@ namespace Keytietkiem.DTOs.Tickets
         public string CustomerName { get; set; } = "";
         public string? CustomerEmail { get; set; }
         public string? CustomerPhone { get; set; }
+
+        // NEW:
+        public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
+        public string? AssigneeEmail { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
-        // Lịch sử trao đổi
         public List<TicketReplyDto> Replies { get; set; } = new();
-
-        // Ticket liên quan (các ticket khác cùng khách hàng)
         public List<TicketListItemDto> RelatedTickets { get; set; } = new();
-
-        // Đơn hàng gần nhất của khách hàng
         public LatestOrderMiniDto? LatestOrder { get; set; }
     }
 
-    // DTO tạo tin nhắn chat
     public class CreateTicketReplyDto
     {
         [Required, MinLength(1)]

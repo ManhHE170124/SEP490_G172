@@ -1,20 +1,21 @@
+// File: src/pages/admin/admin-ticket-management.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/admin-ticket-management.css";
 import { ticketsApi } from "../../api/ticketsApi";
+import axiosClient from "../../api/axiosClient";
 
 // Filters default
 const initialFilters = {
   q: "",
   status: "",
   severity: "",
-  sla: "",               // ✅ thêm SLA
+  sla: "",
   assignmentState: "",
   page: 1,
   pageSize: 10,
 };
 
-// Select options
 const STATUS_OPTIONS = [
   { value: "", label: "Tất cả trạng thái" },
   { value: "New", label: "Mới" },
@@ -113,7 +114,6 @@ export default function AdminTicketManagement() {
     [data.totalItems, applied.pageSize]
   );
 
-  // chuẩn hoá dữ liệu trả về (camelCase/PascalCase đều ok)
   const normalizePaged = (res, fallbacks) => ({
     items: res?.items ?? res?.Items ?? fallbacks.items,
     totalItems: res?.totalItems ?? res?.TotalItems ?? fallbacks.totalItems,
@@ -149,14 +149,14 @@ export default function AdminTicketManagement() {
     setApplied(prev => ({ ...prev, page: Math.max(1, Math.min(totalPages, p)) }));
 
   // ----- actions -----
-  const [modal, setModal] = useState({ open: false, mode: "", id: null });
+  const [modal, setModal] = useState({ open: false, mode: "", id: null, currentAssigneeId: null });
 
-  const doAssign = async (id) => {
-    try { await ticketsApi.assign(id); await fetchList(); }
+  const doAssign = async (id, assigneeId) => {
+    try { await ticketsApi.assign(id, assigneeId); await fetchList(); }
     catch (e) { alert(e?.response?.data?.message || e.message || "Gán ticket thất bại."); }
   };
-  const doTransfer = async (id) => {
-    try { await ticketsApi.transferTech(id); await fetchList(); }
+  const doTransfer = async (id, assigneeId) => {
+    try { await ticketsApi.transferTech(id, assigneeId); await fetchList(); }
     catch (e) { alert(e?.response?.data?.message || e.message || "Chuyển hỗ trợ thất bại."); }
   };
   const doComplete = async (id) => {
@@ -177,11 +177,11 @@ export default function AdminTicketManagement() {
     else if (st === "InProgress") {
       list.canComplete = true;
       list.canTransfer = row.assignmentState === "Assigned" || row.assignmentState === "Technical";
-    } // Completed/Closed -> chỉ Chi tiết
+    }
     return list;
   };
 
-  const startIndex = (applied.page - 1) * applied.pageSize; // ✅ STT
+  const startIndex = (applied.page - 1) * applied.pageSize;
 
   return (
     <div className="tk-page">
@@ -189,7 +189,7 @@ export default function AdminTicketManagement() {
         <h1 className="tk-title">Quản lý Ticket</h1>
       </div>
 
-      {/* Filters: 1 hàng, có SLA */}
+      {/* Filters */}
       <form className="tk-filters" onSubmit={onApply}>
         <input className="ip" placeholder="Tìm theo mã, tiêu đề, khách hàng, email..."
           value={ui.q} onChange={(e) => setUi(s => ({ ...s, q: e.target.value }))} />
@@ -223,7 +223,7 @@ export default function AdminTicketManagement() {
               <th>SLA</th>
               <th>Phân công</th>
               <th>Ngày tạo</th>
-              <th style={{ width: 280 }}>Thao tác</th>
+              <th style={{ width: 320 }}>Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -246,16 +246,26 @@ export default function AdminTicketManagement() {
                   <td><StatusBadge value={r.status} /></td>
                   <td><SeverityTag value={r.severity} /></td>
                   <td><SlaPill value={r.slaStatus} /></td>
-                  <td><AssignPill value={r.assignmentState} /></td>
+                  <td>
+                    <div style={{display:"flex", flexDirection:"column", gap:4}}>
+                      <AssignPill value={r.assignmentState} />
+                      {r.assigneeName && (
+                        <>
+                          <span className="bold">{r.assigneeName}</span>
+                          <span className="muted">{r.assigneeEmail || ""}</span>
+                        </>
+                      )}
+                    </div>
+                  </td>
                   <td className="muted">{fmtVNDate(r.createdAt)}</td>
                   <td className="tk-row-actions">
                     {a.canAssign && (
-                      <button className="btn xs" onClick={() => setModal({ open: true, mode: "assign", id: r.ticketId })}>
+                      <button className="btn xs" onClick={() => setModal({ open: true, mode: "assign", id: r.ticketId, currentAssigneeId: r.assigneeId })}>
                         Gán
                       </button>
                     )}
                     {a.canTransfer && (
-                      <button className="btn xs" onClick={() => setModal({ open: true, mode: "transfer", id: r.ticketId })}>
+                      <button className="btn xs" onClick={() => setModal({ open: true, mode: "transfer", id: r.ticketId, currentAssigneeId: r.assigneeId })}>
                         Chuyển hỗ trợ
                       </button>
                     )}
@@ -290,17 +300,18 @@ export default function AdminTicketManagement() {
         <button className="btn xs ghost" onClick={() => gotoPage(applied.page + 1)} disabled={applied.page >= totalPages}>Sau »</button>
       </div>
 
-      {/* Assign / Transfer modal (giữ popup) */}
+      {/* Assign / Transfer modal */}
       <AssignModal
         open={modal.open}
         title={modal.mode === "transfer" ? "Chuyển hỗ trợ" : "Gán nhân viên phụ trách"}
-        onClose={() => setModal({ open: false, mode: "", id: null })}
-        onConfirm={async () => {
+        excludeUserId={modal.mode === "transfer" ? modal.currentAssigneeId : null}
+        onClose={() => setModal({ open: false, mode: "", id: null, currentAssigneeId: null })}
+        onConfirm={async (userId) => {
           try {
-            if (modal.mode === "transfer") await doTransfer(modal.id);
-            else await doAssign(modal.id);
+            if (modal.mode === "transfer") await doTransfer(modal.id, userId);
+            else await doAssign(modal.id, userId);
           } finally {
-            setModal({ open: false, mode: "", id: null });
+            setModal({ open: false, mode: "", id: null, currentAssigneeId: null });
           }
         }}
       />
@@ -308,7 +319,49 @@ export default function AdminTicketManagement() {
   );
 }
 
-function AssignModal({ open, title, onClose, onConfirm }) {
+function useDebounced(value, delay=250){
+  const [v, setV] = useState(value);
+  useEffect(() => { const t = setTimeout(()=>setV(value), delay); return ()=>clearTimeout(t); }, [value, delay]);
+  return v;
+}
+
+function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const debounced = useDebounced(search, 250);
+  const [selected, setSelected] = useState("");
+
+  useEffect(() => { if (!open) { setSearch(""); setSelected(""); setList([]);} }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        // 1) Lấy danh sách roles (loại 'admin' đã được BE loại trừ)
+        const roles = await axiosClient.get("/roles"); // [{ roleId, name }]
+        const staffRole = (roles || []).find(r => String(r.name).toLowerCase() === "customer care staff".toLowerCase());
+        if (!staffRole) { setList([]); return; }
+
+        // 2) Lấy users theo roleId + Active + q
+        const res = await axiosClient.get("/users", {
+          params: { roleId: staffRole.roleId, status: "Active", q: debounced, pageSize: 50, page: 1 }
+        });
+        const items = res?.items ?? res?.Items ?? [];
+        let mapped = items.map(u => ({ id: u.userId, name: u.fullName || u.email, email: u.email }));
+        if (excludeUserId) mapped = mapped.filter(x => String(x.id).toLowerCase() !== String(excludeUserId || "").toLowerCase());
+        if (alive) setList(mapped);
+      } catch (e) {
+        if (alive) setList([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [open, debounced, excludeUserId]);
+
   if (!open) return null;
   return (
     <div className="tk-modal" role="dialog" aria-modal="true">
@@ -318,19 +371,25 @@ function AssignModal({ open, title, onClose, onConfirm }) {
           <button className="btn icon ghost" onClick={onClose} aria-label="Đóng">×</button>
         </div>
         <div className="tk-modal-body">
-          {/* giữ popup, lược nội dung KB */}
+          <div className="form-group">
+            <label>Tìm kiếm (tên hoặc email)</label>
+            <input className="ip" placeholder="Nhập để lọc..." value={search} onChange={(e)=>setSearch(e.target.value)} />
+          </div>
           <div className="form-group">
             <label>Chọn nhân viên hỗ trợ</label>
-            <select className="ip">
-              <option>Nguyễn Văn A</option>
-              <option>Trần Thị B</option>
-              <option>Phạm Văn C</option>
-            </select>
+            {loading ? <div style={{padding:"8px 0"}}>Đang tải...</div> : (
+              <select className="ip" size={Math.min(8, Math.max(3, list.length))} value={selected} onChange={(e)=>setSelected(e.target.value)}>
+                {list.map(u => (
+                  <option key={u.id} value={u.id}>{u.name} — {u.email}</option>
+                ))}
+              </select>
+            )}
+            {!loading && list.length === 0 && <div style={{padding:"8px 0"}}>Không có nhân viên phù hợp.</div>}
           </div>
         </div>
         <div className="tk-modal-foot">
           <button className="btn ghost" onClick={onClose}>Huỷ</button>
-          <button className="btn primary" onClick={onConfirm}>Xác nhận</button>
+          <button className="btn primary" onClick={()=> selected ? onConfirm(selected) : null} disabled={!selected}>Xác nhận</button>
         </div>
       </div>
     </div>
