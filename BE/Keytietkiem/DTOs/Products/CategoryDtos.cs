@@ -46,7 +46,7 @@ public record CategoryDetailDto(
     string? Description,
     bool IsActive,
     int DisplayOrder,
-    int ProductCount   
+      int ProductCount
 );
 
 

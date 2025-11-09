@@ -84,3 +84,6 @@ FE/.env.*
 
 # ===== General =====
 !.gitignore
+
+BE/Keytietkiem/appsettings.Local.json
+BE/Keytietkiem/appsettings.json

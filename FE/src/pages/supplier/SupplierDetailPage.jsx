@@ -132,7 +132,7 @@ export default function SupplierDetailPage() {
           pageNumber: page,
           pageSize: 20,
           searchTerm: search || undefined,
-          type: ["PERSONAL_KEY", "SHARED_KEY"],
+          productTypes: ["PERSONAL_KEY", "SHARED_KEY"],
         });
 
         const newProducts = data.items || data.data || [];
@@ -496,7 +496,7 @@ export default function SupplierDetailPage() {
         onCancel={closeConfirmDialog}
       />
 
-      <section className="card">
+      <section className="card ">
         <div
           style={{
             display: "flex",
@@ -511,7 +511,7 @@ export default function SupplierDetailPage() {
               : `Chi tiết nhà cung cấp — ${formData.name}`}
           </h1>
           <Link className="btn" to="/suppliers">
-            ← Quay lại
+            Quay lại
           </Link>
         </div>
 
@@ -670,7 +670,7 @@ export default function SupplierDetailPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <div className="row" style={{ marginTop: 16 }}>
             <button type="submit" className="btn primary" disabled={saving}>
               {saving ? "Đang lưu..." : "Lưu"}
             </button>
@@ -684,7 +684,11 @@ export default function SupplierDetailPage() {
             {!isNew && supplierInfo && (
               <button
                 type="button"
-                className="btn"
+                className={
+                  supplierInfo?.status === "Active"
+                    ? "btn secondary"
+                    : "btn success"
+                }
                 onClick={handleToggleStatus}
                 style={{ marginLeft: "auto" }}
               >
@@ -699,10 +703,22 @@ export default function SupplierDetailPage() {
 
       {/* License Packages Section - Only shown for existing suppliers */}
       {!isNew && (
-        <section className="card" style={{ marginTop: 14 }}>
-          <h2 style={{ margin: "0 0 12px" }}>
-            Thông tin gói mua (License bulk)
-          </h2>
+        <section className="card " style={{ marginTop: 14 }}>
+          <h2 style={{ margin: "0 0 12px" }}>Thông tin gói mua</h2>
+
+          {supplierInfo?.status !== "Active" && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                background: "#fef3c7",
+                borderRadius: 8,
+                color: "#92400e",
+              }}
+            >
+              Nhà cung cấp đang tạm dừng. Không thể thêm gói hoặc nhập kho.
+            </div>
+          )}
 
           {/* Add Package Form */}
           <div
@@ -731,6 +747,7 @@ export default function SupplierDetailPage() {
                     // Delay to allow click on dropdown item
                     setTimeout(() => setShowProductDropdown(false), 200);
                   }}
+                  disabled={supplierInfo?.status !== "Active"}
                 />
                 {showProductDropdown && (
                   <div
@@ -834,6 +851,7 @@ export default function SupplierDetailPage() {
                 onChange={(e) =>
                   handlePackageFormChange("quantity", e.target.value)
                 }
+                disabled={supplierInfo?.status !== "Active"}
               />
             </div>
             <div className="form-row">
@@ -846,6 +864,7 @@ export default function SupplierDetailPage() {
                 onChange={(e) =>
                   handlePackageFormChange("pricePerUnit", e.target.value)
                 }
+                disabled={supplierInfo?.status !== "Active"}
               />
             </div>
             <div className="form-row">
@@ -857,11 +876,16 @@ export default function SupplierDetailPage() {
                 onChange={(e) =>
                   handlePackageFormChange("effectiveDate", e.target.value)
                 }
+                disabled={supplierInfo?.status !== "Active"}
               />
             </div>
             <div className="form-row">
               <label>&nbsp;</label>
-              <button className="btn primary" onClick={handleAddPackage}>
+              <button
+                className="btn primary"
+                onClick={handleAddPackage}
+                disabled={supplierInfo?.status !== "Active"}
+              >
                 Thêm gói
               </button>
             </div>
@@ -905,11 +929,12 @@ export default function SupplierDetailPage() {
                     <td>{pkg.importedToStock}</td>
                     <td>{pkg.remainingQuantity}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 6 }}>
+                      <div className="action-buttons">
                         {pkg.remainingQuantity > 0 && (
                           <button
                             className="btn"
                             onClick={() => handleImportToStock(pkg)}
+                            disabled={supplierInfo?.status !== "Active"}
                           >
                             Nhập kho
                           </button>

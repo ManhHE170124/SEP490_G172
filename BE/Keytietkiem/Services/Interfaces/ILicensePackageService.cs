@@ -102,7 +102,7 @@ public interface ILicensePackageService
         IFormFile file,
         Guid actorId,
         string actorEmail,
-        ProductKeyType keyType,
+        string keyType,
         DateTime? expiryDate = null,
         CancellationToken cancellationToken = default);
 

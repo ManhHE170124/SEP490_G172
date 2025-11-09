@@ -76,6 +76,7 @@ namespace Keytietkiem.Controllers
             [FromQuery] string? badge,
             // OPTIONAL: nhiều badge, phân tách bằng dấu phẩy "HOT,SALE"
             [FromQuery] string? badges,
+            [FromQuery] string[]? productTypes,
             [FromQuery] string? sort = "createdAt",
             [FromQuery] string? direction = "desc",
             [FromQuery] int page = 1,
@@ -95,6 +96,10 @@ namespace Keytietkiem.Controllers
                 q = q.Where(p => p.ProductType == productType);
             if (!string.IsNullOrWhiteSpace(status))
                 q = q.Where(p => p.Status == status);
+            if (productTypes != null && productTypes.Length > 0)
+            {
+                q = q.Where(p => productTypes.Contains(p.ProductType));
+            }
             if (categoryId is not null)
                 q = q.Where(p => p.Categories.Any(c => c.CategoryId == categoryId));
 

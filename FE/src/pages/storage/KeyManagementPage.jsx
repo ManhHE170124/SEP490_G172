@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
+import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
 
 export default function KeyManagementPage() {
-  const navigate = useNavigate();
-  const { toasts, showSuccess, showError, showWarning, removeToast } =
-    useToast();
+  const { toasts, showSuccess, showError, removeToast } = useToast();
 
   const [loading, setLoading] = useState(false);
   const [keys, setKeys] = useState([]);
   const [products, setProducts] = useState([]);
-  const [selectedKeys, setSelectedKeys] = useState([]);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -94,27 +92,12 @@ export default function KeyManagementPage() {
     setFilters((prev) => ({ ...prev, pageNumber: newPage }));
   };
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedKeys(keys.map((k) => k.keyId));
-    } else {
-      setSelectedKeys([]);
-    }
-  };
-
-  const handleSelectKey = (keyId) => {
-    setSelectedKeys((prev) =>
-      prev.includes(keyId)
-        ? prev.filter((id) => id !== keyId)
-        : [...prev, keyId]
-    );
-  };
-
   const handleDeleteKey = (keyId) => {
     setConfirmDialog({
       isOpen: true,
       title: "Xác nhận xóa key",
-      message: "Bạn có chắc muốn xóa key này? Hành động này không thể hoàn tác.",
+      message:
+        "Bạn có chắc muốn xóa key này? Hành động này không thể hoàn tác.",
       type: "danger",
       onConfirm: async () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
@@ -127,42 +110,6 @@ export default function KeyManagementPage() {
           const errorMsg =
             err.response?.data?.message || err.message || "Không thể xóa key";
           showError("Lỗi xóa key", errorMsg);
-        }
-      },
-    });
-  };
-
-  const handleBulkUpdateStatus = (status) => {
-    if (selectedKeys.length === 0) {
-      showWarning("Chưa chọn key", "Vui lòng chọn ít nhất 1 key");
-      return;
-    }
-
-    setConfirmDialog({
-      isOpen: true,
-      title: "Xác nhận cập nhật trạng thái",
-      message: `Bạn có chắc muốn cập nhật trạng thái ${selectedKeys.length} key(s) sang "${status}"?`,
-      type: "warning",
-      onConfirm: async () => {
-        setConfirmDialog({ ...confirmDialog, isOpen: false });
-        try {
-          await ProductKeyApi.bulkUpdateStatus({
-            keyIds: selectedKeys,
-            status,
-          });
-          showSuccess(
-            "Thành công",
-            `Đã cập nhật trạng thái ${selectedKeys.length} key(s)`
-          );
-          setSelectedKeys([]);
-          loadKeys();
-        } catch (err) {
-          console.error("Failed to bulk update:", err);
-          const errorMsg =
-            err.response?.data?.message ||
-            err.message ||
-            "Không thể cập nhật trạng thái";
-          showError("Lỗi cập nhật", errorMsg);
         }
       },
     });
@@ -183,25 +130,8 @@ export default function KeyManagementPage() {
     } catch (err) {
       console.error("Failed to export CSV:", err);
       const errorMsg =
-        err.response?.data?.message ||
-        err.message ||
-        "Không thể xuất file CSV";
+        err.response?.data?.message || err.message || "Không thể xuất file CSV";
       showError("Lỗi xuất file", errorMsg);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Available":
-        return { bg: "#d1fae5", color: "#065f46" };
-      case "Sold":
-        return { bg: "#dbeafe", color: "#1e40af" };
-      case "Error":
-        return { bg: "#fee2e2", color: "#991b1b" };
-      case "Recalled":
-        return { bg: "#fef3c7", color: "#92400e" };
-      default:
-        return { bg: "#f3f4f6", color: "#374151" };
     }
   };
 
@@ -295,6 +225,7 @@ export default function KeyManagementPage() {
               <option value="Sold">Đã bán</option>
               <option value="Error">Lỗi</option>
               <option value="Recalled">Thu hồi</option>
+              <option value="Expired">Hết hạn</option>
             </select>
           </div>
 
@@ -336,16 +267,6 @@ export default function KeyManagementPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedKeys.length === keys.length &&
-                          keys.length > 0
-                        }
-                        onChange={handleSelectAll}
-                      />
-                    </th>
                     <th>Sản phẩm</th>
                     <th>Key/Pool</th>
                     <th>Loại</th>
@@ -358,7 +279,10 @@ export default function KeyManagementPage() {
                 <tbody>
                   {keys.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: "center", padding: 20 }}>
+                      <td
+                        colSpan="7"
+                        style={{ textAlign: "center", padding: 20 }}
+                      >
                         Không có key nào
                       </td>
                     </tr>
@@ -367,13 +291,6 @@ export default function KeyManagementPage() {
                       const statusStyle = getStatusColor(key.status);
                       return (
                         <tr key={key.keyId}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={selectedKeys.includes(key.keyId)}
-                              onChange={() => handleSelectKey(key.keyId)}
-                            />
-                          </td>
                           <td>{key.productName}</td>
                           <td>
                             <Link
@@ -392,7 +309,9 @@ export default function KeyManagementPage() {
                                 background: "#f3f4f6",
                               }}
                             >
-                              {key.type === "Individual" ? "Cá nhân" : "Dùng chung"}
+                              {key.type === "Individual"
+                                ? "Cá nhân"
+                                : "Dùng chung"}
                             </span>
                           </td>
                           <td>
@@ -407,13 +326,15 @@ export default function KeyManagementPage() {
                                 fontWeight: 600,
                               }}
                             >
-                              {key.status}
+                              {getStatusLabel(key.status)}
                             </span>
                           </td>
                           <td>{key.orderCode || "—"}</td>
                           <td>
                             {key.updatedAt
-                              ? new Date(key.updatedAt).toLocaleDateString("vi-VN")
+                              ? new Date(key.updatedAt).toLocaleDateString(
+                                  "vi-VN"
+                                )
                               : "—"}
                           </td>
                           <td>
@@ -428,7 +349,10 @@ export default function KeyManagementPage() {
                               {key.status === "Available" && (
                                 <button
                                   className="btn"
-                                  style={{ padding: "4px 8px", fontSize: "13px" }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: "13px",
+                                  }}
                                 >
                                   Gắn đơn
                                 </button>
@@ -487,7 +411,9 @@ export default function KeyManagementPage() {
                           <span style={{ padding: "8px 4px" }}>...</span>
                           <button
                             className={
-                              page === filters.pageNumber ? "btn primary" : "btn"
+                              page === filters.pageNumber
+                                ? "btn primary"
+                                : "btn"
                             }
                             onClick={() => handlePageChange(page)}
                           >
@@ -514,43 +440,6 @@ export default function KeyManagementPage() {
                   disabled={filters.pageNumber === totalPages}
                 >
                   Sau »
-                </button>
-              </div>
-            )}
-
-            {/* Bulk Actions */}
-            {selectedKeys.length > 0 && (
-              <div
-                style={{
-                  marginTop: 16,
-                  padding: 12,
-                  background: "#f8fafc",
-                  borderRadius: 8,
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontWeight: 600 }}>
-                  Đã chọn {selectedKeys.length} key(s):
-                </span>
-                <button
-                  className="btn"
-                  onClick={() => handleBulkUpdateStatus("Available")}
-                >
-                  Đánh dấu Còn
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => handleBulkUpdateStatus("Error")}
-                >
-                  Đánh dấu Lỗi
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => handleBulkUpdateStatus("Recalled")}
-                >
-                  Thu hồi
                 </button>
               </div>
             )}

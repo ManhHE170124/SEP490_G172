@@ -51,6 +51,7 @@ public interface ISupplierService
     Task<PagedResult<SupplierListDto>> GetAllSuppliersAsync(
         int pageNumber,
         int pageSize,
+        string? status,
         string? searchTerm,
         CancellationToken cancellationToken = default);
 

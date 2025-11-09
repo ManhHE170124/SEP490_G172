@@ -4,5 +4,7 @@ public enum ProductKeyStatus
 {
     Available,
     Error,
-    OverLimit
+    Sold,
+    Expired,
+    Recalled
 }

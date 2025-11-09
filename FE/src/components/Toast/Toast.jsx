@@ -1,7 +1,28 @@
+/**
+ * File: Toast.jsx
+ * Author: HieuNDHE173169
+ * Created: 21/10/2025
+ * Last Updated: 29/10/2025
+ * Version: 1.0.0
+ * Purpose: Toast notification component. Displays success, error, warning, and info messages.
+ */
 import React from 'react';
 import './Toast.css';
 
+/**
+ * @summary: Toast notification component.
+ * @param {Object} props - Component props
+ * @param {Object} props.toast - Toast configuration object
+ * @param {Function} props.onRemove - Callback to remove toast
+ * @returns {JSX.Element} - Toast notification element
+ */
 const Toast = ({ toast, onRemove }) => {
+
+  /**
+   * @summary: Get icon SVG for toast type.
+   * @param {string} type - Toast type ('success', 'error', 'warning', 'info')
+   * @returns {JSX.Element|null} - Icon SVG element
+   */
   const getToastIcon = (type) => {
     switch (type) {
       case 'success':
@@ -27,6 +48,11 @@ const Toast = ({ toast, onRemove }) => {
     }
   };
 
+  /**
+   * @summary: Get CSS class name for toast type.
+   * @param {string} type - Toast type ('success', 'error', 'warning', 'info')
+   * @returns {string} - CSS class name
+   */
   const getToastClass = (type) => {
     switch (type) {
       case 'success':

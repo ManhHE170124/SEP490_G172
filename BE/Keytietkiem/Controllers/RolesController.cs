@@ -18,9 +18,9 @@
  */
 
 using Keytietkiem.Models;
-using Keytietkiem.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.DTOs.Roles;
 
 namespace Keytietkiem.Controllers
 {
@@ -48,13 +48,13 @@ namespace Keytietkiem.Controllers
 
             return Ok(roles);
         }
-        [HttpGet("list")]
         /**
          * Summary: Retrieve all roles.
          * Route: GET /api/roles
          * Params: none
          * Returns: 200 OK with list of roles
          */
+        [HttpGet("list")]
         public async Task<IActionResult> GetRoles()
         {
             var roles = await _context.Roles
@@ -71,13 +71,13 @@ namespace Keytietkiem.Controllers
             return Ok(roles);
         }
 
-        [HttpGet("{id}")]
         /**
          * Summary: Retrieve a role by id including role-permissions.
          * Route: GET /api/roles/{id}
          * Params: id (string) - role identifier
          * Returns: 200 OK with role, 404 if not found
          */
+        [HttpGet("{id}")]
         public async Task<IActionResult> GetRoleById(string id)
         {
             var role = await _context.Roles
@@ -112,13 +112,13 @@ namespace Keytietkiem.Controllers
 
             return Ok(roleResponse);
         }
-        [HttpPost]
         /**
          * Summary: Create a new role and seed role-permissions for all modules & permissions.
          * Route: POST /api/roles
          * Body: Role newRole
          * Returns: 201 Created with created role, 400/409 on validation errors
          */
+        [HttpPost]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
             if (createRoleDto == null || string.IsNullOrWhiteSpace(createRoleDto.Name))
@@ -138,7 +138,7 @@ namespace Keytietkiem.Controllers
                 Name = createRoleDto.Name,
                 IsSystem = createRoleDto.IsSystem,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Roles.Add(newRole);
@@ -178,7 +178,6 @@ namespace Keytietkiem.Controllers
 
             return CreatedAtAction(nameof(GetRoleById), new { id = newRole.RoleId }, roleDto);
         }
-        [HttpPut("{id}")]
         /**
         * Summary: Update an existing role by id.
         * Route: PUT /api/roles/{id}
@@ -186,6 +185,7 @@ namespace Keytietkiem.Controllers
         * Body: Role updatedRole
         * Returns: 204 No Content, 400/404 on errors
         */
+        [HttpPut("{id}")]
         public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDTO updateRoleDto)
         {
             if (updateRoleDto == null)
@@ -199,18 +199,18 @@ namespace Keytietkiem.Controllers
             }
             existingRole.Name = updateRoleDto.Name;
             existingRole.IsActive = updateRoleDto.IsActive;
-            existingRole.UpdatedAt = DateTime.UtcNow;
+            existingRole.UpdatedAt = DateTime.Now;
             _context.Roles.Update(existingRole);
             await _context.SaveChangesAsync();
             return NoContent();
         }
-        [HttpDelete("{id}")]
         /**
          * Summary: Delete a role by id and cascade remove related role-permissions.
          * Route: DELETE /api/roles/{id}
          * Params: id (string)
          * Returns: 204 No Content, 404 if not found
          */
+        [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteRoleById(string id)
         {
             var existingRole = await _context.Roles.FindAsync(id);
@@ -225,13 +225,13 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        [HttpGet("active")]
         /**
          * Summary: Retrieve all active roles.
          * Route: GET /api/roles/active
          * Params: none
          * Returns: 200 OK with list of active roles
          */
+        [HttpGet("active")]
         public async Task<IActionResult> GetActiveRoles()
         {
             var activeRoles = await _context.Roles
@@ -249,13 +249,13 @@ namespace Keytietkiem.Controllers
             return Ok(activeRoles);
         }
 
-        [HttpGet("{id}/permissions")]
         /**
          * Summary: Get role permissions matrix for a specific role.
          * Route: GET /api/roles/{id}/permissions
          * Params: id (string) - role identifier
          * Returns: 200 OK with role permissions matrix, 404 if role not found
          */
+        [HttpGet("{id}/permissions")]
         public async Task<IActionResult> GetRolePermissions(string id)
         {
             var role = await _context.Roles
@@ -290,7 +290,6 @@ namespace Keytietkiem.Controllers
             return Ok(response);
         }
 
-        [HttpPut("{id}/permissions")]
         /**
          * Summary: Bulk update role permissions for a specific role.
          * Route: PUT /api/roles/{id}/permissions
@@ -298,6 +297,7 @@ namespace Keytietkiem.Controllers
          * Body: BulkRolePermissionUpdateDTO - list of role permissions to update
          * Returns: 200 OK with updated role permissions, 400/404 on errors
          */
+        [HttpPut("{id}/permissions")]
         public async Task<IActionResult> UpdateRolePermissions(string id, [FromBody] BulkRolePermissionUpdateDTO updateDto)
         {
             if (updateDto == null || updateDto.RolePermissions == null || !updateDto.RolePermissions.Any())

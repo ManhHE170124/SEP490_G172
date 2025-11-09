@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import PublicFooter from "../../components/public/PublicFooter";
 import PublicHeader from "../../components/public/PublicHeader";
@@ -74,7 +74,6 @@ export default function CheckEmailPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
 
       <section className="container section auth-wrap">
         <div className="auth-card" aria-labelledby="checkEmailTitle">
@@ -90,7 +89,7 @@ export default function CheckEmailPage() {
             Không thấy email?{" "}
             {canResend ? (
               <a
-                href="#"
+                href="#forgot-password"
                 onClick={(e) => {
                   e.preventDefault();
                   handleResendEmail();
@@ -127,7 +126,9 @@ export default function CheckEmailPage() {
             </div>
           )}
 
-          <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}
+          >
             <button
               className="btn primary"
               onClick={() => navigate("/login")}
@@ -146,7 +147,6 @@ export default function CheckEmailPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }

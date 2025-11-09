@@ -1,0 +1,462 @@
+import React, { useEffect, useMemo, useState } from "react";
+import ToastContainer from "../../components/Toast/ToastContainer";
+import useToast from "../../hooks/useToast";
+import "./TagAndPostTypeManage.css"
+import { postsApi } from "../../services/postsApi";
+import RoleModal from "../../components/RoleModal/RoleModal";
+
+/** 
+ * @summary Tab constants for switching between different management views 
+*/
+const TABS = {
+    TAGS: "tags",
+    POSTTYPES: "posttypes"
+};
+function useFetchData(activeTab) {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let isMounted = true;
+        async function load() {
+            setLoading(true);
+            setError("");
+            try {
+                let res = [];
+                if (activeTab === TABS.TAGS) res = await postsApi.getTags();
+                else if (activeTab === TABS.POSTTYPES) res = await postsApi.getPosttypes();
+                if (isMounted) setData(Array.isArray(res) ? res : []);
+            } catch (e) {
+                if (isMounted) setError(e.message || "Không thể tải dữ liệu");
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        }
+        load();
+        return () => {
+            isMounted = false;
+        };
+    }, [activeTab]);
+
+    return { data, loading, error, setData };
+}
+
+export default function TagAndPosttypeManage() {
+    const [activeTab, setActiveTab] = useState(TABS.TAGS);
+    const { data, loading, error, setData } = useFetchData(activeTab);
+    const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
+
+    const [search, setSearch] = useState("");
+    const [sortKey, setSortKey] = useState("");
+    const [sortOrder, setSortOrder] = useState("asc");
+
+    // Modal states
+    const [addModalOpen, setAddModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [pageSize] = useState(10);
+
+    useEffect(() => {
+        setSearch("");
+        setSortKey("");
+        setSortOrder("asc");
+        setPage(1);
+    }, [activeTab]);
+
+    // Handle column sort
+    const handleColumnSort = (columnKey) => {
+        if (sortKey === columnKey) {
+            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+        } else {
+            setSortKey(columnKey);
+            setSortOrder("asc");
+        }
+    };
+
+    const { columns, addButtonText } = useMemo(() => {
+        if (activeTab === TABS.TAGS) {
+            return {
+                addButtonText: "Thêm Thẻ Mới",
+                columns: [
+                    { key: "tagName", label: "Tên Thẻ" },
+                    { key: "slug", label: "Slug" },
+                    { key: "createdAt", label: "Ngày tạo" },
+                    { key: "actions", label: "Thao tác" }
+                ]
+            };
+        }
+        return {
+            addButtonText: "Thêm Danh Mục Mới",
+            columns: [
+                { key: "PosttypeName", label: "Tên danh mục" },
+                { key: "description", label: "Mô tả" },
+                { key: "createdAt", label: "Ngày tạo" },
+                { key: "actions", label: "Thao tác" }
+            ]
+        };
+    }, [activeTab]);
+
+    const filteredSorted = useMemo(() => {
+        const normalized = (v) => (v ?? "").toString().toLowerCase();
+        const searchLower = normalized(search);
+
+        // Determine name key per tab
+        const nameKey = activeTab === TABS.TAGS ? "tagName" : "PosttypeName";
+
+        let rows = data.filter((row) => {
+            // search by name only
+            if (!searchLower) return true;
+            return normalized(row[nameKey]).includes(searchLower);
+        });
+
+        if (sortKey) {
+            rows = [...rows].sort((a, b) => {
+                const av = a[sortKey];
+                const bv = b[sortKey];
+                if (av == null && bv == null) return 0;
+                if (av == null) return sortOrder === "asc" ? -1 : 1;
+                if (bv == null) return sortOrder === "asc" ? 1 : -1;
+                if (typeof av === "string" && typeof bv === "string") {
+                    return sortOrder === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+                }
+                const aNum = new Date(av).getTime();
+                const bNum = new Date(bv).getTime();
+                const bothDates = !Number.isNaN(aNum) && !Number.isNaN(bNum);
+                if (bothDates) return sortOrder === "asc" ? aNum - bNum : bNum - aNum;
+                if (av > bv) return sortOrder === "asc" ? 1 : -1;
+                if (av < bv) return sortOrder === "asc" ? -1 : 1;
+                return 0;
+            });
+        }
+        return rows;
+    }, [data, columns, search, sortKey, sortOrder, activeTab]);
+    const total = filteredSorted.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const paginated = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredSorted.slice(start, start + pageSize);
+    }, [filteredSorted, currentPage, pageSize]);
+
+    const [addTagOpen, setAddTagOpen] = useState(false);
+    const [addPosttypeOpen, setAddPosttypeOpen] = useState(false);
+
+    function onClickAdd() {
+        if (activeTab === TABS.TAGS) {
+            setAddTagOpen(true);
+            return;
+        }
+        if (activeTab === TABS.POSTTYPES) {
+            setAddPosttypeOpen(true);
+            return;
+        }
+    }
+
+    async function handleCreateTag(form) {
+        try {
+            setSubmitting(true);
+            const created = await postsApi.createTag({
+                tagName: form.tagName,
+                slug: form.slug || ""
+            });
+            setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
+            setAddTagOpen(false);
+            showSuccess(
+                "Tạo Thẻ thành công!",
+                `Thẻ "${form.tagName}" đã được tạo thành công.`
+            );
+        } catch (e) {
+            const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Thẻ";
+            showError("Tạo Thẻ thất bại!", errorMessage);
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    async function handleCreatePosttype(form) {
+        try {
+            setSubmitting(true);
+            const created = await postsApi.createPosttype({
+                posttypeName: form.posttypeName,
+                description: form.description || ""
+            });
+            setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
+            setAddPosttypeOpen(false);
+            showSuccess(
+                "Tạo Danh mục thành công!",
+                `Danh mục "${form.tagName}" đã được tạo thành công.`
+            );
+        } catch (e) {
+            const errorMessage = e.response?.data?.message || e.message || "Không thể tạo danh mục";
+            showError("Tạo Danh mục thất bại!", errorMessage);
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    const [editOpen, setEditOpen] = useState(false);
+    const [editFields, setEditFields] = useState([]);
+    const [editTitle, setEditTitle] = useState("");
+    const [editSubmitting, setEditSubmitting] = useState(false);
+    const [editingRow, setEditingRow] = useState(null);
+
+
+    function onEdit(row) {
+        setEditingRow(row);
+        if (activeTab === TABS.TAGS) {
+            setEditTitle("Sửa Thẻ");
+            setEditFields([
+                { name: "tagName", label: "Tên Thẻ", required: true, defaultValue: row.tagName },
+                { name: "slug", label: "Slug", disabled: true, defaultValue: row.slug || "" },
+            ]);
+        } else {
+            setEditTitle("Sửa Danh mục");
+            setEditFields([
+                { name: "posttypeName", label: "Tên Danh mục", required: true, defaultValue: row.permissionName },
+                { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+            ]);
+        }
+        setEditOpen(true);
+    }
+    async function onDelete(row) {
+        const label = activeTab === TABS.TAGS ? row.tagName : row.posttypeName;
+        const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
+
+        showWarning(
+            `Xác nhận xóa ${entityType}`,
+            `Bạn sắp xóa ${entityType.toLowerCase()} "${label}". Hành động này không thể hoàn tác!`
+        );
+
+        // Show confirm dialog instead of alert
+        showConfirm(
+            `Xác nhận xóa ${entityType}`,
+            `Bạn có chắc chắn muốn xóa "${label}"? Hành động này không thể hoàn tác.`,
+            async () => {
+                try {
+                    if (activeTab === TABS.TAGS) await postsApi.deleteTag(row.tagId || row.id);
+                    else await postsApi.deletePosttype(row.posttypeId || row.id);
+
+                    setData((prev) => prev.filter((x) => {
+                        const key = activeTab === TABS.TAGS ? "tagId" : "posttypeId";
+                        const targetId = row[key] ?? row.id;
+                        const currentId = x[key] ?? x.id;
+                        return currentId !== targetId;
+                    }));
+                    showSuccess(
+                        `Xóa ${entityType} thành công!`,
+                        `${entityType} "${label}" đã được xóa.`
+                    );
+                } catch (e) {
+                    const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
+                    showError(`Xóa ${entityType} thất bại!`, errorMessage);
+                }
+            },
+            () => {
+                // User cancelled, no action needed
+            }
+        );
+    }
+
+    async function onSubmitEdit(form) {
+        try {
+            setEditSubmitting(true);
+            const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
+            const entityName = activeTab === TABS.TAGS ? form.tagName : form.posttypeName;
+
+            if (activeTab === TABS.TAGS) {
+                await postsApi.updateTag(editingRow.TagId, {
+                    tagName: form.tagName,
+                    slug: form.slug || ""
+                });
+                setData((prev) => prev.map((x) => x.tagId === editingRow.tagId ? {
+                    ...x,
+                    tagName: form.tagName,
+                    slug: form.slug,
+                    // updatedAt: new Date().toISOString(),
+                } : x));
+            } else {
+                await postsApi.updatePosttype(editingRow.posttypeId, {
+                    posttypeName: form.posttypeName,
+                    description: form.description || ""
+                });
+                setData((prev) => prev.map((x) => x.posttypeId === editingRow.posttypeId ? {
+                    ...x,
+                    posttypeName: form.permissionName,
+                    description: form.description,
+                    // updatedAt: new Date().toISOString(),
+                } : x));
+            }
+            setEditOpen(false);
+            showSuccess(
+                `Cập nhật ${entityType} thành công!`,
+                `${entityType} "${entityName}" đã được cập nhật thành công.`
+            );
+        } catch (e) {
+            const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
+            const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
+            showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+        } finally {
+            setEditSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="tag-pt-container">
+            <div className="tag-pt-header">
+                <h1 className="tag-pt-title">
+                    {activeTab === TABS.TAGS ? "Quản lý Thẻ" : "Quản lý Danh mục"}
+                </h1>
+                <p className="tag-pt-subtitle">
+                    {activeTab === TABS.TAGS
+                        ? "Quản lý các thẻ được sử dụng"
+                        : "Quản lý các danh mục bài viết"}
+                </p>
+            </div>
+
+            <div className="tag-pt-tabs">
+                <button
+                    className={`tag-pt-tab-button ${activeTab === TABS.TAGS ? "active" : ""}`}
+                    onClick={() => setActiveTab(TABS.TAGS)}
+                >
+                    Danh sách Thẻ
+                </button>
+                <button
+                    className={`tag-pt-tab-button ${activeTab === TABS.POSTTYPES ? "active" : ""}`}
+                    onClick={() => setActiveTab(TABS.POSTTYPES)}
+                >
+                    Danh sách Danh mục
+                </button>
+            </div>
+
+            <div className="tag-pt-controls">
+                <div className="tag-pt-controls-left">
+                    <div className="tag-pt-search-box">
+                        <input
+                            type="text"
+                            placeholder={activeTab === TABS.TAGS ? "Tìm tên Thẻ" : "Tìm tên Danh mục"}
+                            value={search}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1);
+                            }}
+                        />
+                    </div>
+
+                </div>
+                <div className="tag-pt-controls-right">
+                    <button className="tag-pt-add-button" onClick={onClickAdd} >
+                        {addButtonText}
+                    </button>
+                </div>
+            </div>
+            {activeTab === TABS.TAGS && (
+                <RoleModal
+                    isOpen={addTagOpen}
+                    title="Thêm Thẻ"
+                    fields={[
+                        { name: "tagName", label: "Tên Thẻ", required: true },
+                        { name: "slug", label: "Slug", disabled: true },
+                    ]}
+                    onClose={() => setAddTagOpen(false)}
+                    onSubmit={handleCreateTag}
+                    submitting={submitting}
+                />
+            )}
+            {activeTab === TABS.POSTTYPES && (
+                <RoleModal
+                    isOpen={addPosttypeOpen}
+                    title="Thêm Danh mục"
+                    fields={[
+                        { name: "posttypeName", label: "Tên Danh mục", required: true },
+                        { name: "description", label: "Mô tả", type: "textarea" },
+                    ]}
+                    onClose={() => setAddPosttypeOpen(false)}
+                    onSubmit={handleCreatePosttype}
+                    submitting={submitting}
+                />
+            )}
+
+            <div className="tag-pt-table-container">
+                {loading ? (
+                    <div className="tag-pt-loading-state">
+                        <div className="tag-pt-loading-spinner" />
+                        <div>Đang tải dữ liệu...</div>
+                    </div>
+                ) : error ? (
+                    <div className="tag-pt-empty-state">
+                        <div>Lỗi: {error}</div>
+                    </div>
+                ) : paginated.length === 0 ? (
+                    <div className="tag-pt-empty-state">
+                        <div>Không có dữ liệu</div>
+                    </div>
+                ) : (
+                    <table className="tag-pt-table">
+                        <thead>
+                            <tr>
+                                {columns.map((col) => (
+                                    <th key={col.key}>
+                                        <div
+                                            className="tag-pt-sortable-header"
+                                            onClick={() => handleColumnSort(col.key)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleColumnSort(col.key)}
+                                            role="button"
+                                            tabIndex={0}
+                                        >
+                                            {col.label}
+                                            {sortKey === col.key && (sortOrder === "asc" ? " ↑" : " ↓")}
+                                        </div>
+                                    </th>
+                                ))}
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginated.map((row, idx) => (
+                                <tr key={idx}>
+                                    {columns.map((col) => {
+                                        const raw = row[col.key];
+                                        const value = col.render ? col.render(raw, row) : raw;
+                                        return <td key={col.key}>{value}</td>;
+                                    })}
+                                    <td>
+                                        <div className="tag-pt-action-buttons">
+                                            <button className="tag-pt-action-btn tag-pt-update-btn" title="Sửa" onClick={() => onEdit(row)}>
+                                                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
+                                            </button>
+                                            <button className="tag-pt-action-btn tag-pt-delete-btn" title="Xoá" onClick={() => onDelete(row)}>
+                                                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" /></svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+
+
+            <RoleModal
+                isOpen={editOpen}
+                title={editTitle}
+                fields={editFields}
+                onClose={() => setEditOpen(false)}
+                onSubmit={onSubmitEdit}
+                submitting={editSubmitting}
+            />
+
+            <ToastContainer
+                toasts={toasts}
+                onRemove={removeToast}
+                confirmDialog={confirmDialog}
+            />
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
+        </div>
+    );
+}

@@ -366,7 +366,7 @@ public class LicensePackageService : ILicensePackageService
         IFormFile file,
         Guid actorId,
         string actorEmail,
-        ProductKeyType keyType,
+        string keyType,
         DateTime? expiryDate = null,
         CancellationToken cancellationToken = default)
     {
@@ -528,6 +528,7 @@ public class LicensePackageService : ILicensePackageService
                 },
                 cancellationToken);
 
+            await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             result.SuccessfullyImported = successCount;

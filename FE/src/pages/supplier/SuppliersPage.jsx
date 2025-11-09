@@ -102,40 +102,13 @@ export default function SuppliersPage() {
     });
   };
 
-  const getStatusBadge = (status) => {
-    if (status === "Active") {
-      return (
-        <span
-          style={{
-            display: "inline-block",
-            padding: "2px 8px",
-            border: "1px solid #d1fae5",
-            borderRadius: "999px",
-            fontSize: "12px",
-            background: "#d1fae5",
-            color: "#065f46",
-          }}
-        >
-          Đang hợp tác
-        </span>
-      );
-    }
-    return (
-      <span
-        style={{
-          display: "inline-block",
-          padding: "2px 8px",
-          border: "1px solid #fee2e2",
-          borderRadius: "999px",
-          fontSize: "12px",
-          background: "#fee2e2",
-          color: "#991b1b",
-        }}
-      >
-        Tạm dừng
-      </span>
+  // Consistent badge rendering using shared styles
+  const renderStatusBadge = (status) =>
+    status === "Active" ? (
+      <span className="badge green">Đang hợp tác</span>
+    ) : (
+      <span className="badge gray">Tạm dừng</span>
     );
-  };
 
   const closeConfirmDialog = () => {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
@@ -154,7 +127,7 @@ export default function SuppliersPage() {
       />
 
       {/* Supplier List Section */}
-      <section className="card">
+      <section className="card ">
         <div
           style={{
             display: "flex",
@@ -268,10 +241,12 @@ export default function SuppliersPage() {
                   <td>{supplier.contactEmail || "-"}</td>
                   <td>{supplier.contactPhone || "-"}</td>
                   <td>{supplier.activeProductCount || 0}</td>
-                  <td>{getStatusBadge(supplier.status)}</td>
+                  <td className="col-status">
+                    {renderStatusBadge(supplier.status)}
+                  </td>
                   <td>{formatDate(supplier.createdAt)}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div className="action-buttons">
                       <Link
                         className="btn"
                         to={`/suppliers/${supplier.supplierId}`}
