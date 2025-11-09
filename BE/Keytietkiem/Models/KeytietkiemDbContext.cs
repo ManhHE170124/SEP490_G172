@@ -17,6 +17,8 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Account> Accounts { get; set; }
 
+    public virtual DbSet<Article> Articles { get; set; }
+
     public virtual DbSet<AuditLog> AuditLogs { get; set; }
 
     public virtual DbSet<Badge> Badges { get; set; }
@@ -24,6 +26,7 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<Category> Categories { get; set; }
 
     public virtual DbSet<LicensePackage> LicensePackages { get; set; }
+    public virtual DbSet<LayoutSection> LayoutSections { get; set; }
 
     public virtual DbSet<Module> Modules { get; set; }
 
@@ -32,6 +35,8 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<OrderDetail> OrderDetails { get; set; }
 
     public virtual DbSet<Payment> Payments { get; set; }
+
+    public virtual DbSet<PaymentGateway> PaymentGateways { get; set; }
 
     public virtual DbSet<Permission> Permissions { get; set; }
 
@@ -79,6 +84,9 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<WarrantyClaim> WarrantyClaims { get; set; }
 
+    public virtual DbSet<WebsiteSetting> WebsiteSettings { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -101,6 +109,42 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasOne(d => d.User).WithOne(p => p.Account)
                 .HasForeignKey<Account>(d => d.UserId)
                 .HasConstraintName("FK_Accounts_User");
+        });
+
+        modelBuilder.Entity<Article>(entity =>
+        {
+            entity.HasKey(e => e.ArticleId).HasName("PK__Articles__9C6270E8A36DF7DA");
+
+            entity.Property(e => e.ArticleId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Status)
+                .HasMaxLength(15)
+                .IsUnicode(false);
+            entity.Property(e => e.Title).HasMaxLength(120);
+
+            entity.HasOne(d => d.Author).WithMany(p => p.Articles)
+                .HasForeignKey(d => d.AuthorId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Articles_Author");
+
+            entity.HasMany(d => d.Tags).WithMany(p => p.Articles)
+                .UsingEntity<Dictionary<string, object>>(
+                    "ArticleTag",
+                    r => r.HasOne<Tag>().WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ArticleTags_Tag"),
+                    l => l.HasOne<Article>().WithMany()
+                        .HasForeignKey("ArticleId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ArticleTags_Article"),
+                    j =>
+                    {
+                        j.HasKey("ArticleId", "TagId");
+                        j.ToTable("ArticleTags");
+                    });
         });
 
         modelBuilder.Entity<AuditLog>(entity =>
@@ -183,6 +227,18 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasOne(d => d.Supplier).WithMany(p => p.LicensePackages)
                 .HasForeignKey(d => d.SupplierId)
                 .HasConstraintName("FK_LicensePackages_Supplier");
+        modelBuilder.Entity<LayoutSection>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__LayoutSe__3214EC07C59D8114");
+
+            entity.HasIndex(e => e.SectionKey, "UQ_LayoutSections_SectionKey").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.DisplayOrder).HasDefaultValue(1);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.SectionKey).HasMaxLength(100);
+            entity.Property(e => e.SectionName).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysdatetime())");
         });
 
         modelBuilder.Entity<Module>(entity =>
@@ -260,6 +316,17 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Payments_Order");
+        });
+
+        modelBuilder.Entity<PaymentGateway>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__PaymentG__3214EC07A84749AD");
+
+            entity.Property(e => e.CallbackUrl).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Name).HasMaxLength(100);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysdatetime())");
         });
 
         modelBuilder.Entity<Permission>(entity =>
@@ -373,6 +440,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.ThumbnailUrl).HasMaxLength(512);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasOne(d => d.Supplier).WithMany(p => p.Products)
+                .HasForeignKey(d => d.SupplierId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Products_Supplier");
 
             entity.HasMany(d => d.Categories).WithMany(p => p.Products)
                 .UsingEntity<Dictionary<string, object>>(
@@ -561,11 +633,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductKeys_Product");
-
-            entity.HasOne(d => d.Supplier).WithMany(p => p.ProductKeys)
-                .HasForeignKey(d => d.SupplierId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_ProductKeys_Supplier");
         });
 
         modelBuilder.Entity<ProductReview>(entity =>
@@ -713,11 +780,7 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.HasIndex(e => e.Slug, "UQ__Tags__BC7B5FB695031C35").IsUnique();
 
-            entity.Property(e => e.TagId)
-                .HasDefaultValueSql("(newid())")
-                .HasColumnName("TagID");
-            entity.Property(e => e.Slug).HasMaxLength(150);
-            entity.Property(e => e.TagName).HasMaxLength(100);
+            entity.Property(e => e.TagName).HasMaxLength(50);
         });
 
         modelBuilder.Entity<Ticket>(entity =>
@@ -834,6 +897,40 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.OrderDetailId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_WarrantyClaims_OrderDetail");
+        });
+
+        modelBuilder.Entity<WebsiteSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__WebsiteS__3214EC072FF6CB95");
+
+            entity.Property(e => e.AllowedExtensions).HasMaxLength(200);
+            entity.Property(e => e.CompanyAddress).HasMaxLength(500);
+            entity.Property(e => e.Email).HasMaxLength(255);
+            entity.Property(e => e.Facebook).HasMaxLength(255);
+            entity.Property(e => e.FontFamily).HasMaxLength(100);
+            entity.Property(e => e.Instagram).HasMaxLength(255);
+            entity.Property(e => e.LogoUrl).HasMaxLength(500);
+            entity.Property(e => e.MetaDescription).HasMaxLength(1000);
+            entity.Property(e => e.Phone).HasMaxLength(50);
+            entity.Property(e => e.PrimaryColor).HasMaxLength(20);
+            entity.Property(e => e.SecondaryColor).HasMaxLength(20);
+            entity.Property(e => e.SiteName).HasMaxLength(255);
+            entity.Property(e => e.Slogan).HasMaxLength(500);
+            entity.Property(e => e.SmtpHost).HasMaxLength(255);
+            entity.Property(e => e.SmtpPassword).HasMaxLength(255);
+            entity.Property(e => e.SmtpUsername).HasMaxLength(255);
+            entity.Property(e => e.TikTok).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.UploadLimitMb)
+                .HasDefaultValue(10)
+                .HasColumnName("UploadLimitMB");
+            entity.Property(e => e.UseDns)
+                .HasDefaultValue(false)
+                .HasColumnName("UseDNS");
+            entity.Property(e => e.UseTls)
+                .HasDefaultValue(true)
+                .HasColumnName("UseTLS");
+            entity.Property(e => e.Zalo).HasMaxLength(255);
         });
 
         OnModelCreatingPartial(modelBuilder);
