@@ -1,4 +1,5 @@
 /**
+ * @file RoleAssign.css
  * @author HieuNDHE173169
  * @created 20/10/2025
  * @last_updated 24/10/2025
@@ -15,27 +16,11 @@
  * - Responsive table design for permission matrix
  * - Modal dialogs for creating new entities
  * - Custom scrollbar styling
- * 
- *
  */
  
  /* RoleAssign Component Styles */
-:root {
-  --primary: #007bff;
-  --primary-hover: #0056b3;
-  --secondary: #6c757d;
-  --success: #28a745;
-  --danger: #dc3545;
-  --warning: #ffc107;
-  --info: #17a2b8;
-  --light: #f8f9fa;
-  --dark: #343a40;
-  --border-color: #dee2e6;
-  --text-color: #212529;
-  --text-muted: #6c757d;
-}
 
-.role-assign-container {
+.ra-container {
   display: flex;
   height: 100vh;
   background-color: white;
@@ -45,7 +30,7 @@
 }
 
 /* Left Sidebar - Roles Panel */
-.roles-panel {
+.ra-roles-panel {
   width: 300px;
   background-color: white;
   border-right: 1px solid #e9ecef;
@@ -53,23 +38,23 @@
   overflow-y: auto;
 }
 
-.roles-title {
+.ra-roles-title {
   font-size: 18px;
   font-weight: 600;
   color: #212529;
   margin-bottom: 16px;
 }
 
-.sidebar-buttons {
+.ra-sidebar-buttons {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin-bottom: 24px;
 }
 
-.add-role-btn,
-.add-module-btn,
-.add-permission-btn {
+.ra-add-role-btn,
+.ra-add-module-btn,
+.ra-add-permission-btn {
   width: 100%;
   background-color: var(--primary);
   color: white;
@@ -86,37 +71,37 @@
   transition: background-color 0.2s;
 }
 
-.add-role-btn:hover,
-.add-module-btn:hover,
-.add-permission-btn:hover {
+.ra-add-role-btn:hover,
+.ra-add-module-btn:hover,
+.ra-add-permission-btn:hover {
   background-color: #0056b3;
 }
 
-.add-role-btn::before {
+.ra-add-role-btn::before {
   content: "+";
   font-size: 16px;
   font-weight: bold;
 }
 
-.add-module-btn::before {
+.ra-add-module-btn::before {
   content: "+";
   font-size: 16px;
   font-weight: bold;
 }
 
-.add-permission-btn::before {
+.ra-add-permission-btn::before {
   content: "+";
   font-size: 16px;
   font-weight: bold;
 }
 
-.role-list {
+.ra-role-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.role-item {
+.ra-role-item {
   padding: 12px 16px;
   border: 1px solid #e9ecef;
   border-radius: 8px;
@@ -129,47 +114,47 @@
   display: block;
 }
 
-.role-item:hover {
+.ra-role-item:hover {
   border-color: var(--primary);
 }
 
-.role-item.selected {
+.ra-role-item.selected {
   background-color: #e3f2fd;
   border-color: var(--primary);
   color: var(--primary);
 }
 
-.role-item:focus {
+.ra-role-item:focus {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
 /* Right Panel - Permissions */
-.permissions-panel {
+.ra-permissions-panel {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
 }
 
-.permissions-header {
+.ra-permissions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
 }
 
-.permissions-title {
+.ra-permissions-title {
   font-size: 18px;
   font-weight: 600;
   color: #212529;
 }
 
-.action-buttons {
+.ra-action-buttons {
   display: flex;
   gap: 12px;
 }
 
-.btn {
+.ra-btn {
   padding: 10px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -179,40 +164,40 @@
   border: 1px solid;
 }
 
-.btn-cancel {
+.ra-btn-cancel {
   background-color: white;
   color: #6c757d;
   border-color: #dee2e6;
 }
 
-.btn-cancel:hover {
+.ra-btn-cancel:hover {
   background-color: #f8f9fa;
   border-color: #adb5bd;
 }
 
-.btn-save {
+.ra-btn-save {
   background-color: var(--primary);
   color: white;
   border-color: var(--primary);
 }
 
-.btn-save:hover {
+.ra-btn-save:hover {
   background-color: #0056b3;
   border-color: #0056b3;
 }
 
-.btn-tick-all {
+.ra-btn-tick-all {
   background-color: #6c757d;
   color: white;
   border-color: #6c757d;
 }
 
-.btn-tick-all:hover {
+.ra-btn-tick-all:hover {
   background-color: #5a6268;
   border-color: #545b62;
 }
 
-.row-tick-all-btn {
+.ra-row-tick-all-btn {
   background-color: #17a2b8;
   color: white;
   border: none;
@@ -223,26 +208,26 @@
   transition: background-color 0.2s;
 }
 
-.row-tick-all-btn:hover {
+.ra-row-tick-all-btn:hover {
   background-color: #138496;
 }
 
 /* Permissions Table */
-.permissions-table-container {
+.ra-permissions-table-container {
   overflow-x: auto;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   background-color: white;
 }
 
-.permissions-table {
+.ra-permissions-table {
   width: 100%;
   border-collapse: collapse;
   background-color: white;
   min-width: 600px;
 }
 
-.permissions-table th {
+.ra-permissions-table th {
   background-color: #f8f9fa;
   padding: 16px 12px;
   text-align: left;
@@ -252,35 +237,35 @@
   font-size: 14px;
 }
 
-.permissions-table td {
+.ra-permissions-table td {
   padding: 16px 12px;
   border-bottom: 1px solid #f1f3f4;
   font-size: 14px;
 }
 
-.permissions-table tr:last-child td {
+.ra-permissions-table tr:last-child td {
   border-bottom: none;
 }
 
-.permissions-table tr:hover {
+.ra-permissions-table tr:hover {
   background-color: #f8f9fa;
 }
 
-.module-name {
+.ra-module-name {
   font-weight: 500;
   color: #212529;
   text-align: center;
   white-space: nowrap;
 }
 
-.permission-name {
+.ra-permission-name {
   font-weight: 500;
   color: #212529;
   white-space: nowrap;
   min-width: 150px;
 }
 
-.permission-checkbox {
+.ra-permission-checkbox {
   width: 18px;
   height: 18px;
   cursor: pointer;
@@ -289,40 +274,40 @@
   display: block;
 }
 
-.permissions-table td {
+.ra-permissions-table td {
   text-align: center;
   vertical-align: middle;
 }
 
-.permissions-table td:first-child {
+.ra-permissions-table td:first-child {
   text-align: left;
 }
 
 /* Scrollbar Styling */
-.roles-panel::-webkit-scrollbar,
-.permissions-panel::-webkit-scrollbar {
+.ra-roles-panel::-webkit-scrollbar,
+.ra-permissions-panel::-webkit-scrollbar {
   width: 6px;
 }
 
-.roles-panel::-webkit-scrollbar-track,
-.permissions-panel::-webkit-scrollbar-track {
+.ra-roles-panel::-webkit-scrollbar-track,
+.ra-permissions-panel::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
 
-.roles-panel::-webkit-scrollbar-thumb,
-.permissions-panel::-webkit-scrollbar-thumb {
+.ra-roles-panel::-webkit-scrollbar-thumb,
+.ra-permissions-panel::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
-.roles-panel::-webkit-scrollbar-thumb:hover,
-.permissions-panel::-webkit-scrollbar-thumb:hover {
+.ra-roles-panel::-webkit-scrollbar-thumb:hover,
+.ra-permissions-panel::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 
 /* Modal Styles */
-.modal-overlay {
+.ra-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -338,12 +323,12 @@
   transition: all 0.3arge;
 }
 
-.modal-overlay.active {
+.ra-modal-overlay.active {
   opacity: 1;
   visibility: visible;
 }
 
-.modal {
+.ra-modal {
   background-color: white;
   border-radius: 12px;
   padding: 24px;
@@ -354,11 +339,11 @@
   transition: transform 0.3s ease;
 }
 
-.modal-overlay.active .modal {
+.ra-modal-overlay.active .modal {
   transform: translateY(0);
 }
 
-.modal-header {
+.ra-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -367,14 +352,14 @@
   border-bottom: 1px solid #e9ecef;
 }
 
-.modal-title {
+.ra-modal-title {
   font-size: 18px;
   font-weight: 600;
   color: #212529;
   margin: 0;
 }
 
-.modal-close {
+.ra-modal-close {
   background: none;
   border: none;
   font-size: 24px;
@@ -390,20 +375,20 @@
   transition: background-color 0.2s;
 }
 
-.modal-close:hover {
+.ra-modal-close:hover {
   background-color: #f8f9fa;
   color: #495057;
 }
 
-.modal-body {
+.ra-modal-body {
   margin-bottom: 24px;
 }
 
-.form-group {
+.ra-form-group {
   margin-bottom: 20px;
 }
 
-.form-label {
+.ra-form-label {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
@@ -411,7 +396,7 @@
   font-size: 14px;
 }
 
-.form-input {
+.ra-form-input {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid #ced4da;
@@ -421,24 +406,24 @@
   box-sizing: border-box;
 }
 
-.form-input:focus {
+.ra-form-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
-.form-textarea {
+.ra-form-textarea {
   min-height: 80px;
   resize: vertical;
 }
 
-.modal-footer {
+.ra-modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 }
 
-.btn-modal {
+.ra-btn-modal {
   padding: 10px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -448,30 +433,30 @@
   border: 1px solid;
 }
 
-.btn-modal-secondary {
+.ra-btn-modal-secondary {
   background-color: white;
   color: #6c757d;
   border-color: #dee2e6;
 }
 
-.btn-modal-secondary:hover {
+.ra-btn-modal-secondary:hover {
   background-color: #f8f9fa;
   border-color: #adb5bd;
 }
 
-.btn-modal-primary {
+.ra-btn-modal-primary {
   background-color: var(--primary);
   color: white;
   border-color: var(--primary);
 }
 
-.btn-modal-primary:hover {
+.ra-btn-modal-primary:hover {
   background-color: #0056b3;
   border-color: #0056b3;
 }
 
 /* Loading and Empty States */
-.loading-state {
+.ra-loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -480,7 +465,7 @@
   color: #6c757d;
 }
 
-.loading-spinner {
+.ra-loading-spinner {
   width: 32px;
   height: 32px;
   border: 3px solid #e9ecef;
@@ -495,7 +480,7 @@
   100% { transform: rotate(360deg); }
 }
 
-.empty-state {
+.ra-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -507,53 +492,53 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .role-assign-container {
+  .ra-role-assign-container {
     flex-direction: column;
   }
   
-  .roles-panel {
+  .ra-roles-panel {
     width: 100%;
     height: auto;
     max-height: 200px;
   }
   
-  .permissions-header {
+  .ra-permissions-header {
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
   }
   
-  .sidebar-buttons {
+  .ra-sidebar-buttons {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 8px;
   }
   
-  .sidebar-buttons .add-module-btn,
-  .sidebar-buttons .add-permission-btn,
-  .sidebar-buttons .add-role-btn {
+  .ra-sidebar-buttons .add-module-btn,
+  .ra-sidebar-buttons .add-permission-btn,
+  .ra-sidebar-buttons .add-role-btn {
     flex: 1;
     min-width: calc(33.333% - 6px);
     font-size: 12px;
     padding: 8px 12px;
   }
   
-  .action-buttons {
+  .ra-action-buttons {
     width: 100%;
     justify-content: flex-end;
   }
   
-  .modal {
+  .ra-modal {
     width: 95%;
     margin: 20px;
   }
   
-  .permissions-table {
+  .ra-permissions-table {
     font-size: 12px;
   }
   
-  .permissions-table th,
-  .permissions-table td {
+  .ra-permissions-table th,
+  .ra-permissions-table td {
     padding: 8px 6px;
   }
 }

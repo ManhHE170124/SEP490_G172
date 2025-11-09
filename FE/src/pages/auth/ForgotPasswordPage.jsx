@@ -56,7 +56,6 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
 
       <section className="container section auth-wrap">
         <div className="auth-card" role="form" aria-labelledby="forgotPasswordTitle">
@@ -127,7 +126,6 @@ export default function ForgotPasswordPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }

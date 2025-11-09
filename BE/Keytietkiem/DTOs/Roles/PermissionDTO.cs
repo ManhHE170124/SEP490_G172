@@ -21,7 +21,7 @@
 
 using System;
 
-namespace Keytietkiem.DTOs
+namespace Keytietkiem.DTOs.Roles
 {
     public class PermissionDTO
     {
@@ -42,5 +42,6 @@ namespace Keytietkiem.DTOs
     {
         public string PermissionName { get; set; } = null!;
         public string? Description { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 }

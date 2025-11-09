@@ -74,7 +74,6 @@ export default function CheckEmailPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
 
       <section className="container section auth-wrap">
         <div className="auth-card" aria-labelledby="checkEmailTitle">
@@ -148,7 +147,6 @@ export default function CheckEmailPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }

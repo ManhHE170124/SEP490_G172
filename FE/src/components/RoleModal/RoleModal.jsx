@@ -1,7 +1,26 @@
+/**
+ * File: RoleModal.jsx
+ * Author: HieuNDHE173169
+ * Created: 20/10/2025
+ * Last Updated: 29/10/2025
+ * Version: 1.0.0
+ * Purpose: Reusable modal form component for Role operations (roles, modules, permissions).
+ */
 import React, { useState } from 'react';
-import './RBACModal.css';
+import './RoleModal.css';
 
-const RBACModal = ({ 
+/**
+ * @summary: Reusable modal form component for Role entity creation and editing.
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Whether modal is visible
+ * @param {string} props.title - Modal title
+ * @param {Array} props.fields - Form field configurations
+ * @param {Function} props.onClose - Callback when modal is closed
+ * @param {Function} props.onSubmit - Callback when form is submitted
+ * @param {boolean} props.submitting - Whether form is being submitted
+ * @returns {JSX.Element|null} - Modal form element or null if not open
+ */
+const RoleModal = ({ 
   isOpen, 
   title, 
   fields, 
@@ -12,7 +31,11 @@ const RBACModal = ({
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
 
-  // Initialize form data when modal opens
+  
+  /**
+   * @summary: Initialize form data when modal opens.
+   * Effect: Resets form data and errors based on field configurations.
+   */
   React.useEffect(() => {
     if (isOpen) {
       const initialData = {};
@@ -24,6 +47,11 @@ const RBACModal = ({
     }
   }, [isOpen, fields]);
 
+  /**
+   * @summary: Handle input field value changes.
+   * @param {string} name - Field name
+   * @param {*} value - New field value
+   */
   const handleInputChange = (name, value) => {
     setFormData(prev => ({
       ...prev,
@@ -39,6 +67,10 @@ const RBACModal = ({
     }
   };
 
+  /**
+   * @summary: Validate form fields based on required rules.
+   * @returns {boolean} - Whether form is valid
+   */
   const validateForm = () => {
     const newErrors = {};
     
@@ -52,6 +84,10 @@ const RBACModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  /**
+   * @summary: Handle form submission.
+   * @param {Event} e - Form submit event
+   */
   const handleSubmit = (e) => {
     e.preventDefault();
     
@@ -60,6 +96,9 @@ const RBACModal = ({
     }
   };
 
+  /**
+   * @summary: Handle modal close action.
+   */
   const handleClose = () => {
     setFormData({});
     setErrors({});
@@ -143,4 +182,4 @@ const RBACModal = ({
   );
 };
 
-export default RBACModal;
+export default RoleModal;
