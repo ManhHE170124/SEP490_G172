@@ -1,0 +1,116 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Suspense, lazy } from "react";
+// Admin pages
+import BadgeAdd from "../pages/admin/BadgeAdd.jsx";
+import BadgeDetail from "../pages/admin/BadgeDetail.jsx";
+import CategoryAdd from "../pages/admin/CategoryAdd.jsx";
+import CategoryDetail from "../pages/admin/CategoryDetail.jsx";
+import CategoryPage from "../pages/admin/CategoryPage.jsx";
+import ProductAdd from "../pages/admin/ProductAdd.jsx";
+import ProductDetail from "../pages/admin/ProductDetail.jsx";
+import ProductsPage from "../pages/admin/ProductsPage.jsx";
+import AdminUserManagement from "../pages/admin/admin-user-management";
+import AdminTicketManagement from "../pages/admin/admin-ticket-management";
+import WebsiteConfig from "../pages/admin/WebsiteConfig";
+
+
+
+// Auth pages
+import LoginPage from "../pages/auth/LoginPage.jsx";
+import SignUpPage from "../pages/auth/SignUpPage.jsx";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage.jsx";
+import CheckEmailPage from "../pages/auth/CheckEmailPage.jsx";
+import ResetPasswordPage from "../pages/auth/ResetPasswordPage.jsx";
+
+// Supplier pages
+import SuppliersPage from "../pages/supplier/SuppliersPage.jsx";
+import SupplierDetailPage from "../pages/supplier/SupplierDetailPage.jsx";
+
+// Storage pages
+import KeyManagementPage from "../pages/storage/KeyManagementPage.jsx";
+import KeyDetailPage from "../pages/storage/KeyDetailPage.jsx";
+import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
+import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
+import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
+
+// Other pages
+import Page404 from "../pages/NotFound/Page404";
+import RBACManagement from "../pages/RBAC/RBACManagement";
+import RoleAssign from "../pages/RBAC/RoleAssign";
+const AdminTicketDetail = lazy(() =>
+  import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
+    default:
+      typeof m.default === "function"
+        ? m.default
+        : (typeof m.AdminTicketDetail === "function" ? m.AdminTicketDetail : (() => null)),
+  }))
+);
+
+export default function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<SignUpPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/check-reset-email" element={<CheckEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/" element={<Navigate to="/admin/products" replace />} />
+      <Route path="/admin" element={<div />} />
+
+      {/* Tickets */}
+      <Route path="/admin/tickets" element={<AdminTicketManagement />} />
+      <Route
+        path="/admin/tickets/:id"
+        element={
+          <Suspense fallback={<div>Đang tải chi tiết...</div>}>
+            <AdminTicketDetail />
+          </Suspense>
+        }
+      />
+
+
+      {/* Products */}
+      <Route path="/admin/products" element={<ProductsPage />} />
+      <Route path="/admin/products/add" element={<ProductAdd />} />
+      <Route path="/admin/products/:id" element={<ProductDetail />} />
+
+      {/* Categories */}
+      <Route path="/admin/categories" element={<CategoryPage />} />
+      <Route path="/admin/categories/add" element={<CategoryAdd />} />
+      <Route path="/admin/categories/:id" element={<CategoryDetail />} />
+
+      {/* Badges */}
+      <Route path="/admin/badges/add" element={<BadgeAdd />} />
+      <Route path="/admin/badges/:code" element={<BadgeDetail />} />
+
+      {/* Suppliers */}
+      <Route path="/suppliers" element={<SuppliersPage />} />
+      <Route path="/suppliers/add" element={<SupplierDetailPage />} />
+      <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+
+      {/* Product Keys */}
+      <Route path="/keys" element={<KeyManagementPage />} />
+      <Route path="/keys/add" element={<KeyDetailPage />} />
+      <Route path="/keys/:id" element={<KeyDetailPage />} />
+
+      {/* Key Monitor */}
+      <Route path="/key-monitor" element={<KeyMonitorPage />} />
+
+      {/* Product Accounts */}
+      <Route path="/accounts" element={<AccountManagementPage />} />
+      <Route path="/accounts/add" element={<AccountDetailPage />} />
+      <Route path="/accounts/:id" element={<AccountDetailPage />} />
+
+      {/* RBAC & Users */}
+      <Route path="/admin/users" element={<AdminUserManagement />} />
+      <Route path="/admin-user-management" element={<AdminUserManagement />} />
+      <Route path="/rbac" element={<RBACManagement />} />
+      <Route path="/roleassign" element={<RoleAssign />} />
+
+      <Route path="/admin/website-config" element={<WebsiteConfig />} />
+
+      {/* Fallbacks */}
+      <Route path="*" element={<Page404 />} />
+    </Routes>
+  );
+}
