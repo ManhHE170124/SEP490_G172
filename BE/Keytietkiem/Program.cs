@@ -42,6 +42,9 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
 builder.Services.AddScoped<IProductKeyService, ProductKeyService>();
 builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
+builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
+builder.Services.AddScoped<ILayoutSectionService, LayoutSectionService>();
+builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
