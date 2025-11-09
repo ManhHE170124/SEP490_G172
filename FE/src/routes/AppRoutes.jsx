@@ -133,12 +133,12 @@ export default function AppRoutes() {
       <Route path="/keys/:id" element={<AdminLayout><KeyDetailPage /></AdminLayout>} />
 
       {/* Key Monitor */}
-      <Route path="/key-monitor" element={<KeyMonitorPage />} />
+      <Route path="/key-monitor" element={<AdminLayout><KeyMonitorPage /></AdminLayout>} />
 
       {/* Product Accounts */}
-      <Route path="/accounts" element={<AccountManagementPage />} />
-      <Route path="/accounts/add" element={<AccountDetailPage />} />
-      <Route path="/accounts/:id" element={<AccountDetailPage />} />
+      <Route path="/accounts" element={<AdminLayout><AccountManagementPage /></AdminLayout>} />
+      <Route path="/accounts/add" element={<AdminLayout><AccountDetailPage /></AdminLayout>} />
+      <Route path="/accounts/:id" element={<AdminLayout><AccountDetailPage /></AdminLayout>} />
 
       {/* RBAC & Users */}
       <Route path="/admin/users" element={<AdminLayout><AdminUserManagement /></AdminLayout>} />

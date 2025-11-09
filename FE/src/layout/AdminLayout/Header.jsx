@@ -9,7 +9,7 @@
  */
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthService } from "../services/authService";
+import { AuthService } from "../../services/authService";
 import "./Header.css";
 
 /**

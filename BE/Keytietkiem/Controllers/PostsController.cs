@@ -181,13 +181,13 @@ namespace Keytietkiem.Controllers
             var newPost = new Post
             {
                 Title = createPostDto.Title,
-                Slug = createPostDto.Slug,
+                //Slug = createPostDto.Slug,
                 ShortDescription = createPostDto.ShortDescription,
                 Content = createPostDto.Content,
                 Thumbnail = createPostDto.Thumbnail,
                 PostTypeId = createPostDto.PostTypeId,
                 AuthorId = createPostDto.AuthorId,
-                MetaTitle = createPostDto.MetaTitle,
+                //MetaTitle = createPostDto.MetaTitle,
                 MetaDescription = createPostDto.MetaDescription,
                 Status = createPostDto.Status ?? "Draft",
                 ViewCount = 0,

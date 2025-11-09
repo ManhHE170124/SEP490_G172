@@ -56,3 +56,4 @@ export const AuthService = {
     localStorage.removeItem("user");
   },
 };
+export default AuthService;
