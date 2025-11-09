@@ -136,10 +136,19 @@ const CreateEditPost = () => {
   };
 
   // Featured image upload
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Convert URL to File object
+  const urlToFile = async (url) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new File([blob], 'image.' + blob.type.split('/')[1], { type: blob.type });
+    } catch (error) {
+      throw new Error('Không thể tải ảnh từ URL');
+    }
+  };
 
+  // Handle file upload process
+  const processImageUpload = async (file) => {
     try {
       // Show preview immediately
       const reader = new FileReader();
@@ -172,6 +181,69 @@ const CreateEditPost = () => {
       showError('Lỗi tải ảnh', err.message || 'Không thể tải ảnh đại diện lên.');
       setFeaturedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle file input change
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImageUpload(file);
+  };
+
+  // Handle drag and drop
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items = Array.from(e.dataTransfer.items);
+    
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        await processImageUpload(file);
+        break;
+      } else if (item.kind === 'string' && item.type === 'text/uri-list') {
+        item.getAsString(async (url) => {
+          try {
+            const file = await urlToFile(url);
+            await processImageUpload(file);
+          } catch (err) {
+            showError('Lỗi tải ảnh', 'Không thể tải ảnh từ URL này.');
+          }
+        });
+        break;
+      }
+    }
+  };
+
+  // Handle paste
+  const handlePaste = async (e) => {
+    const items = Array.from(e.clipboardData.items);
+
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        await processImageUpload(file);
+        break;
+      } else if (item.kind === 'string' && item.type === 'text/plain') {
+        item.getAsString(async (text) => {
+          if (text.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i)) {
+            try {
+              const file = await urlToFile(text);
+              await processImageUpload(file);
+            } catch (err) {
+              showError('Lỗi tải ảnh', 'Không thể tải ảnh từ URL này.');
+            }
+          }
+        });
+        break;
+      }
     }
   };
 
@@ -722,11 +794,15 @@ const handlePublish = () =>
               onChange={handleImageUpload}
               accept="image/*"
             />
-            <button
-              type="button"
+            <div
               className={`cep-featured-image-upload ${featuredImage ? 'has-image' : ''}`}
               onClick={handleImageClick}
-              disabled={saving}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onPaste={handlePaste}
+              tabIndex="0"
+              role="button"
+              style={{ outline: 'none' }}
             >
               {featuredImage ? (
                 <img
@@ -735,9 +811,15 @@ const handlePublish = () =>
                   className="cep-featured-image-preview"
                 />
               ) : (
-                <div>Chọn hình ảnh</div>
+                <div>
+                  <div>Kéo thả ảnh vào đây</div>
+                  <div>hoặc</div>
+                  <div>Click để chọn ảnh</div>
+                  <div>hoặc</div>
+                  <div>Paste URL ảnh (Ctrl+V)</div>
+                </div>
               )}
-            </button>
+            </div>
             {featuredImage && (
               <button
                 className="cep-remove-image-btn"

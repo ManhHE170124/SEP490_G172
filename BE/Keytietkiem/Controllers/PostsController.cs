@@ -1,4 +1,4 @@
-/**
+﻿/**
  * File: PostsController.cs
  * Author: HieuNDHE173169
  * Created: 21/10/2025
@@ -141,7 +141,7 @@ namespace Keytietkiem.Controllers
         {
             if (createPostDto == null || string.IsNullOrWhiteSpace(createPostDto.Title))
             {
-                return BadRequest("Post title is required.");
+                return BadRequest("Tiêu đề không được để trống.");
             }
 
             // Validate PostType exists
@@ -151,7 +151,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(pt => pt.PostTypeId == createPostDto.PostTypeId.Value);
                 if (postType == null)
                 {
-                    return NotFound(new { message = "Post type not found." });
+                    return NotFound(new { message = "Danh mục bài viết không được tìm thấy." });
                 }
             }
 
@@ -162,7 +162,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(u => u.UserId == createPostDto.AuthorId.Value);
                 if (author == null)
                 {
-                    return NotFound(new { message = "Author not found." });
+                    return NotFound(new { message = "Không tìm thấy thông tin tác giả." });
                 }
             }
 
@@ -173,7 +173,7 @@ namespace Keytietkiem.Controllers
                     .CountAsync(t => createPostDto.TagIds.Contains(t.TagId));
                 if (tagCount != createPostDto.TagIds.Count)
                 {
-                    return BadRequest(new { message = "One or more tags not found." });
+                    return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
                 }
             }
 
@@ -255,12 +255,12 @@ namespace Keytietkiem.Controllers
         {
             if (updatePostDto == null)
             {
-                return BadRequest("Invalid post data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
             }
 
             if (string.IsNullOrWhiteSpace(updatePostDto.Title))
             {
-                return BadRequest("Post title is required.");
+                return BadRequest("Tiêu đề không được để trống.");
             }
 
             var existing = await _context.Posts
@@ -279,7 +279,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(pt => pt.PostTypeId == updatePostDto.PostTypeId.Value);
                 if (postType == null)
                 {
-                    return NotFound(new { message = "Post type not found." });
+                    return NotFound(new { message = "Không tìm thấy danh mục bài viết." });
                 }
             }
 
@@ -290,7 +290,7 @@ namespace Keytietkiem.Controllers
                     .CountAsync(t => updatePostDto.TagIds.Contains(t.TagId));
                 if (tagCount != updatePostDto.TagIds.Count)
                 {
-                    return BadRequest(new { message = "One or more tags not found." });
+                    return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
                 }
             }
 
@@ -370,7 +370,7 @@ namespace Keytietkiem.Controllers
         {
             if (createPostTypeDto == null || string.IsNullOrWhiteSpace(createPostTypeDto.PostTypeName))
             {
-                return BadRequest("Post type name is required.");
+                return BadRequest("Tên danh mục không được để trống.");
             }
             var newPostType = new PostType
             {
@@ -396,7 +396,7 @@ namespace Keytietkiem.Controllers
         {
             if (updatePostTypeDto == null || string.IsNullOrWhiteSpace(updatePostTypeDto.PostTypeName))
             {
-                return BadRequest("Post type name is required.");
+                return BadRequest("Tên danh mục không được để trống.");
             }
             var existing = await _context.PostTypes
                 .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
@@ -426,7 +426,7 @@ namespace Keytietkiem.Controllers
             }
             if (existing.Posts != null && existing.Posts.Any())
             {
-                return BadRequest("Cannot delete post type with associated posts.");
+                return BadRequest("Không thể xóa danh mục này.");
             }
             _context.PostTypes.Remove(existing);
             await _context.SaveChangesAsync();
