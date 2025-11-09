@@ -50,10 +50,15 @@ function fmtVNDate(dt) {
   try {
     const d = typeof dt === "string" || typeof dt === "number" ? new Date(dt) : dt;
     return new Intl.DateTimeFormat("vi-VN", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit"
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(d);
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 function StatusBadge({ value }) {
@@ -121,60 +126,103 @@ export default function AdminTicketManagement() {
     pageSize: res?.pageSize ?? res?.PageSize ?? fallbacks.pageSize,
   });
 
-  const fetchList = useCallback(async (take = applied) => {
-    setLoading(true);
-    try {
-      const res = await ticketsApi.list(take);
-      setData(normalizePaged(res, { items: [], totalItems: 0, page: take.page, pageSize: take.pageSize }));
-    } catch (e) {
-      alert(e?.response?.data?.message || e.message || "Không tải được danh sách ticket.");
-      setData(prev => ({ ...prev, items: [] }));
-    } finally { setLoading(false); }
-  }, [applied]);
+  const fetchList = useCallback(
+    async (take = applied) => {
+      setLoading(true);
+      try {
+        const res = await ticketsApi.list(take);
+        setData(
+          normalizePaged(res, {
+            items: [],
+            totalItems: 0,
+            page: take.page,
+            pageSize: take.pageSize,
+          })
+        );
+      } catch (e) {
+        alert(e?.response?.data?.message || e.message || "Không tải được danh sách ticket.");
+        setData((prev) => ({ ...prev, items: [] }));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applied]
+  );
 
   useEffect(() => {
     fetchList(applied);
   }, [
-    applied.page, applied.pageSize,
-    applied.q, applied.status, applied.severity, applied.sla, applied.assignmentState,
-    fetchList
+    applied.page,
+    applied.pageSize,
+    applied.q,
+    applied.status,
+    applied.severity,
+    applied.sla,
+    applied.assignmentState,
+    fetchList,
   ]);
 
   const onApply = (e) => {
     e.preventDefault();
-    setApplied(prev => ({ ...prev, ...ui, page: 1 }));
+    setApplied((prev) => ({ ...prev, ...ui, page: 1 }));
   };
-  const onReset = () => { setUi({ ...initialFilters }); setApplied({ ...initialFilters }); };
+  const onReset = () => {
+    setUi({ ...initialFilters });
+    setApplied({ ...initialFilters });
+  };
   const gotoPage = (p) =>
-    setApplied(prev => ({ ...prev, page: Math.max(1, Math.min(totalPages, p)) }));
+    setApplied((prev) => ({ ...prev, page: Math.max(1, Math.min(totalPages, p)) }));
 
   // ----- actions -----
-  const [modal, setModal] = useState({ open: false, mode: "", id: null, currentAssigneeId: null });
+  const [modal, setModal] = useState({
+    open: false,
+    mode: "",
+    id: null,
+    currentAssigneeId: null,
+  });
 
   const doAssign = async (id, assigneeId) => {
-    try { await ticketsApi.assign(id, assigneeId); await fetchList(); }
-    catch (e) { alert(e?.response?.data?.message || e.message || "Gán ticket thất bại."); }
+    try {
+      await ticketsApi.assign(id, assigneeId);
+      await fetchList();
+    } catch (e) {
+      alert(e?.response?.data?.message || e.message || "Gán ticket thất bại.");
+    }
   };
   const doTransfer = async (id, assigneeId) => {
-    try { await ticketsApi.transferTech(id, assigneeId); await fetchList(); }
-    catch (e) { alert(e?.response?.data?.message || e.message || "Chuyển hỗ trợ thất bại."); }
+    try {
+      await ticketsApi.transferTech(id, assigneeId);
+      await fetchList();
+    } catch (e) {
+      alert(e?.response?.data?.message || e.message || "Chuyển hỗ trợ thất bại.");
+    }
   };
   const doComplete = async (id) => {
     if (!window.confirm("Xác nhận đánh dấu Hoàn thành?")) return;
-    try { await ticketsApi.complete(id); await fetchList(); }
-    catch (e) { alert(e?.response?.data?.message || e.message || "Hoàn thành ticket thất bại."); }
+    try {
+      await ticketsApi.complete(id);
+      await fetchList();
+    } catch (e) {
+      alert(e?.response?.data?.message || e.message || "Hoàn thành ticket thất bại.");
+    }
   };
   const doClose = async (id) => {
     if (!window.confirm("Xác nhận Đóng ticket?")) return;
-    try { await ticketsApi.close(id); await fetchList(); }
-    catch (e) { alert(e?.response?.data?.message || e.message || "Đóng ticket thất bại."); }
+    try {
+      await ticketsApi.close(id);
+      await fetchList();
+    } catch (e) {
+      alert(e?.response?.data?.message || e.message || "Đóng ticket thất bại.");
+    }
   };
 
   const actionsFor = (row) => {
     const st = normalizeStatus(row.status);
     const list = { canAssign: false, canTransfer: false, canComplete: false, canClose: false };
-    if (st === "New") { list.canAssign = true; list.canClose = true; }
-    else if (st === "InProgress") {
+    if (st === "New") {
+      list.canAssign = true;
+      list.canClose = true;
+    } else if (st === "InProgress") {
       list.canComplete = true;
       list.canTransfer = row.assignmentState === "Assigned" || row.assignmentState === "Technical";
     }
@@ -191,27 +239,81 @@ export default function AdminTicketManagement() {
 
       {/* Filters */}
       <form className="tk-filters" onSubmit={onApply}>
-        <input className="ip" placeholder="Tìm theo mã, tiêu đề, khách hàng, email..."
-          value={ui.q} onChange={(e) => setUi(s => ({ ...s, q: e.target.value }))} />
-        <select className="ip" value={ui.status} onChange={(e) => setUi(s => ({ ...s, status: e.target.value }))}>
-          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <input
+          className="ip"
+          placeholder="Tìm theo mã, tiêu đề, khách hàng, email..."
+          value={ui.q}
+          onChange={(e) => setUi((s) => ({ ...s, q: e.target.value }))}
+        />
+        <select
+          className="ip"
+          value={ui.status}
+          onChange={(e) => setUi((s) => ({ ...s, status: e.target.value }))}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
-        <select className="ip" value={ui.severity} onChange={(e) => setUi(s => ({ ...s, severity: e.target.value }))}>
-          {SEVERITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select
+          className="ip"
+          value={ui.severity}
+          onChange={(e) => setUi((s) => ({ ...s, severity: e.target.value }))}
+        >
+          {SEVERITY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
-        <select className="ip" value={ui.sla} onChange={(e) => setUi(s => ({ ...s, sla: e.target.value }))}>
-          {SLA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select
+          className="ip"
+          value={ui.sla}
+          onChange={(e) => setUi((s) => ({ ...s, sla: e.target.value }))}
+        >
+          {SLA_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
-        <select className="ip" value={ui.assignmentState} onChange={(e) => setUi(s => ({ ...s, assignmentState: e.target.value }))}>
-          {ASSIGNMENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select
+          className="ip"
+          value={ui.assignmentState}
+          onChange={(e) => setUi((s) => ({ ...s, assignmentState: e.target.value }))}
+        >
+          {ASSIGNMENT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
-        <button type="submit" className="btn primary">Áp dụng</button>
-        <button type="button" className="btn ghost" onClick={onReset}>Reset</button>
+        <button type="submit" className="btn primary">
+          Áp dụng
+        </button>
+        <button type="button" className="btn ghost" onClick={onReset}>
+          Reset
+        </button>
       </form>
 
       {/* Table */}
       <div className="tk-table-wrap">
         <table className="tk-table">
+          {/* ✅ Cố định bề rộng cột để thead/tbody luôn khớp tuyệt đối */}
+          <colgroup>
+            <col style={{ width: 64 }} />
+            <col style={{ width: 100 }} />
+            <col /> {/* Tiêu đề co giãn */}
+            <col style={{ width: 260 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 220 }} />
+            <col style={{ width: 160 }} />
+            <col style={{ width: 320 }} />
+          </colgroup>
+
           <thead>
             <tr>
               <th>STT</th>
@@ -223,71 +325,109 @@ export default function AdminTicketManagement() {
               <th>SLA</th>
               <th>Phân công</th>
               <th>Ngày tạo</th>
-              <th style={{ width: 320 }}>Thao tác</th>
+              <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={10} style={{ textAlign: "center", padding: 16 }}>Đang tải...</td></tr>
+              <tr>
+                <td colSpan={10} style={{ textAlign: "center", padding: 16 }}>
+                  Đang tải...
+                </td>
+              </tr>
             )}
-            {!loading && (data.items || []).map((r, i) => {
-              const a = actionsFor(r);
-              return (
-                <tr key={r.ticketId}>
-                  <td className="mono">{startIndex + i + 1}</td>
-                  <td className="mono">{r.ticketCode}</td>
-                  <td className="ellipsis">{r.subject}</td>
-                  <td>
-                    <div className="cell">
-                      <div className="bold">{r.customerName}</div>
-                      <div className="muted">{r.customerEmail}</div>
-                    </div>
-                  </td>
-                  <td><StatusBadge value={r.status} /></td>
-                  <td><SeverityTag value={r.severity} /></td>
-                  <td><SlaPill value={r.slaStatus} /></td>
-                  <td>
-                    <div style={{display:"flex", flexDirection:"column", gap:4}}>
-                      <AssignPill value={r.assignmentState} />
-                      {r.assigneeName && (
-                        <>
-                          <span className="bold">{r.assigneeName}</span>
-                          <span className="muted">{r.assigneeEmail || ""}</span>
-                        </>
+            {!loading &&
+              (data.items || []).map((r, i) => {
+                const a = actionsFor(r);
+                return (
+                  <tr key={r.ticketId}>
+                    <td className="mono">{startIndex + i + 1}</td>
+                    <td className="mono">{r.ticketCode}</td>
+                    <td className="ellipsis">{r.subject}</td>
+                    <td>
+                      <div className="cell">
+                        <div className="bold">{r.customerName}</div>
+                        <div className="muted">{r.customerEmail}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <StatusBadge value={r.status} />
+                    </td>
+                    <td>
+                      <SeverityTag value={r.severity} />
+                    </td>
+                    <td>
+                      <SlaPill value={r.slaStatus} />
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <AssignPill value={r.assignmentState} />
+                        {r.assigneeName && (
+                          <>
+                            <span className="bold">{r.assigneeName}</span>
+                            <span className="muted">{r.assigneeEmail || ""}</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="muted">{fmtVNDate(r.createdAt)}</td>
+                    <td className="tk-row-actions">
+                      {a.canAssign && (
+                        <button
+                          className="btn xs"
+                          onClick={() =>
+                            setModal({
+                              open: true,
+                              mode: "assign",
+                              id: r.ticketId,
+                              currentAssigneeId: r.assigneeId,
+                            })
+                          }
+                        >
+                          Gán
+                        </button>
                       )}
-                    </div>
-                  </td>
-                  <td className="muted">{fmtVNDate(r.createdAt)}</td>
-                  <td className="tk-row-actions">
-                    {a.canAssign && (
-                      <button className="btn xs" onClick={() => setModal({ open: true, mode: "assign", id: r.ticketId, currentAssigneeId: r.assigneeId })}>
-                        Gán
+                      {a.canTransfer && (
+                        <button
+                          className="btn xs"
+                          onClick={() =>
+                            setModal({
+                              open: true,
+                              mode: "transfer",
+                              id: r.ticketId,
+                              currentAssigneeId: r.assigneeId,
+                            })
+                          }
+                        >
+                          Chuyển hỗ trợ
+                        </button>
+                      )}
+                      {a.canComplete && (
+                        <button className="btn xs" onClick={() => doComplete(r.ticketId)}>
+                          Hoàn thành
+                        </button>
+                      )}
+                      {normalizeStatus(r.status) === "New" && (
+                        <button className="btn xs danger" onClick={() => doClose(r.ticketId)}>
+                          Đóng
+                        </button>
+                      )}
+                      <button
+                        className="btn xs ghost"
+                        onClick={() => nav(`/admin/tickets/${r.ticketId}`)}
+                      >
+                        Chi tiết
                       </button>
-                    )}
-                    {a.canTransfer && (
-                      <button className="btn xs" onClick={() => setModal({ open: true, mode: "transfer", id: r.ticketId, currentAssigneeId: r.assigneeId })}>
-                        Chuyển hỗ trợ
-                      </button>
-                    )}
-                    {a.canComplete && (
-                      <button className="btn xs" onClick={() => doComplete(r.ticketId)}>
-                        Hoàn thành
-                      </button>
-                    )}
-                    {normalizeStatus(r.status) === "New" && (
-                      <button className="btn xs danger" onClick={() => doClose(r.ticketId)}>
-                        Đóng
-                      </button>
-                    )}
-                    <button className="btn xs ghost" onClick={() => nav(`/admin/tickets/${r.ticketId}`)}>
-                      Chi tiết
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                  </tr>
+                );
+              })}
             {!loading && !(data.items || []).length && (
-              <tr><td colSpan={10} style={{ textAlign: "center", padding: 16 }}>Không có dữ liệu.</td></tr>
+              <tr>
+                <td colSpan={10} style={{ textAlign: "center", padding: 16 }}>
+                  Không có dữ liệu.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -295,9 +435,23 @@ export default function AdminTicketManagement() {
 
       {/* Pagination */}
       <div className="tk-pager">
-        <button className="btn xs ghost" onClick={() => gotoPage(applied.page - 1)} disabled={applied.page <= 1}>« Trước</button>
-        <span>Trang {applied.page}/{totalPages}</span>
-        <button className="btn xs ghost" onClick={() => gotoPage(applied.page + 1)} disabled={applied.page >= totalPages}>Sau »</button>
+        <button
+          className="btn xs ghost"
+          onClick={() => gotoPage(applied.page - 1)}
+          disabled={applied.page <= 1}
+        >
+          « Trước
+        </button>
+        <span>
+          Trang {applied.page}/{totalPages}
+        </span>
+        <button
+          className="btn xs ghost"
+          onClick={() => gotoPage(applied.page + 1)}
+          disabled={applied.page >= totalPages}
+        >
+          Sau »
+        </button>
       </div>
 
       {/* Assign / Transfer modal */}
@@ -319,9 +473,12 @@ export default function AdminTicketManagement() {
   );
 }
 
-function useDebounced(value, delay=250){
+function useDebounced(value, delay = 250) {
   const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(()=>setV(value), delay); return ()=>clearTimeout(t); }, [value, delay]);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
   return v;
 }
 
@@ -332,7 +489,13 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
   const debounced = useDebounced(search, 250);
   const [selected, setSelected] = useState("");
 
-  useEffect(() => { if (!open) { setSearch(""); setSelected(""); setList([]);} }, [open]);
+  useEffect(() => {
+    if (!open) {
+      setSearch("");
+      setSelected("");
+      setList([]);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -340,18 +503,29 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
     (async () => {
       try {
         setLoading(true);
-        // 1) Lấy danh sách roles (loại 'admin' đã được BE loại trừ)
-        const roles = await axiosClient.get("/roles"); // [{ roleId, name }]
-        const staffRole = (roles || []).find(r => String(r.name).toLowerCase() === "customer care staff".toLowerCase());
-        if (!staffRole) { setList([]); return; }
-
-        // 2) Lấy users theo roleId + Active + q
+        // 1) lấy role "Customer Care Staff"
+        const roles = await axiosClient.get("/roles");
+        const staffRole = (roles || []).find(
+          (r) => String(r.name).toLowerCase() === "customer care staff".toLowerCase()
+        );
+        if (!staffRole) {
+          setList([]);
+          return;
+        }
+        // 2) tìm user theo role + Active + q
         const res = await axiosClient.get("/users", {
-          params: { roleId: staffRole.roleId, status: "Active", q: debounced, pageSize: 50, page: 1 }
+          params: { roleId: staffRole.roleId, status: "Active", q: debounced, pageSize: 50, page: 1 },
         });
         const items = res?.items ?? res?.Items ?? [];
-        let mapped = items.map(u => ({ id: u.userId, name: u.fullName || u.email, email: u.email }));
-        if (excludeUserId) mapped = mapped.filter(x => String(x.id).toLowerCase() !== String(excludeUserId || "").toLowerCase());
+        let mapped = items.map((u) => ({
+          id: u.userId,
+          name: u.fullName || u.email,
+          email: u.email,
+        }));
+        if (excludeUserId)
+          mapped = mapped.filter(
+            (x) => String(x.id).toLowerCase() !== String(excludeUserId || "").toLowerCase()
+          );
         if (alive) setList(mapped);
       } catch (e) {
         if (alive) setList([]);
@@ -359,7 +533,9 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [open, debounced, excludeUserId]);
 
   if (!open) return null;
@@ -368,28 +544,50 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
       <div className="tk-modal-card">
         <div className="tk-modal-head">
           <h3 className="tk-modal-title">{title}</h3>
-          <button className="btn icon ghost" onClick={onClose} aria-label="Đóng">×</button>
+          <button className="btn icon ghost" onClick={onClose} aria-label="Đóng">
+            ×
+          </button>
         </div>
         <div className="tk-modal-body">
           <div className="form-group">
             <label>Tìm kiếm (tên hoặc email)</label>
-            <input className="ip" placeholder="Nhập để lọc..." value={search} onChange={(e)=>setSearch(e.target.value)} />
+            <input
+              className="ip"
+              placeholder="Nhập để lọc..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <div className="form-group">
             <label>Chọn nhân viên hỗ trợ</label>
-            {loading ? <div style={{padding:"8px 0"}}>Đang tải...</div> : (
-              <select className="ip" size={Math.min(8, Math.max(3, list.length))} value={selected} onChange={(e)=>setSelected(e.target.value)}>
-                {list.map(u => (
-                  <option key={u.id} value={u.id}>{u.name} — {u.email}</option>
+            {loading ? (
+              <div style={{ padding: "8px 0" }}>Đang tải...</div>
+            ) : (
+              <select
+                className="ip"
+                size={Math.min(8, Math.max(3, list.length))}
+                value={selected}
+                onChange={(e) => setSelected(e.target.value)}
+              >
+                {list.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} — {u.email}
+                  </option>
                 ))}
               </select>
             )}
-            {!loading && list.length === 0 && <div style={{padding:"8px 0"}}>Không có nhân viên phù hợp.</div>}
+            {!loading && list.length === 0 && (
+              <div style={{ padding: "8px 0" }}>Không có nhân viên phù hợp.</div>
+            )}
           </div>
         </div>
         <div className="tk-modal-foot">
-          <button className="btn ghost" onClick={onClose}>Huỷ</button>
-          <button className="btn primary" onClick={()=> selected ? onConfirm(selected) : null} disabled={!selected}>Xác nhận</button>
+          <button className="btn ghost" onClick={onClose}>
+            Hủy
+          </button>
+          <button className="btn primary" disabled={!selected} onClick={() => onConfirm(selected)}>
+            Xác nhận
+          </button>
         </div>
       </div>
     </div>
