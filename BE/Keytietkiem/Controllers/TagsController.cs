@@ -147,12 +147,12 @@ namespace Keytietkiem.Controllers
 
            if (string.IsNullOrWhiteSpace(updateTagDto.TagName))
            {
-               return BadRequest("Tag name is required.");
+               return BadRequest("Tên th? không ???c ?? tr?ng.");
            }
 
            if (string.IsNullOrWhiteSpace(updateTagDto.Slug))
            {
-               return BadRequest("Slug is required.");
+               return BadRequest("Slug không ???c ?? tr?ng.");
            }
 
            var existing = await _context.Tags
@@ -166,14 +166,14 @@ namespace Keytietkiem.Controllers
                .FirstOrDefaultAsync(t => t.TagName == updateTagDto.TagName && t.TagId != id);
            if (existingByName != null)
            {
-               return Conflict(new { message = "Tag name already exists." });
+               return Conflict(new { message = "Tên th? ?ã t?n t?i." });
            }
 
            var existingBySlug = await _context.Tags
                .FirstOrDefaultAsync(t => t.Slug == updateTagDto.Slug && t.TagId != id);
            if (existingBySlug != null)
            {
-               return Conflict(new { message = "Slug already exists." });
+               return Conflict(new { message = "Slug trùng v?i th? ?ã có s?n." });
            }
 
            existing.TagName = updateTagDto.TagName;

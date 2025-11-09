@@ -92,27 +92,27 @@ namespace Keytietkiem.DTOs.Post
     {
         public Guid PostTypeId { get; set; }
         public string PostTypeName { get; set; } = null!;
-        public string Slug { get; set; } = null!;
         public string? Description { get; set; }
+        public string Slug { get; set; } = null!;
         public DateTime? CreatedAt { get; set; }
     }
-    public class PostTypeDto
-    {
-        public Guid PostTypeId { get; set; }
-        public string PostTypeName { get; set; }
-        public string Description { get; set; }
-        public string Slug { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public int PostCount { get; set; } 
-    }
+    // public class PostTypeDto
+    // {
+    //     public Guid PostTypeId { get; set; }
+    //     public string PostTypeName { get; set; }
+    //     public string Description { get; set; }
+    //     public DateTime CreatedAt { get; set; }
+    //     public int PostCount { get; set; } 
+    // }
 
     public class CreatePostTypeDTO
     {
         public string PostTypeName { get; set; }
 
         public string Description { get; set; }
-
         public string Slug { get; set; }
+        public DateTime CreatedAt { get; set; }
+
     }
 
     public class UpdatePostTypeDTO
@@ -120,6 +120,7 @@ namespace Keytietkiem.DTOs.Post
         public string PostTypeName { get; set; }
 
         public string Description { get; set; }
+        public string Slug { get; set; }
 
     }
 

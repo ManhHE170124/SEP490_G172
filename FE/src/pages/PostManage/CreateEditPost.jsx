@@ -95,7 +95,8 @@ const CreateEditPost = () => {
         setDescription(postData.shortDescription || '');
         setContent(postData.content || '');
         setStatus(postData.status || 'Draft');
-        setPosttypeId(postData.posttypeId || '');
+        // Handle different possible property names for posttype ID
+        setPosttypeId(postData.posttypeId || postData.postTypeId || postData.PosttypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
         setFeaturedImage(postData.thumbnail || null);
 
@@ -232,21 +233,22 @@ const CreateEditPost = () => {
     try {
       setSaving(true);
 
-      // Prepare tag IDs
+      // Prepare tag IDs - ensure we get valid IDs
       const tagIds = tags
-        .filter(t => t.tagId) // Only existing tags with IDs
-        .map(t => t.tagId);
+        .filter(t => t.tagId || t.TagId || t.id) // Handle different ID property names
+        .map(t => t.tagId || t.TagId || t.id)
+        .filter(id => id); // Filter out any undefined/null values
 
       const postData = {
-        title,
+        title: title.trim(),
         slug: toSlug(title),
-        shortDescription: description,
-        content: content || '',
-        thumbnail: featuredImageUrl,
+        shortDescription: description.trim(),
+        content: content || '<p></p>',
+        thumbnail: featuredImageUrl || null,
         posttypeId: posttypeId || null,
         authorId: null, // TODO: Get from auth context
-        status: postStatus,
-        tagIds: tagIds
+        status: typeof postStatus === 'string' ? postStatus : postStatus.status,
+        tagIds: tagIds.length > 0 ? tagIds : []
       };
 
       let result;
@@ -283,28 +285,25 @@ const CreateEditPost = () => {
   };
 
   const handleSaveDraft = () =>
-  handlePostAction({
-    status: 'Draft',
-    successTitle: 'Lưu nháp thành công',
-    successMessage: 'Bài viết đã được lưu nháp.',
-  });
+  handlePostAction(
+    'Draft',
+    'Lưu nháp thành công',
+    'Bài viết đã được lưu nháp.'
+  );
 
- const handlePublish = () =>
-  handlePostAction({
-    status: 'Published',
-    successTitle: 'Đăng bài thành công',
-    successMessage: 'Bài viết đã được đăng công khai!',
-  });
+const handlePublish = () =>
+  handlePostAction(
+    'Published',
+    'Đăng bài thành công',
+    'Bài viết đã được đăng công khai!'
+  );
 
   const handleSaveChange = () =>
-  handlePostAction({
-    status,
-    successTitle: 'Cập nhật thông tin bài viết thành công',
-    successMessage:
-      status === 'Published'
-        ? 'Bài viết đã được công khai.'
-        : 'Bài viết đã được lưu ở chế độ riêng tư.',
-  });
+  handlePostAction(
+    status, // Use current status
+    'Cập nhật thành công',
+    'Cập nhật thông tin bài viết thành công'
+  );
 
   const handlePreview = () => {
     // TODO: Open preview in new tab
@@ -690,8 +689,11 @@ const CreateEditPost = () => {
               >
                 <option value="">Chọn danh mục</option>
                 {posttypes.map((type) => (
-                  <option key={type.posttypeId} value={type.posttypeId}>
-                    {type.posttypeName}
+                  <option 
+                    key={type.posttypeId || type.postTypeId || type.PosttypeId || type.id} 
+                    value={type.posttypeId || type.postTypeId || type.PosttypeId || type.id}
+                  >
+                    {type.posttypeName || type.postTypeName || type.PosttypeName || type.PostTypeName}
                   </option>
                 ))}
               </select>

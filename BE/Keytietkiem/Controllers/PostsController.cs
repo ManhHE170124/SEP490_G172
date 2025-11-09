@@ -181,13 +181,13 @@ namespace Keytietkiem.Controllers
             var newPost = new Post
             {
                 Title = createPostDto.Title,
-                //Slug = createPostDto.Slug,
+                Slug = createPostDto.Slug,
                 ShortDescription = createPostDto.ShortDescription,
                 Content = createPostDto.Content,
                 Thumbnail = createPostDto.Thumbnail,
                 PostTypeId = createPostDto.PostTypeId,
                 AuthorId = createPostDto.AuthorId,
-                //MetaTitle = createPostDto.MetaTitle,
+                MetaTitle = createPostDto.MetaTitle,
                 MetaDescription = createPostDto.MetaDescription,
                 Status = createPostDto.Status ?? "Draft",
                 ViewCount = 0,
@@ -351,7 +351,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of post types
          */
         [HttpGet("posttypes")]
-        public async Task<IActionResult> GetPostTypes()
+        public async Task<IActionResult> GetPosttypes()
         {
             var postTypes = await _context.PostTypes
                 .Select(pt => new PostTypeDTO
@@ -366,7 +366,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpPost("posttypes")]
-        public async Task<IActionResult> CreatePostType([FromBody] CreatePostTypeDTO createPostTypeDto)
+        public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
             if (createPostTypeDto == null || string.IsNullOrWhiteSpace(createPostTypeDto.PostTypeName))
             {
@@ -376,7 +376,8 @@ namespace Keytietkiem.Controllers
             {
                 PostTypeName = createPostTypeDto.PostTypeName,
                 Description = createPostTypeDto.Description,
-                Slug = createPostTypeDto.Slug
+                Slug = createPostTypeDto.Slug,
+                CreatedAt = DateTime.Now
             };
             _context.PostTypes.Add(newPostType);
             await _context.SaveChangesAsync();
@@ -387,11 +388,11 @@ namespace Keytietkiem.Controllers
                 Slug = newPostType.Slug,
                 Description = newPostType.Description
             };
-            return CreatedAtAction(nameof(GetPostTypes), new { id = newPostType.PostTypeId }, postTypeDto);
+            return CreatedAtAction(nameof(GetPosttypes), new { id = newPostType.PostTypeId }, postTypeDto);
         }
 
         [HttpPut("posttypes/{id}")]
-        public async Task<IActionResult> UpdatePostType(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
+        public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
             if (updatePostTypeDto == null || string.IsNullOrWhiteSpace(updatePostTypeDto.PostTypeName))
             {
@@ -405,6 +406,7 @@ namespace Keytietkiem.Controllers
             }
             existing.PostTypeName = updatePostTypeDto.PostTypeName;
             existing.Description = updatePostTypeDto.Description;
+            existing.Slug = updatePostTypeDto.Slug;
             _context.PostTypes.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();
@@ -413,7 +415,7 @@ namespace Keytietkiem.Controllers
     
 
     [HttpDelete("posttypes/{id}")]
-        public async Task<IActionResult> DeletePostType(Guid id)
+        public async Task<IActionResult> DeletePosttype(Guid id)
         {
             var existing = await _context.PostTypes
                 .Include(pt => pt.Posts)
