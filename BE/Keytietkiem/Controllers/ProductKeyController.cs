@@ -1,4 +1,5 @@
 using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Enums;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,14 @@ namespace Keytietkiem.Controllers
     public class ProductKeyController : ControllerBase
     {
         private readonly IProductKeyService _productKeyService;
+        private readonly ILicensePackageService _licensePackageService;
 
-        public ProductKeyController(IProductKeyService productKeyService)
+        public ProductKeyController(
+            IProductKeyService productKeyService,
+            ILicensePackageService licensePackageService)
         {
             _productKeyService = productKeyService;
+            _licensePackageService = licensePackageService;
         }
 
         /// <summary>
@@ -202,6 +207,56 @@ namespace Keytietkiem.Controllers
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 var count = await _productKeyService.BulkUpdateKeyStatusAsync(dto, actorId, cancellationToken);
                 return Ok(new { message = $"Đã cập nhật trạng thái {count} product keys", count });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Import product keys from CSV and automatically create license package
+        /// </summary>
+        [HttpPost("import-csv")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> ImportKeysFromCsv(
+            [FromForm] ImportProductKeysFromCsvDto dto,
+            CancellationToken cancellationToken = default)
+        {
+            if (dto.File == null || dto.File.Length == 0)
+            {
+                return BadRequest(new { message = "File CSV là bắt buộc" });
+            }
+
+            if (dto.CogsPrice < 0)
+            {
+                return BadRequest(new { message = "Giá vốn phải lớn hơn hoặc bằng 0" });
+            }
+
+            try
+            {
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
+                var keyType = string.IsNullOrWhiteSpace(dto.KeyType)
+                    ? nameof(ProductKeyType.Individual)
+                    : dto.KeyType;
+
+                var result = await _licensePackageService.CreatePackageAndUploadCsvAsync(
+                    dto.ProductId,
+                    dto.SupplierId,
+                    dto.CogsPrice,
+                    dto.File,
+                    actorId,
+                    actorEmail,
+                    keyType,
+                    dto.ExpiryDate,
+                    cancellationToken);
+
+                return Ok(result);
             }
             catch (InvalidOperationException ex)
             {

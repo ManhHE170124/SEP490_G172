@@ -32,6 +32,7 @@ export default function AccountDetailPage() {
     accountPassword: "",
     maxUsers: "5",
     status: "Active",
+    cogsPrice: "",
     expiryDate: "",
     notes: "",
   });
@@ -88,6 +89,7 @@ export default function AccountDetailPage() {
         accountPassword: "", // Don't populate password
         maxUsers: data.maxUsers.toString(),
         status: data.status,
+        cogsPrice: (data.cogsPrice ?? "").toString(),
         expiryDate: data.expiryDate
           ? new Date(data.expiryDate).toISOString().split("T")[0]
           : "",
@@ -112,7 +114,7 @@ export default function AccountDetailPage() {
         pageNumber: 1,
         pageSize: 100,
         // Load both shared and personal account products
-        type: ["SHARED_ACCOUNT", "PERSONAL_ACCOUNT"],
+        productTypes: ["SHARED_ACCOUNT", "PERSONAL_ACCOUNT"],
       });
       setProducts(data.items || data.data || []);
     } catch (err) {
@@ -120,20 +122,24 @@ export default function AccountDetailPage() {
     }
   }, []);
 
-  const loadHistory = useCallback(async () => {
-    if (!id || id === "add") return;
-    setHistoryLoading(true);
-    try {
-      const data = await ProductAccountApi.getHistory(id);
-      const list = data?.history || data?.History || data?.data?.history || [];
-      setHistory(Array.isArray(list) ? list : []);
-      setHistoryPage(1);
-    } catch (err) {
-      console.error("Failed to load history:", err);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [id]);
+  const loadHistory = useCallback(
+    async (resetPage = false) => {
+      if (!id || id === "add") return;
+      setHistoryLoading(true);
+      try {
+        const data = await ProductAccountApi.getHistory(id);
+        const list =
+          data?.history || data?.History || data?.data?.history || [];
+        setHistory(Array.isArray(list) ? list : []);
+        if (resetPage) setHistoryPage(1);
+      } catch (err) {
+        console.error("Failed to load history:", err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [id]
+  );
 
   const searchUsers = useCallback(async () => {
     if (!userSearchTerm.trim()) {
@@ -166,17 +172,17 @@ export default function AccountDetailPage() {
         productAccountId: id,
         userId: selectedUserId,
       });
-      showSuccess("Thanh cong", "Da them nguoi dung vao tai khoan");
+      showSuccess("Thành công", "Đã thêm người dùng vào tài khoản");
       setSelectedUserId("");
       setUserSearchTerm("");
       setUserSearchResults([]);
       await loadProductAccount();
-      await loadHistory();
+      await loadHistory(true);
     } catch (err) {
       console.error("Add user failed:", err);
       const msg =
-        err.response?.data?.message || err.message || "Khong the them";
-      showError("Loi", msg);
+        err.response?.data?.message || err.message || "Không thể thêm";
+      showError("Lỗi", msg);
     }
   }, [
     id,
@@ -195,14 +201,14 @@ export default function AccountDetailPage() {
           productAccountId: id,
           userId,
         });
-        showSuccess("Thanh cong", "Da xoa nguoi dung khoi tai khoan");
+        showSuccess("Thành công", "Đã xóa người dùng khỏi tài khoản");
         await loadProductAccount();
-        await loadHistory();
+        await loadHistory(true);
       } catch (err) {
         console.error("Remove user failed:", err);
         const msg =
-          err.response?.data?.message || err.message || "Khong the xoa";
-        showError("Loi", msg);
+          err.response?.data?.message || err.message || "Không thể xóa";
+        showError("Lỗi", msg);
       }
     },
     [id, loadProductAccount, loadHistory, showSuccess, showError]
@@ -212,9 +218,17 @@ export default function AccountDetailPage() {
     loadProducts();
     if (!isNew) {
       loadProductAccount();
-      loadHistory();
+      loadHistory(true);
     }
   }, [isNew, loadProductAccount, loadProducts, loadHistory]);
+
+  // Reload history from API when history filters change
+  useEffect(() => {
+    if (!isNew) {
+      loadHistory(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historySort, historyPage, historyPageSize, isNew]);
 
   const handleShowPassword = async () => {
     if (showPassword) {
@@ -263,6 +277,30 @@ export default function AccountDetailPage() {
       newErrors.notes = "Ghi chú không được vượt quá 1000 ký tự";
     }
 
+    // Validate COGS price and expiry date
+    const cogs = parseFloat(formData.cogsPrice);
+    if (isNew) {
+      if (isNaN(cogs)) {
+        newErrors.cogsPrice = "Giá vốn (COGS) là bắt buộc";
+      } else if (cogs < 0) {
+        newErrors.cogsPrice = "Giá vốn không được âm";
+      }
+    } else if (formData.cogsPrice && !isNaN(cogs) && cogs < 0) {
+      newErrors.cogsPrice = "Giá vốn không được âm";
+    }
+
+    if (formData.expiryDate) {
+      const [y, m, d] = formData.expiryDate
+        .split("-")
+        .map((x) => parseInt(x, 10));
+      const selected = new Date(y, m - 1, d);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selected < today) {
+        newErrors.expiryDate = "Ngày hết hạn không được trong quá khứ";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -283,6 +321,8 @@ export default function AccountDetailPage() {
         accountEmail: formData.accountEmail,
         accountUsername: formData.accountUsername || null,
         maxUsers: isPersonal ? 1 : parseInt(formData.maxUsers),
+        cogsPrice:
+          formData.cogsPrice === "" ? null : parseFloat(formData.cogsPrice),
         expiryDate: formData.expiryDate || null,
         notes: formData.notes || null,
       };
@@ -301,7 +341,8 @@ export default function AccountDetailPage() {
         }
         await ProductAccountApi.update(id, payload);
         showSuccess("Thành công", "Tài khoản đã được cập nhật thành công");
-        loadProductAccount();
+        await loadProductAccount();
+        await loadHistory(true);
       }
     } catch (err) {
       console.error("Failed to save account:", err);
@@ -361,6 +402,15 @@ export default function AccountDetailPage() {
       );
     }
   }, [selectedProduct]);
+
+  // Today (local) for min date constraint
+  const todayStr = useMemo(() => {
+    const t = new Date();
+    const yyyy = t.getFullYear();
+    const mm = String(t.getMonth() + 1).padStart(2, "0");
+    const dd = String(t.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
 
   const closeConfirmDialog = () => {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
@@ -594,10 +644,18 @@ export default function AccountDetailPage() {
             {!isNew && (
               <div className="form-row">
                 <label>Trạng thái</label>
+                <input
+                  className="input"
+                  type="text"
+                  value={formData.status}
+                  readOnly
+                  disabled
+                />
                 <select
+                  style={{ display: "none" }}
                   className="input"
                   value={formData.status}
-                  onChange={(e) => handleChange("status", e.target.value)}
+                  disabled={true}
                 >
                   <option value="Active">Hoạt động</option>
                   <option value="Full">Đầy</option>
@@ -615,7 +673,31 @@ export default function AccountDetailPage() {
                 type="date"
                 value={formData.expiryDate}
                 onChange={(e) => handleChange("expiryDate", e.target.value)}
+                min={todayStr}
+                disabled={!isNew}
               />
+              {errors.expiryDate && (
+                <small style={{ color: "red" }}>{errors.expiryDate}</small>
+              )}
+            </div>
+
+            <div className="form-row">
+              <label>Giá nhập</label>
+              <div>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.cogsPrice}
+                  onChange={(e) => handleChange("cogsPrice", e.target.value)}
+                  placeholder="Nhập giá vốn (COGS)"
+                  disabled={!isNew}
+                />
+                {errors.cogsPrice && (
+                  <small style={{ color: "red" }}>{errors.cogsPrice}</small>
+                )}
+              </div>
             </div>
 
             <div className="form-row" style={{ gridColumn: "1 / -1" }}>
@@ -724,7 +806,10 @@ export default function AccountDetailPage() {
 
           {/* Full users list in product account */}
           {!isNew && accountInfo && (
-            <section className="card " style={{ marginTop: 16 }}>
+            <section
+              className="card"
+              style={{ marginTop: 16, padding: "10px" }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, flex: 1 }}>
                   Người dùng trong tài khoản
@@ -843,14 +928,17 @@ export default function AccountDetailPage() {
 
           {/* History with paging and sort by created date */}
           {!isNew && (
-            <section className="card " style={{ marginTop: 16 }}>
+            <section
+              className="card "
+              style={{ marginTop: 16, padding: "10px" }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, flex: 1 }}>Lịch sử</h3>
                 <label
                   className="muted"
                   style={{ display: "flex", alignItems: "center", gap: 8 }}
                 >
-                  kích thước trang:
+                  Kích thước trang:
                   <select
                     className="input"
                     value={historyPageSize}
@@ -887,7 +975,6 @@ export default function AccountDetailPage() {
                       <thead>
                         <tr>
                           <th>Thời gian</th>
-                          <th>Hành động</th>
                           <th>Người dùng</th>
                           <th>Email</th>
                           <th>Ghi chú</th>
@@ -897,7 +984,6 @@ export default function AccountDetailPage() {
                         {pagedHistory.map((h, idx) => (
                           <tr key={h.historyId || idx}>
                             <td>{formatDateTime(h.actionAt || h.ActionAt)}</td>
-                            <td>{h.action || h.Action}</td>
                             <td>{h.userFullName || h.UserFullName || "-"}</td>
                             <td>{h.userEmail || h.UserEmail || "-"}</td>
                             <td>{h.notes || h.Notes || "-"}</td>

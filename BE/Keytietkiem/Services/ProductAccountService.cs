@@ -99,6 +99,7 @@ public class ProductAccountService : IProductAccountService
                 MaxUsers = pa.MaxUsers,
                 CurrentUsers = pa.ProductAccountCustomers.Count(pac => pac.IsActive),
                 Status = pa.Status,
+                CogsPrice = pa.CogsPrice,
                 ExpiryDate = pa.ExpiryDate,
                 CreatedAt = pa.CreatedAt
             })
@@ -151,6 +152,7 @@ public class ProductAccountService : IProductAccountService
             MaxUsers = account.MaxUsers,
             CurrentUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive),
             Status = account.Status,
+            CogsPrice = account.CogsPrice,
             ExpiryDate = account.ExpiryDate,
             Notes = account.Notes,
             CreatedAt = account.CreatedAt,
@@ -207,6 +209,7 @@ public class ProductAccountService : IProductAccountService
             AccountPassword = encryptedPassword,
             MaxUsers = (product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT)) ? 1 : createDto.MaxUsers,
             Status = nameof(ProductAccountStatus.Active),
+            CogsPrice = createDto.CogsPrice,
             ExpiryDate = createDto.ExpiryDate,
             Notes = createDto.Notes,
             CreatedAt = now,
@@ -240,19 +243,19 @@ public class ProductAccountService : IProductAccountService
         var action = nameof(ProductAccountAction.CredentialsUpdated);
 
         // Update fields if provided
-        if (!string.IsNullOrWhiteSpace(updateDto.AccountEmail))
+        if (!string.IsNullOrWhiteSpace(updateDto.AccountEmail) && !string.Equals(account.AccountEmail, updateDto.AccountEmail, StringComparison.CurrentCultureIgnoreCase))
         {
             account.AccountEmail = updateDto.AccountEmail;
             needsHistoryLog = true;
         }
 
-        if (updateDto.AccountUsername != null)
+        if (updateDto.AccountUsername != null && !string.Equals(account.AccountUsername, updateDto.AccountUsername, StringComparison.CurrentCultureIgnoreCase))
         {
             account.AccountUsername = updateDto.AccountUsername;
             needsHistoryLog = true;
         }
 
-        if (!string.IsNullOrWhiteSpace(updateDto.AccountPassword))
+        if (!string.IsNullOrWhiteSpace(updateDto.AccountPassword)  && !string.Equals(account.AccountPassword, updateDto.AccountPassword, StringComparison.CurrentCultureIgnoreCase))
         {
             account.AccountPassword = EncryptionHelper.Encrypt(updateDto.AccountPassword, _encryptionKey);
             needsHistoryLog = true;
@@ -265,19 +268,20 @@ public class ProductAccountService : IProductAccountService
         {
             account.MaxUsers = 1;
         }
-        else if (updateDto.MaxUsers.HasValue)
+        else if (updateDto.MaxUsers.HasValue && account.MaxUsers != updateDto.MaxUsers)
         {
             account.MaxUsers = updateDto.MaxUsers.Value;
+            action = nameof(ProductAccountAction.UpdateSlot);
         }
 
-        if (!string.IsNullOrWhiteSpace(updateDto.Status))
+        if (!string.IsNullOrWhiteSpace(updateDto.Status) && account.Status != updateDto.Status)
         {
             account.Status = updateDto.Status;
             action = nameof(ProductAccountAction.StatusChanged);
             needsHistoryLog = true;
         }
 
-        if (updateDto.ExpiryDate.HasValue)
+        if (updateDto.ExpiryDate.HasValue && account.ExpiryDate != updateDto.ExpiryDate)
         {
             account.ExpiryDate = updateDto.ExpiryDate;
         }
@@ -286,6 +290,9 @@ public class ProductAccountService : IProductAccountService
         {
             account.Notes = updateDto.Notes;
         }
+
+        // Update COGS price
+        account.CogsPrice = updateDto.CogsPrice;
 
         account.UpdatedAt = now;
         account.UpdatedBy = updatedBy;

@@ -62,7 +62,6 @@ public class LicensePackageService : ILicensePackageService
             Quantity = createDto.Quantity,
             PricePerUnit = createDto.PricePerUnit,
             ImportedToStock = 0,
-            EffectiveDate = createDto.EffectiveDate,
             CreatedAt = _clock.UtcNow,
             Notes = createDto.Notes
         };
@@ -86,7 +85,6 @@ public class LicensePackageService : ILicensePackageService
                     package.ProductId,
                     package.Quantity,
                     package.PricePerUnit,
-                    package.EffectiveDate,
                     package.Notes
                 },
                 cancellationToken);
@@ -121,7 +119,6 @@ public class LicensePackageService : ILicensePackageService
         {
             package.Quantity,
             package.PricePerUnit,
-            package.EffectiveDate,
             package.Notes
         };
 
@@ -136,8 +133,7 @@ public class LicensePackageService : ILicensePackageService
         if (updateDto.PricePerUnit.HasValue)
             package.PricePerUnit = updateDto.PricePerUnit.Value;
 
-        if (updateDto.EffectiveDate.HasValue)
-            package.EffectiveDate = updateDto.EffectiveDate.Value;
+        
 
         if (updateDto.Notes != null)
             package.Notes = updateDto.Notes;
@@ -162,7 +158,6 @@ public class LicensePackageService : ILicensePackageService
                     {
                         package.Quantity,
                         package.PricePerUnit,
-                        package.EffectiveDate,
                         package.Notes
                     }
                 },
@@ -207,7 +202,6 @@ public class LicensePackageService : ILicensePackageService
             PricePerUnit = package.PricePerUnit,
             ImportedToStock = package.ImportedToStock,
             RemainingQuantity = package.Quantity - package.ImportedToStock,
-            EffectiveDate = package.EffectiveDate,
             CreatedAt = package.CreatedAt,
             Notes = package.Notes
         };
@@ -246,8 +240,7 @@ public class LicensePackageService : ILicensePackageService
                 Quantity = lp.Quantity,
                 PricePerUnit = lp.PricePerUnit,
                 ImportedToStock = lp.ImportedToStock,
-                RemainingQuantity = lp.Quantity - lp.ImportedToStock,
-                EffectiveDate = lp.EffectiveDate
+                RemainingQuantity = lp.Quantity - lp.ImportedToStock
             })
             .ToListAsync(cancellationToken);
 
@@ -370,7 +363,8 @@ public class LicensePackageService : ILicensePackageService
         DateTime? expiryDate = null,
         CancellationToken cancellationToken = default)
     {
-        // Validate package exists and belongs to the supplier
+        ValidateExpiryDate(expiryDate);
+
         var package = await _context.LicensePackages
             .Include(p => p.Product)
             .Include(p => p.Supplier)
@@ -382,17 +376,83 @@ public class LicensePackageService : ILicensePackageService
         if (package.SupplierId != supplierId)
             throw new InvalidOperationException("Gói license không thuộc về nhà cung cấp này");
 
-        var result = new CsvUploadResultDto
+        var parseResult = await ParseLicenseKeysFromCsvAsync(file, cancellationToken);
+
+        return await PersistLicenseKeysAsync(
+            package,
+            parseResult,
+            actorId,
+            actorEmail,
+            keyType,
+            expiryDate,
+            package.Product.ProductName,
+            package.Supplier.Name,
+            false,
+            cancellationToken);
+    }
+
+    public async Task<CsvUploadResultDto> CreatePackageAndUploadCsvAsync(
+        Guid productId,
+        int supplierId,
+        decimal pricePerUnit,
+        IFormFile file,
+        Guid actorId,
+        string actorEmail,
+        string keyType,
+        DateTime? expiryDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (pricePerUnit < 0)
+            throw new InvalidOperationException("Giá vốn phải lớn hơn hoặc bằng 0");
+
+        ValidateExpiryDate(expiryDate);
+
+        var product = await _context.Products
+            .FirstOrDefaultAsync(p => p.ProductId == productId, cancellationToken);
+
+        if (product == null)
+            throw new InvalidOperationException("Sản phẩm không tồn tại");
+
+        var supplier = await _context.Suppliers
+            .FirstOrDefaultAsync(s => s.SupplierId == supplierId, cancellationToken);
+
+        if (supplier == null)
+            throw new InvalidOperationException("Nhà cung cấp không tồn tại");
+
+        var parseResult = await ParseLicenseKeysFromCsvAsync(file, cancellationToken);
+
+        if (parseResult.LicenseKeys.Count == 0)
+            throw new InvalidOperationException("File CSV không có license key hợp lệ");
+
+        var package = new LicensePackage
         {
-            PackageId = packageId,
-            Errors = new List<string>()
+            SupplierId = supplierId,
+            ProductId = productId,
+            Quantity = parseResult.LicenseKeys.Count,
+            PricePerUnit = pricePerUnit,
+            ImportedToStock = 0,
+            CreatedAt = _clock.UtcNow
         };
 
-        var licenseKeys = new List<string>();
-        var duplicateKeys = new HashSet<string>();
-        var invalidKeys = new List<string>();
+        return await PersistLicenseKeysAsync(
+            package,
+            parseResult,
+            actorId,
+            actorEmail,
+            keyType,
+            expiryDate,
+            product.ProductName,
+            supplier.Name,
+            true,
+            cancellationToken);
+    }
 
-        // Read and parse CSV file
+    private async Task<LicenseKeyCsvParseResult> ParseLicenseKeysFromCsvAsync(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        var result = new LicenseKeyCsvParseResult();
+
         try
         {
             using var stream = file.OpenReadStream();
@@ -408,72 +468,100 @@ public class LicensePackageService : ILicensePackageService
             await csv.ReadAsync();
             csv.ReadHeader();
 
-            // Check if "key" column exists
             if (!csv.HeaderRecord.Any(h => h.Equals("key", StringComparison.OrdinalIgnoreCase)))
-            {
                 throw new InvalidOperationException("File CSV phải có cột 'key' chứa license key");
-            }
 
             var keyIndex = Array.FindIndex(csv.HeaderRecord, h => h.Equals("key", StringComparison.OrdinalIgnoreCase));
+            var keysInFile = new HashSet<string>();
 
             while (await csv.ReadAsync())
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var key = csv.GetField(keyIndex)?.Trim();
 
                 if (string.IsNullOrWhiteSpace(key))
                 {
-                    invalidKeys.Add($"Dòng {csv.Parser.Row}: Key trống");
+                    result.InvalidKeys.Add($"Dòng {csv.Parser.Row}: Key trống");
                     continue;
                 }
 
-                // Check for duplicates in the file
-                if (licenseKeys.Contains(key))
+                if (!keysInFile.Add(key))
                 {
-                    duplicateKeys.Add(key);
+                    result.DuplicateKeys.Add(key);
                     continue;
                 }
 
-                licenseKeys.Add(key);
+                result.LicenseKeys.Add(key);
             }
-
-            result.TotalKeysInFile = licenseKeys.Count + duplicateKeys.Count + invalidKeys.Count;
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error parsing CSV file for package {PackageId}", packageId);
+            _logger.LogError(ex, "Error parsing CSV file");
             throw new InvalidOperationException($"Lỗi đọc file CSV: {ex.Message}");
         }
 
-        // Check remaining quantity
+        return result;
+    }
+
+    private async Task<CsvUploadResultDto> PersistLicenseKeysAsync(
+        LicensePackage package,
+        LicenseKeyCsvParseResult parseResult,
+        Guid actorId,
+        string actorEmail,
+        string keyType,
+        DateTime? expiryDate,
+        string productName,
+        string supplierName,
+        bool isNewPackage,
+        CancellationToken cancellationToken)
+    {
+        if (parseResult.LicenseKeys.Count == 0)
+            throw new InvalidOperationException("File CSV không có license key hợp lệ");
+
+        var result = new CsvUploadResultDto
+        {
+            PackageId = package.PackageId,
+            Errors = new List<string>(),
+            TotalKeysInFile = parseResult.TotalKeys
+        };
+
         var remaining = package.Quantity - package.ImportedToStock;
-        if (licenseKeys.Count > remaining)
+        if (parseResult.LicenseKeys.Count > remaining)
         {
             throw new InvalidOperationException(
-                $"Số lượng key trong file ({licenseKeys.Count}) vượt quá số lượng còn lại ({remaining})");
+                $"Số lượng key trong file ({parseResult.LicenseKeys.Count}) vượt quá số lượng còn lại ({remaining})");
         }
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var successCount = 0;
-            var existingKeysCount = 0;
+            if (isNewPackage)
+            {
+                await _context.LicensePackages.AddAsync(package, cancellationToken);
+            }
 
-            // Check for existing keys in database
+            var successCount = 0;
+
             var existingKeys = await _context.ProductKeys
-                .Where(pk => licenseKeys.Contains(pk.KeyString))
+                .Where(pk => parseResult.LicenseKeys.Contains(pk.KeyString))
                 .Select(pk => pk.KeyString)
                 .ToListAsync(cancellationToken);
 
-            foreach (var key in licenseKeys)
+            var existingKeySet = new HashSet<string>(existingKeys);
+
+            foreach (var key in parseResult.LicenseKeys)
             {
-                if (existingKeys.Contains(key))
+                if (existingKeySet.Contains(key))
                 {
-                    duplicateKeys.Add(key);
-                    existingKeysCount++;
+                    parseResult.DuplicateKeys.Add(key);
                     continue;
                 }
 
-                // Create new ProductKey
                 var productKey = new ProductKey
                 {
                     ProductId = package.ProductId,
@@ -490,17 +578,18 @@ public class LicensePackageService : ILicensePackageService
                 successCount++;
             }
 
-            // Update package's ImportedToStock
             package.ImportedToStock += successCount;
-            _context.LicensePackages.Update(package);
 
-            // Update Product stock quantity and cost price
+            if (!isNewPackage)
+            {
+                _context.LicensePackages.Update(package);
+            }
+
             var product = await _context.Products
                 .FirstOrDefaultAsync(p => p.ProductId == package.ProductId, cancellationToken);
 
             if (product != null)
             {
-                // Increase stock quantity
                 product.StockQty += successCount;
                 product.UpdatedAt = DateTime.UtcNow;
                 product.Status = "ACTIVE";
@@ -509,46 +598,50 @@ public class LicensePackageService : ILicensePackageService
 
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Create audit log
+            result.PackageId = package.PackageId;
+            result.SuccessfullyImported = successCount;
+            result.DuplicateKeys = parseResult.DuplicateKeys.Count;
+            result.InvalidKeys = parseResult.InvalidKeys.Count;
+
+            if (parseResult.DuplicateKeys.Count > 0)
+            {
+                result.Errors.Add($"{parseResult.DuplicateKeys.Count} key bị trùng lặp");
+            }
+
+            if (parseResult.InvalidKeys.Count > 0)
+            {
+                result.Errors.AddRange(parseResult.InvalidKeys);
+            }
+
+            result.Message = $"Đã nhập thành công {successCount} license key vào kho";
+
             await CreateAuditLogAsync(
                 actorId,
                 actorEmail,
-                "UPLOAD_CSV",
+                isNewPackage ? "UPLOAD_CSV_NEW_PACKAGE" : "UPLOAD_CSV",
                 "LicensePackage",
                 package.PackageId.ToString(),
                 new
                 {
                     PackageId = package.PackageId,
-                    ProductName = package.Product.ProductName,
-                    SupplierName = package.Supplier.Name,
-                    TotalKeysInFile = result.TotalKeysInFile,
+                    ProductName = productName,
+                    SupplierName = supplierName,
+                    TotalKeysInFile = parseResult.TotalKeys,
                     SuccessfullyImported = successCount,
-                    DuplicateKeys = duplicateKeys.Count,
-                    InvalidKeys = invalidKeys.Count,
+                    DuplicateKeys = parseResult.DuplicateKeys.Count,
+                    InvalidKeys = parseResult.InvalidKeys.Count,
                 },
                 cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            result.SuccessfullyImported = successCount;
-            result.DuplicateKeys = duplicateKeys.Count;
-            result.InvalidKeys = invalidKeys.Count;
-
-            if (duplicateKeys.Count > 0)
-            {
-                result.Errors.Add($"{duplicateKeys.Count} key bị trùng lặp");
-            }
-            if (invalidKeys.Count > 0)
-            {
-                result.Errors.AddRange(invalidKeys);
-            }
-
-            result.Message = $"Đã nhập thành công {successCount} license key vào kho";
-
             _logger.LogInformation(
                 "CSV uploaded for package {PackageId}: {Success} successful, {Duplicates} duplicates, {Invalid} invalid",
-                packageId, successCount, duplicateKeys.Count, invalidKeys.Count);
+                package.PackageId,
+                successCount,
+                parseResult.DuplicateKeys.Count,
+                parseResult.InvalidKeys.Count);
 
             return result;
         }
@@ -557,6 +650,22 @@ public class LicensePackageService : ILicensePackageService
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
+    }
+
+    private void ValidateExpiryDate(DateTime? expiryDate)
+    {
+        if (expiryDate.HasValue && expiryDate.Value.Date < _clock.UtcNow.Date)
+        {
+            throw new InvalidOperationException("Ngày hết hạn không thể nhỏ hơn ngày hiện tại");
+        }
+    }
+
+    private sealed class LicenseKeyCsvParseResult
+    {
+        public List<string> LicenseKeys { get; } = new();
+        public HashSet<string> DuplicateKeys { get; } = new();
+        public List<string> InvalidKeys { get; } = new();
+        public int TotalKeys => LicenseKeys.Count + DuplicateKeys.Count + InvalidKeys.Count;
     }
 
     public async Task<LicenseKeysListResponseDto> GetLicenseKeysByPackageAsync(

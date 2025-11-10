@@ -23,6 +23,10 @@ namespace Keytietkiem.DTOs
 
         public DateTime? ExpiryDate { get; set; }
 
+        [Required(ErrorMessage = "Giá vốn (COGS) là bắt buộc")]
+        [Range(0, double.MaxValue, ErrorMessage = "Giá vốn không được âm")]
+        public decimal CogsPrice { get; set; }
+
         [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
         public string? Notes { get; set; }
     }

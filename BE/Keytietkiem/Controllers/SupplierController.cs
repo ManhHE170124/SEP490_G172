@@ -1,3 +1,4 @@
+using System;
 using System.Security.Claims;
 using Keytietkiem.DTOs;
 using Keytietkiem.Services.Interfaces;
@@ -114,6 +115,19 @@ public class SupplierController : ControllerBase
 
         var supplier = await _supplierService.ToggleSupplierStatusAsync(id, actorId, actorEmail);
         return Ok(supplier);
+    }
+
+    /// <summary>
+    /// Get active suppliers that provide a specific product
+    /// </summary>
+    [HttpGet("by-product/{productId:guid}")]
+    public async Task<IActionResult> GetSuppliersByProduct(Guid productId)
+    {
+        if (productId == Guid.Empty)
+            return BadRequest(new { message = "ID sản phẩm không hợp lệ" });
+
+        var suppliers = await _supplierService.GetSuppliersByProductAsync(productId);
+        return Ok(suppliers);
     }
 
     /// <summary>
