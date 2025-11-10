@@ -15,13 +15,24 @@ const TagsInput = ({
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Filter tags based on input
+  // Filter tags based on input and slug
   useEffect(() => {
     if (tagInput.trim()) {
-      const filtered = availableTags.filter(tag => 
-        tag.tagName.toLowerCase().includes(tagInput.toLowerCase()) &&
-        !tags.some(t => t.tagName === tag.tagName || t === tag.tagName)
-      );
+      const searchSlug = toSlug(tagInput);
+      const filtered = availableTags.filter(tag => {
+        // Check if the tag is not already selected
+        const isNotSelected = !tags.some(t => t.tagName === tag.tagName || t === tag.tagName);
+        
+        if (!isNotSelected) return false;
+
+        // Get or generate slug for comparison
+        const tagSlug = tag.slug || toSlug(tag.tagName);
+        
+        // Check if either the name or slug contains the search term
+        return tagSlug.includes(searchSlug) || 
+               tag.tagName.toLowerCase().includes(tagInput.toLowerCase());
+      });
+      
       setFilteredTags(filtered);
       setShowDropdown(filtered.length > 0);
     } else {

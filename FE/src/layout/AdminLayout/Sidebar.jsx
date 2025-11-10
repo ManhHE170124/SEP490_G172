@@ -165,6 +165,7 @@ const Sidebar = () => {
           </svg>
           <span className="sb-label">Phân công vai trò</span>
         </Link>
+         {/* Storage and Supplier */}
         <div className="sb-section-title">Kho & Nhà cung cấp</div>
         <Link
           className={`sb-item ${currentPage === "suppliers" || currentPage.startsWith("suppliers/")
@@ -181,8 +182,23 @@ const Sidebar = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <line x1="12" y1="22.08" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline
+              points="3.27 6.96 12 12.01 20.73 6.96"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <line
+              x1="12"
+              y1="22.08"
+              x2="12"
+              y2="12"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           <span className="sb-label">Nhà cung cấp & License</span>
         </Link>
@@ -247,13 +263,29 @@ const Sidebar = () => {
         >
           <svg viewBox="0 0 24 24" fill="none">
             <path
-              d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+              d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+            <rect
+              x="8"
+              y="2"
+              width="8"
+              height="4"
+              rx="1"
+              ry="1"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
+            <path
+              d="M12 11h4M12 16h4M8 11h.01M8 16h.01"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           <span className="sb-label">Quản lý người dùng</span>
         </Link>
@@ -317,7 +349,7 @@ const Sidebar = () => {
           <span className="sb-label">Quản lý Thẻ và Danh mục</span>
         </Link>
 
-
+          {/* Website Config */}
         <div className="sb-section-title">Cài đặt</div>
         <Link
           className={`sb-item ${currentPage === "admin/website-config" ? "active" : ""

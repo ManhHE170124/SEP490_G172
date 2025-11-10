@@ -95,7 +95,8 @@ const CreateEditPost = () => {
         setDescription(postData.shortDescription || '');
         setContent(postData.content || '');
         setStatus(postData.status || 'Draft');
-        setPosttypeId(postData.posttypeId || '');
+        // Handle different possible property names for posttype ID
+        setPosttypeId(postData.posttypeId || postData.postTypeId || postData.PosttypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
         setFeaturedImage(postData.thumbnail || null);
 
@@ -135,10 +136,19 @@ const CreateEditPost = () => {
   };
 
   // Featured image upload
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Convert URL to File object
+  const urlToFile = async (url) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new File([blob], 'image.' + blob.type.split('/')[1], { type: blob.type });
+    } catch (error) {
+      throw new Error('Không thể tải ảnh từ URL');
+    }
+  };
 
+  // Handle file upload process
+  const processImageUpload = async (file) => {
     try {
       // Show preview immediately
       const reader = new FileReader();
@@ -171,6 +181,69 @@ const CreateEditPost = () => {
       showError('Lỗi tải ảnh', err.message || 'Không thể tải ảnh đại diện lên.');
       setFeaturedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle file input change
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImageUpload(file);
+  };
+
+  // Handle drag and drop
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items = Array.from(e.dataTransfer.items);
+    
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        await processImageUpload(file);
+        break;
+      } else if (item.kind === 'string' && item.type === 'text/uri-list') {
+        item.getAsString(async (url) => {
+          try {
+            const file = await urlToFile(url);
+            await processImageUpload(file);
+          } catch (err) {
+            showError('Lỗi tải ảnh', 'Không thể tải ảnh từ URL này.');
+          }
+        });
+        break;
+      }
+    }
+  };
+
+  // Handle paste
+  const handlePaste = async (e) => {
+    const items = Array.from(e.clipboardData.items);
+
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        await processImageUpload(file);
+        break;
+      } else if (item.kind === 'string' && item.type === 'text/plain') {
+        item.getAsString(async (text) => {
+          if (text.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i)) {
+            try {
+              const file = await urlToFile(text);
+              await processImageUpload(file);
+            } catch (err) {
+              showError('Lỗi tải ảnh', 'Không thể tải ảnh từ URL này.');
+            }
+          }
+        });
+        break;
+      }
     }
   };
 
@@ -232,21 +305,22 @@ const CreateEditPost = () => {
     try {
       setSaving(true);
 
-      // Prepare tag IDs
+      // Prepare tag IDs - ensure we get valid IDs
       const tagIds = tags
-        .filter(t => t.tagId) // Only existing tags with IDs
-        .map(t => t.tagId);
+        .filter(t => t.tagId || t.TagId || t.id) // Handle different ID property names
+        .map(t => t.tagId || t.TagId || t.id)
+        .filter(id => id); // Filter out any undefined/null values
 
       const postData = {
-        title,
+        title: title.trim(),
         slug: toSlug(title),
-        shortDescription: description,
-        content: content || '',
-        thumbnail: featuredImageUrl,
+        shortDescription: description.trim(),
+        content: content || '<p></p>',
+        thumbnail: featuredImageUrl || null,
         posttypeId: posttypeId || null,
         authorId: null, // TODO: Get from auth context
-        status: postStatus,
-        tagIds: tagIds
+        status: typeof postStatus === 'string' ? postStatus : postStatus.status,
+        tagIds: tagIds.length > 0 ? tagIds : []
       };
 
       let result;
@@ -283,28 +357,25 @@ const CreateEditPost = () => {
   };
 
   const handleSaveDraft = () =>
-  handlePostAction({
-    status: 'Draft',
-    successTitle: 'Lưu nháp thành công',
-    successMessage: 'Bài viết đã được lưu nháp.',
-  });
+  handlePostAction(
+    'Draft',
+    'Lưu nháp thành công',
+    'Bài viết đã được lưu nháp.'
+  );
 
- const handlePublish = () =>
-  handlePostAction({
-    status: 'Published',
-    successTitle: 'Đăng bài thành công',
-    successMessage: 'Bài viết đã được đăng công khai!',
-  });
+const handlePublish = () =>
+  handlePostAction(
+    'Published',
+    'Đăng bài thành công',
+    'Bài viết đã được đăng công khai!'
+  );
 
   const handleSaveChange = () =>
-  handlePostAction({
-    status,
-    successTitle: 'Cập nhật thông tin bài viết thành công',
-    successMessage:
-      status === 'Published'
-        ? 'Bài viết đã được công khai.'
-        : 'Bài viết đã được lưu ở chế độ riêng tư.',
-  });
+  handlePostAction(
+    status, // Use current status
+    'Cập nhật thành công',
+    'Cập nhật thông tin bài viết thành công'
+  );
 
   const handlePreview = () => {
     // TODO: Open preview in new tab
@@ -690,8 +761,11 @@ const CreateEditPost = () => {
               >
                 <option value="">Chọn danh mục</option>
                 {posttypes.map((type) => (
-                  <option key={type.posttypeId} value={type.posttypeId}>
-                    {type.posttypeName}
+                  <option 
+                    key={type.posttypeId || type.postTypeId || type.PosttypeId || type.id} 
+                    value={type.posttypeId || type.postTypeId || type.PosttypeId || type.id}
+                  >
+                    {type.posttypeName || type.postTypeName || type.PosttypeName || type.PostTypeName}
                   </option>
                 ))}
               </select>
@@ -720,11 +794,15 @@ const CreateEditPost = () => {
               onChange={handleImageUpload}
               accept="image/*"
             />
-            <button
-              type="button"
+            <div
               className={`cep-featured-image-upload ${featuredImage ? 'has-image' : ''}`}
               onClick={handleImageClick}
-              disabled={saving}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onPaste={handlePaste}
+              tabIndex="0"
+              role="button"
+              style={{ outline: 'none' }}
             >
               {featuredImage ? (
                 <img
@@ -733,9 +811,15 @@ const CreateEditPost = () => {
                   className="cep-featured-image-preview"
                 />
               ) : (
-                <div>Chọn hình ảnh</div>
+                <div>
+                  <div>Kéo thả ảnh vào đây</div>
+                  <div>hoặc</div>
+                  <div>Click để chọn ảnh</div>
+                  <div>hoặc</div>
+                  <div>Paste URL ảnh (Ctrl+V)</div>
+                </div>
               )}
-            </button>
+            </div>
             {featuredImage && (
               <button
                 className="cep-remove-image-btn"
