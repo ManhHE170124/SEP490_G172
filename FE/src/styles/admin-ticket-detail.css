@@ -121,3 +121,95 @@
   .ticket-content{grid-template-columns:1fr}
   .ticket-header{flex-direction:column}
 }
+
+/* ===== Ticket liên quan (layout có nút 'Chi tiết' bên phải) ===== */
+.related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.related-item {
+  display: flex;                /* chuyển từ column -> row để có cột actions */
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.related-item:hover {
+  background: #fafafa;
+}
+
+.ri-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;                 /* cho phép subject ellipsis */
+  gap: 6px;
+}
+
+.ri-line1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ri-code {
+  font-weight: 600;
+}
+
+.ri-subject {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ri-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ri-actions {
+  flex: 0 0 auto;
+}
+
+.btn.xs {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid #d1d5db;
+}
+/* ========== NEW: Badges (đồng bộ màn Ticket Management) ========== */
+/* Status */
+.st{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.st-new{background:#eef2ff;color:#3730a3}
+.st-processing{background:#ecfeff;color:#0e7490}
+.st-completed{background:#f0fdf4;color:#166534}
+.st-closed{background:#fee2e2;color:#991b1b}
+
+/* Severity */
+.tag{padding:4px 8px;border-radius:8px;font-size:12px;font-weight:600}
+.tag-low{background:#f1f5f9;color:#334155}
+.tag-medium{background:#e0f2fe;color:#0369a1}
+.tag-high{background:#fee2e2;color:#b91c1c}
+.tag-critical{background:#ffe4e6;color:#be123c}
+
+/* SLA */
+.sla{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.sla-ok{background:#ecfdf5;color:#0f766e}
+.sla-breached{background:#fef3c7;color:#b45309}
+.sla-warning{background:#fff7ed;color:#b45309}
+/* ================================================================ */

@@ -14,7 +14,7 @@ namespace Keytietkiem.DTOs.Tickets
         public Guid TicketId { get; set; }
         public string TicketCode { get; set; } = "";
         public string Subject { get; set; } = "";
-        public string Status { get; set; } = "New";
+        public string Status { get; set; } = "New"; // New | InProgress | Completed | Closed
         public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
         public SlaState SlaStatus { get; set; } = SlaState.OK;
         public AssignmentState AssignmentState { get; set; } = AssignmentState.Unassigned;
@@ -22,7 +22,7 @@ namespace Keytietkiem.DTOs.Tickets
         public string? CustomerName { get; set; }
         public string? CustomerEmail { get; set; }
 
-        // NEW:
+        // NEW (dành cho list/hiển thị assignee)
         public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
         public string? AssigneeEmail { get; set; }
@@ -33,12 +33,25 @@ namespace Keytietkiem.DTOs.Tickets
 
     public class TicketReplyDto
     {
+        // bigint -> long
         public long ReplyId { get; set; }
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = "";
         public bool IsStaffReply { get; set; }
         public string Message { get; set; } = "";
         public DateTime SentAt { get; set; }
+    }
+
+    // NEW: chỉ dùng cho panel "Ticket liên quan"
+    public class RelatedTicketDto
+    {
+        public Guid TicketId { get; set; }
+        public string TicketCode { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string Status { get; set; } = "New";
+        public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
+        public SlaState SlaStatus { get; set; } = SlaState.OK;
+        public DateTime CreatedAt { get; set; }
     }
 
     public class LatestOrderMiniDto
@@ -64,7 +77,7 @@ namespace Keytietkiem.DTOs.Tickets
         public string? CustomerEmail { get; set; }
         public string? CustomerPhone { get; set; }
 
-        // NEW:
+        // NEW: hiển thị thông tin nhân viên phụ trách
         public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
         public string? AssigneeEmail { get; set; }
@@ -73,10 +86,15 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime? UpdatedAt { get; set; }
 
         public List<TicketReplyDto> Replies { get; set; } = new();
-        public List<TicketListItemDto> RelatedTickets { get; set; } = new();
+
+        // NEW: danh sách ticket liên quan (các ticket khác của KH này)
+        public List<RelatedTicketDto> RelatedTickets { get; set; } = new();
+
+        // Tuỳ chọn (nếu bạn đã làm): đơn hàng gần nhất của KH
         public LatestOrderMiniDto? LatestOrder { get; set; }
     }
 
+    // Payload tạo tin nhắn chat
     public class CreateTicketReplyDto
     {
         [Required, MinLength(1)]

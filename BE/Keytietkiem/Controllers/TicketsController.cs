@@ -23,6 +23,16 @@ public class TicketsController : ControllerBase
     }
     private static string NormAssign(string? s) => string.IsNullOrWhiteSpace(s) ? "Unassigned" : s!;
 
+    // Helpers: parse enum sau khi đã materialize
+    private static TicketSeverity ParseSeverity(string? s) =>
+        Enum.TryParse<TicketSeverity>(s ?? "", true, out var v) ? v : TicketSeverity.Medium;
+
+    private static SlaState ParseSla(string? s) =>
+        Enum.TryParse<SlaState>(s ?? "", true, out var v) ? v : SlaState.OK;
+
+    private static AssignmentState ParseAssignState(string? s) =>
+        Enum.TryParse<AssignmentState>(NormAssign(s), true, out var v) ? v : AssignmentState.Unassigned;
+
     private static IQueryable<Ticket> BaseQuery(KeytietkiemDbContext db) => db.Tickets.AsNoTracking()
         .Include(t => t.User)
         .Include(t => t.Assignee);
@@ -83,9 +93,9 @@ public class TicketsController : ControllerBase
             TicketCode = t.TicketCode ?? "",
             Subject = t.Subject ?? "",
             Status = NormStatus(t.Status),
-            Severity = Enum.TryParse<TicketSeverity>(t.Severity ?? "", true, out var sev) ? sev : TicketSeverity.Medium,
-            SlaStatus = Enum.TryParse<SlaState>(t.SlaStatus ?? "", true, out var s1) ? s1 : SlaState.OK,
-            AssignmentState = Enum.TryParse<AssignmentState>(NormAssign(t.AssignmentState), true, out var asn) ? asn : AssignmentState.Unassigned,
+            Severity = ParseSeverity(t.Severity),
+            SlaStatus = ParseSla(t.SlaStatus),
+            AssignmentState = ParseAssignState(t.AssignmentState),
             CustomerName = t.User.FullName ?? t.User.Email,
             CustomerEmail = t.User.Email,
 
@@ -132,6 +142,34 @@ public class TicketsController : ControllerBase
             })
             .ToListAsync();
 
+        // NEW: Ticket liên quan – 2-phase (KHÔNG dùng out var trong Select của IQueryable)
+        var relatedRaw = await _db.Tickets.AsNoTracking()
+            .Where(x => x.UserId == t.UserId && x.TicketId != t.TicketId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.TicketId,
+                x.TicketCode,
+                x.Subject,
+                x.Status,
+                x.Severity,
+                x.SlaStatus,
+                x.CreatedAt
+            })
+            .Take(10)
+            .ToListAsync();
+
+        var related = relatedRaw.Select(x => new RelatedTicketDto
+        {
+            TicketId = x.TicketId,
+            TicketCode = x.TicketCode ?? "",
+            Subject = x.Subject ?? "",
+            Status = NormStatus(x.Status),
+            Severity = ParseSeverity(x.Severity),
+            SlaStatus = ParseSla(x.SlaStatus),
+            CreatedAt = x.CreatedAt
+        }).ToList();
+
         var dto = new TicketDetailDto
         {
             TicketId = t.TicketId,
@@ -141,18 +179,21 @@ public class TicketsController : ControllerBase
             CustomerName = t.User.FullName ?? "",
             CustomerEmail = t.User.Email,
             CustomerPhone = t.User.Phone,
-            Severity = Enum.TryParse<TicketSeverity>(t.Severity ?? "", true, out var sev) ? sev : TicketSeverity.Medium,
-            SlaStatus = Enum.TryParse<SlaState>(t.SlaStatus ?? "", true, out var slaVal) ? slaVal : SlaState.OK,
-            AssignmentState = Enum.TryParse<AssignmentState>(NormAssign(t.AssignmentState), true, out var asn) ? asn : AssignmentState.Unassigned,
+            Severity = ParseSeverity(t.Severity),
+            SlaStatus = ParseSla(t.SlaStatus),
+            AssignmentState = ParseAssignState(t.AssignmentState),
 
-            // NEW:
+            // NEW: nhân viên phụ trách
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? (t.Assignee.FullName ?? t.Assignee.Email) : null,
             AssigneeEmail = t.Assignee?.Email,
 
             CreatedAt = t.CreatedAt,
             UpdatedAt = t.UpdatedAt,
-            Replies = replies
+
+            Replies = replies,
+            RelatedTickets = related
+            // LatestOrder = ... (nếu bạn muốn thêm sau)
         };
 
         return Ok(dto);
@@ -164,13 +205,9 @@ public class TicketsController : ControllerBase
         return Guid.TryParse(str, out var id) ? id : null;
     }
 
-    // Payload cho assign/transfer
-    public class AssignTicketDto
-    {
-        public Guid AssigneeId { get; set; }
-    }
+    public class AssignTicketDto { public Guid AssigneeId { get; set; } }
 
-    // ===== ASSIGN: New -> InProgress; Unassigned -> Assigned; set theo AssigneeId gửi lên =====
+    // ===== ASSIGN =====
     [HttpPost("{id:guid}/assign")]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignTicketDto dto)
     {
@@ -187,7 +224,6 @@ public class TicketsController : ControllerBase
         var user = await _db.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.UserId == dto.AssigneeId);
         if (user == null) return BadRequest(new { message = "Không tìm thấy nhân viên được chọn." });
 
-        // phải là Customer Care Staff và Active
         if (!string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase)
             || !user.Roles.Any(r => r.Name.Equals("Customer Care Staff", StringComparison.OrdinalIgnoreCase)))
             return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
@@ -199,115 +235,5 @@ public class TicketsController : ControllerBase
         t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return NoContent();
-    }
-
-    // ===== TRANSFER TO TECH: phải đã gán; AssignmentState -> Technical; set AssigneeId mới (khác cũ) =====
-    [HttpPost("{id:guid}/transfer-tech")]
-    public async Task<IActionResult> TransferToTech(Guid id, [FromBody] AssignTicketDto dto)
-    {
-        var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
-        if (t == null) return NotFound();
-
-        var st = NormStatus(t.Status);
-        if (st is "Closed" or "Completed")
-            return BadRequest(new { message = "Ticket đã khoá." });
-
-        var asg = NormAssign(t.AssignmentState);
-        if (asg == "Unassigned")
-            return BadRequest(new { message = "Vui lòng gán trước khi chuyển hỗ trợ." });
-
-        if (t.AssigneeId == dto.AssigneeId)
-            return BadRequest(new { message = "Vui lòng chọn nhân viên khác với người đang phụ trách." });
-
-        var user = await _db.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.UserId == dto.AssigneeId);
-        if (user == null) return BadRequest(new { message = "Không tìm thấy nhân viên được chọn." });
-        if (!string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase)
-            || !user.Roles.Any(r => r.Name.Equals("Customer Care Staff", StringComparison.OrdinalIgnoreCase)))
-            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
-
-        if (asg != "Technical") t.AssignmentState = "Technical";
-        if (st == "New") t.Status = "InProgress";
-
-        t.AssigneeId = dto.AssigneeId;
-        t.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
-
-    // ===== COMPLETE =====
-    [HttpPost("{id:guid}/complete")]
-    public async Task<IActionResult> Complete(Guid id)
-    {
-        var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
-        if (t == null) return NotFound();
-
-        var st = NormStatus(t.Status);
-        if (st is "Closed" or "Completed")
-            return BadRequest(new { message = "Ticket đã khoá." });
-        if (st != "InProgress")
-            return BadRequest(new { message = "Chỉ hoàn thành khi trạng thái Đang xử lý." });
-
-        t.Status = "Completed";
-        t.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
-
-    // ===== CLOSE =====
-    [HttpPost("{id:guid}/close")]
-    public async Task<IActionResult> Close(Guid id)
-    {
-        var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
-        if (t == null) return NotFound();
-
-        var st = NormStatus(t.Status);
-        if (st is "Closed" or "Completed")
-            return BadRequest(new { message = "Ticket đã khoá." });
-        if (st != "New")
-            return BadRequest(new { message = "Chỉ đóng khi trạng thái Mới." });
-
-        t.Status = "Closed";
-        t.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
-
-    // ===== REPLIES (chat) =====
-    [HttpPost("{id:guid}/replies")]
-    public async Task<ActionResult<TicketReplyDto>> CreateReply(Guid id, [FromBody] CreateTicketReplyDto dto)
-    {
-        if (string.IsNullOrWhiteSpace(dto?.Message)) return BadRequest(new { message = "Nội dung phản hồi trống." });
-
-        var t = await _db.Tickets.Include(x => x.User).FirstOrDefaultAsync(x => x.TicketId == id);
-        if (t is null) return NotFound();
-
-        var me = GetCurrentUserIdOrNull();
-        if (!me.HasValue) return Unauthorized();
-
-        var sender = await _db.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.UserId == me.Value);
-        if (sender is null) return Unauthorized();
-
-        var reply = new TicketReply
-        {
-            TicketId = t.TicketId,
-            SenderId = sender.UserId,
-            IsStaffReply = sender.Roles.Any(), // đơn giản: có role => staff
-            Message = dto.Message.Trim(),
-            SentAt = DateTime.UtcNow
-        };
-
-        _db.TicketReplies.Add(reply);
-        await _db.SaveChangesAsync();
-
-        var dtoOut = new TicketReplyDto
-        {
-            ReplyId = reply.ReplyId,
-            SenderId = reply.SenderId,
-            SenderName = sender.FullName ?? sender.Email ?? "Staff",
-            IsStaffReply = reply.IsStaffReply,
-            Message = reply.Message,
-            SentAt = reply.SentAt
-        };
-        return Ok(dtoOut);
     }
 }
