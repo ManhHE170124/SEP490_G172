@@ -9,7 +9,7 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Staff,Admin")]
+[Authorize(Roles = "Storage Staff,Admin")]
 public class LicensePackageController : ControllerBase
 {
     private readonly ILicensePackageService _licensePackageService;
@@ -143,20 +143,13 @@ public class LicensePackageController : ControllerBase
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
-        // Parse keyType to enum
-        ProductKeyType parsedKeyType;
-        if (!Enum.TryParse<ProductKeyType>(keyType, out parsedKeyType))
-        {
-            parsedKeyType = ProductKeyType.Individual;
-        }
-
         var result = await _licensePackageService.UploadLicenseCsvAsync(
             packageId,
             supplierId,
             file,
             actorId,
             actorEmail,
-            parsedKeyType,
+            keyType,
             expiryDate);
         return Ok(result);
     }

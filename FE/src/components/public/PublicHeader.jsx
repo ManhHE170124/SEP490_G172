@@ -15,7 +15,7 @@ export default function PublicHeader() {
 
   return (
     <div className="topbar">
-      <div className="container header">
+      <div className="container header-public">
         <a
           className="logo"
           href="/"

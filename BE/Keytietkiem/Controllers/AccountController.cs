@@ -81,4 +81,11 @@ public class AccountController : ControllerBase
         var response = await _accountService.RefreshTokenAsync(dto);
         return Ok(response);
     }
+
+    [HttpPost("revoke-token")]
+    public async Task<IActionResult> RevokeToken([FromBody] RevokeTokenDto dto)
+    {
+        await _accountService.RevokeTokenAsync(dto);
+        return Ok(new { message = "Đăng xuất thành công" });
+    }
 }

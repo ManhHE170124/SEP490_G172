@@ -1,44 +1,22 @@
 /**
  * File: app.js
- * Purpose: Application routes for Keytietkiem admin panel.
- * Notes: Routes the User Management page at /admin/users.
+ * Author: Keytietkiem Team
+ * Created: 18/10/2025
+ * Last Updated: 25/10/2025
+ * Version: 1.0.0
+ * Purpose: Application root component.
  */
 import React from "react";
-import { useLocation } from "react-router-dom";
-import Sidebar from "./layout/Sidebar.jsx";
-import Header from "./layout/Header.jsx";
 import AppRoutes from "./routes/AppRoutes";
 import "./App.css";
 
+/**
+ * @summary: Root application component.
+ * @returns {JSX.Element} - The AppRoutes component wrapped in the application
+ */
 const App = () => {
-  const location = useLocation();
-
-  // Public routes that should not show admin layout
-  const publicRoutes = [
-    "/login",
-    "/register",
-    "/forgot-password",
-    "/check-reset-email",
-    "/reset-password",
-  ];
-
-  const isPublicRoute = publicRoutes.some((route) =>
-    location.pathname.startsWith(route)
-  );
-
-  if (isPublicRoute) {
     return <AppRoutes />;
-  }
-
-  return (
-    <div className="app">
-      <Sidebar />
-      <div className="content">
-        <Header />
-        <AppRoutes />
-      </div>
-    </div>
-  );
+  
 };
 
 export default App;

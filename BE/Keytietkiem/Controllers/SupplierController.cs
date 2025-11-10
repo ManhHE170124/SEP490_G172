@@ -8,7 +8,7 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Staff,Admin")]
+[Authorize(Roles = "Storage Staff,Admin")]
 public class SupplierController : ControllerBase
 {
     private readonly ISupplierService _supplierService;
@@ -28,6 +28,7 @@ public class SupplierController : ControllerBase
     public async Task<IActionResult> GetAllSuppliers(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null,
         [FromQuery] string? searchTerm = null)
     {
         if (pageNumber < 1)
@@ -36,7 +37,7 @@ public class SupplierController : ControllerBase
         if (pageSize < 1 || pageSize > 100)
             return BadRequest(new { message = "Kích thước trang phải từ 1 đến 100" });
 
-        var result = await _supplierService.GetAllSuppliersAsync(pageNumber, pageSize, searchTerm);
+        var result = await _supplierService.GetAllSuppliersAsync(pageNumber, pageSize, status, searchTerm);
         return Ok(result);
     }
 

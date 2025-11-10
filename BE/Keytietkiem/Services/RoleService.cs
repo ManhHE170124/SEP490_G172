@@ -14,7 +14,7 @@ public class RoleService : IRoleService
     private readonly IClock _clock;
     private readonly ILogger<RoleService> _logger;
 
-    private static readonly string[] DefaultRoles = { "Admin", "Staff", "Customer" };
+    private static readonly string[] DefaultRoles = { "Admin", "Storage Staff", "Customer", "Content Creator", "Customer Care Staff" };
 
     public RoleService(
         KeytietkiemDbContext context,

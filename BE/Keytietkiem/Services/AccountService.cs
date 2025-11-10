@@ -20,8 +20,10 @@ public class AccountService : IAccountService
     private const string OtpCacheKeyPrefix = "OTP_";
     private const string VerificationTokenCacheKeyPrefix = "VERIFY_TOKEN_";
     private const string ResetTokenCacheKeyPrefix = "RESET_TOKEN_";
+    private const string RevokedTokenCacheKeyPrefix = "REVOKED_TOKEN_";
     private const int OtpExpiryMinutes = 5;
     private const int VerificationTokenExpiryMinutes = 30;
+    private const string Admin = "admin";
     private readonly IGenericRepository<Account> _accountRepository;
     private readonly IMemoryCache _cache;
     private readonly IClock _clock;
@@ -361,6 +363,114 @@ public class AccountService : IAccountService
         _cache.Remove(cacheKey);
     }
 
+    public async Task RevokeTokenAsync(RevokeTokenDto revokeTokenDto, CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask; // Satisfy async requirement
+
+        // Validate both tokens
+        try
+        {
+            var accessPrincipal = ValidateToken(revokeTokenDto.AccessToken);
+            var refreshPrincipal = ValidateToken(revokeTokenDto.RefreshToken);
+
+            // Get token JTI (unique identifier) from access token
+            var accessTokenHandler = new JwtSecurityTokenHandler();
+            var accessJwtToken = accessTokenHandler.ReadJwtToken(revokeTokenDto.AccessToken);
+            var accessTokenId = accessJwtToken.Id ?? accessJwtToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+
+            var refreshTokenHandler = new JwtSecurityTokenHandler();
+            var refreshJwtToken = refreshTokenHandler.ReadJwtToken(revokeTokenDto.RefreshToken);
+            var refreshTokenId = refreshJwtToken.Id ?? refreshJwtToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+
+            // Store revoked tokens in cache until their expiry
+            if (!string.IsNullOrEmpty(accessTokenId))
+            {
+                var accessExpiry = accessJwtToken.ValidTo;
+                if (accessExpiry > _clock.UtcNow)
+                {
+                    var cacheOptions = new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpiration = accessExpiry
+                    };
+                    _cache.Set($"{RevokedTokenCacheKeyPrefix}{accessTokenId}", true, cacheOptions);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(refreshTokenId))
+            {
+                var refreshExpiry = refreshJwtToken.ValidTo;
+                if (refreshExpiry > _clock.UtcNow)
+                {
+                    var cacheOptions = new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpiration = refreshExpiry
+                    };
+                    _cache.Set($"{RevokedTokenCacheKeyPrefix}{refreshTokenId}", true, cacheOptions);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // If token validation fails, it's already invalid, so we can ignore
+            // This handles the case where tokens are expired or malformed
+        }
+    }
+
+    public async Task SeedDataAsync(CancellationToken cancellationToken = default)
+    {
+        var admin = await _accountRepository.FirstOrDefaultAsync(x =>
+            x.Username == Admin, cancellationToken);
+
+        if (admin != null) return;
+
+        var role = await _context.Roles.FirstOrDefaultAsync(x => x.RoleId == Admin,
+            cancellationToken: cancellationToken);
+
+        if (role == null)
+        {
+            return;
+        }
+
+        var firstName = "Admin";
+        var lastName = "Owner";
+        var user = new User
+        {
+            EmailVerified = true,
+            FirstName = firstName,
+            LastName = lastName,
+            FullName = $"{firstName} {lastName}",
+            Email = "admin@keytietkiem.com",
+            Status = nameof(UserStatus.Active),
+            UserId = Guid.NewGuid(),
+            CreatedAt = _clock.UtcNow,
+        };
+        user.Roles.Add(role);
+
+        admin = new Account
+        {
+            Username = Admin,
+            PasswordHash = HashPassword("admin"),
+            AccountId = Guid.NewGuid(),
+            UserId = user.UserId,
+            FailedLoginCount = 0,
+            CreatedAt = _clock.UtcNow,
+        };
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await _userRepository.AddAsync(user, cancellationToken);
+            await _accountRepository.AddAsync(admin, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     // Private helper methods
 
     private async Task<User> LoadUserWithRolesAsync(Guid userId, CancellationToken cancellationToken)
@@ -384,15 +494,28 @@ public class AccountService : IAccountService
             new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
             new(ClaimTypes.Name, account.Username),
             new(ClaimTypes.Email, user.Email),
-            new("AccountId", account.AccountId.ToString())
+            new("AccountId", account.AccountId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
         // Add role claims
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
         var accessToken = GenerateJwtToken(claims, expiresAt);
+
+        // Generate new claims for refresh token with different JTI
+        var refreshClaims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new(ClaimTypes.Name, account.Username),
+            new(ClaimTypes.Email, user.Email),
+            new("AccountId", account.AccountId.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+        refreshClaims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
         var refreshTokenExpiresAt = _clock.UtcNow.AddDays(_jwtConfig.RefreshTokenExpiryInDays);
-        var refreshToken = GenerateJwtToken(claims, refreshTokenExpiresAt);
+        var refreshToken = GenerateJwtToken(refreshClaims, refreshTokenExpiresAt);
 
         return new LoginResponseDto
         {

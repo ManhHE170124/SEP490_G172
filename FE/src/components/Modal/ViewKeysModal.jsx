@@ -1,4 +1,5 @@
 import formatDateTime from "../../utils/formatDatetime";
+import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
 
 export default function ViewKeysModal({
   isOpen,
@@ -118,17 +119,11 @@ export default function ViewKeysModal({
                               padding: "2px 8px",
                               borderRadius: "4px",
                               fontSize: "12px",
-                              background:
-                                key.status === "Available"
-                                  ? "#d1fae5"
-                                  : "#fee2e2",
-                              color:
-                                key.status === "Available"
-                                  ? "#065f46"
-                                  : "#991b1b",
+                              background: getStatusColor(key.status).bg,
+                              color: getStatusColor(key.status).color,
                             }}
                           >
-                            {key.status}
+                            {getStatusLabel(key.status)}
                           </span>
                         </td>
                         <td>{formatDateTime(key.importedAt)}</td>

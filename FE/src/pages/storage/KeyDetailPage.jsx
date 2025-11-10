@@ -7,6 +7,7 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
 import formatDateTime from "../../utils/formatDatetime";
+import { getStatusLabel } from "../../utils/productKeyHepler";
 import "../admin/admin.css";
 
 export default function KeyDetailPage() {
@@ -86,7 +87,11 @@ export default function KeyDetailPage() {
 
   const loadSuppliers = useCallback(async () => {
     try {
-      const data = await SupplierApi.list({ pageNumber: 1, pageSize: 100 });
+      const data = await SupplierApi.list({
+        pageNumber: 1,
+        pageSize: 100,
+        status: "Active",
+      });
       setSuppliers(data.items || data.data || []);
     } catch (err) {
       console.error("Failed to load suppliers:", err);
@@ -144,13 +149,12 @@ export default function KeyDetailPage() {
         showSuccess("Thành công", "Key đã được tạo thành công");
         navigate("/keys");
       } else {
+        // Only allow updating notes for existing keys
         await ProductKeyApi.update(id, {
           keyId: id,
-          status: formData.status,
-          expiryDate: formData.expiryDate || null,
           notes: formData.notes,
         });
-        showSuccess("Thành công", "Key đã được cập nhật thành công");
+        showSuccess("Thành công", "Ghi chú đã được cập nhật thành công");
         loadProductKey();
       }
     } catch (err) {
@@ -237,6 +241,23 @@ export default function KeyDetailPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
+          {!isNew && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                background:
+                  formData.status === "Expired" ? "#fee2e2" : "#fef3c7",
+                borderRadius: 8,
+                color: formData.status === "Expired" ? "#991b1b" : "#92400e",
+              }}
+            >
+              {formData.status === "Expired"
+                ? "Key đã hết hạn. Chỉ có thể cập nhật ghi chú."
+                : "Chỉ có thể cập nhật ghi chú cho key đã tồn tại."}
+            </div>
+          )}
+
           <div
             className="grid"
             style={{
@@ -335,11 +356,13 @@ export default function KeyDetailPage() {
                   className="input"
                   value={formData.status}
                   onChange={(e) => handleChange("status", e.target.value)}
+                  disabled
                 >
                   <option value="Available">Còn</option>
                   <option value="Sold">Đã bán</option>
                   <option value="Error">Lỗi</option>
                   <option value="Recalled">Thu hồi</option>
+                  <option value="Expired">Hết hạn</option>
                 </select>
               </div>
             )}
@@ -351,6 +374,7 @@ export default function KeyDetailPage() {
                 type="date"
                 value={formData.expiryDate}
                 onChange={(e) => handleChange("expiryDate", e.target.value)}
+                disabled={!isNew}
               />
             </div>
 
@@ -387,6 +411,10 @@ export default function KeyDetailPage() {
                   gap: 12,
                 }}
               >
+                <div>
+                  <small className="muted">Trạng thái hiện tại:</small>
+                  <div>{getStatusLabel(keyInfo.status)}</div>
+                </div>
                 <div>
                   <small className="muted">Ngày nhập kho:</small>
                   <div>{formatDateTime(keyInfo.importedAt)}</div>

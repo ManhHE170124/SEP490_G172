@@ -2,7 +2,7 @@
  * File: PermissionsController.cs
  * Author: HieuNDHE173169
  * Created: 17/10/2025
- * Last Updated: 20/10/2025
+ * Last Updated: 28/10/2025
  * Version: 1.0.0
  * Purpose: Manage permissions (CRUD). Ensures unique permission names and
  *          cascades deletion to related role-permissions.
@@ -14,9 +14,9 @@
  *   - DELETE /api/permissions/{id}         : Delete permission and role-permissions
  */
 using Keytietkiem.Models;
-using Keytietkiem.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.DTOs.Roles;
 
 namespace Keytietkiem.Controllers
 {
@@ -30,14 +30,13 @@ namespace Keytietkiem.Controllers
             _context = context;
         }
 
-        // GET: api/<PermissionsController>
-        [HttpGet]
         /**
          * Summary: Retrieve all permissions.
          * Route: GET /api/permissions
          * Params: none
          * Returns: 200 OK with list of permissions
          */
+        [HttpGet]
         public async Task<IActionResult> GetPermissions()
         {
             var permissions = await _context.Permissions
@@ -53,14 +52,13 @@ namespace Keytietkiem.Controllers
             return Ok(permissions);
         }
 
-        // GET api/<PermissionsController>/5
-        [HttpGet("{id}")]
         /**
          * Summary: Retrieve a permission by id.
          * Route: GET /api/permissions/{id}
          * Params: id (long) - permission identifier
          * Returns: 200 OK with permission, 404 if not found
          */
+        [HttpGet("{id}")]
         public async Task<IActionResult> GetPermissionById(long id)
         {
             var permission = await _context.Permissions
@@ -82,14 +80,13 @@ namespace Keytietkiem.Controllers
             return Ok(permissionDto);
         }
 
-        // POST api/<PermissionsController>
-        [HttpPost]
         /**
          * Summary: Create a new permission.
          * Route: POST /api/permissions
          * Body: Permission newPermission
          * Returns: 201 Created with created permission, 400/409 on validation errors
          */
+        [HttpPost]
         public async Task<IActionResult> CreatePermission([FromBody] CreatePermissionDTO createPermissionDto)
         {
             if (createPermissionDto == null || string.IsNullOrWhiteSpace(createPermissionDto.PermissionName))
@@ -107,7 +104,7 @@ namespace Keytietkiem.Controllers
             {
                 PermissionName = createPermissionDto.PermissionName,
                 Description = createPermissionDto.Description,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Permissions.Add(newPermission);
@@ -147,8 +144,6 @@ namespace Keytietkiem.Controllers
             return CreatedAtAction(nameof(GetPermissionById), new { id = newPermission.PermissionId }, permissionDto);
         }
 
-        // PUT api/<PermissionsController>/5
-        [HttpPut("{id}")]
         /**
          * Summary: Update an existing permission by id.
          * Route: PUT /api/permissions/{id}
@@ -156,6 +151,7 @@ namespace Keytietkiem.Controllers
          * Body: Permission updatedPermission
          * Returns: 204 No Content, 400/404 on errors
          */
+        [HttpPut("{id}")]
         public async Task<IActionResult> UpdatePermission(long id, [FromBody] UpdatePermissionDTO updatePermissionDto)
         {
             if (updatePermissionDto == null)
@@ -170,20 +166,19 @@ namespace Keytietkiem.Controllers
             }
             existing.PermissionName = updatePermissionDto.PermissionName;
             existing.Description = updatePermissionDto.Description;
-            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedAt = DateTime.Now;
             _context.Permissions.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE api/<PermissionsController>/5
-        [HttpDelete("{id}")]
         /**
         * Summary: Delete a permission by id and cascade remove related role-permissions.
         * Route: DELETE /api/permissions/{id}
         * Params: id (long)
         * Returns: 204 No Content, 404 if not found
         */
+        [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePermission(long id)
         {
             var existingPermission = await _context.Permissions

@@ -32,7 +32,15 @@ export const ProductApi = {
   create: (payload) => axiosClient.post(ROOT, payload),
   update: (id, payload) => axiosClient.put(`${ROOT}/${id}`, payload),
   toggle: (id) => axiosClient.patch(`${ROOT}/${id}/toggle`),
-
+createWithImages: (payload, files, primaryIndex = 0) => {
+   const form = new FormData();
+   form.append("json", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+   files.forEach((f, i) => form.append("images", f, f.name));
+   form.append("primaryIndex", String(primaryIndex));
+   return axiosClient.post(`${ROOT}/with-images`, form, {
+     headers: { "Content-Type": "multipart/form-data" },
+   });
+ },
   // constants + helpers cho FE
   types: PRODUCT_TYPES,
   statuses: PRODUCT_STATUSES,

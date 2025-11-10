@@ -67,7 +67,7 @@ public class SupplierResponseDto
     public string? LicenseTerms { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
-    public SupplierStatus Status { get; set; }
+    public string Status { get; set; } = string.Empty;
     public int ActiveProductCount { get; set; }
     public int TotalProductKeyCount { get; set; }
 }
@@ -82,7 +82,7 @@ public class SupplierListDto
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
     public DateTime CreatedAt { get; set; }
-    public SupplierStatus Status { get; set; }
+    public string Status { get; set; } = string.Empty;
     public int ActiveProductCount { get; set; }
 }
 

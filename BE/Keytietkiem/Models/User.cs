@@ -35,6 +35,10 @@ public partial class User
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 
+    public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
+
+    public virtual ICollection<ProductAccountHistory> ProductAccountHistories { get; set; } = new List<ProductAccountHistory>();
+
     public virtual ICollection<Ticket> TicketAssignees { get; set; } = new List<Ticket>();
 
     public virtual ICollection<TicketReply> TicketReplies { get; set; } = new List<TicketReply>();
