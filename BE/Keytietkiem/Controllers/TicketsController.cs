@@ -225,7 +225,7 @@ public class TicketsController : ControllerBase
         if (user == null) return BadRequest(new { message = "Không tìm thấy nhân viên được chọn." });
 
         if (!string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase)
-            || !user.Roles.Any(r => r.Name.Equals("Customer Care Staff", StringComparison.OrdinalIgnoreCase)))
+            || !user.Roles.Any(r => r.RoleId.Contains("CARE")))
             return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
