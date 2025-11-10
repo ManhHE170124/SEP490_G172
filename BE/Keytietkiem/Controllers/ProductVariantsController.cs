@@ -1,4 +1,5 @@
 ﻿// File: Controllers/ProductVariantsController.cs
+using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -20,9 +21,11 @@ namespace Keytietkiem.Controllers
             _clock = clock;
         }
 
+        // Giữ helper cũ
         private static async Task RecalcProductStatus(KeytietkiemDbContext db, Guid productId, string? desiredStatus = null)
         {
-            var p = await db.Products.Include(x => x.ProductVariants).FirstAsync(x => x.ProductId == productId);
+            var p = await db.Products.Include(x => x.ProductVariants)
+                                     .FirstAsync(x => x.ProductId == productId);
             var totalStock = p.ProductVariants.Sum(v => v.StockQty);
             if (totalStock <= 0) p.Status = "OUT_OF_STOCK";
             else if (!string.IsNullOrWhiteSpace(desiredStatus) && ProductEnums.Statuses.Contains(desiredStatus))
@@ -31,26 +34,101 @@ namespace Keytietkiem.Controllers
             p.UpdatedAt = DateTime.UtcNow;
         }
 
-        // LIST
+        private static string ToggleVisibility(string current, int stock)
+        {
+            if (stock <= 0) return "OUT_OF_STOCK";
+            return string.Equals(current, "ACTIVE", StringComparison.OrdinalIgnoreCase) ? "INACTIVE" : "ACTIVE";
+        }
+
+        // ====== LIST + Search/Filter/Sort/Paging
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductVariantListItemDto>>> List(Guid productId)
+        public async Task<ActionResult<PagedResult<ProductVariantListItemDto>>> List(
+            Guid productId,
+            [FromQuery] ProductVariantListQuery query)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
+
             var exists = await db.Products.AnyAsync(p => p.ProductId == productId);
             if (!exists) return NotFound();
 
-            var items = await db.ProductVariants
-                .Where(v => v.ProductId == productId)
-                .OrderBy(v => v.SortOrder)
+            var q = db.ProductVariants.AsNoTracking().Where(v => v.ProductId == productId);
+
+            // Search
+            if (!string.IsNullOrWhiteSpace(query.Q))
+            {
+                var s = query.Q.Trim();
+                q = q.Where(v =>
+                    EF.Functions.Like(v.Title, $"%{s}%") ||
+                    EF.Functions.Like(v.VariantCode ?? "", $"%{s}%"));
+            }
+
+            // Filter Status
+            if (!string.IsNullOrWhiteSpace(query.Status))
+            {
+                var st = query.Status.Trim().ToUpper();
+                q = q.Where(v => v.Status.ToUpper() == st);
+            }
+
+            // Filter Duration
+            if (!string.IsNullOrWhiteSpace(query.Dur))
+            {
+                switch (query.Dur)
+                {
+                    case "<=30":
+                        q = q.Where(v => (v.DurationDays ?? 0) <= 30);
+                        break;
+                    case "31-180":
+                        q = q.Where(v => (v.DurationDays ?? 0) >= 31 && (v.DurationDays ?? 0) <= 180);
+                        break;
+                    case ">180":
+                        q = q.Where(v => (v.DurationDays ?? 0) > 180);
+                        break;
+                }
+            }
+
+            // Sort
+            var sort = (query.Sort ?? "created").Trim().ToLower();
+            var desc = string.Equals(query.Dir, "desc", StringComparison.OrdinalIgnoreCase);
+
+            q = sort switch
+            {
+                "title" => desc ? q.OrderByDescending(v => v.Title)
+                                   : q.OrderBy(v => v.Title),
+                "duration" => desc ? q.OrderByDescending(v => v.DurationDays ?? 0)
+                                   : q.OrderBy(v => v.DurationDays ?? 0),
+                "price" => desc ? q.OrderByDescending(v => v.Price)
+                                   : q.OrderBy(v => v.Price),
+                "stock" => desc ? q.OrderByDescending(v => v.StockQty)
+                                   : q.OrderBy(v => v.StockQty),
+                "status" => desc ? q.OrderByDescending(v => v.Status)
+                                   : q.OrderBy(v => v.Status),
+                _ => desc ? q.OrderByDescending(v => v.SortOrder) // created ~ sort order
+                                   : q.OrderBy(v => v.SortOrder),
+            };
+
+            // Paging
+            var page = Math.Max(1, query.Page);
+            var pageSize = Math.Clamp(query.PageSize, 1, 200);
+
+            var total = await q.CountAsync();
+
+            var items = await q
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(v => new ProductVariantListItemDto(
                     v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
                     v.OriginalPrice, v.Price, v.StockQty, v.Status, v.SortOrder))
                 .ToListAsync();
 
-            return Ok(items);
-        }
+            return Ok(new PagedResult<ProductVariantListItemDto>
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalItems = total,
+                Items = items
+            });        }
 
-        // DETAIL
+        // ====== DETAIL (giữ nguyên)
         [HttpGet("{variantId:guid}")]
         public async Task<ActionResult<ProductVariantDetailDto>> Get(Guid productId, Guid variantId)
         {
@@ -64,7 +142,7 @@ namespace Keytietkiem.Controllers
                 v.OriginalPrice, v.Price, v.StockQty, v.WarrantyDays, v.Status, v.SortOrder));
         }
 
-        // CREATE
+        // ====== CREATE (giữ nguyên)
         [HttpPost]
         public async Task<ActionResult<ProductVariantDetailDto>> Create(Guid productId, ProductVariantCreateDto dto)
         {
@@ -102,7 +180,7 @@ namespace Keytietkiem.Controllers
                     v.OriginalPrice, v.Price, v.StockQty, v.WarrantyDays, v.Status, v.SortOrder));
         }
 
-        // UPDATE
+        // ====== UPDATE (giữ nguyên)
         [HttpPut("{variantId:guid}")]
         public async Task<IActionResult> Update(Guid productId, Guid variantId, ProductVariantUpdateDto dto)
         {
@@ -127,13 +205,14 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        // DELETE
+        // ====== DELETE (giữ nguyên)
         [HttpDelete("{variantId:guid}")]
         public async Task<IActionResult> Delete(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
             var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
+
             db.ProductVariants.Remove(v);
             await db.SaveChangesAsync();
 
@@ -143,7 +222,7 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        // REORDER
+        // ====== REORDER (giữ nguyên)
         [HttpPost("reorder")]
         public async Task<IActionResult> Reorder(Guid productId, VariantReorderDto dto)
         {
@@ -159,6 +238,24 @@ namespace Keytietkiem.Controllers
 
             await db.SaveChangesAsync();
             return NoContent();
+        }
+
+        // ====== TOGGLE VARIANT VISIBILITY =====
+        [HttpPatch("{variantId:guid}/toggle")]
+        public async Task<IActionResult> Toggle(Guid productId, Guid variantId)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
+            if (v is null) return NotFound();
+
+            v.Status = ToggleVisibility(v.Status, v.StockQty);
+            v.UpdatedAt = _clock.UtcNow;
+
+            await db.SaveChangesAsync();
+            await RecalcProductStatus(db, productId);
+            await db.SaveChangesAsync();
+
+            return Ok(new { v.VariantId, v.Status });
         }
     }
 }

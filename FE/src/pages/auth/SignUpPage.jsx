@@ -629,7 +629,6 @@ export default function SignUpPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
 
       <section className="container section auth-wrap">
         <div className="auth-card" role="form" aria-labelledby="signUpTitle">
@@ -679,7 +678,6 @@ export default function SignUpPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }

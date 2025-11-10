@@ -1,3 +1,4 @@
+// File: src/api/ticketsApi.js
 import axiosClient from "./axiosClient";
 
 const END = { TICKETS: "tickets" };
@@ -7,6 +8,7 @@ const build = (p = {}) =>
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
+
 export const ticketsApi = {
   list(params) {
     const p = {
@@ -35,8 +37,9 @@ export const ticketsApi = {
   close(id) {
     return axiosClient.post(`/tickets/${id}/close`, {});
   },
-  // NEW: chat
+  // NEW: gửi phản hồi (chat)
   reply(id, payload) {
+    // payload: { message: string, sendEmail?: boolean } – BE chỉ dùng field message
     return axiosClient.post(`/tickets/${id}/replies`, payload);
   },
 };

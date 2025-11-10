@@ -93,7 +93,6 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
 
       <section className="container section auth-wrap">
         <div className="auth-card" role="form" aria-labelledby="resetPasswordTitle">
@@ -222,7 +221,6 @@ export default function ResetPasswordPage() {
         </div>
       </section>
 
-      <PublicFooter />
     </div>
   );
 }
