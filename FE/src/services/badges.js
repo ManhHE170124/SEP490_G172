@@ -6,27 +6,25 @@ const BADGE_ENDPOINTS = {
 };
 
 export const BadgesApi = {
-  // Trả về mảng badges
-  list: (params = {}) => axiosClient.get(BADGE_ENDPOINTS.ROOT, { params }),
+  // Trả về luôn là array
+  list: async (params = {}) => {
+    const data = await axiosClient.get(BADGE_ENDPOINTS.ROOT, { params });
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.result)) return data.result;
+    return [];
+  },
 
-  // Trả về dạng phân trang: { items, total, pageNumber, pageSize }
   listPaged: async (params = {}) => {
-    const res = await axiosClient.get(BADGE_ENDPOINTS.ROOT, { params });
-
-    if (Array.isArray(res)) {
-      const items = res;
+    const data = await axiosClient.get(BADGE_ENDPOINTS.ROOT, { params });
+    if (Array.isArray(data)) {
+      const items = data;
       const pageNumber = params.page || params.pageNumber || 1;
       const pageSize = params.pageSize || items.length;
-
-      return {
-        items,
-        total: items.length,
-        pageNumber,
-        pageSize,
-      };
+      return { items, total: items.length, pageNumber, pageSize };
     }
-
-    return res;
+    return data;
   },
 
   get: (code) =>

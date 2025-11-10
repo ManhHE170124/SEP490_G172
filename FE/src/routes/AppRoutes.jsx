@@ -1,3 +1,11 @@
+/**
+ * File: AppRoutes.jsx
+ * Author: Keytietkiem Team
+ * Created: 18/10/2025
+ * Last Updated: 25/10/2025
+ * Version: 1.0.0
+ * Purpose: Application routes with layout separation (Client and Admin)
+ */
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Suspense, lazy } from "react";
 // import { Routes, Route } from "react-router-dom";

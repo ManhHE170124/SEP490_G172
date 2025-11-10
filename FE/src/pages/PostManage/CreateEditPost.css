@@ -1,0 +1,442 @@
+/* ===== Design Tokens ===== */
+:root{
+  --ink:#0b1220;               /* text chính (gần đen) */
+  --muted:#6b7280;             /* text phụ */
+  --line:#e5e7eb;              /* viền nhạt */
+  --page:#f3f6fa;              /* nền trang */
+  --card:#ffffff;              /* nền thẻ */
+  --primary:#2563eb;           /* xanh chủ đạo */
+  --danger:#ef4444;
+  --success:#10b981;
+  --warning:#f59e0b;
+  --radius:16px;
+  --shadow:0 8px 24px rgba(2,6,23,.06);
+}
+
+/* ===== Main content ===== */
+.cep-main{ padding:20px; display:grid; gap:16px; }
+
+/* ===== Blog Create Layout ===== */
+.cep-blog-create-container {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 24px;
+  max-width: 1400px;
+}
+
+@media (max-width: 1200px) {
+  .blog-create-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Left Column - Main Content ===== */
+.cep-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ===== Post Title Section ===== */
+.cep-post-title-section,
+.cep-post-description-section {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+/* label-row keeps the label and the small meta (counter) on one line */
+.cep-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cep-field-meta {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.cep-error-message {
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.cep-character-count {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+  margin-top: 4px;
+}
+
+.cep-post-title-section label,
+.cep-post-description-section label {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.cep-post-title-section input,
+.cep-post-description-section textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.cep-post-description-section textarea {
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+}
+
+.cep-post-title-section input:focus,
+.cep-post-description-section textarea:focus {
+  border-color: var(--primary);
+}
+
+.cep-post-title-section input.error,
+.cep-post-description-section textarea.error {
+  border-color: var(--danger);
+}
+
+/* ===== Post Content Section ===== */
+.cep-post-content-section {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.cep-post-content-section label {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+/* ===== Rich Text Editor ===== */
+.cep-rich-text-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Scoped toolbar styles so component's own CSS (EditorToolbar.css) can apply without conflicts.
+   These match the toolbar component styling and integrate it with the editor card. */
+.cep-rich-text-editor .cep-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-bottom: 2px solid #e0e0e0;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.cep-rich-text-editor .cep-editor-toolbar.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  background: #f5f5f5;
+}
+
+.cep-rich-text-editor .cep-toolbar-group {
+  display: flex;
+  gap: 4px;
+  padding: 0 8px;
+  border-right: 1px solid #e0e0e0;
+}
+
+.cep-rich-text-editor .cep-toolbar-group:last-child {
+  border-right: none;
+}
+
+.cep-rich-text-editor .cep-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.cep-rich-text-editor .cep-toolbar-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #999999;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.cep-rich-text-editor .cep-toolbar-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  background: #e8e8e8;
+}
+
+.cep-rich-text-editor .cep-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cep-rich-text-editor .cep-toolbar-btn.active {
+  background: #007bff;
+  color: #ffffff;
+  border-color: #0056b3;
+}
+
+.cep-rich-text-editor .cep-toolbar-select {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.cep-editor-content {
+  min-height: 400px;
+  padding: 20px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.cep-editor-content::placeholder {
+  color: var(--muted);
+}
+
+/* ===== Right Column - Sidebar ===== */
+.cep-sidebar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cep-sidebar-section {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.cep-sidebar-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 16px 0;
+}
+
+.cep-sidebar-section label {
+  display: block;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.cep-sidebar-section input,
+.cep-sidebar-section select,
+.cep-sidebar-section textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 16px;
+}
+
+.cep-sidebar-section input:focus,
+.cep-sidebar-section select:focus,
+.cep-sidebar-section textarea:focus {
+  border-color: var(--primary);
+}
+
+.cep-sidebar-section textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ===== Action Buttons ===== */
+.cep-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.cep-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.cep-btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.cep-btn.primary:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.cep-btn.secondary {
+  background: #f9fafb;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.cep-btn.secondary:hover {
+  background: #f3f4f6;
+}
+
+.cep-btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.cep-btn.danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* ===== Tags ===== */
+.cep-tags-container {
+  margin-bottom: 16px;
+}
+
+.cep-tags-input {
+  margin-bottom: 12px;
+}
+
+.cep-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cep-tag-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f3f4f6;
+  color: var(--ink);
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cep-tag-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.cep-tag-remove:hover {
+  background: #e5e7eb;
+  color: var(--ink);
+}
+
+/* ===== Featured Image ===== */
+.cep-featured-image-upload {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.cep-featured-image-upload:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.cep-featured-image-upload.has-image {
+  padding: 0;
+  border: 1px solid var(--line);
+}
+
+.cep-featured-image-preview {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.cep-remove-image-btn {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.cep-remove-image-btn:hover {
+  background: #dc2626;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .blog-create-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}

@@ -8,28 +8,26 @@ const CATEGORY_ENDPOINTS = {
 
 export const CategoryApi = {
   // Trả về mảng categories
-  list: (params = {}) => axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params }),
+ list: async (params = {}) => {
+    const data = await axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params });
+    // data có thể là [] hoặc { items: [...] } hoặc { data: [...] } hoặc { result: [...] }
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.result)) return data.result;
+    return []; // fallback an toàn
+  },
 
-  // Trả về dạng phân trang: { items, total, pageNumber, pageSize }
   listPaged: async (params = {}) => {
-    const res = await axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params });
-
-    // BE hiện tại đang trả về mảng thuần => tự bọc lại
-    if (Array.isArray(res)) {
-      const items = res;
+    const data = await axiosClient.get(CATEGORY_ENDPOINTS.ROOT, { params });
+    if (Array.isArray(data)) {
+      const items = data;
       const pageNumber = params.page || params.pageNumber || 1;
       const pageSize = params.pageSize || items.length;
-
-      return {
-        items,
-        total: items.length,
-        pageNumber,
-        pageSize,
-      };
+      return { items, total: items.length, pageNumber, pageSize };
     }
-
-    // Nếu sau này BE trả về dạng { items, total, ... } thì dùng luôn
-    return res;
+    // Nếu BE trả sẵn { items, total, ... } thì trả nguyên
+    return data;
   },
 
   get: (id) => axiosClient.get(`${CATEGORY_ENDPOINTS.ROOT}/${id}`),

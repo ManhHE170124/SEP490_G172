@@ -1,0 +1,196 @@
+/* Header Styles */
+.alh-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.alh-search {
+  display: flex;
+  align-items: center;
+  background: var(--page);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  min-width: 300px;
+}
+
+.alh-search svg {
+  margin-right: 0.5rem;
+}
+
+.alh-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.alh-search input::placeholder {
+  color: var(--muted);
+}
+
+.alh-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.alh-pill {
+  background: var(--page);
+  color: var(--ink);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+}
+
+.alh-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.alh-avatar:hover {
+  transform: scale(1.05);
+}
+
+/* Dropdown Menu Styles */
+.alh-avatar-container {
+  position: relative;
+}
+
+.alh-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 280px;
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideDown 0.2s ease-out;
+}
+
+.alh-dropdown-header {
+  padding: 1rem;
+  background: var(--page);
+  border-bottom: 1px solid var(--line);
+}
+
+.alh-user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.alh-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.alh-user-details {
+  flex: 1;
+}
+
+.alh-user-name {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.alh-user-email {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+.alh-dropdown-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 0.5rem 0;
+}
+
+.alh-dropdown-items {
+  padding: 0.5rem 0;
+}
+
+.alh-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.alh-dropdown-item:hover {
+  background: var(--page);
+  color: var(--primary);
+}
+
+.alh-dropdown-item svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.alh-dropdown-item:hover svg {
+  color: var(--primary);
+}
+
+.alh-dropdown-item.logout {
+  color: var(--danger);
+}
+
+.alh-dropdown-item.logout:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.alh-dropdown-item.logout svg {
+  color: var(--danger);
+}
+
+/* Animation for dropdown */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -3,6 +3,15 @@ using System;
 
 namespace Keytietkiem.DTOs.Products
 {
+    public record ProductVariantListQuery(
+       string? Q,            // tìm theo Title / VariantCode
+       string? Status,      // ACTIVE | INACTIVE | OUT_OF_STOCK
+       string? Dur,         // "<=30" | "31-180" | ">180"
+       string? Sort = "created",  // created|title|duration|price|stock|status
+       string? Dir = "desc",     // asc|desc
+       int Page = 1,
+       int PageSize = 10
+   );
     public record ProductVariantListItemDto(
         Guid VariantId,
         string VariantCode,

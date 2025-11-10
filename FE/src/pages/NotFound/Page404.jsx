@@ -1,6 +1,18 @@
+/**
+ * File: Page404.jsx
+ * Author: HieuNDHE173169
+ * Created: 20/10/2025
+ * Last Updated: 29/10/2025
+ * Version: 1.0.0
+ * Purpose: 404 Not Found page component for undefined routes.
+ */
 import React from 'react';
 import './Page404.css';
 
+/**
+ * @summary: 404 Not Found page component.
+ * @returns {JSX.Element} - 404 error page with navigation options
+ */
 const Page404 = () => {
   return (
     <main className="not-found">
