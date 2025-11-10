@@ -29,7 +29,7 @@ const Sidebar = () => {
   const isStorageStaff =
     roles.some((r) => /(storage|warehouse|kho)/i.test(String(r))) &&
     !roles.some((r) => /(admin|manager)/i.test(String(r)));
-    if (isStorageStaff) {
+  if (isStorageStaff) {
     return (
       <aside className="sb-sidebar" aria-label="Điều hướng">
         <div className="sb-logo" aria-label="Keytietkiem">
@@ -37,6 +37,7 @@ const Sidebar = () => {
           <span>Keytietkiem</span>
         </div>
         <nav className="sb-nav">
+          
           <div className="sb-section-title">Kho & Nhà cung cấp</div>
           <Link
             className={`sb-item ${currentPage === "suppliers" || currentPage.startsWith("suppliers/") ? "active" : ""}`}
@@ -103,9 +104,44 @@ const Sidebar = () => {
           </svg>
           <span className="sb-label">Dashboard</span>
         </Link>
+<div className="sb-section-title">Quản lý sản phẩm</div>
+        <Link
+          className={`sb-item ${currentPage === "/admin/products" ? "active" : ""
+            }`}
+          to="/admin/products"
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            <path
+              d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+          </svg>
+          <span className="sb-label">Quản lý sản phẩm</span>
+        </Link>
 
+        <Link
+          className={`sb-item ${currentPage === "/admin/categories" ? "active" : ""
+            }`}
+          to="/admin/categories"
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            <path
+              d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+          </svg>
+          <span className="sb-label">Quản lý danh mục</span>
+        </Link>
+        
         <div className="sb-section-title">Quản lý phân quyền</div>
-
         <Link
           className={`sb-item ${currentPage === "role-manage" ? "active" : ""}`}
           to="/role-manage"
@@ -131,11 +167,10 @@ const Sidebar = () => {
         </Link>
         <div className="sb-section-title">Kho & Nhà cung cấp</div>
         <Link
-          className={`sb-item ${
-            currentPage === "suppliers" || currentPage.startsWith("suppliers/")
+          className={`sb-item ${currentPage === "suppliers" || currentPage.startsWith("suppliers/")
               ? "active"
               : ""
-          }`}
+            }`}
           to="/suppliers"
         >
           <svg viewBox="0 0 24 24" fill="none">
@@ -161,11 +196,10 @@ const Sidebar = () => {
           <span className="sb-label">Theo dõi tình trạng</span>
         </Link>
         <Link
-          className={`sb-item ${
-            currentPage === "keys" || currentPage.startsWith("keys/")
+          className={`sb-item ${currentPage === "keys" || currentPage.startsWith("keys/")
               ? "active"
               : ""
-          }`}
+            }`}
           to="/keys"
         >
           <svg viewBox="0 0 24 24" fill="none">
@@ -180,11 +214,10 @@ const Sidebar = () => {
           <span className="sb-label">Quản lý kho Key</span>
         </Link>
         <Link
-          className={`sb-item ${
-            currentPage === "accounts" || currentPage.startsWith("accounts/")
+          className={`sb-item ${currentPage === "accounts" || currentPage.startsWith("accounts/")
               ? "active"
               : ""
-          }`}
+            }`}
           to="/accounts"
         >
           <svg viewBox="0 0 24 24" fill="none">
@@ -208,9 +241,8 @@ const Sidebar = () => {
         </Link>
         <div className="sb-section-title">Quản lý người dùng</div>
         <Link
-          className={`sb-item ${
-            currentPage === "admin-user-management" ? "active" : ""
-          }`}
+          className={`sb-item ${currentPage === "admin-user-management" ? "active" : ""
+            }`}
           to="/admin-user-management"
         >
           <svg viewBox="0 0 24 24" fill="none">
@@ -225,8 +257,25 @@ const Sidebar = () => {
           </svg>
           <span className="sb-label">Quản lý người dùng</span>
         </Link>
-
-
+        <div className="sb-section-title">Quản lý hỗ trợ</div>
+        <Link
+          className={`sb-item ${currentPage === "/admin/tickets" ? "active" : ""
+            }`}
+          to="/admin/tickets"
+        >
+          <svg viewBox="0 0 24 24" fill="none">
+            <path
+              d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+          </svg>
+          <span className="sb-label">Quản lý phiếu hỗ trợ</span>
+        </Link>
+        
         <div className="sb-section-title">Quản lý bài viết</div>
 
         <Link
@@ -271,9 +320,8 @@ const Sidebar = () => {
 
         <div className="sb-section-title">Cài đặt</div>
         <Link
-          className={`sb-item ${
-            currentPage === "admin/website-config" ? "active" : ""
-          }`}
+          className={`sb-item ${currentPage === "admin/website-config" ? "active" : ""
+            }`}
           to="/admin/website-config"
         >
           <svg
