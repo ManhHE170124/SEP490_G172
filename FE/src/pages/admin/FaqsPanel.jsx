@@ -2,8 +2,6 @@
 import React from "react";
 import { ProductFaqsApi } from "../../services/productFaqs";
 
-const fmtDateTime = (s) =>
-  s ? new Date(s).toLocaleString("vi-VN", { hour12: false }) : "—";
 const truncate = (s, n = 140) => (s && s.length > n ? s.slice(0, n) + "…" : (s ?? "—"));
 
 export default function FaqsPanel({ productId }) {
@@ -18,7 +16,7 @@ export default function FaqsPanel({ productId }) {
   // Query (đẩy xuống server)
   const [q, setQ] = React.useState("");
   const [active, setActive] = React.useState("");         // "", "true", "false"
-  const [sort, setSort] = React.useState("sortOrder");    // question|sortOrder|active|created|updated
+  const [sort, setSort] = React.useState("sortOrder");    // question|sortOrder|active
   const [dir, setDir] = React.useState("asc");            // asc|desc
 
   // Modal
@@ -124,7 +122,7 @@ export default function FaqsPanel({ productId }) {
             <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>({total})</span>
           </h4>
 
-          {/* Toolbar: bỏ 2 dropdown Thứ tự/Tăng dần, chỉ giữ search + filter trạng thái + nút thêm */}
+          {/* Toolbar: search + filter trạng thái + nút thêm */}
           <div className="variants-toolbar">
             <input
               className="ctl"
@@ -149,11 +147,10 @@ export default function FaqsPanel({ productId }) {
               <div className="variants-scroller">
                 <table className="variants-table">
                   <colgroup>
-                    <col style={{ width: "32%" }} />
-                    <col style={{ width: "34%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "46%" }} /> {/* dồn rộng cho Trả lời */}
                     <col style={{ width: "10%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "14%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -167,9 +164,6 @@ export default function FaqsPanel({ productId }) {
                       <th onClick={() => headerSort("active")} style={{ cursor:"pointer" }}>
                         Trạng thái{sortMark("active")}
                       </th>
-                      <th onClick={() => headerSort("created")} style={{ cursor:"pointer" }}>
-                        Tạo{sortMark("created")}
-                      </th>
                       <th>Thao tác</th>
                     </tr>
                   </thead>
@@ -178,17 +172,12 @@ export default function FaqsPanel({ productId }) {
                     {items.map((f) => (
                       <tr key={f.faqId}>
                         <td><div style={{ fontWeight: 600 }}>{f.question}</div></td>
-                        <td className="muted">{truncate(f.answer, 160)}</td>
+                        <td className="muted">{truncate(f.answer, 220)}</td>
                         <td className="mono">{f.sortOrder ?? 0}</td>
                         <td className="col-status">
                           <span className={`badge ${f.isActive ? "green" : "gray"}`} style={{ textTransform: "none" }}>
                             {f.isActive ? "Hiển thị" : "Ẩn"}
                           </span>
-                        </td>
-                        <td>
-                          <div title={`Cập nhật: ${fmtDateTime(f.updatedAt)}`}>
-                            {fmtDateTime(f.createdAt)}
-                          </div>
                         </td>
                         <td className="td-actions td-left">
                           <div className="row" style={{ gap: 8 }}>
@@ -220,7 +209,7 @@ export default function FaqsPanel({ productId }) {
 
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 18 }}>
+                        <td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 18 }}>
                           Chưa có câu hỏi nào.
                         </td>
                       </tr>
@@ -253,13 +242,13 @@ export default function FaqsPanel({ productId }) {
 
                     {makePageList.map((pKey, idx) => {
                       if (typeof pKey !== "number") return <span key={pKey + idx} className="muted">…</span>;
-                      const active = pKey === page;
+                      const activeBtn = pKey === page;
                       return (
                         <button
                           key={pKey}
-                          className={`btn ${active ? "primary" : ""}`}
+                          className={`btn ${activeBtn ? "primary" : ""}`}
                           onClick={() => goto(pKey)}
-                          disabled={active}
+                          disabled={activeBtn}
                           style={{ minWidth: 36 }}
                           title={`Trang ${pKey}`}
                         >

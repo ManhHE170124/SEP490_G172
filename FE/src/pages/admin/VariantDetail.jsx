@@ -1,7 +1,6 @@
 // src/pages/admin/VariantDetail.jsx
 import React from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ProductApi } from "../../services/products";
 import { ProductVariantsApi } from "../../services/productVariants";
 import ProductSectionsPanel from "../admin/ProductSectionsPanel";
 import "../admin/admin.css";
@@ -19,7 +18,6 @@ export default function VariantDetail() {
   const [notFound, setNotFound] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
-  const [product, setProduct] = React.useState(null);
   const [variant, setVariant] = React.useState(null);
 
   const statusClass = (s) =>
@@ -30,25 +28,27 @@ export default function VariantDetail() {
       : "badge gray";
 
   const statusText = (s) =>
-    ({ ACTIVE: "Đang hiển thị", INACTIVE: "Đang ẩn", OUT_OF_STOCK: "Hết hàng" }[
-      String(s || "").toUpperCase()
-    ] || s || "-");
+    (
+      {
+        ACTIVE: "Đang hiển thị",
+        INACTIVE: "Đang ẩn",
+        OUT_OF_STOCK: "Hết hàng",
+      }[String(s || "").toUpperCase()] || s || "-"
+    );
 
   const load = React.useCallback(async () => {
     try {
       setLoading(true);
       setNotFound(false);
-      const [p, v] = await Promise.all([
-        ProductApi.get(productId),
-        ProductVariantsApi.get(productId, variantId),
-      ]);
-      if (!p || !v) {
+
+      const v = await ProductVariantsApi.get(productId, variantId);
+      if (!v) {
         setNotFound(true);
         return;
       }
-      setProduct(p);
+
       setVariant({
-        variantId: v.variantId ?? v.VariantId ?? Number(variantId),
+        variantId: v.variantId ?? v.VariantId ?? variantId,
         variantCode: v.variantCode ?? v.VariantCode ?? "",
         title: v.title ?? v.Title ?? "",
         durationDays: v.durationDays ?? v.DurationDays ?? 0,
@@ -65,15 +65,20 @@ export default function VariantDetail() {
     }
   }, [productId, variantId]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const setVar = (k, val) => setVariant((s) => ({ ...s, [k]: val }));
 
   const toggleActive = async () => {
     try {
       const next =
-        variant.status === "ACTIVE" ? "INACTIVE" :
-        variant.status === "INACTIVE" ? "ACTIVE" : "ACTIVE";
+        variant.status === "ACTIVE"
+          ? "INACTIVE"
+          : variant.status === "INACTIVE"
+          ? "ACTIVE"
+          : "ACTIVE";
       await ProductVariantsApi.toggle(productId, variant.variantId);
       setVar("status", next);
     } catch (e) {
@@ -113,13 +118,15 @@ export default function VariantDetail() {
       </div>
     );
   }
-  if (notFound) {
+  if (notFound || !variant) {
     return (
       <div className="page">
         <div className="card">
           <h2>Không tìm thấy biến thể</h2>
           <div className="row" style={{ marginTop: 10 }}>
-            <Link className="btn" to={`/admin/products/${productId}`}>← Quay lại sản phẩm</Link>
+            <Link className="btn" to={`/admin/products/${productId}`}>
+              ← Quay lại sản phẩm
+            </Link>
           </div>
         </div>
       </div>
@@ -129,77 +136,120 @@ export default function VariantDetail() {
   return (
     <div className="page">
       <div className="card">
-        {/* Header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-          <h2>
-            Biến thể: {variant.title || "(Chưa đặt tên)"}{" "}
-            <span className="muted" style={{ fontSize:14, marginLeft:8 }}>
-              — {product?.productName} ({product?.productCode})
-            </span>
-          </h2>
-          <div className="row" style={{ gap:10, alignItems:"center" }}>
-            <label className="switch" title="Bật/Tắt hiển thị biến thể">
-              <input
-                type="checkbox"
-                checked={variant.status === "ACTIVE"}
-                onChange={toggleActive}
-              />
-              <span className="slider" />
-            </label>
-            <span className={statusClass(variant.status)} style={{ textTransform: "none" }}>
-              {statusText(variant.status)}
-            </span>
-            <button className="btn ghost" onClick={() => nav(`/admin/products/${productId}`)}>⬅ Quay lại SP</button>
+        {/* Header (đồng bộ style với ProductDetail) */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <h2>Chi tiết biến thể</h2>
+
+          <div className="row" style={{ gap: 10, alignItems: "center" }}>
+            <span className="badge gray">Tồn kho: {variant.stockQty ?? 0}</span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label className="switch" title="Bật/Tắt hiển thị biến thể">
+                <input
+                  type="checkbox"
+                  checked={variant.status === "ACTIVE"}
+                  onChange={toggleActive}
+                  aria-label="Bật/Tắt hiển thị biến thể"
+                />
+                <span className="slider" />
+              </label>
+
+              <span
+                className={statusClass(variant.status)}
+                style={{ textTransform: "none" }}
+              >
+                {statusText(variant.status)}
+              </span>
+            </div>
+
+            <button className="btn ghost" onClick={() => nav(`/admin/products/${productId}`)}>
+              ⬅ Quay lại SP
+            </button>
           </div>
         </div>
 
-        {/* Form cơ bản */}
-        <div className="grid cols-3 input-group" style={{ gridColumn:"1 / 3" }}>
+        {/* Form cơ bản – format giống ProductDetail (grid + input-group) */}
+        <div className="grid cols-3 input-group" style={{ gridColumn: "1 / 3" }}>
           <div className="group">
             <span>Tên biến thể</span>
-            <input value={variant.title} onChange={(e)=>setVar("title", e.target.value)} />
+            <input
+              value={variant.title || ""}
+              onChange={(e) => setVar("title", e.target.value)}
+              placeholder="VD: Gói 12 tháng"
+            />
           </div>
           <div className="group">
             <span>Mã biến thể</span>
-            <input value={variant.variantCode || ""} onChange={(e)=>setVar("variantCode", e.target.value)} />
+            <input
+              value={variant.variantCode || ""}
+              onChange={(e) => setVar("variantCode", e.target.value)}
+              placeholder="VD: VAR_12M"
+            />
           </div>
           <div className="group">
             <span>Thời lượng (ngày)</span>
-            <input type="number" min={0} step={1} value={variant.durationDays}
-              onChange={(e)=>setVar("durationDays", e.target.value)} />
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={variant.durationDays}
+              onChange={(e) => setVar("durationDays", e.target.value)}
+            />
           </div>
         </div>
 
-        <div className="grid cols-3 input-group" style={{ gridColumn:"1 / 3" }}>
+        <div className="grid cols-3 input-group" style={{ gridColumn: "1 / 3" }}>
           <div className="group">
             <span>Bảo hành (ngày)</span>
-            <input type="number" min={0} step={1} value={variant.warrantyDays}
-              onChange={(e)=>setVar("warrantyDays", e.target.value)} />
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={variant.warrantyDays}
+              onChange={(e) => setVar("warrantyDays", e.target.value)}
+            />
           </div>
+
           <div className="group">
             <span>Giá bán</span>
-            <input type="number" min={0} step={1000} value={variant.price}
-              onChange={(e)=>setVar("price", e.target.value)} />
-            <div className="muted" style={{ fontSize:12, marginTop:4 }}>{fmtMoney(Number(variant.price||0))}</div>
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              value={variant.price}
+              onChange={(e) => setVar("price", e.target.value)}
+            />
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {fmtMoney(Number(variant.price || 0))}
+            </div>
           </div>
+
           <div className="group">
             <span>Giá gốc</span>
-            <input type="number" min={0} step={1000} value={variant.originalPrice ?? "" }
-              onChange={(e)=>setVar("originalPrice", e.target.value)} />
-            <div className="muted" style={{ fontSize:12, marginTop:4 }}>
-              {variant.originalPrice != null && variant.originalPrice !== "" ? fmtMoney(Number(variant.originalPrice)) : "—"}
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              value={variant.originalPrice ?? ""}
+              onChange={(e) => setVar("originalPrice", e.target.value)}
+            />
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {variant.originalPrice != null && variant.originalPrice !== ""
+                ? fmtMoney(Number(variant.originalPrice))
+                : "—"}
             </div>
           </div>
         </div>
 
-        {/* Stock chỉ hiển thị */}
-        <div className="group" style={{ maxWidth: 280 }}>
-          <span>Tồn kho</span>
-          <input value={variant.stockQty ?? 0} readOnly />
-        </div>
-
-        {/* Sections cho biến thể */}
-        <div className="group" style={{ gridColumn:"1 / 3", marginTop: 12 }}>
+        {/* Sections của biến thể */}
+        <div className="group" style={{ gridColumn: "1 / 3", marginTop: 12 }}>
           <ProductSectionsPanel productId={productId} variantId={variant.variantId} />
         </div>
 

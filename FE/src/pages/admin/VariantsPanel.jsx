@@ -11,7 +11,8 @@ const fmtMoney = (n) =>
 export default function VariantsPanel({ productId, productName, productCode }) {
   // Router
   const nav = useNavigate();
-  const goDetail = (v) => nav(`/admin/products/${productId}/variants/${v.variantId}`);
+const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`;
+ const goDetail = (v) => nav(detailPath(v));
 
   // Data + paging
   const [items, setItems] = React.useState([]);
@@ -66,7 +67,8 @@ export default function VariantsPanel({ productId, productName, productCode }) {
   React.useEffect(() => { setPage(1); }, [q, status, dur, sort, dir]);
 
   const openCreate = () => { setEditing(null); setShowModal(true); };
-  const openEdit   = (v) => { setEditing(v);   setShowModal(true); };
+  // “Sửa nhanh” đổi thành đi tới trang chi tiết
+  const openEdit = (v) => goDetail(v);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -119,7 +121,7 @@ export default function VariantsPanel({ productId, productName, productCode }) {
       if ((v.stockQty ?? 0) <= 0) return; // vẫn bảo vệ trường hợp hết hàng
 
       const payload = await ProductVariantsApi.toggle(productId, v.variantId);
-      const nextStatusRaw = payload?.status ?? payload?.Status;
+      const nextStatusRaw = payload?.Status ?? payload?.status;
       const nextStatus = typeof nextStatusRaw === "string"
         ? nextStatusRaw.toUpperCase()
         : (v.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
@@ -212,8 +214,8 @@ export default function VariantsPanel({ productId, productName, productCode }) {
                   <thead>
                     <tr>
                       <th onClick={() => headerSort("title")} style={{ cursor: "pointer" }}>
-                        Tên biến thể{sortMark("title")}
-                      </th>
+                       Tên biến thể{sortMark("title")}
+                     </th>
                       <th onClick={() => headerSort("duration")} style={{ cursor: "pointer" }}>
                         Thời lượng{sortMark("duration")}
                       </th>
@@ -238,14 +240,8 @@ export default function VariantsPanel({ productId, productName, productCode }) {
                       <tr key={v.variantId}>
                         <td>
                           <div style={{ fontWeight: 600 }}>
-                            {/* Bấm tên để xem chi tiết */}
-                            <button className="btn ghost" onClick={() => goDetail(v)} title="Xem chi tiết biến thể">
-                              {v.title}
-                            </button>
-                          </div>
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {v.variantCode || "—"}
-                          </div>
+                           {v.title || "—"}
+                         </div>
                         </td>
 
                         <td>{(v.durationDays ?? 0)} ngày</td>
@@ -260,20 +256,13 @@ export default function VariantsPanel({ productId, productName, productCode }) {
 
                         <td className="td-actions td-left">
                           <div className="row" style={{ gap: 8 }}>
-                            {/* Sửa nhanh (modal) */}
-                            <button className="action-btn edit-btn" title="Sửa nhanh (modal)" onClick={() => openEdit(v)}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                                <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                              </svg>
-                            </button>
-
-                            {/* Xem chi tiết */}
-                            <button className="action-btn" title="Chi tiết" onClick={() => goDetail(v)}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 5c7 0 10 7 10 7s-3 7-10 7S2 12 2 12s3-7 10-7zm0 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
-                              </svg>
-                            </button>
+                            {/* Nút bút chì → cũng dẫn sang chi tiết */}
+                             <button className="action-btn edit-btn" title="Xem chi tiết" onClick={() => goDetail(v)}>
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+      <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+    </svg>
+ </button>
 
                             {/* Xoá */}
                             <button className="action-btn delete-btn" title="Xoá" onClick={() => onDelete(v.variantId)}>

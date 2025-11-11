@@ -1,10 +1,9 @@
-// src/pages/admin/components/ProductSectionsPanel.jsx
 import React from "react";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 
 import { ProductSectionsApi } from "../../services/productSections";
-import { postsApi, extractPublicId } from "../../services/postsApi";
+import { postsApi } from "../../services/postsApi";
 
 const TYPES = [
   { value: "DETAIL",   label: "Chi tiết" },
@@ -12,11 +11,42 @@ const TYPES = [
   { value: "NOTE",     label: "Lưu ý" },
 ];
 
-const typeLabel = (v) => TYPES.find(t => t.value === String(v).toUpperCase())?.label || v || "—";
-const fmtDT = (s) => (s ? new Date(s).toLocaleString("vi-VN", { hour12: false }) : "—");
+const typeLabel = (v) =>
+  TYPES.find((t) => t.value === String(v || "").toUpperCase())?.label || v || "—";
+
 const snippet = (html, n = 120) => {
-  const t = String(html || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const t = String(html || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   return t.length > n ? t.slice(0, n) + "…" : t || "—";
+};
+
+// ===== Helpers: chuẩn hoá field từ BE =====
+const getId = (row) => row.sectionId ?? row.SectionId;
+const getTitle = (row) => row.title ?? row.Title ?? "";
+const getType = (row) =>
+  String(row.sectionType ?? row.SectionType ?? row.type ?? row.Type ?? "").toUpperCase();
+const getActive = (row) =>
+  Boolean(row.isActive ?? row.IsActive ?? row.active ?? row.Active ?? true);
+const getSortVal = (row) =>
+  Number(row.sortOrder ?? row.SortOrder ?? row.sort ?? row.Sort ?? 0);
+const getContent = (row) => row.content ?? row.Content ?? "";
+
+// Map sort key UI -> API
+const mapSortKeyForApi = (key) => {
+  switch (String(key)) {
+    case "type":
+      return "sectionType";
+    case "sort":
+      return "sortOrder";
+    case "active":
+      return "isActive";
+    case "title":
+      return "title";
+    default:
+      return key || "sortOrder";
+  }
 };
 
 export default function ProductSectionsPanel({
@@ -33,10 +63,10 @@ export default function ProductSectionsPanel({
 
   // Query
   const [q, setQ] = React.useState("");
-  const [type, setType] = React.useState("");     // "", DETAIL|WARRANTY|NOTE
+  const [type, setType] = React.useState(""); // "", DETAIL|WARRANTY|NOTE
   const [active, setActive] = React.useState(""); // "", true|false
-  const [sort, setSort] = React.useState("sort"); // sort|title|type|active|updated|created
-  const [dir, setDir] = React.useState("asc");    // asc|desc
+  const [sort, setSort] = React.useState("sort"); // sort|title|type|active
+  const [dir, setDir] = React.useState("asc"); // asc|desc
 
   // Modal
   const [showModal, setShowModal] = React.useState(false);
@@ -44,7 +74,7 @@ export default function ProductSectionsPanel({
 
   // Form state in modal
   const [fTitle, setFTitle] = React.useState("");
-  const [fType, setFType]   = React.useState("DETAIL");
+  const [fType, setFType] = React.useState("DETAIL");
   const [fActive, setFActive] = React.useState(true);
   const [fSort, setFSort] = React.useState(0);
   const [fContent, setFContent] = React.useState("");
@@ -58,10 +88,26 @@ export default function ProductSectionsPanel({
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
+      const apiSort = mapSortKeyForApi(sort);
       const res = await ProductSectionsApi.listPaged(productId, variantId, {
-        q, type, active, sort, dir, page, pageSize: size
+        q,
+        type,
+        active,
+        sort: apiSort,
+        dir,
+        page,
+        pageSize: size,
       });
-      setItems(res.items || []);
+      // Chuẩn hoá items ngay tại UI (dù service đã cố gắng chuẩn hoá)
+      const normItems = (res.items || []).map((r) => ({
+        sectionId: getId(r),
+        title: getTitle(r),
+        sectionType: getType(r),
+        isActive: getActive(r),
+        sortOrder: getSortVal(r),
+        content: getContent(r),
+      }));
+      setItems(normItems);
       setTotal(res.totalItems || 0);
       setTotalPages(res.totalPages || 1);
     } finally {
@@ -69,14 +115,23 @@ export default function ProductSectionsPanel({
     }
   }, [productId, variantId, q, type, active, sort, dir, page, size]);
 
-  React.useEffect(() => { load(); }, [load]);
-  React.useEffect(() => { setPage(1); }, [q, type, active, sort, dir, size]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [q, type, active, sort, dir, size]);
 
   // ===== Sort header =====
   const headerSort = (key) => {
     setSort((cur) => {
-      if (cur === key) { setDir((d) => (d === "asc" ? "desc" : "asc")); return cur; }
-      setDir("asc"); return key;
+      if (cur === key) {
+        setDir((d) => (d === "asc" ? "desc" : "asc"));
+        return cur;
+      }
+      setDir("asc");
+      return key;
     });
   };
   const sortMark = (key) => (sort === key ? (dir === "asc" ? " ▲" : " ▼") : "");
@@ -94,11 +149,11 @@ export default function ProductSectionsPanel({
 
   const openEdit = (row) => {
     setEditing(row);
-    setFTitle(row.title || "");
-    setFType((row.type || "DETAIL").toUpperCase());
-    setFActive(Boolean(row.active ?? true));
-    setFSort(Number(row.sort ?? 0));
-    setFContent(row.content || "");
+    setFTitle(getTitle(row));
+    setFType(getType(row) || "DETAIL");
+    setFActive(getActive(row));
+    setFSort(getSortVal(row));
+    setFContent(getContent(row));
     setShowModal(true);
   };
 
@@ -108,30 +163,109 @@ export default function ProductSectionsPanel({
     await load();
   };
 
-  const toggleActive = async (row) => {
-    await ProductSectionsApi.toggle(productId, variantId, row.sectionId);
-    await load();
-  };
+ const toggleActive = async (row) => {
+  const id = getId(row);
+  try {
+    const resp = await ProductSectionsApi.toggle(productId, variantId, id);
 
+    setItems((prev) => {
+      const before = prev.find((x) => x.sectionId === id);
+      if (!before) return prev;
+
+      // Nếu BE trả về record đầy đủ/partial -> MERGE với dữ liệu cũ
+      const isObject =
+        resp && typeof resp === "object" && !Array.isArray(resp);
+
+      if (isObject) {
+        const mergedRaw = { ...before, ...resp }; // merge thô
+        const patched = {
+          sectionId: getId(mergedRaw) ?? before.sectionId,
+          title: getTitle(mergedRaw) || before.title,
+          sectionType: getType(mergedRaw) || before.sectionType,
+          isActive:
+            typeof getActive(mergedRaw) === "boolean"
+              ? getActive(mergedRaw)
+              : before.isActive,
+          sortOrder: Number.isFinite(getSortVal(mergedRaw))
+            ? getSortVal(mergedRaw)
+            : before.sortOrder,
+          content: getContent(mergedRaw) || before.content,
+        };
+        return prev.map((x) => (x.sectionId === id ? patched : x));
+      }
+
+      // Fallback: BE trả true/false hoặc rỗng -> chỉ flip isActive
+      return prev.map((x) =>
+        x.sectionId === id ? { ...x, isActive: !x.isActive } : x
+      );
+    });
+  } catch (e) {
+    alert(e?.response?.data?.message || e.message);
+  }
+};
   const onSubmit = async (e) => {
     e.preventDefault();
     const dto = {
       title: fTitle?.trim(),
-      type: fType,
-      content: quillRef.current ? quillRef.current.root.innerHTML : (fContent || "<p></p>"),
-      active: !!fActive,
-      sort: Number.isFinite(Number(fSort)) ? Number(fSort) : 0
+      sectionType: (fType || "DETAIL").toUpperCase(), // WARRANTY|NOTE|DETAIL
+      content: quillRef.current
+        ? quillRef.current.root.innerHTML
+        : fContent || "<p></p>",
+      isActive: !!fActive,
+      sortOrder: Number.isFinite(Number(fSort)) ? Number(fSort) : 0,
     };
     if (!dto.title) return;
 
-    if (editing?.sectionId) {
-      await ProductSectionsApi.update(productId, variantId, editing.sectionId, dto);
-    } else {
-      await ProductSectionsApi.create(productId, variantId, dto);
+    try {
+      if (editing?.sectionId) {
+        const updated = await ProductSectionsApi.update(
+          productId,
+          variantId,
+          editing.sectionId,
+          dto
+        );
+        // Nếu API trả record sau update, đồng bộ ngay UI (giảm flash)
+        if (updated && (updated.sectionId || updated.SectionId)) {
+          const patched = {
+            sectionId: getId(updated),
+            title: getTitle(updated),
+            sectionType: getType(updated),
+            isActive: getActive(updated),
+            sortOrder: getSortVal(updated),
+            content: getContent(updated),
+          };
+          setItems((prev) =>
+            prev.map((x) => (x.sectionId === editing.sectionId ? patched : x))
+          );
+        } else {
+          await load();
+        }
+      } else {
+        const created = await ProductSectionsApi.create(
+          productId,
+          variantId,
+          dto
+        );
+        if (created && (created.sectionId || created.SectionId)) {
+          const norm = {
+            sectionId: getId(created),
+            title: getTitle(created),
+            sectionType: getType(created),
+            isActive: getActive(created),
+            sortOrder: getSortVal(created),
+            content: getContent(created),
+          };
+          setItems((prev) => [norm, ...prev]);
+          setTotal((t) => t + 1);
+        } else {
+          await load();
+        }
+      }
+      setShowModal(false);
+      setPage(1);
+    } catch (err) {
+      alert(err?.response?.data?.message || err.message);
     }
-    setShowModal(false);
-    setPage(1);
-    await load();
   };
 
   // ===== Paging helpers =====
@@ -140,14 +274,20 @@ export default function ProductSectionsPanel({
     const pages = [];
     const win = 2;
     const from = Math.max(1, page - win);
-    const to   = Math.min(totalPages, page + win);
-    if (from > 1) { pages.push(1); if (from > 2) pages.push("…L"); }
+    const to = Math.min(totalPages, page + win);
+    if (from > 1) {
+      pages.push(1);
+      if (from > 2) pages.push("…L");
+    }
     for (let i = from; i <= to; i++) pages.push(i);
-    if (to < totalPages) { if (to < totalPages - 1) pages.push("…R"); pages.push(totalPages); }
+    if (to < totalPages) {
+      if (to < totalPages - 1) pages.push("…R");
+      pages.push(totalPages);
+    }
     return pages;
   }, [page, totalPages]);
   const startIdx = total === 0 ? 0 : (page - 1) * size + 1;
-  const endIdx   = Math.min(total, page * size);
+  const endIdx = Math.min(total, page * size);
 
   // ===== Quill init/unmount mỗi khi mở modal =====
   React.useEffect(() => {
@@ -158,7 +298,8 @@ export default function ProductSectionsPanel({
     if (quillRef.current) {
       try {
         const container = quillRef.current.root?.parentNode?.parentNode;
-        if (container && container.parentNode) container.parentNode.innerHTML = "";
+        if (container && container.parentNode)
+          container.parentNode.innerHTML = "";
       } catch (_) {}
       quillRef.current = null;
     }
@@ -184,10 +325,12 @@ export default function ProductSectionsPanel({
         toolbar: {
           container: toolbarOptions,
           handlers: {
-            image: function () { imageInputRef.current && imageInputRef.current.click(); }
-          }
-        }
-      }
+            image: function () {
+              imageInputRef.current && imageInputRef.current.click();
+            },
+          },
+        },
+      },
     });
 
     if (fContent) q.clipboard.dangerouslyPasteHTML(fContent);
@@ -197,7 +340,8 @@ export default function ProductSectionsPanel({
       try {
         q.off("text-change");
         const container = q.root?.parentNode?.parentNode;
-        if (container && container.parentNode) container.parentNode.innerHTML = "";
+        if (container && container.parentNode)
+          container.parentNode.innerHTML = "";
       } catch (_) {}
       quillRef.current = null;
     };
@@ -238,7 +382,13 @@ export default function ProductSectionsPanel({
         <div className="panel-header" style={{ alignItems: "center" }}>
           <h4>
             Thông tin sản phẩm / Sections{" "}
-            <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                marginLeft: 8,
+              }}
+            >
               ({total})
             </span>
           </h4>
@@ -251,16 +401,30 @@ export default function ProductSectionsPanel({
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-            <select className="ctl" value={type} onChange={(e)=>setType(e.target.value)}>
+            <select
+              className="ctl"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
               <option value="">Tất cả loại</option>
-              {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              {TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
             </select>
-            <select className="ctl" value={active} onChange={(e)=>setActive(e.target.value)}>
+            <select
+              className="ctl"
+              value={active}
+              onChange={(e) => setActive(e.target.value)}
+            >
               <option value="">Tất cả trạng thái</option>
               <option value="true">Đang hiển thị</option>
               <option value="false">Đang ẩn</option>
             </select>
-            <button className="btn primary" onClick={openCreate}>+ Thêm section</button>
+            <button className="btn primary" onClick={openCreate}>
+              + Thêm section
+            </button>
           </div>
         </div>
 
@@ -273,26 +437,39 @@ export default function ProductSectionsPanel({
                 <table className="variants-table">
                   <colgroup>
                     <col style={{ width: "26%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "32%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
                     <col style={{ width: "8%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th onClick={() => headerSort("title")} style={{ cursor: "pointer" }}>
+                      <th
+                        onClick={() => headerSort("title")}
+                        style={{ cursor: "pointer" }}
+                      >
                         Tiêu đề{sortMark("title")}
                       </th>
-                      <th onClick={() => headerSort("type")} style={{ cursor: "pointer" }}>
+                      <th
+                        onClick={() => headerSort("type")}
+                        style={{ cursor: "pointer" }}
+                      >
                         Loại{sortMark("type")}
                       </th>
                       <th>Nội dung</th>
-                      <th onClick={() => headerSort("sort")} style={{ cursor: "pointer" }}>
+                      <th
+                        onClick={() => headerSort("sort")}
+                        style={{ cursor: "pointer" }}
+                      >
                         Thứ tự{sortMark("sort")}
                       </th>
-                      <th onClick={() => headerSort("updated")} style={{ cursor: "pointer" }}>
-                        Cập nhật{sortMark("updated")}
+                      {/* NEW: cột Trạng thái thay cho "Cập nhật" */}
+                      <th
+                        onClick={() => headerSort("active")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Trạng thái{sortMark("active")}
                       </th>
                       <th>Thao tác</th>
                     </tr>
@@ -300,29 +477,61 @@ export default function ProductSectionsPanel({
                   <tbody>
                     {items.map((r) => (
                       <tr key={r.sectionId}>
+                        {/* Tiêu đề: KHÔNG còn badge trạng thái ở đây */}
                         <td>
-                          <div style={{ fontWeight: 600 }}>{r.title || "—"}</div>
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {String(r.active ?? true) === "true" || r.active
-                              ? <span className="badge green">Hiển thị</span>
-                              : <span className="badge gray">Ẩn</span>}
+                          <div style={{ fontWeight: 600 }}>
+                            {r.title || "—"}
                           </div>
                         </td>
-                        <td>{typeLabel(r.type)}</td>
-                        <td title={snippet(r.content, 300)}>{snippet(r.content, 80)}</td>
-                        <td className="td-right">{Number(r.sort ?? 0)}</td>
-                        <td>{fmtDT(r.updatedAt || r.modifiedAt || r.createdAt)}</td>
+
+                        {/* Loại: đọc từ sectionType */}
+                        <td>{typeLabel(r.sectionType)}</td>
+
+                        {/* Nội dung: snippet */}
+                        <td title={snippet(r.content, 300)}>
+                          {snippet(r.content, 80)}
+                        </td>
+
+                        {/* Thứ tự */}
+                        <td className="td-right">{Number(r.sortOrder || 0)}</td>
+
+                        {/* NEW: Trạng thái riêng cột */}
+                        <td className="col-status">
+                          {r.isActive ? (
+                            <span className="badge green">Hiển thị</span>
+                          ) : (
+                            <span className="badge gray">Ẩn</span>
+                          )}
+                        </td>
+
+                        {/* Thao tác */}
                         <td className="td-actions td-left">
                           <div className="row" style={{ gap: 8 }}>
-                            <button className="action-btn edit-btn" title="Sửa" onClick={() => openEdit(r)}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <button
+                              className="action-btn edit-btn"
+                              title="Sửa"
+                              onClick={() => openEdit(r)}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
                                 <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
                                 <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
                               </svg>
                             </button>
 
-                            <button className="action-btn delete-btn" title="Xoá" onClick={() => onDelete(r.sectionId)}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <button
+                              className="action-btn delete-btn"
+                              title="Xoá"
+                              onClick={() => onDelete(r.sectionId)}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
                                 <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
                               </svg>
                             </button>
@@ -330,7 +539,7 @@ export default function ProductSectionsPanel({
                             <label className="switch" title="Bật/Tắt hiển thị">
                               <input
                                 type="checkbox"
-                                checked={!!(r.active ?? true)}
+                                checked={!!r.isActive}
                                 onChange={() => toggleActive(r)}
                               />
                               <span className="slider" />
@@ -341,7 +550,14 @@ export default function ProductSectionsPanel({
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 18 }}>
+                        <td
+                          colSpan={6}
+                          style={{
+                            textAlign: "center",
+                            color: "var(--muted)",
+                            padding: 18,
+                          }}
+                        >
                           Chưa có section nào.
                         </td>
                       </tr>
@@ -351,18 +567,35 @@ export default function ProductSectionsPanel({
               </div>
 
               {/* Footer phân trang */}
-              <div className="variants-footer" style={{ gap: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                className="variants-footer"
+                style={{
+                  gap: 12,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 <div className="muted">
                   Hiển thị {startIdx}-{endIdx} / {total}
                 </div>
 
-                <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div
+                  className="row"
+                  style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}
+                >
                   <div className="row" style={{ gap: 6, alignItems: "center" }}>
-                    <span className="muted" style={{ fontSize: 12 }}>Dòng/trang</span>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      Dòng/trang
+                    </span>
                     <select
                       className="ctl"
                       value={size}
-                      onChange={(e) => { setSize(Number(e.target.value)); setPage(1); }}
+                      onChange={(e) => {
+                        setSize(Number(e.target.value));
+                        setPage(1);
+                      }}
                     >
                       <option value={5}>5</option>
                       <option value={10}>10</option>
@@ -372,18 +605,37 @@ export default function ProductSectionsPanel({
                   </div>
 
                   <div className="row" style={{ gap: 6 }}>
-                    <button className="btn" disabled={page <= 1} onClick={() => goto(1)} title="Trang đầu">«</button>
-                    <button className="btn" disabled={page <= 1} onClick={() => goto(page - 1)} title="Trang trước">←</button>
+                    <button
+                      className="btn"
+                      disabled={page <= 1}
+                      onClick={() => goto(1)}
+                      title="Trang đầu"
+                    >
+                      «
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={page <= 1}
+                      onClick={() => goto(page - 1)}
+                      title="Trang trước"
+                    >
+                      ←
+                    </button>
 
                     {makePageList.map((pKey, idx) => {
-                      if (typeof pKey !== "number") return <span key={pKey + idx} className="muted">…</span>;
-                      const active = pKey === page;
+                      if (typeof pKey !== "number")
+                        return (
+                          <span key={pKey + idx} className="muted">
+                            …
+                          </span>
+                        );
+                      const activeP = pKey === page;
                       return (
                         <button
                           key={pKey}
-                          className={`btn ${active ? "primary" : ""}`}
+                          className={`btn ${activeP ? "primary" : ""}`}
                           onClick={() => goto(pKey)}
-                          disabled={active}
+                          disabled={activeP}
                           style={{ minWidth: 36 }}
                           title={`Trang ${pKey}`}
                         >
@@ -392,8 +644,22 @@ export default function ProductSectionsPanel({
                       );
                     })}
 
-                    <button className="btn" disabled={page >= totalPages} onClick={() => goto(page + 1)} title="Trang sau">→</button>
-                    <button className="btn" disabled={page >= totalPages} onClick={() => goto(totalPages)} title="Trang cuối">»</button>
+                    <button
+                      className="btn"
+                      disabled={page >= totalPages}
+                      onClick={() => goto(page + 1)}
+                      title="Trang sau"
+                    >
+                      →
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={page >= totalPages}
+                      onClick={() => goto(totalPages)}
+                      title="Trang cuối"
+                    >
+                      »
+                    </button>
                   </div>
                 </div>
               </div>
@@ -405,12 +671,24 @@ export default function ProductSectionsPanel({
       {/* ===== MODAL CREATE/EDIT ===== */}
       {showModal && (
         <div className="modal-backdrop">
-          <div className="modal" style={{ width: "min(920px, 96vw)", background: "var(--card)", borderRadius: 16, padding: 16 }}>
+          <div
+            className="modal"
+            style={{
+              width: "min(920px, 96vw)",
+              background: "var(--card)",
+              borderRadius: 16,
+              padding: 16,
+            }}
+          >
             <div className="modal-topbar">
-              <h3 style={{ margin: 0 }}>{editing ? "Sửa section" : "Thêm section"}</h3>
+              <h3 style={{ margin: 0 }}>
+                {editing ? "Sửa section" : "Thêm section"}
+              </h3>
               <div className="row" style={{ gap: 12, alignItems: "center" }}>
                 <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                  <span className="muted" style={{ fontSize: 12 }}>Hiển thị</span>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Hiển thị
+                  </span>
                   <label className="switch" title="Bật/Tắt hiển thị">
                     <input
                       type="checkbox"
@@ -428,17 +706,32 @@ export default function ProductSectionsPanel({
               <div className="grid cols-3">
                 <div className="group">
                   <span>Tiêu đề *</span>
-                  <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} required />
+                  <input
+                    value={fTitle}
+                    onChange={(e) => setFTitle(e.target.value)}
+                    required
+                  />
                 </div>
                 <div className="group">
                   <span>Loại *</span>
-                  <select value={fType} onChange={(e) => setFType(e.target.value)}>
-                    {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  <select
+                    value={fType}
+                    onChange={(e) => setFType(e.target.value)}
+                  >
+                    {TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="group">
                   <span>Thứ tự (sort)</span>
-                  <input type="number" value={fSort} onChange={(e) => setFSort(e.target.value)} />
+                  <input
+                    type="number"
+                    value={fSort}
+                    onChange={(e) => setFSort(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -455,9 +748,20 @@ export default function ProductSectionsPanel({
                 />
               </div>
 
-              <div className="row" style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}>
-                <button type="button" className="btn" onClick={() => setShowModal(false)}>Hủy</button>
-                <button type="submit" className="btn primary">{editing ? "Lưu" : "Thêm"}</button>
+              <div
+                className="row"
+                style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}
+              >
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowModal(false)}
+                >
+                  Hủy
+                </button>
+                <button type="submit" className="btn primary">
+                  {editing ? "Lưu" : "Thêm"}
+                </button>
               </div>
             </form>
           </div>
