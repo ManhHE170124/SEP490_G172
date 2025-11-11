@@ -868,18 +868,6 @@ export default function SupplierDetailPage() {
               />
             </div>
             <div className="form-row">
-              <label>Ngày hiệu lực</label>
-              <input
-                className="input"
-                type="date"
-                value={packageForm.effectiveDate}
-                onChange={(e) =>
-                  handlePackageFormChange("effectiveDate", e.target.value)
-                }
-                disabled={supplierInfo?.status !== "Active"}
-              />
-            </div>
-            <div className="form-row">
               <label>&nbsp;</label>
               <button
                 className="btn primary"
@@ -898,7 +886,6 @@ export default function SupplierDetailPage() {
                 <th>Sản phẩm</th>
                 <th>Số lượng</th>
                 <th>Giá/gói</th>
-                <th>Hiệu lực</th>
                 <th>Đã nhập kho</th>
                 <th>Còn lại</th>
                 <th>Thao tác</th>
@@ -925,7 +912,6 @@ export default function SupplierDetailPage() {
                     <td>{pkg.productName}</td>
                     <td>{pkg.quantity}</td>
                     <td>{pkg.pricePerUnit.toLocaleString("vi-VN")}</td>
-                    <td>{formatDate(pkg.effectiveDate)}</td>
                     <td>{pkg.importedToStock}</td>
                     <td>{pkg.remainingQuantity}</td>
                     <td>

@@ -93,6 +93,15 @@ public interface ISupplierService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets suppliers that provide a specific product
+    /// </summary>
+    /// <param name="productId">Product identifier</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<IEnumerable<SupplierListDto>> GetSuppliersByProductAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks if supplier name already exists
     /// </summary>
     /// <param name="name">Supplier name</param>

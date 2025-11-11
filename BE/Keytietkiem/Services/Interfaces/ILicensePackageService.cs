@@ -107,6 +107,29 @@ public interface ILicensePackageService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates a new license package for a product and imports keys from CSV in a single step
+    /// </summary>
+    /// <param name="productId">Product identifier</param>
+    /// <param name="supplierId">Supplier identifier</param>
+    /// <param name="pricePerUnit">Cost per unit (COGS)</param>
+    /// <param name="file">CSV file containing license keys</param>
+    /// <param name="actorId">User ID performing the action</param>
+    /// <param name="actorEmail">User email performing the action</param>
+    /// <param name="keyType">Product key type</param>
+    /// <param name="expiryDate">Optional expiry date</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<CsvUploadResultDto> CreatePackageAndUploadCsvAsync(
+        Guid productId,
+        int supplierId,
+        decimal pricePerUnit,
+        IFormFile file,
+        Guid actorId,
+        string actorEmail,
+        string keyType,
+        DateTime? expiryDate = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets all license keys imported from a specific package
     /// </summary>
     /// <param name="packageId">Package identifier</param>

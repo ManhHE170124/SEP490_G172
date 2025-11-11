@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
@@ -29,6 +29,7 @@ export default function KeyDetailPage() {
     keyString: "",
     type: "Individual",
     status: "Available",
+    cogsPrice: "",
     expiryDate: "",
     notes: "",
   });
@@ -40,6 +41,11 @@ export default function KeyDetailPage() {
     onConfirm: null,
     type: "warning",
   });
+
+  const minExpiryDate = useMemo(
+    () => new Date().toISOString().split("T")[0],
+    []
+  );
 
   const loadProductKey = useCallback(async () => {
     if (!id || id === "add") return;
@@ -54,6 +60,10 @@ export default function KeyDetailPage() {
         keyString: data.keyString,
         type: data.type,
         status: data.status,
+        cogsPrice:
+          data.cogsPrice !== undefined && data.cogsPrice !== null
+            ? data.cogsPrice.toString()
+            : "",
         expiryDate: data.expiryDate
           ? new Date(data.expiryDate).toISOString().split("T")[0]
           : "",
@@ -127,10 +137,35 @@ export default function KeyDetailPage() {
       newErrors.notes = "Ghi chú không được vượt quá 1000 ký tự";
     }
 
+    const parsedCogs = parseFloat(formData.cogsPrice);
+    if (isNew) {
+      if (formData.cogsPrice === "" || Number.isNaN(parsedCogs)) {
+        newErrors.cogsPrice = "Giá vốn (COGS) là bắt buộc";
+      } else if (parsedCogs < 0) {
+        newErrors.cogsPrice = "Giá vốn không được âm";
+      }
+    } else if (
+      formData.cogsPrice &&
+      (Number.isNaN(parsedCogs) || parsedCogs < 0)
+    ) {
+      newErrors.cogsPrice = "Giá vốn không được âm";
+    }
+
+    if (isNew && formData.expiryDate) {
+      const [year, month, day] = formData.expiryDate
+        .split("-")
+        .map((value) => parseInt(value, 10));
+      const selectedDate = new Date(year, month - 1, day);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        newErrors.expiryDate = "Ngày hết hạn không được trong quá khứ";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -142,9 +177,11 @@ export default function KeyDetailPage() {
     setSaving(true);
     try {
       if (isNew) {
+        const cogsPriceValue = parseFloat(formData.cogsPrice);
         await ProductKeyApi.create({
           ...formData,
           expiryDate: formData.expiryDate || null,
+          cogsPrice: Number.isNaN(cogsPriceValue) ? null : cogsPriceValue,
         });
         showSuccess("Thành công", "Key đã được tạo thành công");
         navigate("/keys");
@@ -367,17 +404,42 @@ export default function KeyDetailPage() {
               </div>
             )}
 
+            {isNew && (
+              <div className="form-row">
+                <label>Giá vốn (COGS)</label>
+                <div>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.cogsPrice}
+                    onChange={(e) => handleChange("cogsPrice", e.target.value)}
+                    placeholder="Nhập giá vốn (COGS)"
+                  />
+                  {errors.cogsPrice && (
+                    <small style={{ color: "red" }}>{errors.cogsPrice}</small>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="form-row">
               <label>Ngày hết hạn</label>
-              <input
-                className="input"
-                type="date"
-                value={formData.expiryDate}
-                onChange={(e) => handleChange("expiryDate", e.target.value)}
-                disabled={!isNew}
-              />
+              <div>
+                <input
+                  className="input"
+                  type="date"
+                  min={minExpiryDate}
+                  value={formData.expiryDate}
+                  onChange={(e) => handleChange("expiryDate", e.target.value)}
+                  disabled={!isNew}
+                />
+                {errors.expiryDate && (
+                  <small style={{ color: "red" }}>{errors.expiryDate}</small>
+                )}
+              </div>
             </div>
-
             <div className="form-row" style={{ gridColumn: "1 / -1" }}>
               <label>Ghi chú</label>
               <div>

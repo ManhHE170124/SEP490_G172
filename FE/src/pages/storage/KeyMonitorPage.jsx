@@ -26,7 +26,16 @@ export default function KeyMonitorPage() {
   const [expiryDate, setExpiryDate] = useState("");
   const [suppliers, setSuppliers] = useState([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [cogsPrice, setCogsPrice] = useState("");
   const [uploading, setUploading] = useState(false);
+  const minExpiryDate = useMemo(
+    () => new Date().toISOString().split("T")[0],
+    []
+  );
+  const isCogsPriceValid = useMemo(() => {
+    const parsed = parseFloat(cogsPrice);
+    return Number.isFinite(parsed) && parsed > 0;
+  }, [cogsPrice]);
   // Mock: customer reported issues list
   const customerIssues = useMemo(
     () => [
@@ -149,15 +158,23 @@ export default function KeyMonitorPage() {
     setKeyType("Individual");
     setExpiryDate("");
     setSelectedSupplierId("");
+    setCogsPrice("");
     // Load suppliers for selection
     try {
-      const s = await SupplierApi.list({
-        status: "Active",
-        pageNumber: 1,
-        pageSize: 100,
-      });
-      setSuppliers(s.items || s.data || []);
+      const response = await SupplierApi.listByProduct(product.productId);
+      const mapped = Array.isArray(response)
+        ? response
+        : response?.items || response?.data || [];
+      setSuppliers(mapped);
+      if (!mapped?.length) {
+        showError(
+          "Chưa có nhà cung cấp",
+          "Không tìm thấy nhà cung cấp phù hợp cho sản phẩm này"
+        );
+      }
     } catch (e) {
+      console.error("Failed to load suppliers for product:", e);
+      showError("Lỗi tải nhà cung cấp", "Không thể tải danh sách nhà cung cấp");
       setSuppliers([]);
     }
     setShowImportModal(true);
@@ -168,6 +185,7 @@ export default function KeyMonitorPage() {
     setCsvFile(null);
     setExpiryDate("");
     setSelectedSupplierId("");
+    setCogsPrice("");
   };
   const handleCsvChange = (e) => {
     const f = e.target.files?.[0];
@@ -183,6 +201,23 @@ export default function KeyMonitorPage() {
       showError("Thiếu dữ liệu", "Chọn nhà cung cấp và file CSV");
       return;
     }
+    const parsedCogs = parseFloat(cogsPrice);
+    if (!Number.isFinite(parsedCogs) || parsedCogs <= 0) {
+      showError("Giá vốn không hợp lệ", "Nhập giá vốn lớn hơn 0");
+      return;
+    }
+    if (expiryDate) {
+      const selected = new Date(expiryDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selected < today) {
+        showError(
+          "Ngày hết hạn không hợp lệ",
+          "Không thể chọn ngày trong quá khứ"
+        );
+        return;
+      }
+    }
     setUploading(true);
     try {
       const form = new FormData();
@@ -190,8 +225,8 @@ export default function KeyMonitorPage() {
       form.append("productId", importProduct.productId);
       form.append("supplierId", selectedSupplierId);
       form.append("keyType", keyType);
+      form.append("cogsPrice", parsedCogs);
       if (expiryDate) form.append("expiryDate", expiryDate);
-      // New API endpoint on backend (wrapper added in ProductKeyApi)
       await ProductKeyApi.importCsv(form);
       showSuccess("Thành công", "Đã nhập key từ CSV vào kho");
       closeImportModal();
@@ -446,6 +481,18 @@ export default function KeyMonitorPage() {
                   </select>
                 </div>
                 <div className="form-row">
+                  <label>Giá vốn / key</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="VD: 120000"
+                    value={cogsPrice}
+                    onChange={(e) => setCogsPrice(e.target.value)}
+                  />
+                </div>
+                <div className="form-row">
                   <label>File CSV</label>
                   <input
                     className="input"
@@ -470,6 +517,7 @@ export default function KeyMonitorPage() {
                   <input
                     className="input"
                     type="date"
+                    min={minExpiryDate}
                     value={expiryDate}
                     onChange={(e) => setExpiryDate(e.target.value)}
                   />
@@ -488,7 +536,12 @@ export default function KeyMonitorPage() {
               <button
                 className="btn primary"
                 onClick={handleUploadCsv}
-                disabled={uploading || !csvFile || !selectedSupplierId}
+                disabled={
+                  uploading ||
+                  !csvFile ||
+                  !selectedSupplierId ||
+                  !isCogsPriceValid
+                }
               >
                 {uploading ? "Đang upload..." : "Upload"}
               </button>
