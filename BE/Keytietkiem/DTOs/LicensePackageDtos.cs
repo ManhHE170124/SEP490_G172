@@ -21,8 +21,6 @@ public class CreateLicensePackageDto
     [Range(0, double.MaxValue, ErrorMessage = "Giá phải lớn hơn hoặc bằng 0")]
     public decimal PricePerUnit { get; set; }
 
-    public DateTime? EffectiveDate { get; set; }
-
     [StringLength(500, ErrorMessage = "Ghi chú không được vượt quá 500 ký tự")]
     public string? Notes { get; set; }
 }
@@ -40,8 +38,6 @@ public class UpdateLicensePackageDto
 
     [Range(0, double.MaxValue, ErrorMessage = "Giá phải lớn hơn hoặc bằng 0")]
     public decimal? PricePerUnit { get; set; }
-
-    public DateTime? EffectiveDate { get; set; }
 
     [StringLength(500, ErrorMessage = "Ghi chú không được vượt quá 500 ký tự")]
     public string? Notes { get; set; }
@@ -61,7 +57,6 @@ public class LicensePackageResponseDto
     public decimal PricePerUnit { get; set; }
     public int ImportedToStock { get; set; }
     public int RemainingQuantity { get; set; }
-    public DateTime? EffectiveDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public string? Notes { get; set; }
 }
@@ -78,7 +73,6 @@ public class LicensePackageListDto
     public decimal PricePerUnit { get; set; }
     public int ImportedToStock { get; set; }
     public int RemainingQuantity { get; set; }
-    public DateTime? EffectiveDate { get; set; }
 }
 
 /// <summary>

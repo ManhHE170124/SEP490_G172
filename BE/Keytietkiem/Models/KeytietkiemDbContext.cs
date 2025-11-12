@@ -179,7 +179,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.EffectiveDate).HasPrecision(3);
             entity.Property(e => e.Notes).HasMaxLength(500);
             entity.Property(e => e.PricePerUnit).HasColumnType("decimal(12, 2)");
 
@@ -440,6 +439,7 @@ public partial class KeytietkiemDbContext : DbContext
                         .HasDefaultValue("Active");
                     entity.Property(e => e.ExpiryDate).HasPrecision(3);
                     entity.Property(e => e.Notes).HasMaxLength(1000);
+                    entity.Property(e => e.CogsPrice).HasColumnType("decimal(12, 2)");
                     entity.Property(e => e.CreatedAt)
                         .HasPrecision(3)
                         .HasDefaultValueSql("(sysutcdatetime())");

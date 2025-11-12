@@ -35,6 +35,7 @@ public record BadgeListItemDto(
 
 );
 
+
 public record BadgeCreateDto(
     string BadgeCode,
     string DisplayName,

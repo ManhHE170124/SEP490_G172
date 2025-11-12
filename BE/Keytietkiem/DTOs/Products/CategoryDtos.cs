@@ -49,6 +49,8 @@ public record CategoryDetailDto(
       int ProductCount
 );
 
+
+
 public record CategoryCreateDto(
     string CategoryCode,
     string CategoryName,

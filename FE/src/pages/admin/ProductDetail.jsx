@@ -3,12 +3,21 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
+import VariantsPanel from "../admin/VariantsPanel";
+import FaqsPanel from "../admin/FaqsPanel";
 import "./admin.css";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const productId = id;
   const nav = useNavigate();
+const normalizeList = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.result)) return data.result;
+  return [];
+};
 
   // loading/ui
   const [loading, setLoading] = React.useState(true);
@@ -26,6 +35,8 @@ export default function ProductDetail() {
   const [newPreviews, setNewPreviews] = React.useState([]);
   const [deleteImageIds, setDeleteImageIds] = React.useState([]);
   const [primaryIndex, setPrimaryIndex] = React.useState(null);
+const catsList = React.useMemo(() => normalizeList(cats), [cats]);
+const badgesList = React.useMemo(() => normalizeList(badges), [badges]);
 
 
 
@@ -76,8 +87,8 @@ export default function ProductDetail() {
         BadgesApi.list({ active: true }),
       ]);
 
-      setCats(catList || []);
-      setBadges(badgeList || []);
+    setCats(normalizeList(catList));
+    setBadges(normalizeList(badgeList));
 
       if (!dto) {
         setNotFound(true);
@@ -110,6 +121,7 @@ export default function ProductDetail() {
         categoryIds: ids,
         categoryId: dto.categoryId ?? null,
       }));
+
 
       const imgs = (dto.images || []).map((i) => ({
         imageId: i.imageId ?? i.ImageId,
@@ -287,223 +299,139 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* GRID 2 cột */}
-        <div className="grid cols-2 input-group">
-          {/* HÀNG 1: Tên + Mã */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Tên sản phẩm</span>
-            <input
-              value={form.productName}
-              onChange={(e) => set("productName", e.target.value)}
-              placeholder="VD: Microsoft 365 Family"
-            />
-          </div>
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Mã định danh sản phẩm</span>
-            <input
-              value={form.productCode}
-              onChange={(e) => set("productCode", e.target.value)}
-              placeholder="VD: OFF_365_FAM"
-            />
-          </div>
+<div className="grid cols-3 input-group" style={{ gridColumn: "1 / 3" }}>
+  <div className="group">
+    <span>Tên sản phẩm</span>
+    <input
+      value={form.productName}
+      onChange={(e) => set("productName", e.target.value)}
+      placeholder="VD: Microsoft 365 Family"
+    />
+  </div>
 
-          {/* HÀNG 2: Loại + Bảo hành */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Loại</span>
-            <select
-              value={form.productType}
-              onChange={(e) => set("productType", e.target.value)}
-            >
-              <option value="PERSONAL_KEY">Mã cá nhân</option>
-              <option value="SHARED_KEY">Mã dùng chung</option>
-              <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
-              <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
-            </select>
-          </div>
+  <div className="group">
+    <span>Mã định danh sản phẩm</span>
+    <input
+      value={form.productCode}
+      onChange={(e) => set("productCode", e.target.value)}
+      placeholder="VD: OFF_365_FAM"
+    />
+  </div>
 
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Bảo hành (ngày)</span>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={form.warrantyDays}
-              onChange={(e) =>
-                set("warrantyDays", Number(e.target.value) || 0)
-              }
-              placeholder="VD: 365"
-            />
-          </div>
+  <div className="group">
+    <span>Loại</span>
+    <select
+      value={form.productType}
+      onChange={(e) => set("productType", e.target.value)}
+    >
+      <option value="PERSONAL_KEY">Mã cá nhân</option>
+      <option value="SHARED_KEY">Mã dùng chung</option>
+      <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
+      <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
+    </select>
+  </div>
+</div>
 
-          {/* HÀNG 3: Danh mục + Nhãn */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <div className={`panel ${!showCats ? "collapsed" : ""}`}>
-              <div
-                className="panel-header"
-                onClick={() => setShowCats((s) => !s)}
-              >
-                <h4>
-                  Danh mục sản phẩm{" "}
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--muted)",
-                      marginLeft: 8,
-                    }}
-                  >
-                    ({cats.length})
-                  </span>
-                </h4>
-                <div className="caret">▾</div>
+
+         {/* HÀNG 2.5: Loại + Danh mục + Nhãn (3 cột cùng hàng) */}
+<div className="grid cols-2 input-group" style={{ gridColumn: "1 / 3" }}>
+
+  {/* Danh mục */}
+  <div className="group">
+    <div className={`panel ${!showCats ? "collapsed" : ""}`}>
+      <div className="panel-header" onClick={() => setShowCats((s) => !s)}>
+        <h4>
+          Danh mục sản phẩm{" "}
+          <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
+            ({catsList.length})
+          </span>
+        </h4>
+        <div className="caret">▾</div>
+      </div>
+      {showCats && (
+        <div className="panel-body">
+          {catsList.map((c) => (
+            <div key={c.categoryId} className="list-row">
+              <div className="left">
+                {c.thumbnailUrl ? <img src={c.thumbnailUrl} alt="" /> : <div style={{ width: 36, height: 36, background: "#f3f4f6", borderRadius: 6 }} />}
+                <div>{c.categoryName}</div>
               </div>
-              {showCats && (
-                <div className="panel-body">
-                  {cats.map((c) => (
-                    <div key={c.categoryId} className="list-row">
-                      <div className="left">
-                        {c.thumbnailUrl ? (
-                          <img src={c.thumbnailUrl} alt="" />
-                        ) : (
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              background: "#f3f4f6",
-                              borderRadius: 6,
-                            }}
-                          />
-                        )}
-                        <div>{c.categoryName}</div>
-                      </div>
-                      <div>
-                        <label className="switch">
-                          <input
-                            type="checkbox"
-                            checked={(form.categoryIds || []).includes(
-                              c.categoryId
-                            )}
-                            onChange={(e) => {
-                              const prev = form.categoryIds || [];
-                              if (e.target.checked)
-                                set(
-                                  "categoryIds",
-                                  Array.from(
-                                    new Set([...prev, c.categoryId])
-                                  )
-                                );
-                              else
-                                set(
-                                  "categoryIds",
-                                  prev.filter((x) => x !== c.categoryId)
-                                );
-                            }}
-                          />
-                          <span className="slider" />
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <div className={`panel ${!showBadgesPanel ? "collapsed" : ""}`}>
-              <div
-                className="panel-header"
-                onClick={() => setShowBadgesPanel((s) => !s)}
-              >
-                <h4>
-                  Nhãn sản phẩm{" "}
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--muted)",
-                      marginLeft: 8,
+              <div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={(form.categoryIds || []).includes(c.categoryId)}
+                    onChange={(e) => {
+                      const prev = form.categoryIds || [];
+                      set(
+                        "categoryIds",
+                        e.target.checked
+                          ? Array.from(new Set([...prev, c.categoryId]))
+                          : prev.filter((x) => x !== c.categoryId)
+                      );
                     }}
-                  >
-                    ({badges.length})
-                  </span>
-                </h4>
-                <div className="caret">▾</div>
+                  />
+                  <span className="slider" />
+                </label>
               </div>
-
-              {showBadgesPanel && (
-                <div className="panel-body">
-                  {badges.map((b) => {
-                    const color = getBadgeColor(b);
-                    const name = getBadgeName(b);
-                    const code = b?.badgeCode ?? name;
-                    return (
-                      <div key={code} className="list-row">
-                        <div className="left">
-                          <span
-                            className="label-chip"
-                            style={{
-                              backgroundColor: color,
-                              color: "#fff",
-                              padding: "4px 10px",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              display: "inline-block",
-                            }}
-                            title={name}
-                          >
-                            {name}
-                          </span>
-                        </div>
-                        <div>
-                          <label className="switch">
-                            <input
-                              type="checkbox"
-                              checked={(form.badgeCodes || []).includes(
-                                code
-                              )}
-                              onChange={(e) => {
-                                const prev = form.badgeCodes || [];
-                                if (e.target.checked)
-                                  set(
-                                    "badgeCodes",
-                                    Array.from(new Set([...prev, code]))
-                                  );
-                                else
-                                  set(
-                                    "badgeCodes",
-                                    prev.filter((x) => x !== code)
-                                  );
-                              }}
-                            />
-                            <span className="slider" />
-                          </label>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
-          </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
 
-          {/* KHÔNG CÒN INPUT GIÁ BÁN */}
-
-          {/* Mô tả ngắn + dài */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Mô tả ngắn</span>
-            <textarea
-              value={form.shortDesc || ""}
-              onChange={(e) => set("shortDesc", e.target.value)}
-              placeholder="Hiển thị trong danh sách…"
-            />
-          </div>
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Mô tả chi tiết</span>
-            <textarea
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Nội dung landing sản phẩm…"
-            />
-          </div>
+  {/* Nhãn */}
+  <div className="group">
+    <div className={`panel ${!showBadgesPanel ? "collapsed" : ""}`}>
+      <div className="panel-header" onClick={() => setShowBadgesPanel((s) => !s)}>
+        <h4>
+          Nhãn sản phẩm{" "}
+          <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
+            ({badgesList.length})
+          </span>
+        </h4>
+        <div className="caret">▾</div>
+      </div>
+      {showBadgesPanel && (
+        <div className="panel-body">
+          {badgesList.map((b) => {
+            const color = getBadgeColor(b);
+            const name = getBadgeName(b);
+            const code = b?.badgeCode ?? name;
+            return (
+              <div key={code} className="list-row">
+                <div className="left">
+                  <span className="label-chip" style={{ backgroundColor: color, color: "#fff", padding: "4px 10px", borderRadius: 8, fontSize: 12 }}>
+                    {name}
+                  </span>
+                </div>
+                <div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={(form.badgeCodes || []).includes(code)}
+                      onChange={(e) => {
+                        const prev = form.badgeCodes || [];
+                        set(
+                          "badgeCodes",
+                          e.target.checked
+                            ? Array.from(new Set([...prev, code]))
+                            : prev.filter((x) => x !== code)
+                        );
+                      }}
+                    />
+                    <span className="slider" />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </div>
+</div>
 
           {/* Ảnh sản phẩm */}
           <div className="group" style={{ gridColumn: "1 / 3" }}>
@@ -727,8 +655,14 @@ export default function ProductDetail() {
               </div>
             )}
           </div>
-        </div>
-
+          <div className="group" style={{ gridColumn:"1 / 3" }}>
+ <VariantsPanel
+  productId={productId}
+  productName={form.productName}
+  productCode={form.productCode}
+/>
+ <FaqsPanel productId={productId} />
+</div>
         {/* ACTIONS */}
         <div className="row" style={{ marginTop: 12 }}>
           <button className="btn primary" disabled={saving} onClick={save}>

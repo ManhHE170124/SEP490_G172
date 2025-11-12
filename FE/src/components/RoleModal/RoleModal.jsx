@@ -30,6 +30,21 @@ const RoleModal = ({
 }) => {
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
+  
+  // Utility: generate slug from text
+  const toSlug = (text) => {
+    if (!text) return "";
+    return text
+      .normalize('NFD')
+      // remove combining diacritical marks only (keep base letters)
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .toLowerCase();
+  };
 
   
   /**
@@ -41,6 +56,13 @@ const RoleModal = ({
       const initialData = {};
       fields.forEach(field => {
         initialData[field.name] = field.defaultValue || (field.type === 'checkbox' ? false : '');
+      });
+      // If any field declares syncWith, compute its initial value
+      fields.forEach(field => {
+        if (field.syncWith) {
+          const sourceVal = initialData[field.syncWith] || '';
+          initialData[field.name] = toSlug(sourceVal);
+        }
       });
       setFormData(initialData);
       setErrors({});
@@ -65,6 +87,14 @@ const RoleModal = ({
         [name]: ''
       }));
     }
+    // If this field is a source for any synced fields, update them
+    fields.forEach(f => {
+      if (f.syncWith === name) {
+        const slugName = f.name;
+        const newSlug = toSlug(value);
+        setFormData(prev => ({ ...prev, [slugName]: newSlug }));
+      }
+    });
   };
 
   /**
@@ -149,6 +179,7 @@ const RoleModal = ({
                   value={formData[field.name] || ''}
                   onChange={(e) => handleInputChange(field.name, e.target.value)}
                   placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
+                  disabled={field.disabled}
                 />
               )}
               

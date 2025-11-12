@@ -5,10 +5,8 @@ import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
-
 export default function ProductAdd() {
   const nav = useNavigate();
-
   // ===== Toasts =====
   const [toasts, setToasts] = React.useState([]);
   const removeToast = React.useCallback(
@@ -62,25 +60,35 @@ export default function ProductAdd() {
   });
 
   React.useEffect(() => {
-    CategoryApi.list({ active: true })
-      .then(setCats)
-      .catch((e) =>
-        addToast(
-          "error",
-          "Lỗi tải danh mục",
-          e?.response?.data?.message || e.message
-        )
-      );
-    BadgesApi.list({ active: true })
-      .then(setBadges)
-      .catch((e) =>
-        addToast(
-          "error",
-          "Lỗi tải nhãn",
-          e?.response?.data?.message || e.message
-        )
-      );
-  }, [addToast]);
+  CategoryApi.list({ active: true })
+    .then((data) => {
+      const arr = Array.isArray(data) ? data
+        : Array.isArray(data?.items)  ? data.items
+        : Array.isArray(data?.data)   ? data.data
+        : Array.isArray(data?.result) ? data.result
+        : [];
+      setCats(arr);
+    })
+    .catch((e) => {
+      setCats([]); // fallback an toàn
+      addToast("error","Lỗi tải danh mục", e?.response?.data?.message || e.message);
+    });
+
+  BadgesApi.list({ active: true })
+    .then((data) => {
+      const arr = Array.isArray(data) ? data
+        : Array.isArray(data?.items)  ? data.items
+        : Array.isArray(data?.data)   ? data.data
+        : Array.isArray(data?.result) ? data.result
+        : [];
+      setBadges(arr);
+    })
+    .catch((e) => {
+      setBadges([]); // fallback an toàn
+      addToast("error","Lỗi tải nhãn", e?.response?.data?.message || e.message);
+    });
+}, [addToast]);
+
 
   React.useEffect(() => {
     return () => {
@@ -143,21 +151,12 @@ export default function ProductAdd() {
       setSaving(true);
       const payload = { ...form, status: publish ? form.status : "INACTIVE" };
       payload.badgeCodes = payload.badgeCodes ?? [];
-      if (!payload.expiryDate) payload.expiryDate = null;
-
-      // nếu muốn, có thể auto gán salePrice/costPrice = 0 hoặc logic khác
-      payload.salePrice = payload.salePrice || 0;
-      payload.costPrice = payload.costPrice || 0;
-
-      if (selectedFiles && selectedFiles.length > 0) {
-        await ProductApi.createWithImages(
-          payload,
-          selectedFiles,
-          primaryIndex
-        );
-      } else {
-        await ProductApi.create(payload);
-      }
+      let created;
+ if (selectedFiles && selectedFiles.length > 0) {
+   created = await ProductApi.createWithImages(payload, selectedFiles, primaryIndex);
+ } else {
+   created = await ProductApi.create(payload);
+ }
 
       addToast(
         "success",
@@ -166,8 +165,11 @@ export default function ProductAdd() {
           ? "Sản phẩm đã hiển thị trên website"
           : "Bạn có thể xuất bản sau"
       );
-
-      setTimeout(() => nav("/admin/products"), 400);
+if (created?.productId) {
+   nav(`/admin/products/${created.productId}`);
+ } else {
+   nav("/admin/products");
+ }
     } catch (e) {
       addToast(
         "error",
@@ -178,6 +180,22 @@ export default function ProductAdd() {
       setSaving(false);
     }
   };
+  
+const catsList = React.useMemo(() => (
+  Array.isArray(cats) ? cats
+  : Array.isArray(cats?.items)  ? cats.items
+  : Array.isArray(cats?.data)   ? cats.data
+  : Array.isArray(cats?.result) ? cats.result
+  : []
+), [cats]);
+
+const badgesList = React.useMemo(() => (
+  Array.isArray(badges) ? badges
+  : Array.isArray(badges?.items)  ? badges.items
+  : Array.isArray(badges?.data)   ? badges.data
+  : Array.isArray(badges?.result) ? badges.result
+  : []
+), [badges]);
 
   return (
     <div className="page">
@@ -255,20 +273,6 @@ export default function ProductAdd() {
             </select>
           </div>
 
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Bảo hành (ngày)</span>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={form.warrantyDays}
-              onChange={(e) =>
-                set("warrantyDays", Number(e.target.value) || 0)
-              }
-              placeholder="VD: 365"
-            />
-          </div>
-
           {/* HÀNG 3: Danh mục + Nhãn */}
           <div className="group" style={{ gridColumn: "1 / 2" }}>
             <div className={`panel ${!showCats ? "collapsed" : ""}`}>
@@ -285,15 +289,15 @@ export default function ProductAdd() {
                       marginLeft: 8,
                     }}
                   >
-                    ({cats.length})
+({catsList.length})
                   </span>
                 </h4>
                 <div className="caret">▾</div>
               </div>
               {showCats && (
                 <div className="panel-body">
-                  {cats.map((c) => (
-                    <div key={c.categoryId} className="list-row">
+{catsList.map((c) => (
+                      <div key={c.categoryId} className="list-row">
                       <div className="left">
                         {c.thumbnailUrl ? (
                           <img src={c.thumbnailUrl} alt="" />
@@ -357,7 +361,7 @@ export default function ProductAdd() {
                       marginLeft: 8,
                     }}
                   >
-                    ({badges.length})
+({badgesList.length})
                   </span>
                 </h4>
                 <div className="caret">▾</div>
@@ -423,27 +427,6 @@ export default function ProductAdd() {
               )}
             </div>
           </div>
-
-          {/* KHÔNG CÒN Ô GIÁ BÁN */}
-
-          {/* Mô tả ngắn + chi tiết */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Mô tả ngắn</span>
-            <textarea
-              value={form.shortDesc || ""}
-              onChange={(e) => set("shortDesc", e.target.value)}
-              placeholder="Hiển thị trong danh sách…"
-            />
-          </div>
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Mô tả chi tiết</span>
-            <textarea
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Nội dung landing sản phẩm…"
-            />
-          </div>
-
           {/* Ảnh sản phẩm */}
           <div className="group" style={{ gridColumn: "1 / 3" }}>
             <span>Ảnh sản phẩm</span>
@@ -632,6 +615,7 @@ export default function ProductAdd() {
               </div>
             </div>
           </div>
+          
         </div>
 
         {/* ACTIONS */}

@@ -31,6 +31,8 @@ public partial class ProductAccount
     public DateTime UpdatedAt { get; set; }
 
     public Guid? UpdatedBy { get; set; }
+    
+    public decimal CogsPrice { get; set; }
 
     // Navigation properties
     public virtual Product Product { get; set; } = null!;
