@@ -49,12 +49,19 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of posts
          */
         [HttpGet]
-        public async Task<IActionResult> GetPosts()
+        public async Task<IActionResult> GetPosts([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
-            var posts = await _context.Posts
+            var skip = (page - 1) * pageSize;
+            var query = _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
-                .Include(p => p.Tags)
+                .Include(p => p.Tags);
+
+            var total = await query.CountAsync();
+            var posts = await query
+                .OrderByDescending(p => p.CreatedAt)
+                .Skip(skip)
+                .Take(pageSize)
                 .Select(p => new PostListItemDTO
                 {
                     PostId = p.PostId,
@@ -78,7 +85,16 @@ namespace Keytietkiem.Controllers
                     }).ToList()
                 })
                 .ToListAsync();
-            return Ok(posts);
+
+            var result = new PostListItemPagedDTO
+            {
+                Data = posts,
+                Total = total,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return Ok(result);
         }
 
         /**

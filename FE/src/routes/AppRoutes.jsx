@@ -54,6 +54,8 @@ import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
 import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
 import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
+//Blog(Client)
+import BlogList from "../pages/blog/Bloglist.jsx";
 
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -73,9 +75,9 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* Default Access Routes */}
-      <Route path="/" element={<ClientLayout> <LoginPage /> </ClientLayout> } />
+      <Route path="/" element={<ClientLayout> <LoginPage /> </ClientLayout>} />
 
-      <Route path="/login" element={ <ClientLayout> <LoginPage /> </ClientLayout> } />
+      <Route path="/login" element={<ClientLayout> <LoginPage /> </ClientLayout>} />
       <Route path="/register" element={<ClientLayout> <SignUpPage /></ClientLayout>} />
       <Route path="/forgot-password" element={<ClientLayout> <ForgotPasswordPage /></ClientLayout>} />
       <Route path="/check-reset-email" element={<ClientLayout> <CheckEmailPage /></ClientLayout>} />
@@ -96,7 +98,7 @@ export default function AppRoutes() {
 
       {/* Products */}
       <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
-      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout> }/>
+      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout>} />
       <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
 
       {/* Categories */}
@@ -110,20 +112,20 @@ export default function AppRoutes() {
       {/* Client/Public Routes */}
 
       {/* Admin Routes */}
-      <Route path="/admin-dashboard" element={ <AdminLayout> <Page404 /> </AdminLayout> } />
-      <Route path="/admin/users" element={ <AdminLayout> <AdminUserManagement /> </AdminLayout> } />
-      <Route path="/admin-user-management" element={ <AdminLayout> <AdminUserManagement /> </AdminLayout> } />
-      <Route path="/role-manage" element={ <AdminLayout> <RoleManage /> </AdminLayout> } />
-      <Route path="/role-assign" element={ <AdminLayout> <RoleAssign /> </AdminLayout> } />
+      <Route path="/admin-dashboard" element={<AdminLayout> <Page404 /> </AdminLayout>} />
+      <Route path="/admin/users" element={<AdminLayout> <AdminUserManagement /> </AdminLayout>} />
+      <Route path="/admin-user-management" element={<AdminLayout> <AdminUserManagement /> </AdminLayout>} />
+      <Route path="/role-manage" element={<AdminLayout> <RoleManage /> </AdminLayout>} />
+      <Route path="/role-assign" element={<AdminLayout> <RoleAssign /> </AdminLayout>} />
       {/* Post Routes */}
-      <Route path="admin-post-list" element={ <AdminLayout> <AdminPostList /> </AdminLayout> } />
-      <Route path="post-create-edit" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
-      <Route path="post-create-edit/:postId" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
-      <Route path="tag-post-type-manage" element={ <AdminLayout> <TagPostTypeManage /> </AdminLayout> }/>
+      <Route path="admin-post-list" element={<AdminLayout> <AdminPostList /> </AdminLayout>} />
+      <Route path="post-create-edit" element={<AdminLayout> <PostCreateEdit /> </AdminLayout>} />
+      <Route path="post-create-edit/:postId" element={<AdminLayout> <PostCreateEdit /> </AdminLayout>} />
+      <Route path="tag-post-type-manage" element={<AdminLayout> <TagPostTypeManage /> </AdminLayout>} />
       {/* 404 - Default to Client Layout - Fallbacks*/}
-      <Route path="*" element={  <Page404 /> } /> 
+      <Route path="*" element={<Page404 />} />
       {/* Suppliers */}
-      <Route path="/suppliers" element={<AdminLayout><SuppliersPage /></AdminLayout>} /> 
+      <Route path="/suppliers" element={<AdminLayout><SuppliersPage /></AdminLayout>} />
       <Route path="/suppliers/add" element={<AdminLayout><SupplierDetailPage /></AdminLayout>} />
       <Route path="/suppliers/:id" element={<AdminLayout><SupplierDetailPage /></AdminLayout>} />
 
@@ -145,6 +147,7 @@ export default function AppRoutes() {
       <Route path="/admin-user-management" element={<AdminLayout><AdminUserManagement /></AdminLayout>} />
 
       <Route path="/admin/website-config" element={<AdminLayout><WebsiteConfig /></AdminLayout>} />
+      <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />
