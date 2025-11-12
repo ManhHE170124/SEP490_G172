@@ -407,6 +407,35 @@ public class SupplierService : ISupplierService
         }
     }
 
+    public async Task<IEnumerable<SupplierListDto>> GetSuppliersByProductAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        var suppliers = await _context.Suppliers
+            .Where(s => s.Status == nameof(SupplierStatus.Active))
+            .Where(s =>
+                _context.LicensePackages.Any(lp => lp.SupplierId == s.SupplierId && lp.ProductId == productId) ||
+                _context.ProductKeys.Any(pk => pk.SupplierId == s.SupplierId && pk.ProductId == productId))
+            .OrderBy(s => s.Name)
+            .Select(s => new SupplierListDto
+            {
+                SupplierId = s.SupplierId,
+                Name = s.Name,
+                ContactEmail = s.ContactEmail,
+                ContactPhone = s.ContactPhone,
+                CreatedAt = s.CreatedAt,
+                Status = s.Status,
+                ActiveProductCount = s.ProductKeys
+                    .Where(pk => pk.ProductId == productId)
+                    .Select(pk => pk.ProductId)
+                    .Distinct()
+                    .Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        return suppliers;
+    }
+
     public async Task<bool> IsSupplierNameExistsAsync(
         string name,
         int? excludeSupplierId,

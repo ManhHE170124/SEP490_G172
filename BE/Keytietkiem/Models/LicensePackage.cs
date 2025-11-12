@@ -17,8 +17,6 @@ public partial class LicensePackage
 
     public int ImportedToStock { get; set; }
 
-    public DateTime? EffectiveDate { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public string? Notes { get; set; }

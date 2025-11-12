@@ -23,5 +23,10 @@ public enum ProductAccountAction
     /// <summary>
     /// Account status was changed
     /// </summary>
-    StatusChanged
+    StatusChanged,
+    
+    /// <summary>
+    /// Account slot was changed
+    /// </summary>
+    UpdateSlot
 }

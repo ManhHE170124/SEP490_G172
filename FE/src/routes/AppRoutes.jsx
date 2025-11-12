@@ -17,8 +17,8 @@ import Page404 from "../pages/NotFound/Page404";
 import RoleAssign from "../pages/RoleManage/RoleAssign";
 import RoleManage from "../pages/RoleManage/RoleManage";
 // Post Management Pages
-import AdminPostList from "../pages/PostManage/AdminPostList"
-import PostCreateEdit from "../pages/PostManage/CreateEditPost"
+import AdminPostList from "../pages/PostManage/AdminPostList";
+import PostCreateEdit from "../pages/PostManage/CreateEditPost";
 import TagPostTypeManage from "../pages/PostManage/TagAndPostTypeManage";
 
 // Admin pages
@@ -33,8 +33,8 @@ import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
-
-
+// App.jsx (hoặc routes admin)
+import VariantDetail from "../pages/admin/VariantDetail.jsx";
 
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
@@ -54,16 +54,16 @@ import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
 import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
 import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
-
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
     default:
       typeof m.default === "function"
         ? m.default
-        : (typeof m.AdminTicketDetail === "function" ? m.AdminTicketDetail : (() => null)),
+        : typeof m.AdminTicketDetail === "function"
+        ? m.AdminTicketDetail
+        : () => null,
   }))
 );
-
 
 /**
  * @summary: Configure and render application routes with appropriate layouts.
@@ -73,78 +73,325 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* Default Access Routes */}
-      <Route path="/" element={<ClientLayout> <LoginPage /> </ClientLayout> } />
+      <Route path="/" element={<ClientLayout> </ClientLayout>} />
 
-      <Route path="/login" element={ <ClientLayout> <LoginPage /> </ClientLayout> } />
-      <Route path="/register" element={<ClientLayout> <SignUpPage /></ClientLayout>} />
-      <Route path="/forgot-password" element={<ClientLayout> <ForgotPasswordPage /></ClientLayout>} />
-      <Route path="/check-reset-email" element={<ClientLayout> <CheckEmailPage /></ClientLayout>} />
-      <Route path="/reset-password" element={<ClientLayout> <ResetPasswordPage /></ClientLayout>} />
+      <Route
+        path="/login"
+        element={
+          <ClientLayout>
+            {" "}
+            <LoginPage />{" "}
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <ClientLayout>
+            {" "}
+            <SignUpPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <ClientLayout>
+            {" "}
+            <ForgotPasswordPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/check-reset-email"
+        element={
+          <ClientLayout>
+            {" "}
+            <CheckEmailPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <ClientLayout>
+            {" "}
+            <ResetPasswordPage />
+          </ClientLayout>
+        }
+      />
       <Route path="/admin" element={<div />} />
 
       {/* Tickets */}
-      <Route path="/admin/tickets" element={<AdminLayout><AdminTicketManagement /></AdminLayout>} />
+      <Route
+        path="/admin/tickets"
+        element={
+          <AdminLayout>
+            <AdminTicketManagement />
+          </AdminLayout>
+        }
+      />
       <Route
         path="/admin/tickets/:id"
         element={
           <Suspense fallback={<div>Đang tải chi tiết...</div>}>
-            <AdminLayout><AdminTicketDetail /></AdminLayout>
+            <AdminLayout>
+              <AdminTicketDetail />
+            </AdminLayout>
           </Suspense>
         }
       />
-
 
       {/* Products */}
       <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
       <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout> }/>
       <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
+      <Route path="/admin/products/:id/variants/:variantId" element={<AdminLayout><VariantDetail /></AdminLayout>} />
 
       {/* Categories */}
-      <Route path="/admin/categories" element={<AdminLayout><CategoryPage /></AdminLayout>} />
-      <Route path="/admin/categories/add" element={<AdminLayout><CategoryAdd /></AdminLayout>} />
-      <Route path="/admin/categories/:id" element={<AdminLayout><CategoryDetail /></AdminLayout>} />
+      <Route
+        path="/admin/categories"
+        element={
+          <AdminLayout>
+            <CategoryPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/categories/add"
+        element={
+          <AdminLayout>
+            <CategoryAdd />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/categories/:id"
+        element={
+          <AdminLayout>
+            <CategoryDetail />
+          </AdminLayout>
+        }
+      />
 
       {/* Badges */}
-      <Route path="/admin/badges/add" element={<AdminLayout><BadgeAdd /></AdminLayout>} />
-      <Route path="/admin/badges/:code" element={<AdminLayout><BadgeDetail /> </AdminLayout>} />
+      <Route
+        path="/admin/badges/add"
+        element={
+          <AdminLayout>
+            <BadgeAdd />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/badges/:code"
+        element={
+          <AdminLayout>
+            <BadgeDetail />{" "}
+          </AdminLayout>
+        }
+      />
       {/* Client/Public Routes */}
 
       {/* Admin Routes */}
-      <Route path="/admin-dashboard" element={ <AdminLayout> <Page404 /> </AdminLayout> } />
-      <Route path="/admin/users" element={ <AdminLayout> <AdminUserManagement /> </AdminLayout> } />
-      <Route path="/admin-user-management" element={ <AdminLayout> <AdminUserManagement /> </AdminLayout> } />
-      <Route path="/role-manage" element={ <AdminLayout> <RoleManage /> </AdminLayout> } />
-      <Route path="/role-assign" element={ <AdminLayout> <RoleAssign /> </AdminLayout> } />
+      <Route
+        path="/admin-dashboard"
+        element={
+          <AdminLayout>
+            {" "}
+            <Page404 />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminLayout>
+            {" "}
+            <AdminUserManagement />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin-user-management"
+        element={
+          <AdminLayout>
+            {" "}
+            <AdminUserManagement />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/role-manage"
+        element={
+          <AdminLayout>
+            {" "}
+            <RoleManage />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/role-assign"
+        element={
+          <AdminLayout>
+            {" "}
+            <RoleAssign />{" "}
+          </AdminLayout>
+        }
+      />
       {/* Post Routes */}
-      <Route path="admin-post-list" element={ <AdminLayout> <AdminPostList /> </AdminLayout> } />
-      <Route path="post-create-edit" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
-      <Route path="post-create-edit/:postId" element={ <AdminLayout> <PostCreateEdit /> </AdminLayout> }/>
-      <Route path="tag-post-type-manage" element={ <AdminLayout> <TagPostTypeManage /> </AdminLayout> }/>
+      <Route
+        path="admin-post-list"
+        element={
+          <AdminLayout>
+            {" "}
+            <AdminPostList />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="post-create-edit"
+        element={
+          <AdminLayout>
+            {" "}
+            <PostCreateEdit />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="post-create-edit/:postId"
+        element={
+          <AdminLayout>
+            {" "}
+            <PostCreateEdit />{" "}
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="tag-post-type-manage"
+        element={
+          <AdminLayout>
+            {" "}
+            <TagPostTypeManage />{" "}
+          </AdminLayout>
+        }
+      />
       {/* 404 - Default to Client Layout - Fallbacks*/}
-      <Route path="*" element={  <Page404 /> } /> 
+      <Route path="*" element={<Page404 />} />
       {/* Suppliers */}
-      <Route path="/suppliers" element={<AdminLayout><SuppliersPage /></AdminLayout>} /> 
-      <Route path="/suppliers/add" element={<AdminLayout><SupplierDetailPage /></AdminLayout>} />
-      <Route path="/suppliers/:id" element={<AdminLayout><SupplierDetailPage /></AdminLayout>} />
+      <Route
+        path="/suppliers"
+        element={
+          <AdminLayout>
+            <SuppliersPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/suppliers/add"
+        element={
+          <AdminLayout>
+            <SupplierDetailPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/suppliers/:id"
+        element={
+          <AdminLayout>
+            <SupplierDetailPage />
+          </AdminLayout>
+        }
+      />
 
       {/* Product Keys */}
-      <Route path="/keys" element={<AdminLayout><KeyManagementPage /></AdminLayout>} />
-      <Route path="/keys/add" element={<AdminLayout><KeyDetailPage /></AdminLayout>} />
-      <Route path="/keys/:id" element={<AdminLayout><KeyDetailPage /></AdminLayout>} />
+      <Route
+        path="/keys"
+        element={
+          <AdminLayout>
+            <KeyManagementPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/keys/add"
+        element={
+          <AdminLayout>
+            <KeyDetailPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/keys/:id"
+        element={
+          <AdminLayout>
+            <KeyDetailPage />
+          </AdminLayout>
+        }
+      />
 
       {/* Key Monitor */}
-      <Route path="/key-monitor" element={<AdminLayout><KeyMonitorPage /></AdminLayout>} />
+      <Route
+        path="/key-monitor"
+        element={
+          <AdminLayout>
+            <KeyMonitorPage />
+          </AdminLayout>
+        }
+      />
 
       {/* Product Accounts */}
-      <Route path="/accounts" element={<AdminLayout><AccountManagementPage /></AdminLayout>} />
-      <Route path="/accounts/add" element={<AdminLayout><AccountDetailPage /></AdminLayout>} />
-      <Route path="/accounts/:id" element={<AdminLayout><AccountDetailPage /></AdminLayout>} />
+      <Route
+        path="/accounts"
+        element={
+          <AdminLayout>
+            <AccountManagementPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/accounts/add"
+        element={
+          <AdminLayout>
+            <AccountDetailPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/accounts/:id"
+        element={
+          <AdminLayout>
+            <AccountDetailPage />
+          </AdminLayout>
+        }
+      />
 
       {/* RBAC & Users */}
-      <Route path="/admin/users" element={<AdminLayout><AdminUserManagement /></AdminLayout>} />
-      <Route path="/admin-user-management" element={<AdminLayout><AdminUserManagement /></AdminLayout>} />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminLayout>
+            <AdminUserManagement />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin-user-management"
+        element={
+          <AdminLayout>
+            <AdminUserManagement />
+          </AdminLayout>
+        }
+      />
 
-      <Route path="/admin/website-config" element={<AdminLayout><WebsiteConfig /></AdminLayout>} />
+      <Route
+        path="/admin/website-config"
+        element={
+          <AdminLayout>
+            <WebsiteConfig />
+          </AdminLayout>
+        }
+      />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />

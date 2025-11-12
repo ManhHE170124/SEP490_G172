@@ -140,7 +140,10 @@ export default function CsvUploadModal({
           <input
             type="date"
             value={expiryDate || ""}
-            onChange={(e) => onExpiryDateChange && onExpiryDateChange(e.target.value)}
+            onChange={(e) =>
+              onExpiryDateChange && onExpiryDateChange(e.target.value)
+            }
+            min={new Date().toISOString().split("T")[0]}
             style={{
               display: "block",
               width: "100%",
@@ -149,7 +152,14 @@ export default function CsvUploadModal({
               borderRadius: "4px",
             }}
           />
-          <small style={{ color: "#666", fontSize: "12px", marginTop: "4px", display: "block" }}>
+          <small
+            style={{
+              color: "#666",
+              fontSize: "12px",
+              marginTop: "4px",
+              display: "block",
+            }}
+          >
             Để trống nếu không có ngày hết hạn
           </small>
         </div>
