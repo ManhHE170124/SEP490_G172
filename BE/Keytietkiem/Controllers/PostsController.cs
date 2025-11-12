@@ -49,19 +49,12 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of posts
          */
         [HttpGet]
-        public async Task<IActionResult> GetPosts([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetPosts()
         {
-            var skip = (page - 1) * pageSize;
-            var query = _context.Posts
+            var posts = await _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
-                .Include(p => p.Tags);
-
-            var total = await query.CountAsync();
-            var posts = await query
-                .OrderByDescending(p => p.CreatedAt)
-                .Skip(skip)
-                .Take(pageSize)
+                .Include(p => p.Tags)
                 .Select(p => new PostListItemDTO
                 {
                     PostId = p.PostId,
@@ -85,16 +78,7 @@ namespace Keytietkiem.Controllers
                     }).ToList()
                 })
                 .ToListAsync();
-
-            var result = new PostListItemPagedDTO
-            {
-                Data = posts,
-                Total = total,
-                Page = page,
-                PageSize = pageSize
-            };
-
-            return Ok(result);
+            return Ok(posts);
         }
 
         /**
@@ -157,7 +141,7 @@ namespace Keytietkiem.Controllers
         {
             if (createPostDto == null || string.IsNullOrWhiteSpace(createPostDto.Title))
             {
-                return BadRequest("Post title is required.");
+                return BadRequest("Tiêu ?? không ???c ?? tr?ng.");
             }
 
             // Validate PostType exists
@@ -167,7 +151,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(pt => pt.PostTypeId == createPostDto.PostTypeId.Value);
                 if (postType == null)
                 {
-                    return NotFound(new { message = "Post type not found." });
+                    return NotFound(new { message = "Danh m?c bài vi?t không ???c tìm th?y." });
                 }
             }
 
@@ -178,7 +162,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(u => u.UserId == createPostDto.AuthorId.Value);
                 if (author == null)
                 {
-                    return NotFound(new { message = "Author not found." });
+                    return NotFound(new { message = "Không tìm th?y thông tin tác gi?." });
                 }
             }
 
@@ -189,7 +173,7 @@ namespace Keytietkiem.Controllers
                     .CountAsync(t => createPostDto.TagIds.Contains(t.TagId));
                 if (tagCount != createPostDto.TagIds.Count)
                 {
-                    return BadRequest(new { message = "One or more tags not found." });
+                    return BadRequest(new { message = "Không tìm th?y th? nào ???c gán cho bài vi?t này." });
                 }
             }
 
@@ -197,13 +181,13 @@ namespace Keytietkiem.Controllers
             var newPost = new Post
             {
                 Title = createPostDto.Title,
-                //Slug = createPostDto.Slug,
+                Slug = createPostDto.Slug,
                 ShortDescription = createPostDto.ShortDescription,
                 Content = createPostDto.Content,
                 Thumbnail = createPostDto.Thumbnail,
                 PostTypeId = createPostDto.PostTypeId,
                 AuthorId = createPostDto.AuthorId,
-                //MetaTitle = createPostDto.MetaTitle,
+                MetaTitle = createPostDto.MetaTitle,
                 MetaDescription = createPostDto.MetaDescription,
                 Status = createPostDto.Status ?? "Draft",
                 ViewCount = 0,
@@ -271,12 +255,12 @@ namespace Keytietkiem.Controllers
         {
             if (updatePostDto == null)
             {
-                return BadRequest("Invalid post data.");
+                return BadRequest("D? li?u không h?p l?.");
             }
 
             if (string.IsNullOrWhiteSpace(updatePostDto.Title))
             {
-                return BadRequest("Post title is required.");
+                return BadRequest("Tiêu ?? không ???c ?? tr?ng.");
             }
 
             var existing = await _context.Posts
@@ -295,7 +279,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(pt => pt.PostTypeId == updatePostDto.PostTypeId.Value);
                 if (postType == null)
                 {
-                    return NotFound(new { message = "Post type not found." });
+                    return NotFound(new { message = "Không tìm th?y danh m?c bài vi?t." });
                 }
             }
 
@@ -306,7 +290,7 @@ namespace Keytietkiem.Controllers
                     .CountAsync(t => updatePostDto.TagIds.Contains(t.TagId));
                 if (tagCount != updatePostDto.TagIds.Count)
                 {
-                    return BadRequest(new { message = "One or more tags not found." });
+                    return BadRequest(new { message = "Không tìm th?y th? nào ???c gán cho bài vi?t này." });
                 }
             }
 
@@ -367,7 +351,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of post types
          */
         [HttpGet("posttypes")]
-        public async Task<IActionResult> GetPostTypes()
+        public async Task<IActionResult> GetPosttypes()
         {
             var postTypes = await _context.PostTypes
                 .Select(pt => new PostTypeDTO
@@ -382,17 +366,18 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpPost("posttypes")]
-        public async Task<IActionResult> CreatePostType([FromBody] CreatePostTypeDTO createPostTypeDto)
+        public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
             if (createPostTypeDto == null || string.IsNullOrWhiteSpace(createPostTypeDto.PostTypeName))
             {
-                return BadRequest("Post type name is required.");
+                return BadRequest("Tên danh m?c không ???c ?? tr?ng.");
             }
             var newPostType = new PostType
             {
                 PostTypeName = createPostTypeDto.PostTypeName,
                 Description = createPostTypeDto.Description,
-                Slug = createPostTypeDto.Slug
+                Slug = createPostTypeDto.Slug,
+                CreatedAt = DateTime.Now
             };
             _context.PostTypes.Add(newPostType);
             await _context.SaveChangesAsync();
@@ -403,15 +388,15 @@ namespace Keytietkiem.Controllers
                 Slug = newPostType.Slug,
                 Description = newPostType.Description
             };
-            return CreatedAtAction(nameof(GetPostTypes), new { id = newPostType.PostTypeId }, postTypeDto);
+            return CreatedAtAction(nameof(GetPosttypes), new { id = newPostType.PostTypeId }, postTypeDto);
         }
 
         [HttpPut("posttypes/{id}")]
-        public async Task<IActionResult> UpdatePostType(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
+        public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
             if (updatePostTypeDto == null || string.IsNullOrWhiteSpace(updatePostTypeDto.PostTypeName))
             {
-                return BadRequest("Post type name is required.");
+                return BadRequest("Tên danh m?c không ???c ?? tr?ng.");
             }
             var existing = await _context.PostTypes
                 .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
@@ -421,15 +406,16 @@ namespace Keytietkiem.Controllers
             }
             existing.PostTypeName = updatePostTypeDto.PostTypeName;
             existing.Description = updatePostTypeDto.Description;
+            existing.Slug = updatePostTypeDto.Slug;
             _context.PostTypes.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();
 
         }
-    
 
-    [HttpDelete("posttypes/{id}")]
-        public async Task<IActionResult> DeletePostType(Guid id)
+
+        [HttpDelete("posttypes/{id}")]
+        public async Task<IActionResult> DeletePosttype(Guid id)
         {
             var existing = await _context.PostTypes
                 .Include(pt => pt.Posts)
@@ -440,7 +426,7 @@ namespace Keytietkiem.Controllers
             }
             if (existing.Posts != null && existing.Posts.Any())
             {
-                return BadRequest("Cannot delete post type with associated posts.");
+                return BadRequest("Không th? xóa danh m?c này.");
             }
             _context.PostTypes.Remove(existing);
             await _context.SaveChangesAsync();

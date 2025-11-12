@@ -10,7 +10,7 @@ import RoleModal from "../../components/RoleModal/RoleModal";
 */
 const TABS = {
     TAGS: "tags",
-    POSTTYPES: "posttypes"
+    POSTTYPES: "postTypes"
 };
 function useFetchData(activeTab) {
     const [data, setData] = useState([]);
@@ -85,33 +85,48 @@ export default function TagAndPosttypeManage() {
                 columns: [
                     { key: "tagName", label: "Tên Thẻ" },
                     { key: "slug", label: "Slug" },
-                    { key: "createdAt", label: "Ngày tạo" },
-                    { key: "actions", label: "Thao tác" }
+                    { key: "createdAt", label: "Ngày tạo" }
                 ]
             };
         }
         return {
             addButtonText: "Thêm Danh Mục Mới",
             columns: [
-                { key: "PosttypeName", label: "Tên danh mục" },
+                { key: "postTypeName", label: "Tên danh mục" },
+                { key: "slug", label: "Slug" },
                 { key: "description", label: "Mô tả" },
-                { key: "createdAt", label: "Ngày tạo" },
-                { key: "actions", label: "Thao tác" }
+                { key: "createdAt", label: "Ngày tạo" }
             ]
         };
     }, [activeTab]);
-
+ const toSlug = (text) => {
+  return text
+    .normalize('NFD') 
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D') 
+    .replace(/[^a-zA-Z0-9\s-]/g, '') 
+    .trim() 
+    .replace(/\s+/g, '-') 
+    .replace(/-+/g, '-') 
+    .toLowerCase(); 
+};
     const filteredSorted = useMemo(() => {
-        const normalized = (v) => (v ?? "").toString().toLowerCase();
-        const searchLower = normalized(search);
-
-        // Determine name key per tab
-        const nameKey = activeTab === TABS.TAGS ? "tagName" : "PosttypeName";
-
+        // Convert search text to slug format for comparison
+        const searchSlug = toSlug(search);
+        
         let rows = data.filter((row) => {
-            // search by name only
-            if (!searchLower) return true;
-            return normalized(row[nameKey]).includes(searchLower);
+            if (!searchSlug) return true;
+            
+            // Get the slug from the row
+            const rowSlug = row.slug || row.Slug || "";
+            
+            // Also create slug from name for live search while typing
+            const nameKey = activeTab === TABS.TAGS ? "tagName" : "PostTypeName";
+            const nameValue = row[nameKey] || row[nameKey.toLowerCase()] || row[nameKey.charAt(0).toUpperCase() + nameKey.slice(1)] || "";
+            const nameSlug = toSlug(nameValue);
+            
+            // Check if either the existing slug or the name-derived slug contains the search slug
+            return rowSlug.includes(searchSlug) || nameSlug.includes(searchSlug);
         });
 
         if (sortKey) {
@@ -162,7 +177,8 @@ export default function TagAndPosttypeManage() {
             setSubmitting(true);
             const created = await postsApi.createTag({
                 tagName: form.tagName,
-                slug: form.slug || ""
+                // always generate slug from tag name
+                slug: toSlug(form.tagName)
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddTagOpen(false);
@@ -182,14 +198,15 @@ export default function TagAndPosttypeManage() {
         try {
             setSubmitting(true);
             const created = await postsApi.createPosttype({
-                posttypeName: form.posttypeName,
-                description: form.description || ""
+                postTypeName: form.postTypeName || form.posttypeName,
+                description: form.description || "",
+                slug: toSlug(form.postTypeName || form.posttypeName)
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddPosttypeOpen(false);
             showSuccess(
                 "Tạo Danh mục thành công!",
-                `Danh mục "${form.tagName}" đã được tạo thành công.`
+                `Danh mục "${form.postTypeName || form.posttypeName}" đã được tạo thành công.`
             );
         } catch (e) {
             const errorMessage = e.response?.data?.message || e.message || "Không thể tạo danh mục";
@@ -211,20 +228,23 @@ export default function TagAndPosttypeManage() {
         if (activeTab === TABS.TAGS) {
             setEditTitle("Sửa Thẻ");
             setEditFields([
-                { name: "tagName", label: "Tên Thẻ", required: true, defaultValue: row.tagName },
-                { name: "slug", label: "Slug", disabled: true, defaultValue: row.slug || "" },
+                { name: "tagName", label: "Tên Thẻ", required: true, defaultValue: row.tagName || row.TagName || '' },
+                // slug is auto-generated and not editable
+                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "tagName" },
             ]);
         } else {
             setEditTitle("Sửa Danh mục");
             setEditFields([
-                { name: "posttypeName", label: "Tên Danh mục", required: true, defaultValue: row.permissionName },
+                { name: "postTypeName", label: "Tên Danh mục", required: true, defaultValue: row.postTypeName || row.posttypeName || row.PostTypeName || '' },
+                // slug is auto-generated from name and should not be editable here
+                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "postTypeName" },
                 { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
             ]);
         }
         setEditOpen(true);
     }
     async function onDelete(row) {
-        const label = activeTab === TABS.TAGS ? row.tagName : row.posttypeName;
+        const label = activeTab === TABS.TAGS ? (row.tagName || row.TagName) : (row.postTypeName || row.posttypeName || row.PostTypeName);
         const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
 
         showWarning(
@@ -238,13 +258,12 @@ export default function TagAndPosttypeManage() {
             `Bạn có chắc chắn muốn xóa "${label}"? Hành động này không thể hoàn tác.`,
             async () => {
                 try {
-                    if (activeTab === TABS.TAGS) await postsApi.deleteTag(row.tagId || row.id);
-                    else await postsApi.deletePosttype(row.posttypeId || row.id);
+                    if (activeTab === TABS.TAGS) await postsApi.deleteTag(row.tagId || row.TagId || row.id);
+                    else await postsApi.deletePosttype(row.posttypeId || row.postTypeId || row.id);
 
                     setData((prev) => prev.filter((x) => {
-                        const key = activeTab === TABS.TAGS ? "tagId" : "posttypeId";
-                        const targetId = row[key] ?? row.id;
-                        const currentId = x[key] ?? x.id;
+                        const targetId = activeTab === TABS.TAGS ? (row.tagId || row.TagId || row.id) : (row.posttypeId || row.postTypeId || row.id);
+                        const currentId = activeTab === TABS.TAGS ? (x.tagId || x.TagId || x.id) : (x.posttypeId || x.postTypeId || x.id);
                         return currentId !== targetId;
                     }));
                     showSuccess(
@@ -269,27 +288,51 @@ export default function TagAndPosttypeManage() {
             const entityName = activeTab === TABS.TAGS ? form.tagName : form.posttypeName;
 
             if (activeTab === TABS.TAGS) {
-                await postsApi.updateTag(editingRow.TagId, {
+                // compute slug from tag name on update
+                const newSlug = toSlug(form.tagName);
+                const tagId = editingRow?.tagId || editingRow?.TagId || editingRow?.id;
+                if (!tagId) throw new Error('Missing tag id for update');
+
+                await postsApi.updateTag(tagId, {
                     tagName: form.tagName,
-                    slug: form.slug || ""
+                    slug: newSlug
                 });
-                setData((prev) => prev.map((x) => x.tagId === editingRow.tagId ? {
-                    ...x,
-                    tagName: form.tagName,
-                    slug: form.slug,
-                    // updatedAt: new Date().toISOString(),
-                } : x));
+
+                setData((prev) => prev.map((x) => {
+                    const currentId = x?.tagId || x?.TagId || x?.id;
+                    if (currentId === tagId) {
+                        return {
+                            ...x,
+                            tagName: form.tagName,
+                            slug: newSlug,
+                        };
+                    }
+                    return x;
+                }));
             } else {
-                await postsApi.updatePosttype(editingRow.posttypeId, {
-                    posttypeName: form.posttypeName,
-                    description: form.description || ""
+                // compute slug and update post type
+                const newSlug = toSlug(form.postTypeName || form.posttypeName);
+                const postTypeId = editingRow?.posttypeId || editingRow?.postTypeId || editingRow?.id;
+                if (!postTypeId) throw new Error('Missing post type id for update');
+
+                await postsApi.updatePosttype(postTypeId, {
+                    postTypeName: form.postTypeName || form.posttypeName,
+                    description: form.description || "",
+                    slug: newSlug
                 });
-                setData((prev) => prev.map((x) => x.posttypeId === editingRow.posttypeId ? {
-                    ...x,
-                    posttypeName: form.permissionName,
-                    description: form.description,
-                    // updatedAt: new Date().toISOString(),
-                } : x));
+
+                setData((prev) => prev.map((x) => {
+                    const currentId = x?.posttypeId || x?.postTypeId || x?.id;
+                    if (currentId === postTypeId) {
+                        return {
+                            ...x,
+                            postTypeName: form.postTypeName || form.posttypeName,
+                            description: form.description,
+                            slug: newSlug,
+                        };
+                    }
+                    return x;
+                }));
             }
             setEditOpen(false);
             showSuccess(
@@ -360,7 +403,7 @@ export default function TagAndPosttypeManage() {
                     title="Thêm Thẻ"
                     fields={[
                         { name: "tagName", label: "Tên Thẻ", required: true },
-                        { name: "slug", label: "Slug", disabled: true },
+                        { name: "slug", label: "Slug", disabled: true, syncWith: "tagName" },
                     ]}
                     onClose={() => setAddTagOpen(false)}
                     onSubmit={handleCreateTag}
@@ -372,7 +415,8 @@ export default function TagAndPosttypeManage() {
                     isOpen={addPosttypeOpen}
                     title="Thêm Danh mục"
                     fields={[
-                        { name: "posttypeName", label: "Tên Danh mục", required: true },
+                        { name: "postTypeName", label: "Tên Danh mục", required: true },
+                        { name: "slug", label: "Slug", disabled: true, syncWith: "postTypeName" },
                         { name: "description", label: "Mô tả", type: "textarea" },
                     ]}
                     onClose={() => setAddPosttypeOpen(false)}
