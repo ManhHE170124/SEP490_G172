@@ -22,7 +22,7 @@ namespace Keytietkiem.DTOs.Tickets
         public string? CustomerName { get; set; }
         public string? CustomerEmail { get; set; }
 
-        // NEW (dành cho list/hiển thị assignee)
+        // hiển thị assignee ở list/detail
         public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
         public string? AssigneeEmail { get; set; }
@@ -33,8 +33,7 @@ namespace Keytietkiem.DTOs.Tickets
 
     public class TicketReplyDto
     {
-        // bigint -> long
-        public long ReplyId { get; set; }
+        public long ReplyId { get; set; }           // bigint -> long
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = "";
         public bool IsStaffReply { get; set; }
@@ -42,7 +41,7 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime SentAt { get; set; }
     }
 
-    // NEW: chỉ dùng cho panel "Ticket liên quan"
+    // Panel "Ticket liên quan"
     public class RelatedTicketDto
     {
         public Guid TicketId { get; set; }
@@ -77,7 +76,7 @@ namespace Keytietkiem.DTOs.Tickets
         public string? CustomerEmail { get; set; }
         public string? CustomerPhone { get; set; }
 
-        // NEW: hiển thị thông tin nhân viên phụ trách
+        // thông tin nhân viên phụ trách
         public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
         public string? AssigneeEmail { get; set; }
@@ -86,15 +85,11 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime? UpdatedAt { get; set; }
 
         public List<TicketReplyDto> Replies { get; set; } = new();
-
-        // NEW: danh sách ticket liên quan (các ticket khác của KH này)
         public List<RelatedTicketDto> RelatedTickets { get; set; } = new();
 
-        // Tuỳ chọn (nếu bạn đã làm): đơn hàng gần nhất của KH
         public LatestOrderMiniDto? LatestOrder { get; set; }
     }
 
-    // Payload tạo tin nhắn chat
     public class CreateTicketReplyDto
     {
         [Required, MinLength(1)]

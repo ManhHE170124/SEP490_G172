@@ -17,7 +17,6 @@ export const ticketsApi = {
   detail(id) {
     return axiosClient.get(`/tickets/${id}`);
   },
-  // NEW: nhận staffId
   assign(id, assigneeId) {
     return axiosClient.post(`/tickets/${id}/assign`, { assigneeId });
   },
@@ -32,5 +31,24 @@ export const ticketsApi = {
   },
   reply(id, payload) {
     return axiosClient.post(`/tickets/${id}/replies`, payload);
+  },
+
+  // ===== NEW: staff lookup APIs =====
+  getAssignees(params = {}) {
+    const p = {
+      q: params.q || "",
+      page: params.page || 1,
+      pageSize: params.pageSize || 50,
+    };
+    return axiosClient.get("/tickets/assignees", { params: p });
+  },
+  getTransferAssignees(params = {}) {
+    const p = {
+      q: params.q || "",
+      excludeUserId: params.excludeUserId || null,
+      page: params.page || 1,
+      pageSize: params.pageSize || 50,
+    };
+    return axiosClient.get("/tickets/assignees/transfer", { params: p });
   },
 };
