@@ -1,9 +1,11 @@
 // File: src/pages/admin/admin-ticket-detail.jsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import "../../styles/admin-ticket-detail.css";
 import { useParams, useNavigate } from "react-router-dom";
 import { ticketsApi } from "../../api/ticketsApi";
+import axiosClient from "../../api/axiosClient";
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 
 const MAP_STATUS = {
   New: "Mới",
@@ -42,10 +44,8 @@ function fmtDateTime(v) {
 function normalizeStatus(s) {
   const v = String(s || "").toLowerCase();
   if (v === "open" || v === "new") return "New";
-  if (v === "processing" || v === "inprogress" || v === "in_process")
-    return "InProgress";
-  if (v === "done" || v === "resolved" || v === "completed")
-    return "Completed";
+  if (["processing", "inprogress", "in_process"].includes(v)) return "InProgress";
+  if (["done", "resolved", "completed"].includes(v)) return "Completed";
   if (v === "closed" || v === "close") return "Closed";
   return "New";
 }
@@ -131,6 +131,11 @@ export default function AdminTicketDetail() {
 
   const draftKey = useMemo(() => `tk_reply_draft_${id}`, [id]);
 
+  // 🔽 ref + state cho auto scroll trong khung chat
+  const messagesRef = useRef(null);
+  const isAtBottomRef = useRef(true);
+  const initialScrollDoneRef = useRef(false);
+
   const load = async () => {
     setLoading(true);
     setErr("");
@@ -163,6 +168,96 @@ export default function AdminTicketDetail() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // ===== SignalR: chỉ dùng cho lịch sử trao đổi =====
+  useEffect(() => {
+    if (!id) return;
+
+    // base URL giống axiosClient
+    let apiBase = axiosClient?.defaults?.baseURL || "";
+    if (!apiBase) {
+      apiBase =
+        process.env.REACT_APP_API_URL ||
+        (typeof import.meta !== "undefined" &&
+          import.meta.env &&
+          import.meta.env.VITE_API_BASE_URL) ||
+        "https://localhost:7292/api";
+    }
+    const hubRoot = apiBase.replace(/\/api\/?$/i, "");
+    const hubUrl = `${hubRoot}/hubs/tickets`;
+
+    const connection = new HubConnectionBuilder()
+      .withUrl(hubUrl, {
+        accessTokenFactory: () => localStorage.getItem("access_token") || "",
+        withCredentials: true,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.None)
+      .build();
+
+    const handleReceiveReply = (reply) => {
+      setData((prev) => {
+        if (!prev) return prev;
+        const list = prev.replies || [];
+        // tránh trùng khi chính mình gửi: check ReplyId
+        if (list.some((x) => x.replyId === reply.replyId)) return prev;
+        return {
+          ...prev,
+          replies: [...list, reply],
+        };
+      });
+    };
+
+    connection.on("ReceiveReply", handleReceiveReply);
+
+    connection
+      .start()
+      .then(() => connection.invoke("JoinTicketGroup", id))
+      .catch((error) => {
+        console.error("[SignalR] start failed", error);
+      });
+
+    return () => {
+      connection
+        .invoke("LeaveTicketGroup", id)
+        .catch(() => {})
+        .finally(() => {
+          connection.off("ReceiveReply", handleReceiveReply);
+          connection.stop().catch(() => {});
+        });
+    };
+  }, [id]);
+
+  // 🧷 Theo dõi scroll trong khung chat để biết người dùng đang ở đáy hay không
+  const handleMessagesScroll = () => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const threshold = 20; // px – cho phép lệch chút vẫn coi như ở đáy
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isAtBottomRef.current = distanceToBottom <= threshold;
+  };
+
+  // 🧷 Auto scroll:
+  //  - Lần load đầu: luôn kéo xuống cuối
+  //  - Sau đó: chỉ auto scroll nếu đang ở cuối
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const scrollToBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+
+    if (!initialScrollDoneRef.current) {
+      scrollToBottom();
+      initialScrollDoneRef.current = true;
+      isAtBottomRef.current = true;
+      return;
+    }
+
+    if (isAtBottomRef.current) {
+      scrollToBottom();
+    }
+  }, [data?.replies]);
 
   const actions = useMemo(() => {
     const s = normalizeStatus(data?.status);
@@ -241,7 +336,7 @@ export default function AdminTicketDetail() {
       setReplyError("");
       const res = await ticketsApi.reply(id, { message: msg, sendEmail });
 
-      // Cập nhật lịch sử trao đổi ngay lập tức (giống realtime)
+      // Cập nhật ngay (lạc quan) – SignalR sẽ gửi lại, nhưng đã có check trùng
       setData((prev) =>
         prev
           ? {
@@ -362,9 +457,13 @@ export default function AdminTicketDetail() {
             <div className="thread-title">Lịch sử trao đổi</div>
 
             {/* Vùng tin nhắn có scroll riêng */}
-            <div className="thread-messages">
+            <div
+              className="thread-messages"
+              ref={messagesRef}
+              onScroll={handleMessagesScroll}
+            >
               {(data.replies || []).length === 0 && (
-                <div className="no-replies">Chưa có trao đổi nào.</div>
+                <div className="empty small">Chưa có trao đổi nào.</div>
               )}
 
               {(data.replies || []).map((r) => {
@@ -475,14 +574,14 @@ export default function AdminTicketDetail() {
 
               <div className="reply-footer">
                 <div className="left">
-                  {/* <label>
+                  <label>
                     <input
                       type="checkbox"
                       checked={sendEmail}
                       onChange={(e) => setSendEmail(e.target.checked)}
                     />
                     Gửi email thông báo
-                  </label> */}
+                  </label>
                 </div>
                 <div className="right">
                   <button
@@ -593,7 +692,7 @@ export default function AdminTicketDetail() {
           <div className="panel related">
             <div className="panel-title">Ticket liên quan</div>
             {(relatedTickets || []).length === 0 && (
-              <div className="empty">
+              <div className="empty small">
                 Không có ticket nào khác của khách hàng này.
               </div>
             )}
@@ -727,24 +826,24 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
       <div className="tk-modal-card">
         <div className="tk-modal-head">
           <h3 className="tk-modal-title">{title}</h3>
-          <button type="button" className="btn icon" onClick={onClose}>
-            ✕
+          <button type="button" className="btn ghost" onClick={onClose}>
+            ×
           </button>
         </div>
         <div className="tk-modal-body">
           <div className="form-group">
-            <label>Tìm theo tên hoặc email</label>
+            <label>Tìm nhân viên</label>
             <input
-              className="ip"
+              type="text"
+              className="reply-textarea"
+              style={{ minHeight: 0 }}
               placeholder="Nhập tên hoặc email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="staff-list">
-            {loading && (
-              <div className="empty small">Đang tải danh sách nhân viên...</div>
-            )}
+            {loading && <div className="empty small">Đang tải...</div>}
             {!loading && !list.length && (
               <div className="empty small">
                 Không tìm thấy nhân viên phù hợp.
@@ -756,22 +855,14 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
                   <li
                     key={u.id}
                     className={
-                      selected === u.id ? "staff-item selected" : "staff-item"
+                      "staff-item" + (selected === u.id ? " selected" : "")
                     }
+                    onClick={() => setSelected(u.id)}
                   >
-                    <label>
-                      <input
-                        type="radio"
-                        name="staff"
-                        value={u.id}
-                        checked={selected === u.id}
-                        onChange={() => setSelected(u.id)}
-                      />
-                      <div className="staff-info">
-                        <div className="staff-name">{u.name}</div>
-                        <div className="staff-email">{u.email}</div>
-                      </div>
-                    </label>
+                    <div className="staff-info">
+                      <div className="staff-name">{u.name}</div>
+                      <div className="staff-email">{u.email}</div>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -786,7 +877,10 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
             type="button"
             className="btn primary"
             disabled={!selected}
-            onClick={() => onConfirm(selected)}
+            onClick={() => {
+              if (!selected) return;
+              onConfirm(selected);
+            }}
           >
             Xác nhận
           </button>

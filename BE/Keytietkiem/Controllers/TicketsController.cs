@@ -1,8 +1,10 @@
 ﻿// File: Controllers/TicketsController.cs
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
+using Keytietkiem.Hubs;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -13,7 +15,13 @@ namespace Keytietkiem.Controllers;
 public class TicketsController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
-    public TicketsController(KeytietkiemDbContext db) => _db = db;
+    private readonly IHubContext<TicketHub> _ticketHub;
+
+    public TicketsController(KeytietkiemDbContext db, IHubContext<TicketHub> ticketHub)
+    {
+        _db = db;
+        _ticketHub = ticketHub;
+    }
 
     // ============ Helpers ============
     private static string NormStatus(string? s)
@@ -227,8 +235,7 @@ public class TicketsController : ControllerBase
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
                 u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
-        if (!userOk)
-            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
+        if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
         if (st == "New") t.Status = "InProgress";
@@ -262,8 +269,7 @@ public class TicketsController : ControllerBase
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
                 u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
-        if (!userOk)
-            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
+        if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg != "Technical") t.AssignmentState = "Technical";
         if (st == "New") t.Status = "InProgress";
@@ -310,7 +316,7 @@ public class TicketsController : ControllerBase
         return NoContent();
     }
 
-    // ============ REPLIES ============
+    // ============ REPLIES (có broadcast SignalR) ============
     [HttpPost("{id:guid}/replies")]
     public async Task<ActionResult<TicketReplyDto>> CreateReply(Guid id, [FromBody] CreateTicketReplyDto dto)
     {
@@ -337,6 +343,7 @@ public class TicketsController : ControllerBase
         if (sender is null)
             return Unauthorized();
 
+        // Xác định có phải staff không:
         // Staff = có ít nhất 1 role khác "Customer"
         var isStaffReply = sender.Roles.Any(r =>
         {
@@ -356,7 +363,7 @@ public class TicketsController : ControllerBase
         _db.TicketReplies.Add(reply);
         await _db.SaveChangesAsync();
 
-        return Ok(new TicketReplyDto
+        var dtoOut = new TicketReplyDto
         {
             ReplyId = reply.ReplyId,
             SenderId = sender.UserId,
@@ -364,7 +371,14 @@ public class TicketsController : ControllerBase
             IsStaffReply = reply.IsStaffReply,
             Message = reply.Message,
             SentAt = reply.SentAt
-        });
+        };
+
+        // 🔔 Broadcast realtime đến tất cả client đang xem ticket này (nhóm "ticket:{id}")
+        await _ticketHub.Clients.Group($"ticket:{id}")
+            .SendAsync("ReceiveReply", dtoOut);
+
+        // FE vẫn nhận response trực tiếp để xử lý lạc quan
+        return Ok(dtoOut);
     }
 
     // ============ NEW: staff lookups (Assign / Transfer) ============
@@ -434,7 +448,9 @@ public class TicketsController : ControllerBase
         var users = StaffBaseQuery();
 
         if (excludeUserId.HasValue)
+        {
             users = users.Where(u => u.UserId != excludeUserId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(q))
         {
