@@ -22,6 +22,7 @@ public class TicketsController : ControllerBase
         if (string.Equals(v, "Open", StringComparison.OrdinalIgnoreCase)) return "New";
         return string.IsNullOrWhiteSpace(v) ? "New" : v;
     }
+
     private static string NormAssign(string? s) => string.IsNullOrWhiteSpace(s) ? "Unassigned" : s!;
 
     private static TicketSeverity ParseSeverity(string? s)
@@ -82,8 +83,12 @@ public class TicketsController : ControllerBase
 
         var total = await query.CountAsync();
 
-        var raw = await query.OrderByDescending(t => t.CreatedAt)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        // ✅ Sắp xếp theo TicketCode (giảm dần) thay vì CreatedAt
+        var raw = await query
+            .OrderByDescending(t => t.TicketCode)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
 
         var items = raw.Select(t => new TicketListItemDto
         {
@@ -222,7 +227,8 @@ public class TicketsController : ControllerBase
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
                 u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
-        if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
+        if (!userOk)
+            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
         if (st == "New") t.Status = "InProgress";
@@ -256,7 +262,8 @@ public class TicketsController : ControllerBase
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
                 u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
-        if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
+        if (!userOk)
+            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg != "Technical") t.AssignmentState = "Technical";
         if (st == "New") t.Status = "InProgress";
@@ -308,22 +315,40 @@ public class TicketsController : ControllerBase
     public async Task<ActionResult<TicketReplyDto>> CreateReply(Guid id, [FromBody] CreateTicketReplyDto dto)
     {
         var msg = (dto?.Message ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(msg)) return BadRequest(new { message = "Nội dung phản hồi trống." });
+        if (string.IsNullOrWhiteSpace(msg))
+            return BadRequest(new { message = "Nội dung phản hồi trống." });
 
-        var t = await _db.Tickets.Include(x => x.User).FirstOrDefaultAsync(x => x.TicketId == id);
-        if (t is null) return NotFound();
+        var t = await _db.Tickets
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.TicketId == id);
+        if (t is null)
+            return NotFound();
 
+        // Lấy id người đang đăng nhập từ Claim
         var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(meStr, out var me)) return Unauthorized();
+        if (!Guid.TryParse(meStr, out var me))
+            return Unauthorized();
 
-        var sender = await _db.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.UserId == me);
-        if (sender is null) return Unauthorized();
+        // Lấy đầy đủ thông tin + roles của người gửi
+        var sender = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me);
+
+        if (sender is null)
+            return Unauthorized();
+
+        // Staff = có ít nhất 1 role khác "Customer"
+        var isStaffReply = sender.Roles.Any(r =>
+        {
+            var id = (r.RoleId ?? string.Empty).Trim();
+            return !id.ToLower().Contains("customer");
+        });
 
         var reply = new TicketReply
         {
             TicketId = t.TicketId,
             SenderId = sender.UserId,
-            IsStaffReply = sender.Roles.Any(),
+            IsStaffReply = isStaffReply,
             Message = msg,
             SentAt = DateTime.UtcNow
         };
@@ -350,15 +375,14 @@ public class TicketsController : ControllerBase
         public string Email { get; set; } = "";
     }
 
-    // Chỉ lấy nhân viên Active + có role "Customer Care Staff" (so sánh dịch được)
+    // Chỉ lấy nhân viên Active + có role "Customer Care Staff"
     private IQueryable<User> StaffBaseQuery()
     {
         var users = _db.Users.AsNoTracking()
             .Include(u => u.Roles)
             .Where(u =>
-                ((u.Status ?? "Active") == "Active") &&            // null-safe
-                u.Roles.Any(r => (r.Name ?? "").Trim().ToLower()   // KHÔNG dùng StringComparison
-                              == "customer care staff"));
+                ((u.Status ?? "Active") == "Active") &&
+                u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
         return users;
     }
 
