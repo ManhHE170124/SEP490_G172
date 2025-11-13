@@ -146,7 +146,6 @@ namespace Keytietkiem.Controllers
                     p.ProductType,
                     (p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0),
                     p.Status,
-                    p.ThumbnailUrl,
                     p.Categories.Select(c => c.CategoryId),
                     p.ProductBadges.Select(b => b.Badge)
                 ))
@@ -164,7 +163,6 @@ namespace Keytietkiem.Controllers
             var p = await db.Products.AsNoTracking()
                 .Include(x => x.Categories)
                 .Include(x => x.ProductBadges)
-                .Include(x => x.ProductImages)
                 .Include(x => x.ProductFaqs)
                 .Include(x => x.ProductVariants)
                 .FirstOrDefaultAsync(x => x.ProductId == id);
@@ -176,22 +174,16 @@ namespace Keytietkiem.Controllers
                 p.ProductCode,
                 p.ProductName,
                 p.ProductType,
-                p.AutoDelivery,
                 p.Status,
-                p.ThumbnailUrl,
                 p.Categories.Select(c => c.CategoryId),
                 p.ProductBadges.Select(b => b.Badge),
-                p.ProductImages
-                    .OrderBy(i => i.SortOrder)
-                    .Select(i => new ProductImageDto(i.ImageId, i.Url, i.SortOrder, i.IsPrimary, i.AltText)),
                 p.ProductFaqs
                     .OrderBy(f => f.SortOrder)
                     .Select(f => new ProductFaqDto(f.FaqId, f.Question, f.Answer, f.SortOrder, f.IsActive)),
                 p.ProductVariants
-                    .OrderBy(v => v.SortOrder)
                     .Select(v => new ProductVariantMiniDto(
                         v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                        v.OriginalPrice, v.Price, v.StockQty, v.Status, v.SortOrder
+                       v.StockQty, v.Status
                     ))
             );
 
@@ -216,9 +208,7 @@ namespace Keytietkiem.Controllers
                 ProductCode = dto.ProductCode.Trim(),
                 ProductName = dto.ProductName.Trim(),
                 ProductType = dto.ProductType.Trim(),
-                AutoDelivery = dto.AutoDelivery,
                 Status = "INACTIVE", // sẽ set lại theo stock sau, mặc định INACTIVE
-                ThumbnailUrl = dto.ThumbnailUrl,
                 Slug = dto.Slug ?? dto.ProductCode.Trim(),
                 CreatedAt = _clock.UtcNow
             };
@@ -268,8 +258,6 @@ namespace Keytietkiem.Controllers
 
             e.ProductName = dto.ProductName.Trim();
             e.ProductType = dto.ProductType.Trim();
-            e.AutoDelivery = dto.AutoDelivery;
-            e.ThumbnailUrl = dto.ThumbnailUrl;
             e.Slug = dto.Slug ?? e.Slug;
             e.UpdatedAt = _clock.UtcNow;
 

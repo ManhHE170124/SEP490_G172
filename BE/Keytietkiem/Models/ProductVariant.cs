@@ -15,15 +15,13 @@ public partial class ProductVariant
 
     public int? DurationDays { get; set; }
 
-    public decimal Price { get; set; }
-
-    public decimal? OriginalPrice { get; set; }
-
+    public string? Thumbnail { get; set; }          // nvarchar(255)
+    public string? MetaTitle { get; set; }          // nvarchar(255)
+    public string? MetaDescription { get; set; }    // nvarchar(255)
+    public int ViewCount { get; set; }
     public int? WarrantyDays { get; set; }
 
     public string Status { get; set; } = null!;
-
-    public int SortOrder { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

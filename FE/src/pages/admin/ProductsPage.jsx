@@ -1,3 +1,4 @@
+// src/pages/admin/ProductsPage.jsx
 import React from "react";
 import { Link } from "react-router-dom";
 import ProductApi from "../../services/products";
@@ -11,23 +12,23 @@ export default function ProductsPage() {
     categoryId: "",
     type: "",
     status: "",
-    badge: "",          // NEW: lọc theo nhãn
+    badge: "",          // Lọc theo 1 badge (BE hỗ trợ badge hoặc badges)
     sort: "name",
     direction: "asc",
   });
   const [page, setPage] = React.useState(1);
-  const [pageSize] = React.useState(10); // cố định 10
+  const [pageSize] = React.useState(10);
   const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [items, setItems] = React.useState([]);
 
   const [categories, setCategories] = React.useState([]);
   const [categoriesDict, setCategoriesDict] = React.useState({});
-  const [badges, setBadges] = React.useState([]);      // NEW: danh sách nhãn để render select
+  const [badges, setBadges] = React.useState([]);
   const [badgesDict, setBadgesDict] = React.useState({});
 
   React.useEffect(() => {
-    // Danh mục
+    // Danh mục (để render tên)
     CategoryApi.listPaged({ active: true, page: 1, pageSize: 1000 }).then((res) => {
       const list = res?.items ?? [];
       setCategories(list);
@@ -36,13 +37,16 @@ export default function ProductsPage() {
       setCategoriesDict(dict);
     });
 
-    // Nhãn
+    // Nhãn (để hiển thị chip + màu)
     BadgesApi.listPaged({ active: true, page: 1, pageSize: 1000 }).then((res) => {
       const items = res?.items ?? [];
-      setBadges(items); // NEW
+      setBadges(items);
       const dict = {};
       for (const b of items) {
-        dict[b.badgeCode] = { name: b.displayName || b.badgeCode, color: b.colorHex || "#1e40af" };
+        dict[b.badgeCode] = {
+          name:  b.displayName || b.badgeCode,
+          color: b.colorHex || "#1e40af",
+        };
       }
       setBadgesDict(dict);
     });
@@ -51,21 +55,22 @@ export default function ProductsPage() {
   const load = React.useCallback(async () => {
     setLoading(true);
     const params = {
-      keyword: query.keyword || undefined,
+      keyword:   query.keyword || undefined,
       categoryId: query.categoryId || undefined,
-      type: query.type || undefined,
-      status: query.status || undefined,
-      badge: query.badge || undefined,    // NEW: gửi badgeCode lên BE qua ?badge=
-      sort: query.sort || "name",
+      type:      query.type || undefined,       // [FromQuery(Name="type")]
+      status:    query.status || undefined,
+      badge:     query.badge || undefined,      // BE: badge | badges (csv)
+      sort:      query.sort || "name",
       direction: query.direction || "asc",
       page,
       pageSize,
     };
     try {
       const res = await ProductApi.list(params);
-      const arr = res?.items ?? res ?? [];
+      const arr = res?.items ?? [];
       setItems(arr);
-      setTotal(typeof res?.total === "number" ? res.total : arr.length);
+      // dùng totalItems từ PagedResult
+      setTotal(typeof res?.totalItems === "number" ? res.totalItems : arr.length);
     } finally {
       setLoading(false);
     }
@@ -83,7 +88,7 @@ export default function ProductsPage() {
     query.categoryId,
     query.type,
     query.status,
-    query.badge,         // NEW: reset trang khi đổi nhãn
+    query.badge,
     query.sort,
     query.direction,
   ]);
@@ -92,7 +97,8 @@ export default function ProductsPage() {
   const STATUSES = ProductApi?.statuses ?? [];
 
   const fmtType   = (t) => ProductApi.typeLabelOf?.(t) || t;
-const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
+  const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
+
   const statusBadge = (s) =>
     s === "ACTIVE" ? "badge green" : s === "OUT_OF_STOCK" ? "badge red" : "badge gray";
 
@@ -144,7 +150,7 @@ const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
           </div>
 
           <div className="group w-180">
-            <span>Danh mục sản phẩm</span> {/* VI: cập nhật label */}
+            <span>Danh mục sản phẩm</span>
             <select
               value={query.categoryId}
               onChange={(e) => setQuery((s) => ({ ...s, categoryId: e.target.value }))}
@@ -184,7 +190,7 @@ const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
             </select>
           </div>
 
-          {/* NEW: Nhãn sản phẩm (hiển thị theo tên hiển thị) */}
+          {/* Lọc theo nhãn */}
           <div className="group w-180">
             <span>Nhãn sản phẩm</span>
             <select
@@ -209,7 +215,7 @@ const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
                 categoryId: "",
                 type: "",
                 status: "",
-                badge: "",      // reset nhãn
+                badge: "",
                 sort: "name",
                 direction: "asc",
               })
@@ -224,55 +230,57 @@ const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
         <table className="table" style={{ marginTop: 10 }}>
           <thead>
             <tr>
-              <th onClick={() => headerSort("name")} style={{ cursor:"pointer" }}>
-                Tên {query.sort==="name" ? (query.direction==="asc"?" ▲":" ▼") : ""}
+              <th onClick={() => headerSort("name")} style={{ cursor: "pointer" }}>
+                Tên {query.sort === "name" ? (query.direction === "asc" ? " ▲" : " ▼") : ""}
               </th>
-              <th onClick={() => headerSort("type")} style={{ cursor:"pointer" }}>
-                Loại {query.sort==="type" ? (query.direction==="asc"?" ▲":" ▼") : ""}
+              <th onClick={() => headerSort("type")} style={{ cursor: "pointer" }}>
+                Loại {query.sort === "type" ? (query.direction === "asc" ? " ▲" : " ▼") : ""}
               </th>
-              <th onClick={() => headerSort("stock")} style={{ cursor:"pointer" }}>
-                Tồn kho (tổng) {query.sort==="stock" ? (query.direction==="asc"?" ▲":" ▼") : ""}
+              <th onClick={() => headerSort("stock")} style={{ cursor: "pointer" }}>
+                Tồn kho (tổng) {query.sort === "stock" ? (query.direction === "asc" ? " ▲" : " ▼") : ""}
               </th>
               <th>Danh mục</th>
               <th>Nhãn</th>
-            <th className="col-status" onClick={() => headerSort("status")} style={{ cursor: "pointer" }}>
-  Trạng thái {query.sort==="status" ? (query.direction==="asc"?" ▲":" ▼") : ""}
-</th>
-
+              <th className="col-status" onClick={() => headerSort("status")} style={{ cursor: "pointer" }}>
+                Trạng thái {query.sort === "status" ? (query.direction === "asc" ? " ▲" : " ▼") : ""}
+              </th>
               <th>Thao tác</th>
             </tr>
           </thead>
+
           <tbody>
             {(items ?? []).map((p) => (
               <tr key={p.productId}>
                 <td>{p.productName}</td>
                 <td>{fmtType(p.productType)}</td>
-                <td className="mono">{p.totalStockQty ?? 0}</td>
+
+                {/* Tổng tồn kho: lấy từ TotalStockQty đã map thành totalStock */}
+                <td className="mono">{p.totalStock ?? 0}</td>
 
                 {/* Danh mục: tên + dấu phẩy */}
                 <td style={{ maxWidth: 360 }}>
-                  {(p.categoryIds ?? []).length === 0 ? "—" : (
-                    (p.categoryIds ?? []).map((cid, idx, arr) => {
-                      const name = categoriesDict[cid] ?? `#${cid}`;
-                      return (
-                        <React.Fragment key={cid}>
-                          <span className="chip">{name}</span>
-                          {idx < arr.length - 1 ? <span>,&nbsp;</span> : null}
-                        </React.Fragment>
-                      );
-                    })
-                  )}
+                  {(p.categoryIds ?? []).length === 0
+                    ? "—"
+                    : (p.categoryIds ?? []).map((cid, idx, arr) => {
+                        const name = categoriesDict[cid] ?? `#${cid}`;
+                        return (
+                          <React.Fragment key={cid}>
+                            <span className="chip">{name}</span>
+                            {idx < arr.length - 1 ? <span>,&nbsp;</span> : null}
+                          </React.Fragment>
+                        );
+                      })}
                 </td>
 
-                {/* Nhãn (chips màu) */}
+                {/* Nhãn: dùng mảng badgeCodes đã map thành p.badges → chip màu giống panel */}
                 <td style={{ maxWidth: 360 }}>
-                  {(p.badgeCodes ?? []).map((code) => {
+                  {(p.badges ?? []).map((code) => {
                     const meta = badgesDict[code] || { name: code, color: "#6b7280" };
                     return (
                       <span
                         key={code}
                         className="label-chip"
-                        style={{ background: meta.color, color:"#fff", marginRight:6, marginBottom:4 }}
+                        style={{ background: meta.color, color: "#fff", marginRight: 6, marginBottom: 4 }}
                         title={meta.name}
                       >
                         {meta.name}
@@ -281,12 +289,11 @@ const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
                   })}
                 </td>
 
- <td className="col-status">
-  <span className={statusBadge(p.status)} style={{ textTransform: "none" }}>
-    {fmtStatus(p.status)}
-  </span>
-</td>
-
+                <td className="col-status">
+                  <span className={statusBadge(p.status)} style={{ textTransform: "none" }}>
+                    {fmtStatus(p.status)}
+                  </span>
+                </td>
 
                 {/* Thao tác */}
                 <td style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -326,11 +333,11 @@ const fmtStatus = (s) => ProductApi.statusLabelOf?.(s) || s;
           </tbody>
         </table>
 
-        {/* Pager: căn giữa */}
+        {/* Pager */}
         <div className="pager">
-          <button disabled={page<=1} onClick={()=>setPage((x)=>Math.max(1,x-1))}>Trước</button>
-          <span style={{ padding:"0 8px" }}>Trang {page}</span>
-          <button disabled={page*pageSize>=total} onClick={()=>setPage((x)=>x+1)}>Tiếp</button>
+          <button disabled={page <= 1} onClick={() => setPage((x) => Math.max(1, x - 1))}>Trước</button>
+          <span style={{ padding: "0 8px" }}>Trang {page}</span>
+          <button disabled={page * pageSize >= total} onClick={() => setPage((x) => x + 1)}>Tiếp</button>
         </div>
       </div>
     </div>

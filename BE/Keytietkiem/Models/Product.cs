@@ -15,8 +15,6 @@ public partial class Product
 
     public int StockQty { get; set; }
 
-    public bool AutoDelivery { get; set; }
-
     public string Status { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; }
@@ -26,8 +24,6 @@ public partial class Product
     public DateTime? UpdatedAt { get; set; }
 
     public Guid? UpdatedBy { get; set; }
-
-    public string? ThumbnailUrl { get; set; }
 
     public string Slug { get; set; } = null!;
 
@@ -40,8 +36,6 @@ public partial class Product
     public virtual ICollection<ProductBadge> ProductBadges { get; set; } = new List<ProductBadge>();
 
     public virtual ICollection<ProductFaq> ProductFaqs { get; set; } = new List<ProductFaq>();
-
-    public virtual ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
 
     public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
 

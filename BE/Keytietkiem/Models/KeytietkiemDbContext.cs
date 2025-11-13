@@ -55,8 +55,6 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<ProductFaq> ProductFaqs { get; set; }
 
-    public virtual DbSet<ProductImage> ProductImages { get; set; }
-
     public virtual DbSet<ProductKey> ProductKeys { get; set; }
 
     public virtual DbSet<ProductReview> ProductReviews { get; set; }
@@ -401,7 +399,6 @@ public partial class KeytietkiemDbContext : DbContext
                 entity.Property(e => e.Status)
                     .HasMaxLength(15)
                     .IsUnicode(false);
-                entity.Property(e => e.ThumbnailUrl).HasMaxLength(512);
                 entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
                 entity.HasMany(d => d.Categories).WithMany(p => p.Products)
@@ -546,23 +543,7 @@ public partial class KeytietkiemDbContext : DbContext
                     .HasConstraintName("FK_ProductFaqs_Product");
             });
 
-            modelBuilder.Entity<ProductImage>(entity =>
-            {
-                entity.HasKey(e => e.ImageId).HasName("PK__ProductI__7516F70CF4DD86C6");
-
-                entity.HasIndex(e => new { e.ProductId, e.SortOrder }, "IX_ProductImages_Product_Sort");
-
-                entity.Property(e => e.AltText).HasMaxLength(200);
-                entity.Property(e => e.CreatedAt)
-                    .HasPrecision(3)
-                    .HasDefaultValueSql("(sysutcdatetime())");
-                entity.Property(e => e.Url).HasMaxLength(512);
-
-                entity.HasOne(d => d.Product).WithMany(p => p.ProductImages)
-                    .HasForeignKey(d => d.ProductId)
-                    .HasConstraintName("FK_ProductImages_Products");
-            });
-
+          
             modelBuilder.Entity<ProductKey>(entity =>
             {
                 entity.HasKey(e => e.KeyId).HasName("PK__ProductK__21F5BE47A954461F");
@@ -647,8 +628,6 @@ public partial class KeytietkiemDbContext : DbContext
                 entity.Property(e => e.CreatedAt)
                     .HasPrecision(3)
                     .HasDefaultValueSql("(sysutcdatetime())");
-                entity.Property(e => e.OriginalPrice).HasColumnType("decimal(12, 2)");
-                entity.Property(e => e.Price).HasColumnType("decimal(12, 2)");
                 entity.Property(e => e.Status)
                     .HasMaxLength(15)
                     .IsUnicode(false)
@@ -658,7 +637,10 @@ public partial class KeytietkiemDbContext : DbContext
                 entity.Property(e => e.VariantCode)
                     .HasMaxLength(50)
                     .IsUnicode(false);
-
+                entity.Property(e => e.Thumbnail).HasMaxLength(255);
+                entity.Property(e => e.MetaTitle).HasMaxLength(255);
+                entity.Property(e => e.MetaDescription).HasMaxLength(255);
+                entity.Property(e => e.ViewCount).HasDefaultValue(0);
                 entity.HasOne(d => d.Product).WithMany(p => p.ProductVariants)
                     .HasForeignKey(d => d.ProductId)
                     .HasConstraintName("FK_ProductVariants_Product");

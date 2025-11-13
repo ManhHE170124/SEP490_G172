@@ -53,8 +53,6 @@ export default function VariantDetail() {
         title: v.title ?? v.Title ?? "",
         durationDays: v.durationDays ?? v.DurationDays ?? 0,
         warrantyDays: v.warrantyDays ?? v.WarrantyDays ?? 0,
-        price: v.price ?? v.Price ?? 0,
-        originalPrice: v.originalPrice ?? v.OriginalPrice ?? null,
         stockQty: v.stockQty ?? v.StockQty ?? 0,
         status: (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
       });
@@ -94,11 +92,6 @@ export default function VariantDetail() {
         title: variant.title?.trim(),
         durationDays: Number(variant.durationDays || 0),
         warrantyDays: Number(variant.warrantyDays || 0),
-        price: Number(variant.price || 0),
-        originalPrice:
-          variant.originalPrice === "" || variant.originalPrice == null
-            ? null
-            : Number(variant.originalPrice),
         status: variant.status,
       };
       await ProductVariantsApi.update(productId, variant.variantId, dto);
@@ -215,36 +208,6 @@ export default function VariantDetail() {
               value={variant.warrantyDays}
               onChange={(e) => setVar("warrantyDays", e.target.value)}
             />
-          </div>
-
-          <div className="group">
-            <span>Giá bán</span>
-            <input
-              type="number"
-              min={0}
-              step={1000}
-              value={variant.price}
-              onChange={(e) => setVar("price", e.target.value)}
-            />
-            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {fmtMoney(Number(variant.price || 0))}
-            </div>
-          </div>
-
-          <div className="group">
-            <span>Giá gốc</span>
-            <input
-              type="number"
-              min={0}
-              step={1000}
-              value={variant.originalPrice ?? ""}
-              onChange={(e) => setVar("originalPrice", e.target.value)}
-            />
-            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {variant.originalPrice != null && variant.originalPrice !== ""
-                ? fmtMoney(Number(variant.originalPrice))
-                : "—"}
-            </div>
           </div>
         </div>
 
