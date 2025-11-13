@@ -16,7 +16,7 @@ import "./AdminPostList.css";
 
 export default function AdminPostList() {
   const navigate = useNavigate();
-  const { toasts, showSuccess, showError, removeToast, confirmDialog, showConfirm } = useToast();
+  const { toasts, showInfo, showSuccess, showError, removeToast, confirmDialog, showConfirm } = useToast();
 
   // Data state
   const [posts, setPosts] = useState([]);
@@ -96,8 +96,12 @@ export default function AdminPostList() {
 
     // PostType filter
     if (posttypeFilter !== "all") {
-      const typeId = Number.parseInt(posttypeFilter, 10);
-      filtered = filtered.filter(post => post.posttypeId === typeId);
+      const filterTypeId = String(posttypeFilter);
+      filtered = filtered.filter(post => {
+        const postTypeId = post.posttypeId || post.postTypeId || post.PosttypeId || post.PostTypeId;
+        if (!postTypeId) return false;
+        return String(postTypeId) === filterTypeId;
+      });
     }
 
     // Status filter
@@ -111,8 +115,8 @@ export default function AdminPostList() {
 
       // Handle posttypeName (special case - nested property)
       if (sortKey === "posttypeName") {
-        aVal = a.posttypeName || "";
-        bVal = b.posttypeName || "";
+        aVal = a.posttypeName || a.postTypeName || a.PosttypeName || "";
+        bVal = b.posttypeName || b.postTypeName || b.PosttypeName || "";
       } else {
         aVal = a[sortKey];
         bVal = b[sortKey];
@@ -185,41 +189,7 @@ export default function AdminPostList() {
   };
 
   const handlePreview = (post) => {
-    const previewWindow = window.open("", "_blank");
-    previewWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${post.title || "Preview"}</title>
-          <meta charset="utf-8">
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 20px;
-              line-height: 1.6;
-            }
-            img { max-width: 100%; height: auto; }
-            h1 { color: #333; }
-            .meta { color: #666; font-size: 14px; margin: 10px 0; }
-            .content { margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <h1>${post.title || ""}</h1>
-          <div class="meta">
-            ${post.authorName ? `Tác giả: ${post.authorName} | ` : ""}
-            ${post.createdAt ? `Ngày: ${formatDate(post.createdAt)} | ` : ""}
-            ${post.viewCount !== null ? `Lượt xem: ${post.viewCount}` : ""}
-          </div>
-          ${post.shortDescription ? `<p><em>${post.shortDescription}</em></p>` : ""}
-          ${post.thumbnail ? `<img src="${post.thumbnail}" alt="${post.title}" style="max-width: 100%; margin: 20px 0;" />` : ""}
-          <div class="content">${post.content || ""}</div>
-        </body>
-      </html>
-    `);
-    previewWindow.document.close();
+    showInfo("Preview", "Chức năng xem trước đang được phát triển.");
   };
 
   const handleDelete = (postId) => {
@@ -269,12 +239,13 @@ export default function AdminPostList() {
       const post = posts.find(p => p.postId === postId);
       if (!post) return;
 
+      const postTypeId = post.posttypeId || post.postTypeId || post.PosttypeId || post.id;
       await postsApi.updatePost(postId, {
         title: post.title,
         shortDescription: post.shortDescription || "",
         content: post.content || "",
         thumbnail: post.thumbnail || "",
-        posttypeId: post.posttypeId,
+        posttypeId: postTypeId,
         status: newStatus,
         metaTitle: post.metaTitle || "",
         metaDescription: post.metaDescription || "",
@@ -302,7 +273,7 @@ export default function AdminPostList() {
       filteredSorted.forEach(post => {
         const row = [
           `"${(post.title || "").replace(/"/g, '""')}"`,
-          `"${(post.posttypeName || "").replace(/"/g, '""')}"`,
+          `"${((post.posttypeName || post.postTypeName || post.PosttypeName) || "").replace(/"/g, '""')}"`,
           `"${(post.authorName || "").replace(/"/g, '""')}"`,
           `"${getStatusLabel(post.status).replace(/"/g, '""')}"`,
           post.viewCount || 0,
@@ -435,7 +406,7 @@ export default function AdminPostList() {
           <div className="apl-search-box">
             <input
               type="text"
-              placeholder="Tìm kiếm tiêu đề, nội dung..."
+              placeholder="Tìm kiếm tiêu đề..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -452,11 +423,15 @@ export default function AdminPostList() {
               className="apl-filter-select"
             >
               <option value="all">Tất cả</option>
-              {posttypes.map((pt) => (
-                <option key={pt.posttypeId} value={pt.posttypeId}>
-                  {pt.posttypeName}
-                </option>
-              ))}
+              {posttypes.map((pt) => {
+                const ptId = pt.posttypeId || pt.postTypeId || pt.PosttypeId || pt.id;
+                const ptName = pt.posttypeName || pt.postTypeName || pt.PosttypeName || pt.name || "";
+                return (
+                  <option key={ptId} value={ptId}>
+                    {ptName}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -668,7 +643,7 @@ export default function AdminPostList() {
                       )}
                     </div>
                   </td>
-                  <td>{post.posttypeName || "-"}</td>
+                  <td>{post.posttypeName || post.postTypeName || post.PosttypeName || "-"}</td>
                   <td>{post.authorName || "-"}</td>
                   <td>
                     {getStatusBadge(post.status)}
@@ -723,25 +698,41 @@ export default function AdminPostList() {
                     onChange={() => handleSelectPost(post.postId)}
                   />
                 </div>
-                {post.thumbnail ? (
-                  <img
-                    src={post.thumbnail}
-                    alt={post.title}
-                    className="apl-post-card-image"
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="apl-post-card-image-placeholder">📄</div>
-                )}
+                <div className="apl-post-card-image-wrapper">
+                  {post.thumbnail ? (
+                    <img
+                      src={post.thumbnail}
+                      alt={post.title}
+                      className="apl-post-card-image"
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="apl-post-card-image-placeholder">📄</div>
+                  )}
+                  {post.tags && post.tags.length > 0 && (
+                    <div className="apl-post-card-tags-overlay">
+                      {post.tags.slice(0, 3).map((tag) => (
+                        <span key={tag.tagId || tag.TagId || tag.id} className="apl-tag-badge">
+                          {tag.tagName || tag.TagName || tag.name}
+                        </span>
+                      ))}
+                      {post.tags.length > 3 && (
+                        <span className="apl-tag-badge">
+                          +{post.tags.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="apl-post-card-content">
                   <div className="apl-post-card-title">{post.title || "(Không có tiêu đề)"}</div>
                   {post.shortDescription && (
                     <div className="apl-post-card-desc">{post.shortDescription}</div>
                   )}
                   <div className="apl-post-card-meta">
-                    <span>{post.posttypeName || "Không có danh mục"}</span>
+                    <span>Danh mục: {post.posttypeName || post.postTypeName || post.PosttypeName || "Không có danh mục"}</span>
                     <span>•</span>
                     <span>{formatDate(post.createdAt)}</span>
                   </div>
