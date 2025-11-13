@@ -1,35 +1,101 @@
+/* File: src/styles/admin-ticket-management.css */
 :root{
   --bg:#eff6f8; --panel:#fff; --ink:#0b2130; --muted:#6b7280; --line:#e5e7eb;
   --primary:#2563eb; --success:#16a34a; --danger:#dc2626; --warning:#d97706;
   --shadow:0 12px 30px rgba(15,23,42,.08);
 }
+
+/* Page & header */
 .tk-page{padding:24px;}
 .tk-title{margin:0 0 16px;font-size:20px;font-weight:700;color:var(--ink);}
 .tk-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
 
+/* Filters */
 .tk-filters{
   display:grid;
-  grid-template-columns: minmax(320px,1fr) 160px 160px 160px 160px auto auto; /* ✅ thêm SLA */
-  gap:8px;
-  margin-bottom:12px;
+  grid-template-columns:minmax(320px,1fr) 160px 160px 160px 160px auto auto;
+  gap:8px;margin-bottom:12px;
 }
 .ip{padding:10px 12px;border:1px solid var(--line);border-radius:8px;min-width:0}
 
+/* Buttons */
 .btn{padding:8px 12px;border:1px solid transparent;border-radius:8px;background:#fff;cursor:pointer}
 .btn.primary{background:var(--primary);color:#fff}
 .btn.ghost{background:#fff;border-color:var(--line);color:var(--ink)}
 .btn.danger{background:var(--danger);color:#fff}
 .btn.xs{padding:6px 10px;font-size:12px}
 .btn.icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center}
+
 .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
 .bold{font-weight:600}.muted{color:var(--muted)}
 .ellipsis{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.tk-table-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
-.tk-table{width:100%;border-collapse:separate;border-spacing:0}
-.tk-table th,.tk-table td{padding:12px;border-bottom:1px solid var(--line);text-align:left;background:#fff}
-.tk-table thead th{background:#f8fafc;font-weight:600}
+/* Table */
+.tk-table-wrap{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.tk-table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  table-layout:fixed;          /* giữ layout cố định */
+}
+.tk-table th,
+.tk-table td{
+  padding:12px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  background:#fff;
+  vertical-align:middle;
+}
+.tk-table thead th{
+  background:#f8fafc;
+  font-weight:600;
+}
 
+/* Sau khi bỏ STT + Khách hàng, 3 cột Trạng thái / Mức độ / SLA là cột 3–5 */
+.tk-table thead th:nth-child(3),
+.tk-table tbody td:nth-child(3),
+.tk-table thead th:nth-child(4),
+.tk-table tbody td:nth-child(4),
+.tk-table thead th:nth-child(5),
+.tk-table tbody td:nth-child(5){
+  white-space:nowrap;
+  width:1%;
+}
+
+/* Cột Thao tác hẹp hơn, luôn thẳng hàng */
+.tk-table thead th:last-child,
+.tk-table tbody td:last-child{
+  width:150px;
+}
+.tk-table tbody td:last-child{
+  white-space:normal;
+}
+
+/* 🔧 NEW: luôn cao đủ cho 3 nút, 1 nút sẽ nằm giữa theo chiều dọc */
+.tk-row-actions{
+  display:flex;
+  flex-direction:column;
+  align-items:center;          /* căn giữa ngang */
+  justify-content:center;      /* căn giữa dọc */
+  gap:6px;
+  min-height:78px;             /* chiều cao “mặc định” cho 3 button xs */
+}
+
+/* Giữ dọc luôn kể cả màn nhỏ */
+@media (max-width: 1280px){
+  .tk-row-actions{
+    display:flex;
+    flex-direction:column;
+  }
+}
+
+/* Badges */
 .st{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600}
 .st-new{background:#eef2ff;color:#3730a3}
 .st-processing{background:#ecfeff;color:#0e7490}
@@ -45,29 +111,93 @@
 .sla{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600}
 .sla-ok{background:#ecfdf5;color:#0f766e}
 .sla-breached{background:#fef3c7;color:#b45309}
-.sla-warning{background:#fff7ed;color:#b45309} /* ✅ Warning */
+.sla-warning{background:#fff7ed;color:#b45309}
 
 .as{padding:4px 8px;border-radius:8px;font-size:12px;font-weight:600}
 .as-unassigned{background:#f3f4f6;color:#52525b}
 .as-assigned{background:#e0e7ff;color:#3730a3}
 .as-technical{background:#eff6ff;color:#2563eb}
 
-.tk-row-actions{display:flex;gap:6px;flex-wrap:wrap}
-.tk-pager{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}
-
-/* Modal */
-.tk-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50}
-.tk-modal-card{background:#fff;border-radius:12px;padding:16px 16px 12px;min-width:420px;max-width:90vw;box-shadow:var(--shadow)}
-.tk-modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.tk-modal-title{margin:0;font-size:18px;font-weight:700;color:var(--ink)}
-.tk-modal-body{display:block}
-.tk-modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
-.form-group{margin-bottom:12px}
-.form-group label{display:block;margin-bottom:6px;font-weight:600;color:var(--ink);font-size:14px}
-.form-group .ip{width:100%}
-.tk-filters{
-  display:grid;
-  grid-template-columns: minmax(320px,1fr) 160px 160px 160px 160px auto auto;
+.tk-pager{
+  display:flex;
   gap:8px;
-  margin-bottom:12px;
+  align-items:center;
+  justify-content:center;
+  margin-top:12px;
+}
+
+/* Modal (popup gán/chuyển hỗ trợ) */
+.tk-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+}
+.tk-modal-card{
+  background:#fff;
+  border-radius:12px;
+  padding:16px 16px 12px;
+  min-width:420px;
+  max-width:90vw;
+  box-shadow:var(--shadow);
+}
+.tk-modal-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.tk-modal-title{
+  margin:0;
+  font-size:18px;
+  font-weight:700;
+  color:var(--ink);
+}
+.tk-modal-body{display:block}
+.tk-modal-foot{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  margin-top:12px;
+}
+.form-group{margin-bottom:12px}
+.form-group label{
+  display:block;
+  margin-bottom:6px;
+  font-weight:600;
+  color:var(--ink);
+  font-size:14px;
+}
+.form-group .ip{width:100%}
+
+/* Staff list trong modal */
+.staff-list{
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:6px;
+  max-height:40vh;
+  overflow:auto;
+}
+.staff-ul{list-style:none;margin:0;padding:0}
+.staff-item{
+  padding:6px 8px;
+  border-radius:6px;
+  cursor:pointer;
+}
+.staff-item:hover{background:#f9fafb}
+.staff-item.selected{background:#eff6ff}
+.staff-info{margin-left:6px;display:inline-block}
+.staff-name{font-weight:600;font-size:14px}
+.staff-email{font-size:12px;color:var(--muted)}
+
+.btn.icon{
+  width:32px;
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
 }

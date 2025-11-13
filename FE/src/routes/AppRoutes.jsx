@@ -33,6 +33,8 @@ import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
+// App.jsx (hoặc routes admin)
+import VariantDetail from "../pages/admin/VariantDetail.jsx";
 
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
@@ -141,30 +143,10 @@ export default function AppRoutes() {
       />
 
       {/* Products */}
-      <Route
-        path="/admin/products"
-        element={
-          <AdminLayout>
-            <ProductsPage />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/admin/products/add"
-        element={
-          <AdminLayout>
-            <ProductAdd />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/admin/products/:id"
-        element={
-          <AdminLayout>
-            <ProductDetail />
-          </AdminLayout>
-        }
-      />
+      <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
+      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout> }/>
+      <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
+      <Route path="/admin/products/:id/variants/:variantId" element={<AdminLayout><VariantDetail /></AdminLayout>} />
 
       {/* Categories */}
       <Route
