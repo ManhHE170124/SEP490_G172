@@ -343,16 +343,18 @@ export default function AdminTicketManagement() {
       {/* Table */}
       <div className="tk-table-wrap">
         <table className="tk-table">
-          {/* ✅ Bỏ STT + Khách hàng, chỉ giữ 8 cột */}
+          {/* Giữ nguyên layout 8 cột, nhưng dùng mảng <col> để tránh text node trong <colgroup> */}
           <colgroup>
-            <col style={{ width: 110 }} /> {/* Mã */}
-            <col /> {/* Tiêu đề – ăn hết phần còn lại */}
-            <col style={{ width: 120 }} /> {/* Trạng thái */}
-            <col style={{ width: 120 }} /> {/* Mức độ */}
-            <col style={{ width: 120 }} /> {/* SLA */}
-            <col style={{ width: 220 }} /> {/* Phân công */}
-            <col style={{ width: 170 }} /> {/* Ngày tạo */}
-            <col style={{ width: 150 }} /> {/* Thao tác */}
+            {[
+              <col key="c1" style={{ width: 110 }} />, // Mã
+              <col key="c2" />, // Tiêu đề
+              <col key="c3" style={{ width: 120 }} />, // Trạng thái
+              <col key="c4" style={{ width: 120 }} />, // Mức độ
+              <col key="c5" style={{ width: 120 }} />, // SLA
+              <col key="c6" style={{ width: 220 }} />, // Phân công
+              <col key="c7" style={{ width: 170 }} />, // Ngày tạo
+              <col key="c8" style={{ width: 150 }} />, // Thao tác
+            ]}
           </colgroup>
           <thead>
             <tr>
