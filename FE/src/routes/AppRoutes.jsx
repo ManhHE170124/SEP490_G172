@@ -60,8 +60,8 @@ const AdminTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-          ? m.AdminTicketDetail
-          : () => null,
+        ? m.AdminTicketDetail
+        : () => null,
   }))
 );
 
@@ -144,7 +144,7 @@ export default function AppRoutes() {
 
       {/* Products */}
       <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
-      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout>} />
+      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout> }/>
       <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
       <Route path="/admin/products/:id/variants/:variantId" element={<AdminLayout><VariantDetail /></AdminLayout>} />
 

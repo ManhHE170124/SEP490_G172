@@ -141,9 +141,7 @@ namespace Keytietkiem.Controllers
         {
             if (createPostDto == null || string.IsNullOrWhiteSpace(createPostDto.Title))
             {
-
                 return BadRequest("Tiêu đề không được để trống.");
-
             }
 
             // Validate PostType exists
@@ -175,9 +173,7 @@ namespace Keytietkiem.Controllers
                     .CountAsync(t => createPostDto.TagIds.Contains(t.TagId));
                 if (tagCount != createPostDto.TagIds.Count)
                 {
-
                     return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
-
                 }
             }
 
@@ -416,7 +412,7 @@ namespace Keytietkiem.Controllers
             return NoContent();
 
         }
-
+    
 
     [HttpDelete("posttypes/{id}")]
         public async Task<IActionResult> DeletePosttype(Guid id)
