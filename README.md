@@ -106,6 +106,44 @@ v2: i18n, FAQ chatbot, advanced analytics, UX/performance improvements, internat
   - Merge **ThanBD (User Management)** → **Develop** (pre-merge testing branch).
 - **v0.3 - 2025-10-28**
   - Merge **ManhLD (Product,Category,Badge)** → **Develop** (pre-merge testing branch).
+- **v0.4 - 2025-10-30**
+  - Merge **TrungDQ (Authentication,Login,Registration,OTP Servive)** → **Develop** (pre-merge testing branch).
+- **v0.5 - 2025-10-31**
+  - Merge **HieuND (Post List, Post Create)** → **Develop** (pre-merge testing branch).
+  - Merge **TrungDQ (Password Reset, Role Seeding)** → **Develop** (pre-merge testing branch).
+- **v0.6 - 2025-11-2**
+  - Merge **ThanBD (Admin Ticket List, Admin Ticket Detail)** → **Develop** (pre-merge testing branch).
+  - Merge **TrungDQ (Product Key List, CSV Import)** → **Develop** (pre-merge testing branch).
+- **v0.7 - 2025-11-3**
+  - Merge **TrungDQ (Fix Product Key Bug)** → **Develop** (pre-merge testing branch).
+  - Merge **TungNV (Website Configuration)** → **Develop** (pre-merge testing branch).
+- **v0.8 - 2025-11-4**
+  - Merge **TrungDQ (Fix Product Key Bug, Using Enum)** → **Develop** (pre-merge testing branch).
+  - Merge **ThanBD (Fix User Management Bug)** → **Develop** (pre-merge testing branch).
+  - Merge **ManhLD (Fix Product Management Bug)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Fix Create Post Logic)** → **Develop** (pre-merge testing branch).
+  - Merge **TungNV (Update Website Configuration UI)** → **Develop** (pre-merge testing branch).
+- **v0.9 - 2025-11-6**
+  - Merge **TrungDQ (Add Token Recovation, Admin Seeding, Product Account Management)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Fix Create Edit Post UI)** → **Develop** (pre-merge testing branch).
+- **v0.10 - 2025-11-7**
+  - Merge **HieuND (Add Tag, Post Type)** → **Develop** (pre-merge testing branch).
+- **v0.11 - 2025-11-8**
+  - Merge **TrungDQ (Add Key Monitor, CSV Import for product keys, Implement role-based sidebar for storage staff)** → **Develop** (pre-merge testing branch).
+  - Merge **ThanBD (Update Admin Ticket Detail)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Update Post Type)** → **Develop** (pre-merge testing branch).
+  - **v0.12 - 2025-11-9**
+  - Merge **ThanBD (Update Admin Ticket)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Fix Add Post Bug)** → **Develop** (pre-merge testing branch).
+- **v0.13 - 2025-11-10**
+  - Merge **ThanBD (Update Ticket Detail)** → **Develop** (pre-merge testing branch).
+  - Merge **ManhLD (Add Product Variant)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Update Ubload Image)** → **Develop** (pre-merge testing branch).
+- **v0.14 - 2025-11-11**
+  - Merge **TrungDQ (Add COGS Price, Fix CSV Import)** → **Develop** (pre-merge testing branch).
+  - Merge **ManhLD (Add Product FAQ, Product Section)** → **Develop** (pre-merge testing branch).
+- **v0.15 - 2025-11-13**
+  - Merge **ThanBD (Update Ticket Detail, Add SignarIR, Fix Ticket Reply)** → **Develop** (pre-merge testing branch).
 ---
 
 ## 📄 License
