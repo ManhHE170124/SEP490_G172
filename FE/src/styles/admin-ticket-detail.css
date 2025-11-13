@@ -77,7 +77,7 @@
 /* Vùng tin nhắn: có scroll */
 .thread-messages{
   padding:8px 0;
-  max-height:400px;            /* chỉ xem 1 lượng tin, nhiều hơn thì scroll */
+  max-height:420px;            /* chỉ xem 1 lượng tin, nhiều hơn thì scroll */
   overflow-y:auto;
 }
 
