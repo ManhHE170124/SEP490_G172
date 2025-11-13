@@ -574,14 +574,14 @@ export default function AdminTicketDetail() {
 
               <div className="reply-footer">
                 <div className="left">
-                  <label>
+                  {/* <label>
                     <input
                       type="checkbox"
                       checked={sendEmail}
                       onChange={(e) => setSendEmail(e.target.checked)}
                     />
                     Gửi email thông báo
-                  </label>
+                  </label> */}
                 </div>
                 <div className="right">
                   <button
