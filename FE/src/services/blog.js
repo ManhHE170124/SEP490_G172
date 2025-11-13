@@ -1,16 +1,12 @@
 import axiosClient from "../api/axiosClient";
 
-export function getBlogList({ page = 1, pageSize = 10 } = {}) {
-    return axiosClient.get("/posts", {
-        params: { page, pageSize }
-    });
+// Lấy tất cả bài viết (array)
+export function getAllPosts() {
+    return axiosClient.get("/posts");
 }
-
 export function getPostTypes() {
     return axiosClient.get("/posts/posttypes");
 }
-
-// Lấy danh sách tags
 export function getTags() {
     return axiosClient.get("/tags");
 }
