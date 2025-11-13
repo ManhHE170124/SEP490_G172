@@ -27,6 +27,7 @@ namespace Keytietkiem.DTOs.Roles
     {
         public long ModuleId { get; set; }
         public string ModuleName { get; set; } = null!;
+        public string? Code { get; set; }
         public string? Description { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -35,12 +36,14 @@ namespace Keytietkiem.DTOs.Roles
     public class CreateModuleDTO
     {
         public string ModuleName { get; set; } = null!;
+        public string Code { get; set; } = null!;
         public string? Description { get; set; }
     }
 
     public class UpdateModuleDTO
     {
         public string ModuleName { get; set; } = null!;
+        public string Code { get; set; } = null!;
         public string? Description { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

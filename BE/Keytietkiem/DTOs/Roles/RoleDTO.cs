@@ -1,4 +1,4 @@
-/**
+﻿/**
  * File: RoleDTO.cs
  * Author: HieuNDHE173169
  * Created: 20/10/2025
@@ -21,6 +21,7 @@ namespace Keytietkiem.DTOs.Roles
     {
         public string RoleId { get; set; } = null!;
         public string Name { get; set; } = null!;
+        public string? Code { get; set; }
         public bool IsSystem { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -30,12 +31,14 @@ namespace Keytietkiem.DTOs.Roles
     public class CreateRoleDTO
     {
         public string Name { get; set; } = null!;
+        public string Code { get; set; } = null!;
         public bool IsSystem { get; set; } = false;
     }
 
     public class UpdateRoleDTO
     {
         public string Name { get; set; } = null!;
+        public string Code { get; set; } = null!;
         public bool IsActive { get; set; }
     }
 
@@ -73,5 +76,18 @@ namespace Keytietkiem.DTOs.Roles
         public string RoleId { get; set; } = null!;
         public string RoleName { get; set; } = null!;
         public List<RolePermissionDTO> RolePermissions { get; set; } = new List<RolePermissionDTO>();
+    }
+
+    public class CheckPermissionRequestDTO
+    {
+        public string RoleCode { get; set; } = null!;
+        public string ModuleCode { get; set; } = null!;
+        public string PermissionCode { get; set; } = null!;
+    }
+
+    public class CheckPermissionResponseDTO
+    {
+        public bool HasAccess { get; set; }
+        public string? Message { get; set; }
     }
 }

@@ -6,7 +6,7 @@
  * Version: 1.0.0
  * Purpose: Role permission assignment page for managing role-permission relationships.
  */
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {roleApi} from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
@@ -18,7 +18,7 @@ import "./RoleAssign.css";
  * @returns {JSX.Element} - Role assignment interface with permission matrix
  */
 export default function RoleAssign() {
-  const { toasts, showSuccess, showError, showWarning, removeToast, confirmDialog } = useToast();
+  const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
   
   // State for data
   const [roles, setRoles] = useState([]);
@@ -36,6 +36,30 @@ export default function RoleAssign() {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [addModuleOpen, setAddModuleOpen] = useState(false);
   const [addPermissionOpen, setAddPermissionOpen] = useState(false);
+  const filteredRoles = roles;
+
+  const totalPermissionSlots = modules.length * permissions.length;
+
+  const activePermissionCount = useMemo(() => {
+    if (!selectedRole) return 0;
+    if (!Array.isArray(rolePermissions) || rolePermissions.length === 0) return 0;
+
+    return rolePermissions.reduce(
+      (sum, rp) => (rp.isActive ? sum + 1 : sum),
+      0
+    );
+  }, [rolePermissions, selectedRole]);
+
+  const activePermissionPercent =
+    totalPermissionSlots > 0
+      ? Math.round((activePermissionCount / totalPermissionSlots) * 100)
+      : 0;
+
+  const filteredRoleCount = filteredRoles.length;
+  const isInitialLoading =
+    loading && roles.length === 0 && modules.length === 0 && permissions.length === 0;
+  const hasMatrixData =
+    Boolean(selectedRole) && modules.length > 0 && permissions.length > 0;
   
   /**
    * @summary: Load role-permission matrix for a given role.
@@ -67,6 +91,8 @@ export default function RoleAssign() {
       setRoles(rolesData || []);
       setModules(modulesData || []);
       setPermissions(permissionsData || []);
+
+      setSelectedRole((previous) => previous ?? (rolesData?.[0] ?? null));
     } catch (error) {
       showError("Lỗi tải dữ liệu", error.message || "Không thể tải dữ liệu");
     } finally {
@@ -93,9 +119,12 @@ export default function RoleAssign() {
       setSubmitting(true);
       const created = await roleApi.createRole({ 
         name: form.name, 
+        code: form.code,
         isSystem: form.isSystem || false 
       });
       setRoles(prev => [...prev, created]);
+      setSelectedRole(created);
+      setHasUnsavedChanges(false);
       setAddRoleOpen(false);
       showSuccess(
         "Tạo Vai trò thành công!",
@@ -119,6 +148,7 @@ export default function RoleAssign() {
       setSubmitting(true);
       const created = await roleApi.createModule({ 
         moduleName: form.moduleName,
+        code: form.code,
         description: form.description || ""
       });
       setModules(prev => [...prev, created]);
@@ -145,6 +175,7 @@ export default function RoleAssign() {
       setSubmitting(true);
       const created = await roleApi.createPermission({ 
         permissionName: form.permissionName, 
+        code: form.code,
         description: form.description || ""
       });
       setPermissions(prev => [...prev, created]);
@@ -167,14 +198,20 @@ export default function RoleAssign() {
    * @returns {void}
    */
   const handleRoleSelect = (role) => {
+    const isSameRole = selectedRole?.roleId === role.roleId;
+    if (isSameRole) return;
+
     if (hasUnsavedChanges) {
-      const confirmSwitch = window.confirm(
-        "Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển sang vai trò khác? Thay đổi sẽ bị mất."
+      showConfirm(
+        "Chưa lưu thay đổi",
+        `Bạn có chắc muốn chuyển sang vai trò "${role.name}"? Những thay đổi hiện tại sẽ bị mất.`,
+        () => {
+          setSelectedRole(role);
+        }
       );
-      if (!confirmSwitch) {
-        return;
-      }
+      return;
     }
+
     setSelectedRole(role);
   };
   
@@ -294,6 +331,7 @@ export default function RoleAssign() {
         "Lưu thay đổi thành công!",
         `Đã cập nhật tất cả quyền cho Vai trò "${selectedRole.name}"`
       );
+      window.dispatchEvent(new Event("role-permissions-updated"));
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
       showError("Lưu thay đổi thất bại!", errorMessage);
@@ -342,172 +380,223 @@ export default function RoleAssign() {
     modules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
   );
   
-  if (loading) {
+  if (isInitialLoading) {
     return (
-      <div className="ra-container">
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-          <div>Đang tải dữ liệu...</div>
-        </div>
+      <div className="ra-page ra-page--loading">
+        <output className="ra-loading-card" aria-live="polite">
+          <div className="ra-spinner" aria-hidden="true" />
+          <p>Đang tải dữ liệu...</p>
+        </output>
       </div>
     );
   }
   
-  return (
-    <div className="ra-container">
-      {/* Left Sidebar - Roles Panel */}
-      <div className="ra-roles-panel">
-        <h2 className="ra-roles-title">Quản lý Vai trò</h2>
-        
-        {/* Action Buttons */}
-        <div className="ra-sidebar-buttons">
-          <button 
-            className="ra-add-role-btn"
-            onClick={() => setAddRoleOpen(true)}
-          >
-            Thêm Vai trò
-          </button>
-          <button 
-            className="ra-add-module-btn"
-            onClick={() => setAddModuleOpen(true)}
-          >
-            Thêm Mô-đun
-          </button>
-          <button 
-            className="ra-add-permission-btn"
-            onClick={() => setAddPermissionOpen(true)}
-          >
-            Thêm Quyền
-          </button>
-        </div>
-        
-        {/* Role List */}
-        <div className="ra-role-list">
-          {loading ? (
-            <div className="ra-loading-state">
-              <div className="ra-loading-spinner" />
-              <div>Đang tải dữ liệu...</div>
-            </div>
-          ) : roles.length === 0 ? (
-            <div className="ra-empty-state">
-              <div>Không có dữ liệu</div>
-            </div>
-          ) : (
-            roles.map((role) => (
-              <button
-                key={role.roleId}
-                className={`ra-role-item ${selectedRole?.roleId === role.roleId ? 'selected' : ''}`}
-                onClick={() => handleRoleSelect(role)}
-                type="button"
+  let permissionContent;
+  if (hasMatrixData) {
+    permissionContent = (
+      <table className="ra-permissions-table">
+        <thead>
+          <tr>
+            <th scope="col">Mô-đun\Quyền</th>
+            {permissions.map((permission) => (
+              <th
+                key={permission.permissionId}
+                scope="col"
+                className="ra-permission-name"
               >
-                {role.name}
-              </button>
-            ))
-          )}
-        </div>
+                {permission.permissionName}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {modules.map((module) => (
+            <tr key={module.moduleId}>
+              <th scope="row" className="ra-module-name">
+                {module.moduleName}
+              </th>
+              {permissions.map((permission) => (
+                <td key={`${permission.permissionId}-${module.moduleId}`}>
+                  <input
+                    type="checkbox"
+                    className="ra-permission-checkbox"
+                    checked={isPermissionActive(
+                      module.moduleId,
+                      permission.permissionId
+                    )}
+                    onChange={() =>
+                      handlePermissionToggle(
+                        module.moduleId,
+                        permission.permissionId
+                      )
+                    }
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  } else if (selectedRole) {
+    permissionContent = (
+      <div className="ra-empty ra-empty--center">
+        <h3>Chưa có dữ liệu phân quyền</h3>
+        <p>Hãy tạo thêm mô-đun hoặc quyền để cấu hình cho vai trò này.</p>
       </div>
-      
-      {/* Right Panel - Permissions Matrix */}
-      <div className="ra-permissions-panel">
-         <div className="ra-permissions-header">
-           <h2 className="ra-permissions-title">
-             {selectedRole ? `Quyền của Vai trò: ${selectedRole.name}` : 'Chọn một Vai trò để xem quyền'}
-             {hasUnsavedChanges && selectedRole && (
-               <span style={{ 
-                 color: '#ffc107', 
-                 fontSize: '14px', 
-                 marginLeft: '10px',
-                 fontWeight: 'normal'
-               }}>
-                 (Có thay đổi chưa lưu)
-               </span>
-             )}
-           </h2>
-          <div className="ra-action-buttons">
-             <button 
-               className="ra-btn ra-btn-cancel"
-               onClick={handleCancel}
-               disabled={!selectedRole}
-             >
-               Hủy
-             </button>
-            <button 
-              className="ra-btn ra-btn-tick-all"
-              onClick={handleTickAll}
+    );
+  } else {
+    permissionContent = (
+      <div className="ra-empty ra-empty--center">
+        <h3>Chưa chọn vai trò</h3>
+        <p>Chọn một vai trò ở danh sách bên trái để hiển thị ma trận quyền.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ra-page">
+      <header className="ra-page-header">
+        <div className="ra-page-heading">
+          <h1>Phân công vai trò</h1>
+          <p>Quản lý quyền truy cập theo mô-đun cho từng vai trò trong hệ thống.</p>
+        </div>
+        <div className="ra-header-actions">
+          <button
+            className="ra-btn ra-btn--primary"
+            onClick={() => setAddRoleOpen(true)}
+            type="button"
+          >
+            + Thêm Vai trò
+          </button>
+          <button
+            className="ra-btn ra-btn--primary"
+            onClick={() => setAddModuleOpen(true)}
+            type="button"
+          >
+            + Thêm Mô-đun
+          </button>
+          <button
+            className="ra-btn ra-btn--primary"
+            onClick={() => setAddPermissionOpen(true)}
+            type="button"
+          >
+            + Thêm Quyền
+          </button>
+        </div>
+      </header>
+
+      <div className="ra-layout">
+        <aside className="ra-card ra-role-card">
+        <div className="ra-card-header">
+          <div>
+            <h2>Danh sách vai trò</h2>
+            <p>Chọn một vai trò để xem hoặc cập nhật quyền.</p>
+          </div>
+          <span className="ra-chip" aria-label={`Có ${filteredRoleCount} vai trò`}>
+            {filteredRoleCount}
+          </span>
+        </div>
+
+          <div className="ra-card-body ra-role-list">
+            {filteredRoleCount === 0 ? (
+              <div className="ra-empty ra-empty--compact">
+                <h3>Chưa có vai trò nào</h3>
+                <p>Hãy thêm vai trò mới để bắt đầu phân quyền.</p>
+              </div>
+            ) : (
+              filteredRoles.map((role) => {
+                const isActiveRole = selectedRole?.roleId === role.roleId;
+                return (
+                  <button
+                    key={role.roleId}
+                    className={`ra-role-item${isActiveRole ? " is-active" : ""}`}
+                    onClick={() => handleRoleSelect(role)}
+                    type="button"
+                    aria-pressed={isActiveRole}
+                  >
+                    <div className="ra-role-item__info">
+                      <span className="ra-role-item__name">{role.name}</span>
+                    </div>
+                      <span className="ra-role-code">#{role.code}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        <section className="ra-card ra-permission-card">
+          <div className="ra-card-header ra-card-header--between">
+            <div className="ra-card-title-group">
+              <div className="ra-card-title">
+                {selectedRole ? selectedRole.name : "Chưa chọn vai trò"}
+                {hasUnsavedChanges && selectedRole && (
+                  <span className="ra-tag ra-tag--warning">Chưa lưu</span>
+                )}
+              </div>
+              <p>
+                {selectedRole
+                  ? "Bật/tắt quyền truy cập cho từng mô-đun bên dưới."
+                  : "Chọn một vai trò ở bảng bên trái để bắt đầu phân quyền."}
+              </p>
+            </div>
+
+            {selectedRole && (
+              <div className="ra-permission-stats" aria-live="polite">
+                <span className="ra-permission-count">
+                  {activePermissionCount}/{totalPermissionSlots}({activePermissionPercent}%) Quyền
+                </span>
+                <progress
+                  className="ra-progress"
+                  max={100}
+                  value={activePermissionPercent}
+                >
+                  {activePermissionPercent}%
+                </progress>
+              </div>
+            )}
+          </div>
+
+          <div className="ra-card-toolbar">
+            <button
+              className="ra-btn ra-btn--ghost"
+              onClick={handleCancel}
+              type="button"
               disabled={!selectedRole}
             >
-              {isAllTicked ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+              Hủy
             </button>
-             <button 
-               className="ra-btn ra-btn-save"
-               onClick={handleSaveChanges}
-               disabled={!selectedRole || submitting || !hasUnsavedChanges}
-               style={{
-                 opacity: (!selectedRole || submitting || !hasUnsavedChanges) ? 0.6 : 1
-               }}
-             >
-               {submitting ? 'Đang lưu...' : 'Lưu thay đổi'}
-             </button>
+            <button
+              className="ra-btn ra-btn--outline"
+              onClick={handleTickAll}
+              type="button"
+              disabled={!selectedRole}
+            >
+              {isAllTicked ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+            </button>
+            <button
+              className="ra-btn ra-btn--primary"
+              onClick={handleSaveChanges}
+              type="button"
+              disabled={!selectedRole || submitting || !hasUnsavedChanges}
+            >
+              {submitting ? "Đang lưu..." : "Lưu thay đổi"}
+            </button>
           </div>
-        </div>
-        
-        {/* Permissions Matrix */}
-        {selectedRole && (
-          <div className="ra-permissions-table-container">
-            <table className="ra-permissions-table">
-              <thead>
-                <tr>
-                  <th>Mô-đun\Quyền</th>
-                  {permissions.map((permission) => (
-                    <th key={permission.permissionId}  className="ra-permission-name">
-                      {permission.permissionName}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modules.map((module) => (
-                  <tr key={module.moduleId}>
-                    <td className="ra-module-name">{module.moduleName}</td>
-                    {permissions.map((permission) => (
-                      <td key={`${permission.permissionId}-${module.moduleId}`}>
-                        <input
-                          type="checkbox"
-                          className="ra-permission-checkbox"
-                          checked={isPermissionActive(module.moduleId, permission.permissionId)}
-                          onChange={() => handlePermissionToggle(module.moduleId, permission.permissionId)}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        
-        {!selectedRole && (
-          <output 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center', 
-              height: '300px',
-              color: '#6c757d',
-              fontSize: '16px'
-            }}
-            aria-live="polite"
-          >
-            Vui lòng chọn một Vai trò để xem và chỉnh sửa quyền
-          </output>
-        )}
+
+          <div className="ra-permission-scroll">{permissionContent}</div>
+        </section>
       </div>
-      
+
       {/* Modals */}
       <RoleModal
         isOpen={addRoleOpen}
         title="Thêm Vai trò"
         fields={[
           { name: "name", label: "Tên Vai trò", required: true },
+          { name: "code", label: "Code", required: true },
+          { name: "isSystem", label: "Vai trò hệ thống", type: "checkbox" },
         ]}
         onClose={() => setAddRoleOpen(false)}
         onSubmit={handleCreateRole}
@@ -519,6 +608,7 @@ export default function RoleAssign() {
         title="Thêm Mô-đun"
         fields={[
           { name: "moduleName", label: "Tên Mô-đun", required: true },
+          { name: "code", label: "Code", required: true },
           { name: "description", label: "Mô tả", type: "textarea" },
         ]}
         onClose={() => setAddModuleOpen(false)}
@@ -531,6 +621,7 @@ export default function RoleAssign() {
         title="Thêm Quyền"
         fields={[
           { name: "permissionName", label: "Tên Quyền", required: true },
+          { name: "code", label: "Code", required: true },
           { name: "description", label: "Mô tả", type: "textarea" },
         ]}
         onClose={() => setAddPermissionOpen(false)}

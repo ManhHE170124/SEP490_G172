@@ -112,6 +112,19 @@
   width: auto;
 }
 
+.role-status-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.role-status-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
 .role-search-box {
   position: relative;
   display: flex;

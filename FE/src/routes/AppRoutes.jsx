@@ -54,6 +54,10 @@ import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
 import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
 import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
+// Order pages
+import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
+import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
+
 
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -93,6 +97,9 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Orders */}
+      <Route path="/orders/history" element={<ClientLayout><OrderHistoryPage /></ClientLayout>} />
+      <Route path="/orders/:id" element={<ClientLayout><OrderDetailPage /></ClientLayout>} />
 
       {/* Products */}
       <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
