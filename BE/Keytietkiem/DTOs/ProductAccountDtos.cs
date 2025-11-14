@@ -26,6 +26,9 @@ public class CreateProductAccountDto
     [Range(1, 100, ErrorMessage = "Số lượng người dùng phải từ 1 đến 100")]
     public int MaxUsers { get; set; }
 
+    [Required]
+    public decimal CogsPrice { get; set; }
+    
     public DateTime? ExpiryDate { get; set; }
 
     [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
@@ -55,6 +58,9 @@ public class UpdateProductAccountDto
 
     [StringLength(20, ErrorMessage = "Trạng thái không được vượt quá 20 ký tự")]
     public string? Status { get; set; }
+    
+    [Required]
+    public decimal CogsPrice { get; set; }
 
     public DateTime? ExpiryDate { get; set; }
 
@@ -76,6 +82,7 @@ public class ProductAccountResponseDto
     public int MaxUsers { get; set; }
     public int CurrentUsers { get; set; }
     public string Status { get; set; } = string.Empty;
+    public decimal CogsPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -97,6 +104,7 @@ public class ProductAccountListDto
     public int MaxUsers { get; set; }
     public int CurrentUsers { get; set; }
     public string Status { get; set; } = string.Empty;
+    public decimal CogsPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime CreatedAt { get; set; }
 }

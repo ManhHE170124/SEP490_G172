@@ -4,6 +4,7 @@ const SUPPLIER_ENDPOINTS = {
   ROOT: "/supplier",
   CHECK_NAME: "/supplier/check-name",
   VALIDATE_DEACTIVATION: (id) => `/supplier/${id}/validate-deactivation`,
+  BY_PRODUCT: (productId) => `/supplier/by-product/${productId}`,
 };
 
 export const SupplierApi = {
@@ -34,6 +35,9 @@ export const SupplierApi = {
 
   validateDeactivation: (id) =>
     axiosClient.get(SUPPLIER_ENDPOINTS.VALIDATE_DEACTIVATION(id)),
+
+  listByProduct: (productId) =>
+    axiosClient.get(SUPPLIER_ENDPOINTS.BY_PRODUCT(productId)),
 };
 
 export default SupplierApi;

@@ -21,15 +21,19 @@ namespace Keytietkiem.DTOs.Tickets
 
         public string? CustomerName { get; set; }
         public string? CustomerEmail { get; set; }
+
+        // hiển thị assignee ở list/detail
+        public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
+        public string? AssigneeEmail { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
 
     public class TicketReplyDto
     {
-        // IMPORTANT: bigint -> long (KHÔNG phải Guid)
-        public long ReplyId { get; set; }
+        public long ReplyId { get; set; }           // bigint -> long
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = "";
         public bool IsStaffReply { get; set; }
@@ -37,7 +41,18 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime SentAt { get; set; }
     }
 
-    // Đơn hàng gần nhất (hiển thị bên phải)
+    // Panel "Ticket liên quan"
+    public class RelatedTicketDto
+    {
+        public Guid TicketId { get; set; }
+        public string TicketCode { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string Status { get; set; } = "New";
+        public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
+        public SlaState SlaStatus { get; set; } = SlaState.OK;
+        public DateTime CreatedAt { get; set; }
+    }
+
     public class LatestOrderMiniDto
     {
         public Guid OrderId { get; set; }
@@ -60,22 +75,21 @@ namespace Keytietkiem.DTOs.Tickets
         public string CustomerName { get; set; } = "";
         public string? CustomerEmail { get; set; }
         public string? CustomerPhone { get; set; }
+
+        // thông tin nhân viên phụ trách
+        public Guid? AssigneeId { get; set; }
         public string? AssigneeName { get; set; }
+        public string? AssigneeEmail { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
-        // Lịch sử trao đổi
         public List<TicketReplyDto> Replies { get; set; } = new();
+        public List<RelatedTicketDto> RelatedTickets { get; set; } = new();
 
-        // Ticket liên quan (các ticket khác cùng khách hàng)
-        public List<TicketListItemDto> RelatedTickets { get; set; } = new();
-
-        // Đơn hàng gần nhất của khách hàng
         public LatestOrderMiniDto? LatestOrder { get; set; }
     }
 
-    // DTO tạo tin nhắn chat
     public class CreateTicketReplyDto
     {
         [Required, MinLength(1)]

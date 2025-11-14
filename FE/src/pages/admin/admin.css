@@ -536,7 +536,11 @@ table .row select {
   border: none;
 }
 /* ====== Responsive container & form grid ====== */
-.page > .card { max-width: 1280px; margin-inline: auto; }
+.page > .card {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: 10px;
+}
 
 .grid.cols-2 {
   grid-template-columns: repeat(2, minmax(280px, 1fr));
@@ -545,15 +549,26 @@ table .row select {
 
 /* breakpoint: tablet dọc */
 @media (max-width: 1024px) {
-  .grid.cols-2 { grid-template-columns: 1fr; }
-  .panel-body { max-height: 260px; }
+  .grid.cols-2 {
+    grid-template-columns: 1fr;
+  }
+  .panel-body {
+    max-height: 260px;
+  }
 }
 
 /* breakpoint: mobile lớn */
 @media (max-width: 640px) {
-  .btn { padding: 8px 12px; border-radius: 10px; }
-  .panel { padding: 6px; }
-  .panel-header { padding: 6px; }
+  .btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+  .panel {
+    padding: 6px;
+  }
+  .panel-header {
+    padding: 6px;
+  }
 }
 
 /* Input/Select chiều cao mềm bằng clamp để “chảy” theo viewport */
@@ -567,8 +582,12 @@ table .row select {
 }
 
 /* Label & heading mượt hơn */
-label { font-size: clamp(12px, 1.4vw, 13px); }
-.card h2 { font-size: clamp(18px, 2.2vw, 22px); }
+label {
+  font-size: clamp(12px, 1.4vw, 13px);
+}
+.card h2 {
+  font-size: clamp(18px, 2.2vw, 22px);
+}
 
 /* ====== Bảng “Biến thể thời gian” – table thật + responsive ====== */
 .variants-wrap {
@@ -579,7 +598,9 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
   background: #fff;
 }
 
-.variants-scroller { overflow-x: auto; }
+.variants-scroller {
+  overflow-x: auto;
+}
 
 /* Min-width để các cột không “gãy hàng” */
 .variants-table {
@@ -590,48 +611,83 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
 }
 
 .variants-table thead th {
-  position: sticky; top: 0; z-index: 1;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: #f8fafc;
-  font-size: 12px; color: var(--muted); font-weight: 600;
-  padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
 }
 
 .variants-table tbody td {
-  padding: 12px; border-bottom: 1px solid var(--line);
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
 }
 
-.variants-table tbody tr:hover { background: #fafbff; }
+.variants-table tbody tr:hover {
+  background: #fafbff;
+}
 
 /* Căn phải cho số */
-.td-right { text-align: right; white-space: nowrap; }
+.td-right {
+  text-align: right;
+  white-space: nowrap;
+}
 
 /* Nhỏ gọn cột thao tác */
-.td-actions { width: 160px; text-align: right; }
-.td-actions .btn { padding: 8px 10px; }
+.td-actions {
+  width: 160px;
+  text-align: right;
+}
+.td-actions .btn {
+  padding: 8px 10px;
+}
 
 /* Badge trạng thái trong bảng */
-.badge.status-active   { background:#ecfdf5; color:#065f46; }
-.badge.status-inactive { background:#f3f4f6; color:#374151; }
-.badge.status-oo-stock { background:#fff7ed; color:#9a3412; }
+.badge.status-active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+.badge.status-inactive {
+  background: #f3f4f6;
+  color: #374151;
+}
+.badge.status-oo-stock {
+  background: #fff7ed;
+  color: #9a3412;
+}
 
 .variants-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: nowrap;           /* luôn 1 hàng trên desktop */
+  flex-wrap: nowrap; /* luôn 1 hàng trên desktop */
 }
-.variants-toolbar input { max-width: 240px; }
-.variants-toolbar select { width: 150px; }
-.variants-toolbar button { white-space: nowrap; }
+.variants-toolbar input {
+  max-width: 240px;
+}
+.variants-toolbar select {
+  width: 150px;
+}
+.variants-toolbar button {
+  white-space: nowrap;
+}
 
 @media (max-width: 1024px) {
-  .variants-toolbar { flex-wrap: wrap; }
+  .variants-toolbar {
+    flex-wrap: wrap;
+  }
 }
-
 
 /* Phân trang gọn */
 .variants-footer {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 10px 0;
 }
 /* Ba cột nhỏ gọn cho hàng Loại/Danh mục/Nhãn */
@@ -640,17 +696,26 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
   gap: clamp(10px, 1.6vw, 16px);
 }
 @media (max-width: 1100px) {
-  .grid.cols-3 { grid-template-columns: 1fr; } /* rơi về 1 cột khi hẹp */
+  .grid.cols-3 {
+    grid-template-columns: 1fr;
+  } /* rơi về 1 cột khi hẹp */
 }
-.variants-wrap { margin-top: 8px; }         /* sát tiêu đề hơn */
-.variants-table { margin-top: 0; }          /* thẳng hàng với "Biến thể thời gian" */
-.td-actions .action-btn { width: 32px; height: 32px; }
+.variants-wrap {
+  margin-top: 8px;
+} /* sát tiêu đề hơn */
+.variants-table {
+  margin-top: 0;
+} /* thẳng hàng với "Biến thể thời gian" */
+.td-actions .action-btn {
+  width: 32px;
+  height: 32px;
+}
 /* ===== Spacing hàng bảng: đỡ sát hơn ===== */
 .variants-table thead th {
   padding: 12px 14px; /* tăng padding */
 }
 .variants-table tbody td {
-  padding: 14px;      /* tăng padding hàng dữ liệu */
+  padding: 14px; /* tăng padding hàng dữ liệu */
   line-height: 1.35;
 }
 .variants-table tbody tr + tr td {
@@ -658,8 +723,12 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
 }
 
 /* Căn trái tiêu đề & ô thao tác */
-.td-actions { width: 180px; }
-.td-left { text-align: left; }
+.td-actions {
+  width: 180px;
+}
+.td-left {
+  text-align: left;
+}
 
 /* Ô tìm kiếm/combobox trong toolbar – đồng bộ format */
 .variants-toolbar .ctl {
@@ -675,7 +744,7 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
 }
 .variants-toolbar .ctl:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 /* Giãn khoảng cách hàng tổng thể một chút khi hover */
@@ -684,9 +753,18 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
 }
 
 /* Badge trạng thái */
-.badge.status-active   { background:#ecfdf5; color:#065f46; }
-.badge.status-inactive { background:#f3f4f6; color:#374151; }
-.badge.status-oo-stock { background:#fff7ed; color:#9a3412; }
+.badge.status-active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+.badge.status-inactive {
+  background: #f3f4f6;
+  color: #374151;
+}
+.badge.status-oo-stock {
+  background: #fff7ed;
+  color: #9a3412;
+}
 /* Modal topbar: tiêu đề trái, switch phải */
 .modal-topbar {
   display: flex;
@@ -695,12 +773,20 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
   padding: 6px 0 0 0; /* nhẹ nhàng, không đè header mặc định */
 }
 @media (max-width: 640px) {
-  .modal-topbar { gap: 8px; }
-  .modal-topbar .row { margin-left: auto; }
+  .modal-topbar {
+    gap: 8px;
+  }
+  .modal-topbar .row {
+    margin-left: auto;
+  }
 }
 /* Bảng biến thể: dữ liệu căn trái như tiêu đề */
-.variants-table thead th { text-align: left; }
-.variants-table tbody td { text-align: left; }  /* ghi đè mọi class cũ */
+.variants-table thead th {
+  text-align: left;
+}
+.variants-table tbody td {
+  text-align: left;
+} /* ghi đè mọi class cũ */
 .variants-area {
   display: flex;
   flex-direction: column;
@@ -733,8 +819,8 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
 .variants-footer {
   position: sticky;
   bottom: 0;
-  z-index: 1;          /* nổi trên table */
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  z-index: 1; /* nổi trên table */
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
 }
 
 /* (Tuỳ chọn) căn chữ, nút trong footer thẳng hàng hơn ở màn nhỏ */
@@ -744,21 +830,21 @@ label { font-size: clamp(12px, 1.4vw, 13px); }
   }
 }
 /* Chỉ áp dụng cho khối biến thể, tránh ảnh hưởng trang khác */
-.panel-body .variants-wrap { 
-  display: block;          /* bỏ flex column */
+.panel-body .variants-wrap {
+  display: block; /* bỏ flex column */
 }
 
 .panel-body .variants-scroller {
-  overflow: visible !important;   /* KHÔNG cuộn */
-  max-height: none !important;    /* KHÔNG giới hạn chiều cao */
-  padding-bottom: 0 !important;   /* bỏ đệm dưới nếu có */
+  overflow: visible !important; /* KHÔNG cuộn */
+  max-height: none !important; /* KHÔNG giới hạn chiều cao */
+  padding-bottom: 0 !important; /* bỏ đệm dưới nếu có */
 }
 
 /* Nếu trước đó bạn dùng sticky footer -> tắt để footer không đè bảng */
 .panel-body .variants-footer {
   position: static !important;
   box-shadow: none !important;
-  margin-top: 12px;              /* cách bảng 1 chút cho thoáng */
+  margin-top: 12px; /* cách bảng 1 chút cho thoáng */
 }
 
 /* Một số template set overflow cho panel-body, ta mở khóa luôn */

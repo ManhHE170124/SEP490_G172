@@ -1,4 +1,6 @@
+// src/pages/admin/VariantsPanel.jsx
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { ProductVariantsApi } from "../../services/productVariants";
 
 const fmtMoney = (n) =>
@@ -7,6 +9,11 @@ const fmtMoney = (n) =>
     : "-";
 
 export default function VariantsPanel({ productId, productName, productCode }) {
+  // Router
+  const nav = useNavigate();
+const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`;
+ const goDetail = (v) => nav(detailPath(v));
+
   // Data + paging
   const [items, setItems] = React.useState([]);
   const [total, setTotal] = React.useState(0);
@@ -42,18 +49,17 @@ export default function VariantsPanel({ productId, productName, productCode }) {
     }[String(s || "").toUpperCase()] || s);
 
   // Load từ server
- const load = React.useCallback(async () => {
-  setLoading(true);
-  try {
-    const res = await ProductVariantsApi.list(productId, { q, status, dur, sort, dir, page, pageSize: size });
-    setItems(res.items || []);
-    setTotal(res.totalItems || 0);
-    setTotalPages(res.totalPages || 1);   // <-- dùng totalPages từ BE
-  } finally {
-    setLoading(false);
-  }
-}, [productId, q, status, dur, sort, dir, page, size]);
-
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await ProductVariantsApi.list(productId, { q, status, dur, sort, dir, page, pageSize: size });
+      setItems(res.items || []);
+      setTotal(res.totalItems || 0);
+      setTotalPages(res.totalPages || 1);   // <-- dùng totalPages từ BE
+    } finally {
+      setLoading(false);
+    }
+  }, [productId, q, status, dur, sort, dir, page, size]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -61,7 +67,8 @@ export default function VariantsPanel({ productId, productName, productCode }) {
   React.useEffect(() => { setPage(1); }, [q, status, dur, sort, dir]);
 
   const openCreate = () => { setEditing(null); setShowModal(true); };
-  const openEdit   = (v) => { setEditing(v);   setShowModal(true); };
+  // “Sửa nhanh” đổi thành đi tới trang chi tiết
+  const openEdit = (v) => goDetail(v);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -83,7 +90,7 @@ export default function VariantsPanel({ productId, productName, productCode }) {
       await ProductVariantsApi.create(productId, dto);
     }
     setShowModal(false);
-    setPage(1);  
+    setPage(1);
     await load();
   };
 
@@ -93,70 +100,66 @@ export default function VariantsPanel({ productId, productName, productCode }) {
     await load();
   };
 
-  // Toggle theo endpoint /toggle
-  // ... giữ nguyên các import & state như bạn đã có
+  // === SORT: bấm tiêu đề cột để đổi (asc/desc) ===
+  const headerSort = (key) => {
+    setSort((cur) => {
+      if (cur === key) {
+        setDir((d) => (d === "asc" ? "desc" : "asc"));
+        return cur;
+      }
+      setDir("asc"); // đổi cột -> mặc định asc
+      return key;
+    });
+  };
 
-// === SORT: bấm tiêu đề cột để đổi (asc/desc) ===
-const headerSort = (key) => {
-  setSort((cur) => {
-    if (cur === key) {
-      setDir((d) => (d === "asc" ? "desc" : "asc"));
-      return cur;
+  // helper hiển thị mũi tên sort
+  const sortMark = (key) => (sort === key ? (dir === "asc" ? " ▲" : " ▼") : "");
+
+  // === Toggle status dùng PATCH /toggle ===
+  const toggleVariantStatus = async (v) => {
+    try {
+      if ((v.stockQty ?? 0) <= 0) return; // vẫn bảo vệ trường hợp hết hàng
+
+      const payload = await ProductVariantsApi.toggle(productId, v.variantId);
+      const nextStatusRaw = payload?.Status ?? payload?.status;
+      const nextStatus = typeof nextStatusRaw === "string"
+        ? nextStatusRaw.toUpperCase()
+        : (v.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
+
+      setItems(prev =>
+        prev.map(it =>
+          it.variantId === v.variantId ? { ...it, status: nextStatus } : it
+        )
+      );
+    } catch (e) {
+      console.error(e);
+      await load(); // đồng bộ lại nếu có lỗi
     }
-    // đổi cột -> mặc định asc
-    setDir("asc");
-    return key;
-  });
-};
+  };
 
-// helper hiển thị mũi tên sort
-const sortMark = (key) => (sort === key ? (dir === "asc" ? " ▲" : " ▼") : "");
+  const goto = (p) => setPage(Math.min(Math.max(1, p), totalPages));
 
-// === Toggle status dùng PATCH /toggle ===
-const toggleVariantStatus = async (v) => {
-  try {
-    if ((v.stockQty ?? 0) <= 0) return; // vẫn bảo vệ trường hợp hết hàng
+  const makePageList = React.useMemo(() => {
+    const pages = [];
+    const win = 2; // window hai bên trang hiện tại
+    const from = Math.max(1, page - win);
+    const to   = Math.min(totalPages, page + win);
 
-    const payload = await ProductVariantsApi.toggle(productId, v.variantId);
-    const nextStatusRaw = payload?.status ?? payload?.Status;
-    const nextStatus = typeof nextStatusRaw === "string"
-      ? nextStatusRaw.toUpperCase()
-      : (v.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
+    if (from > 1) {
+      pages.push(1);
+      if (from > 2) pages.push("ellipsis-left");
+    }
+    for (let i = from; i <= to; i++) pages.push(i);
+    if (to < totalPages) {
+      if (to < totalPages - 1) pages.push("ellipsis-right");
+      pages.push(totalPages);
+    }
+    return pages;
+  }, [page, totalPages]);
 
-    setItems(prev =>
-      prev.map(it =>
-        it.variantId === v.variantId ? { ...it, status: nextStatus } : it
-      )
-    );
-  } catch (e) {
-    console.error(e);
-    await load(); // đồng bộ lại nếu có lỗi
-  }
-};
+  const startIdx = total === 0 ? 0 : (page - 1) * size + 1;
+  const endIdx   = Math.min(total, page * size);
 
-
-const goto = (p) => setPage(Math.min(Math.max(1, p), totalPages));
-
-const makePageList = React.useMemo(() => {
-  const pages = [];
-  const win = 2; // window hai bên trang hiện tại
-  const from = Math.max(1, page - win);
-  const to   = Math.min(totalPages, page + win);
-
-  if (from > 1) {
-    pages.push(1);
-    if (from > 2) pages.push("ellipsis-left");
-  }
-  for (let i = from; i <= to; i++) pages.push(i);
-  if (to < totalPages) {
-    if (to < totalPages - 1) pages.push("ellipsis-right");
-    pages.push(totalPages);
-  }
-  return pages;
-}, [page, totalPages]);
-
-const startIdx = total === 0 ? 0 : (page - 1) * size + 1;
-const endIdx   = Math.min(total, page * size);
   return (
     <div className="group" style={{ gridColumn: "1 / 3" }}>
       <div className="panel">
@@ -208,40 +211,39 @@ const endIdx   = Math.min(total, page * size);
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "12%" }} />
                   </colgroup>
-                 <thead>
-                        <tr>
-                            <th onClick={() => headerSort("title")} style={{ cursor: "pointer" }}>
-                            Tên biến thể{sortMark("title")}
-                            </th>
-                            <th onClick={() => headerSort("duration")} style={{ cursor: "pointer" }}>
-                            Thời lượng{sortMark("duration")}
-                            </th>
-                            <th onClick={() => headerSort("price")} style={{ cursor: "pointer" }}>
-                            Giá bán{sortMark("price")}
-                            </th>
-                            <th onClick={() => headerSort("originalPrice")} style={{ cursor: "pointer" }}>
-                            Giá gốc{sortMark("originalPrice")}
-                            </th>
-                            <th onClick={() => headerSort("stock")} style={{ cursor: "pointer" }}>
-                            Tồn kho{sortMark("stock")}
-                            </th>
-                            <th onClick={() => headerSort("status")} style={{ cursor: "pointer" }}>
-                            Trạng thái{sortMark("status")}
-                            </th>
-                            <th>Thao tác</th>
-                        </tr>
-                </thead>
+                  <thead>
+                    <tr>
+                      <th onClick={() => headerSort("title")} style={{ cursor: "pointer" }}>
+                       Tên biến thể{sortMark("title")}
+                     </th>
+                      <th onClick={() => headerSort("duration")} style={{ cursor: "pointer" }}>
+                        Thời lượng{sortMark("duration")}
+                      </th>
+                      <th onClick={() => headerSort("price")} style={{ cursor: "pointer" }}>
+                        Giá bán{sortMark("price")}
+                      </th>
+                      <th onClick={() => headerSort("originalPrice")} style={{ cursor: "pointer" }}>
+                        Giá gốc{sortMark("originalPrice")}
+                      </th>
+                      <th onClick={() => headerSort("stock")} style={{ cursor: "pointer" }}>
+                        Tồn kho{sortMark("stock")}
+                      </th>
+                      <th onClick={() => headerSort("status")} style={{ cursor: "pointer" }}>
+                        Trạng thái{sortMark("status")}
+                      </th>
+                      <th>Thao tác</th>
+                    </tr>
+                  </thead>
 
                   <tbody>
                     {items.map((v) => (
                       <tr key={v.variantId}>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{v.title}</div>
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {v.variantCode || "—"}
-                          </div>
+                          <div style={{ fontWeight: 600 }}>
+                           {v.title || "—"}
+                         </div>
                         </td>
-                        {/* Căn trái để khớp tiêu đề cột */}
+
                         <td>{(v.durationDays ?? 0)} ngày</td>
                         <td>{fmtMoney(v.price)}</td>
                         <td>{v.originalPrice != null ? fmtMoney(v.originalPrice) : "—"}</td>
@@ -251,36 +253,37 @@ const endIdx   = Math.min(total, page * size);
                             {statusLabel(v.status)}
                           </span>
                         </td>
+
                         <td className="td-actions td-left">
                           <div className="row" style={{ gap: 8 }}>
-                            <button className="action-btn edit-btn" title="Sửa" onClick={() => openEdit(v)}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                                <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                              </svg>
-                            </button>
+                            {/* Nút bút chì → cũng dẫn sang chi tiết */}
+                             <button className="action-btn edit-btn" title="Xem chi tiết" onClick={() => goDetail(v)}>
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+      <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+    </svg>
+ </button>
 
+                            {/* Xoá */}
                             <button className="action-btn delete-btn" title="Xoá" onClick={() => onDelete(v.variantId)}>
                               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
                               </svg>
                             </button>
 
+                            {/* Toggle */}
                             <label
-  className="switch"
-  title={(v.stockQty ?? 0) <= 0 ? "Hết hàng – không thể bật" : "Bật/Tắt hiển thị"}
->
-  <input
-    type="checkbox"
-    disabled={(v.stockQty ?? 0) <= 0}               // chỉ chặn khi hết hàng
-    checked={String(v.status).toUpperCase() === "ACTIVE"}
-    onChange={() => toggleVariantStatus(v)}
-  />
-  <span className="slider" />
-</label>
-
-
-
+                              className="switch"
+                              title={(v.stockQty ?? 0) <= 0 ? "Hết hàng – không thể bật" : "Bật/Tắt hiển thị"}
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={(v.stockQty ?? 0) <= 0}
+                                checked={String(v.status).toUpperCase() === "ACTIVE"}
+                                onChange={() => toggleVariantStatus(v)}
+                              />
+                              <span className="slider" />
+                            </label>
                           </div>
                         </td>
                       </tr>
@@ -297,57 +300,57 @@ const endIdx   = Math.min(total, page * size);
               </div>
 
               {/* Footer phân trang giống trang sản phẩm */}
-            <div className="variants-footer" style={{ gap: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
-                    <div className="muted">
-                      Hiển thị {startIdx}-{endIdx} / {total}
-                    </div>
+              <div className="variants-footer" style={{ gap: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+                <div className="muted">
+                  Hiển thị {startIdx}-{endIdx} / {total}
+                </div>
 
                 <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    {/* Page size */}
-                    <div className="row" style={{ gap: 6, alignItems: "center" }}>
+                  {/* Page size */}
+                  <div className="row" style={{ gap: 6, alignItems: "center" }}>
                     <span className="muted" style={{ fontSize: 12 }}>Dòng/trang</span>
                     <select
-                        className="ctl"
-                        value={size}
-                        onChange={(e) => { setSize(Number(e.target.value)); setPage(1); }}
+                      className="ctl"
+                      value={size}
+                      onChange={(e) => { setSize(Number(e.target.value)); setPage(1); }}
                     >
-                        <option value={5}>5</option>
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                        <option value={50}>50</option>
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
                     </select>
-                    </div>
+                  </div>
 
-                    {/* Nav buttons */}
-                    <div className="row" style={{ gap: 6 }}>
+                  {/* Nav buttons */}
+                  <div className="row" style={{ gap: 6 }}>
                     <button className="btn" disabled={page <= 1} onClick={() => goto(1)} title="Trang đầu">«</button>
                     <button className="btn" disabled={page <= 1} onClick={() => goto(page - 1)} title="Trang trước">←</button>
 
                     {/* Page numbers với ellipsis */}
                     {makePageList.map((pKey, idx) => {
-                        if (typeof pKey !== "number") {
+                      if (typeof pKey !== "number") {
                         return <span key={pKey + idx} className="muted">…</span>;
-                        }
-                        const active = pKey === page;
-                        return (
+                      }
+                      const active = pKey === page;
+                      return (
                         <button
-                            key={pKey}
-                            className={`btn ${active ? "primary" : ""}`}
-                            onClick={() => goto(pKey)}
-                            disabled={active}
-                            style={{ minWidth: 36 }}
-                            title={`Trang ${pKey}`}
+                          key={pKey}
+                          className={`btn ${active ? "primary" : ""}`}
+                          onClick={() => goto(pKey)}
+                          disabled={active}
+                          style={{ minWidth: 36 }}
+                          title={`Trang ${pKey}`}
                         >
-                            {pKey}
+                          {pKey}
                         </button>
-                        );
+                      );
                     })}
 
                     <button className="btn" disabled={page >= totalPages} onClick={() => goto(page + 1)} title="Trang sau">→</button>
                     <button className="btn" disabled={page >= totalPages} onClick={() => goto(totalPages)} title="Trang cuối">»</button>
-                    </div>
+                  </div>
                 </div>
-                </div>
+              </div>
             </div>
           )}
         </div>

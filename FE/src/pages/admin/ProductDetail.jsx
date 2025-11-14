@@ -3,7 +3,8 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
-import VariantsPanel from "../admin/VariantsPanel"
+import VariantsPanel from "../admin/VariantsPanel";
+import FaqsPanel from "../admin/FaqsPanel";
 import "./admin.css";
 
 export default function ProductDetail() {
@@ -660,6 +661,7 @@ const badgesList = React.useMemo(() => normalizeList(badges), [badges]);
   productName={form.productName}
   productCode={form.productCode}
 />
+ <FaqsPanel productId={productId} />
 </div>
         {/* ACTIONS */}
         <div className="row" style={{ marginTop: 12 }}>

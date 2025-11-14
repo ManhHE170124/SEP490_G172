@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
@@ -58,6 +59,9 @@ builder.Services.AddControllers()
         // Nếu dùng DateOnly/TimeOnly => thêm converter custom ở đây
         // o.JsonSerializerOptions.Converters.Add(new DateOnlyJsonConverter());
     });
+
+// ===== SignalR cho realtime Ticket chat =====
+builder.Services.AddSignalR();
 
 // ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -119,6 +123,7 @@ builder.Services.AddSwaggerGen();
 builder.Configuration
     .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
+
 var app = builder.Build();
 
 // ===== Seed default roles at startup =====
@@ -156,6 +161,10 @@ app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ===== Endpoint mapping =====
 app.MapControllers();
+
+// Hub realtime cho ticket chat (chỉ dùng cho khung chat)
+app.MapHub<TicketHub>("/hubs/tickets");
 
 app.Run();

@@ -1,8 +1,15 @@
 /* File: src/styles/admin-ticket-detail.css */
 :root{
-  --card:#fff; --line:#e5e7eb; --radius:12px; --shadow:0 12px 30px rgba(15,23,42,.08);
-  --ink:#0b2130; --muted:#6b7280;
-  --primary:#0d6efd; --warning:#f59e0b; --success:#16a34a; --danger:#dc2626;
+  --card:#fff;
+  --line:#e5e7eb;
+  --radius:12px;
+  --shadow:0 12px 30px rgba(15,23,42,.08);
+  --ink:#0b2130;
+  --muted:#6b7280;
+  --primary:#0d6efd;
+  --warning:#f59e0b;
+  --success:#16a34a;
+  --danger:#dc2626;
 }
 
 .tkd-page{padding:24px}
@@ -14,38 +21,171 @@
   border:1px solid var(--line);
   margin-bottom:24px;
   box-shadow:var(--shadow);
-  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
 }
 .ticket-header .code{color:var(--muted)}
-.ticket-header .subject{margin:6px 0 10px;font-size:20px;color:var(--ink)}
-.ticket-header .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.ticket-header .chip{padding:4px 8px;border-radius:8px;background:#f1f5f9;font-size:12px;font-weight:600}
-.ticket-header .sub{color:var(--muted);font-size:12px}
+.ticket-header .subject{
+  margin:6px 0 10px;
+  font-size:20px;
+  color:var(--ink);
+}
+.ticket-header .meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.ticket-header .chip{
+  padding:4px 8px;
+  border-radius:8px;
+  background:#f1f5f9;
+  font-size:12px;
+  font-weight:600;
+}
+.ticket-header .sub{
+  color:var(--muted);
+  font-size:12px;
+}
 
-.ticket-content{display:grid;grid-template-columns:2fr 1fr;gap:24px}
+.ticket-content{
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:24px;
+}
 .left-col{min-width:0}
 .right-col{min-width:0}
 
-.thread{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
-.thread-title{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
-.msg{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
-.msg:last-child{border-bottom:none}
-.avatar{width:36px;height:36px;border-radius:50%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:700;color:#111827;flex-shrink:0}
-.bubble{flex:1}
-.head{display:flex;justify-content:space-between;margin-bottom:4px}
-.name{font-weight:700}
-.time{color:var(--muted);font-size:12px}
-.text{white-space:pre-wrap}
+/* ===== Thread: khung lịch sử chat + reply box ===== */
+.thread{
+  background:#ffffff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:var(--shadow);
+  display:flex;
+  flex-direction:column;
+  color:var(--ink);
+}
+.thread-title{
+  padding:12px 16px;
+  border-bottom:1px solid var(--line);
+  font-weight:700;
+}
 
-.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+/* Vùng tin nhắn: có scroll */
+.thread-messages{
+  padding:8px 0;
+  max-height:400px;            /* chỉ xem 1 lượng tin, nhiều hơn thì scroll */
+  overflow-y:auto;
+}
+
+/* ===== Chat bubbles ===== */
+.msg{
+  display:flex;
+  gap:10px;
+  padding:8px 16px;
+  width:100%;
+}
+.msg + .msg{margin-top:4px}
+
+.msg .avatar{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  background:#e5e7eb;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:700;
+  color:#111827;
+  flex-shrink:0;
+}
+
+.bubble{
+  max-width:70%;
+  padding:8px 12px;
+  border-radius:18px;
+  background:#f3f4f6;
+}
+
+.head{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:4px;
+  font-size:12px;
+}
+.name{font-weight:700}
+.time{color:#9ca3af;margin-left:8px}
+
+.text{
+  white-space:pre-wrap;
+  font-size:14px;
+  word-break:break-word;
+  overflow-wrap:anywhere;      /* không cho chữ thò ra ngoài bubble */
+}
+
+/* Bên trái: khách hàng */
+.msg-other{
+  justify-content:flex-start;
+}
+.msg-other .bubble{
+  background:#f3f4f6;
+  color:#111827;
+  border-radius:18px 18px 18px 4px;
+}
+
+/* Bên phải: mình (staff / user hiện tại) */
+.msg-me{
+  justify-content:flex-end;    /* cả avatar + bubble sát lề phải */
+}
+.msg-me .bubble{
+  order:1;                     /* bubble nằm bên trái avatar */
+  background:#2563eb;          /* xanh chủ đạo (primary) */
+  color:#ffffff;
+  border-radius:18px 18px 4px 18px;
+}
+.msg-me .avatar{
+  order:2;                     /* avatar ngoài cùng bên phải */
+  background:#0d6efd;
+  color:#ffffff;
+}
+.msg-me .time{color:#e5e7eb}
+
+/* không cần border cuối */
+.thread .msg:last-child{border-bottom:none}
+
+/* ===== Card bên phải ===== */
+.card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:16px;
+  box-shadow:var(--shadow);
+}
 .card-title{font-weight:700;margin-bottom:12px}
-.kv{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.kv{
+  display:grid;
+  grid-template-columns:120px 1fr;
+  gap:8px;
+  padding:6px 0;
+  border-bottom:1px dashed var(--line);
+}
 .kv:last-child{border-bottom:none}
 .kv .k{color:var(--muted);font-size:13px}
 .kv .v{font-size:14px}
 .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
 
-.btn{padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;margin-left:8px}
+/* ===== Buttons ===== */
+.btn{
+  padding:10px 12px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:#fff;
+  cursor:pointer;
+  margin-left:8px;
+}
 .btn.ghost:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
 .btn.warning{background:var(--warning);color:#fff;border-color:var(--warning)}
@@ -55,9 +195,17 @@
 .loading,.error,.empty{padding:16px;text-align:center}
 .error{color:#b91c1c}
 
-/* ==== Khung phản hồi khách hàng ==== */
-.reply-box{border-top:1px solid var(--line);padding:16px}
-.reply-title{font-weight:700;margin-bottom:8px}
+/* ===== Khung phản hồi khách hàng ===== */
+.reply-box{
+  border-top:1px solid var(--line);
+  padding:16px;
+  background:#ffffff;
+}
+.reply-title{
+  font-weight:700;
+  margin-bottom:8px;
+  color:var(--ink);
+}
 .reply-textarea{
   width:100%;
   min-height:120px;
@@ -67,7 +215,11 @@
   resize:vertical;
   font-family:inherit;
   font-size:14px;
+  background:#ffffff;
+  color:var(--ink);
 }
+.reply-textarea::placeholder{color:#9ca3af}
+
 .reply-quick{
   display:flex;
   align-items:center;
@@ -88,6 +240,15 @@
   cursor:pointer;
 }
 .chip-btn:hover{background:#e5e7eb}
+
+/* Lỗi gửi phản hồi */
+.reply-error{
+  margin-top:8px;
+  color:#b91c1c;
+  font-size:13px;
+}
+
+/* Footer reply */
 .reply-footer{
   display:flex;
   align-items:center;
@@ -96,28 +257,197 @@
   gap:8px;
   flex-wrap:wrap;
 }
-.reply-footer .left{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.reply-footer .left{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  color:var(--muted);
+}
 .reply-footer .right{display:flex;gap:8px}
 .empty.small{padding:8px 0;font-size:13px;color:var(--muted)}
 
-/* ==== Ticket liên quan ==== */
-.related-list{display:flex;flex-direction:column;gap:8px}
-.related-item{
-  padding:8px 10px;
-  border-radius:8px;
-  border:1px solid var(--line);
-  cursor:pointer;
+/* ===== Ticket liên quan ===== */
+.panel.related{margin-top:16px}
+.panel-title{font-weight:700;margin-bottom:8px}
+
+.related-list{
   display:flex;
   flex-direction:column;
-  gap:2px;
+  gap:10px;
 }
-.related-item:hover{background:#f9fafb}
-.related-item .code{font-size:12px;color:var(--muted)}
-.related-item .subject{font-size:14px;font-weight:600;color:var(--ink)}
-.related-item .meta{font-size:12px;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap}
+.related-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  background:#fff;
+}
+.related-item:hover{background:#fafafa}
+.ri-main{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  gap:6px;
+}
+.ri-line1{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  color:#6b7280;
+}
+.ri-code{font-weight:600}
+.ri-subject{
+  font-size:14px;
+  font-weight:600;
+  color:#111827;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ri-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.ri-actions{flex:0 0 auto}
+.btn.xs{
+  padding:4px 8px;
+  font-size:12px;
+  border-radius:8px;
+}
+.btn.ghost{
+  background:transparent;
+  border:1px solid #d1d5db;
+}
 
-/* Responsive đơn giản */
-@media (max-width: 1024px){
+/* ===== Badges ===== */
+.st{
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+}
+.st-new{background:#eef2ff;color:#3730a3}
+.st-processing{background:#ecfeff;color:#0e7490}
+.st-completed{background:#f0fdf4;color:#166534}
+.st-closed{background:#fee2e2;color:#991b1b}
+
+.tag{
+  padding:4px 8px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:600;
+}
+.tag-low{background:#f1f5f9;color:#334155}
+.tag-medium{background:#e0f2fe;color:#0369a1}
+.tag-high{background:#fee2e2;color:#b91c1c}
+.tag-critical{background:#ffe4e6;color:#be123c}
+
+.sla{
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+}
+.sla-ok{background:#ecfdf5;color:#0f766e}
+.sla-breached{background:#fef3c7;color:#b45309}
+.sla-warning{background:#fff7ed;color:#b45309}
+
+/* ===== Responsive ===== */
+@media (max-width:1024px){
   .ticket-content{grid-template-columns:1fr}
   .ticket-header{flex-direction:column}
+}
+
+/* ===== Modal chọn nhân viên (gán / chuyển hỗ trợ) ===== */
+.tk-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+}
+.tk-modal-card{
+  background:#fff;
+  border-radius:12px;
+  padding:16px 16px 12px;
+  min-width:420px;
+  max-width:90vw;
+  box-shadow:var(--shadow);
+}
+.tk-modal-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.tk-modal-title{
+  margin:0;
+  font-size:18px;
+  font-weight:700;
+  color:var(--ink);
+}
+.tk-modal-body{display:block;max-height:60vh;overflow:auto}
+.tk-modal-foot{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  margin-top:12px;
+}
+.form-group{margin-bottom:12px}
+.form-group label{
+  display:block;
+  margin-bottom:6px;
+  font-weight:600;
+  color:var(--ink);
+  font-size:14px;
+}
+
+.staff-list{
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:6px;
+  max-height:40vh;
+  overflow:auto;
+}
+.staff-ul{list-style:none;margin:0;padding:0}
+.staff-item{
+  padding:6px 8px;
+  border-radius:6px;
+  cursor:pointer;
+}
+.staff-item:hover{background:#f9fafb}
+.staff-item.selected{background:#eff6ff}
+.staff-info{margin-left:6px;display:inline-block}
+.staff-name{font-weight:600;font-size:14px}
+.staff-email{font-size:12px;color:var(--muted)}
+
+.btn.icon{
+  width:32px;
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+}
+
+.head .name .staff-tag{
+  margin-left:6px;
+  padding:1px 6px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:500;
+  background:rgba(148,163,184,0.25);
+  color:#0f172a;
+}
+.msg-me .head .name .staff-tag{
+  background:rgba(15,23,42,0.35);
+  color:#f9fafb;
 }
