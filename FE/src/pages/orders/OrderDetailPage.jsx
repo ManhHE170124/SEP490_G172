@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ORDER_DETAIL_MOCK } from "./orderMocks";
+import { orderApi } from "../../services/orderApi";
 import "./OrderDetailPage.css";
 
 const ORDER_STATUS_LABEL = {
@@ -54,9 +54,21 @@ const formatDateTime = (value) => {
   });
 };
 
+// Format order number from orderId and createdAt (same as backend)
+const formatOrderNumber = (orderId, createdAt) => {
+  if (!orderId || !createdAt) return "";
+  const date = new Date(createdAt);
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
+  const orderIdStr = String(orderId).replace(/-/g, "").substring(0, 4).toUpperCase();
+  return `ORD-${dateStr}-${orderIdStr}`;
+};
+
 export default function OrderDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [order, setOrder] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
   // Get user info from localStorage
   const userInfo = React.useMemo(() => {
@@ -70,24 +82,95 @@ export default function OrderDetailPage() {
     }
   }, []);
 
-  const allOrders = React.useMemo(
-    () => Object.values(ORDER_DETAIL_MOCK),
-    []
-  );
+  // Fetch order from API
+  React.useEffect(() => {
+    const fetchOrder = async () => {
+      if (!id) {
+        setLoading(false);
+        setError("Không có ID đơn hàng");
+        return;
+      }
 
-  const currentOrder =
-    (id && ORDER_DETAIL_MOCK[id]) || allOrders[0] || undefined;
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await orderApi.get(id);
+        // axiosClient interceptor already unwraps response.data
+        const data = response || {};
+        
+        console.log("Order detail API response:", data);
+        
+        // Map API response to component format
+        const mappedOrder = {
+          orderId: data.orderId || data.OrderId,
+          userId: data.userId || data.UserId,
+          orderNumber: formatOrderNumber(
+            data.orderId || data.OrderId,
+            data.createdAt || data.CreatedAt
+          ),
+          totalAmount: data.totalAmount || data.TotalAmount || 0,
+          discountAmount: data.discountAmount ?? data.DiscountAmount ?? 0,
+          finalAmount: data.finalAmount ?? data.FinalAmount ?? null,
+          status: data.status || data.Status || "Pending",
+          createdAt: data.createdAt || data.CreatedAt,
+          userEmail: data.userEmail || data.UserEmail || "",
+          userName: data.userName || data.UserName || "",
+          userPhone: data.userPhone || data.UserPhone || "",
+          paymentStatus: data.paymentStatus || data.PaymentStatus || "Unpaid",
+          orderDetails: (data.orderDetails || data.OrderDetails || []).map((od) => ({
+            orderDetailId: od.orderDetailId || od.OrderDetailId,
+            productId: od.productId || od.ProductId,
+            productName: od.productName || od.ProductName || "",
+            productCode: od.productCode || od.ProductCode || null,
+            productType: od.productType || od.ProductType || null,
+            thumbnailUrl: od.thumbnailUrl || od.ThumbnailUrl || null,
+            quantity: od.quantity || od.Quantity || 0,
+            unitPrice: od.unitPrice || od.UnitPrice || 0,
+            keyId: od.keyId || od.KeyId || null,
+            keyString: od.keyString || od.KeyString || null,
+            subTotal: od.subTotal || od.SubTotal || 0,
+          })),
+          payments: (data.payments || data.Payments || []).map((p) => ({
+            paymentId: p.paymentId || p.PaymentId,
+            amount: p.amount || p.Amount || 0,
+            status: p.status || p.Status || "Pending",
+            createdAt: p.createdAt || p.CreatedAt,
+          })),
+        };
+        
+        setOrder(mappedOrder);
+      } catch (err) {
+        console.error("Failed to fetch order:", err);
+        setError(err.response?.data?.message || err.message || "Không thể tải thông tin đơn hàng");
+        setOrder(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (!currentOrder) {
+    fetchOrder();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="od-wrapper">
+        <header className="od-header">
+          <div>
+            <h1>Đang tải...</h1>
+            <p>Vui lòng đợi trong giây lát</p>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
+  if (error || !order) {
     return (
       <div className="od-wrapper">
         <header className="od-header od-empty-state">
           <div>
-            <h1>Không tìm thấy dữ liệu đơn hàng</h1>
-            <p>
-              Hiện chưa có thông tin mô phỏng cho đơn hàng này. Vui lòng trở về
-              lịch sử đơn hàng để chọn đơn khác.
-            </p>
+            <h1>Không tìm thấy đơn hàng</h1>
+            <p>{error || "Đơn hàng không tồn tại hoặc đã bị xóa."}</p>
           </div>
           <button
             type="button"
@@ -101,12 +184,8 @@ export default function OrderDetailPage() {
     );
   }
 
-  // Get payment method from first completed payment, or first payment if no completed
-  const paymentMethod =
-    currentOrder.payments?.find((p) => p.status === "Completed")
-      ?.paymentMethod ||
-    currentOrder.payments?.[0]?.paymentMethod ||
-    null;
+  // Get payment status label
+  const paymentStatusLabel = PAYMENT_STATUS_LABEL[order.paymentStatus] || order.paymentStatus;
 
   // Copy to clipboard function
   const copyToClipboard = (text) => {
@@ -134,7 +213,7 @@ export default function OrderDetailPage() {
               ← Lịch sử đơn hàng
             </button>
           </div>
-          <h1>Chi tiết đơn hàng {currentOrder.orderNumber}</h1>
+          <h1>Chi tiết đơn hàng {order.orderNumber}</h1>
           <p>Hiển thị thông tin các sản phẩm bạn đã mua tại Keytietkiem.</p>
         </div>
         <button type="button" className="od-primary">
@@ -148,24 +227,23 @@ export default function OrderDetailPage() {
           <dl>
             <div>
               <dt>Mã đơn hàng</dt>
-              <dd>{currentOrder.orderNumber}</dd>
+              <dd>{order.orderNumber}</dd>
             </div>
             <div>
               <dt>Ngày tạo</dt>
-              <dd>{formatDateTime(currentOrder.createdAt)}</dd>
+              <dd>{formatDateTime(order.createdAt)}</dd>
             </div>
             <div>
               <dt>Trạng thái</dt>
               <dd>
-                <span className={`od-status od-${currentOrder.status ?? ""}`}>
-                  {ORDER_STATUS_LABEL[currentOrder.status] ??
-                    currentOrder.status}
+                <span className={`od-status od-${order.status?.toLowerCase() ?? ""}`}>
+                  {ORDER_STATUS_LABEL[order.status] ?? order.status}
                 </span>
               </dd>
             </div>
             <div>
               <dt>Người nhận</dt>
-              <dd>{currentOrder.userEmail}</dd>
+              <dd>{order.userEmail || "—"}</dd>
             </div>
           </dl>
         </div>
@@ -176,18 +254,18 @@ export default function OrderDetailPage() {
             <dl>
               <div>
                 <dt>Họ tên</dt>
-                <dd>{userInfo.fullName || userInfo.username || "—"}</dd>
+                <dd>{order.userName || userInfo.fullName || userInfo.username || "—"}</dd>
               </div>
-              {userInfo.email && (
+              {(order.userEmail || userInfo.email) && (
                 <div>
                   <dt>Email</dt>
-                  <dd>{userInfo.email}</dd>
+                  <dd>{order.userEmail || userInfo.email}</dd>
                 </div>
               )}
-              {userInfo.phone && (
+              {(order.userPhone || userInfo.phone) && (
                 <div>
                   <dt>Số điện thoại</dt>
-                  <dd>{userInfo.phone}</dd>
+                  <dd>{order.userPhone || userInfo.phone}</dd>
                 </div>
               )}
             </dl>
@@ -199,33 +277,23 @@ export default function OrderDetailPage() {
           <dl>
             <div>
               <dt>Tổng giá trị sản phẩm</dt>
-              <dd>{formatCurrency(currentOrder.totalAmount)}</dd>
+              <dd>{formatCurrency(order.totalAmount)}</dd>
             </div>
             <div>
               <dt>Giảm giá</dt>
               <dd>
-                {currentOrder.discountAmount
-                  ? `- ${formatCurrency(currentOrder.discountAmount)}`
+                {order.discountAmount
+                  ? `- ${formatCurrency(order.discountAmount)}`
                   : "0đ"}
               </dd>
             </div>
             <div>
               <dt>Thành tiền</dt>
-              <dd>{formatCurrency(currentOrder.finalAmount)}</dd>
+              <dd>{formatCurrency(order.finalAmount ?? order.totalAmount - order.discountAmount)}</dd>
             </div>
             <div>
-              <dt>Phương thức thanh toán</dt>
-              <dd>
-                {(() => {
-                  if (paymentMethod) {
-                    return PAYMENT_METHOD_LABEL[paymentMethod] || paymentMethod;
-                  }
-                  if (currentOrder.paymentStatus === "Unpaid") {
-                    return "Chưa thanh toán";
-                  }
-                  return "—";
-                })()}
-              </dd>
+              <dt>Trạng thái thanh toán</dt>
+              <dd>{paymentStatusLabel}</dd>
             </div>
           </dl>
         </div>
@@ -234,77 +302,83 @@ export default function OrderDetailPage() {
       <section className="od-product-card">
         <div className="od-product-header">
           <h2>Sản phẩm trong đơn</h2>
-          <span>{currentOrder.orderDetails.length} sản phẩm</span>
+          <span>{order.orderDetails?.length || 0} sản phẩm</span>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Sản phẩm</th>
-              <th>Mã sản phẩm</th>
-              <th>Loại</th>
-              <th className="od-right">Số lượng</th>
-              <th className="od-right">Đơn giá</th>
-              <th>Thông tin tài khoản/Key</th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentOrder.orderDetails.map((detail) => (
-              <tr key={detail.orderDetailId}>
-                <td>
-                  <strong>{detail.productName}</strong>
-                </td>
-                <td>{detail.productCode ?? "—"}</td>
-                <td>{detail.productType ?? "—"}</td>
-                <td className="od-right">{detail.quantity}</td>
-                <td className="od-right">{formatCurrency(detail.unitPrice)}</td>
-                <td>
-                  {(() => {
-                    if (detail.accountEmail && detail.accountPassword) {
-                      return (
-                        <div className="od-account-info-cell">
-                          <div className="od-account-credential">
-                            <span>
-                              Tài khoản: {detail.accountEmail} | Mật khẩu:{" "}
-                              {detail.accountPassword}
-                            </span>
-                            <button
-                              type="button"
-                              className="od-copy-btn"
-                              onClick={() =>
-                                copyToClipboard(
-                                  `Tài khoản: ${detail.accountEmail} | Mật khẩu: ${detail.accountPassword}`
-                                )
-                              }
-                            >
-                              Sao chép
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (detail.keyString) {
-                      return (
-                        <div className="od-account-info-cell">
-                          <div className="od-account-credential">
-                            <span>{detail.keyString}</span>
-                            <button
-                              type="button"
-                              className="od-copy-btn"
-                              onClick={() => copyToClipboard(detail.keyString)}
-                            >
-                              Sao chép
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return <span className="od-no-info">—</span>;
-                  })()}
-                </td>
+        {order.orderDetails && order.orderDetails.length > 0 ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Sản phẩm</th>
+                <th>Mã sản phẩm</th>
+                <th>Loại</th>
+                <th className="od-right">Số lượng</th>
+                <th className="od-right">Đơn giá</th>
+                <th>Thông tin tài khoản/Key</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {order.orderDetails.map((detail) => (
+                <tr key={detail.orderDetailId}>
+                  <td>
+                    <strong>{detail.productName}</strong>
+                  </td>
+                  <td>{detail.productCode ?? "—"}</td>
+                  <td>{detail.productType ?? "—"}</td>
+                  <td className="od-right">{detail.quantity}</td>
+                  <td className="od-right">{formatCurrency(detail.unitPrice)}</td>
+                  <td>
+                    {(() => {
+                      if (detail.accountEmail && detail.accountPassword) {
+                        return (
+                          <div className="od-account-info-cell">
+                            <div className="od-account-credential">
+                              <span>
+                                Tài khoản: {detail.accountEmail} | Mật khẩu:{" "}
+                                {detail.accountPassword}
+                              </span>
+                              <button
+                                type="button"
+                                className="od-copy-btn"
+                                onClick={() =>
+                                  copyToClipboard(
+                                    `Tài khoản: ${detail.accountEmail} | Mật khẩu: ${detail.accountPassword}`
+                                  )
+                                }
+                              >
+                                Sao chép
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      if (detail.keyString) {
+                        return (
+                          <div className="od-account-info-cell">
+                            <div className="od-account-credential">
+                              <span>{detail.keyString}</span>
+                              <button
+                                type="button"
+                                className="od-copy-btn"
+                                onClick={() => copyToClipboard(detail.keyString)}
+                              >
+                                Sao chép
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return <span className="od-no-info">—</span>;
+                    })()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ padding: "2rem", textAlign: "center" }}>
+            <p>Không có sản phẩm nào trong đơn hàng này</p>
+          </div>
+        )}
       </section>
     </div>
   );

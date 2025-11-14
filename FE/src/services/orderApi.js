@@ -38,11 +38,17 @@ export const orderApi = {
   },
 
   /**
-   * Get order history for current user - filtering done in FE
+   * Get order history for current user
+   * @param {string|Guid} userId - User identifier
    * @returns {Promise} Axios response with list of OrderHistoryItemDTO
    */
-  history: () => {
-    return axiosClient.get(`${END.ORDERS}/history`);
+  history: (userId) => {
+    if (!userId) {
+      return Promise.reject(new Error("UserId is required"));
+    }
+    return axiosClient.get(`${END.ORDERS}/history`, {
+      params: { userId }
+    });
   },
 
   /**

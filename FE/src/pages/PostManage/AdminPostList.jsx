@@ -729,7 +729,7 @@ export default function AdminPostList() {
                 <div className="apl-post-card-content">
                   <div className="apl-post-card-title">{post.title || "(Không có tiêu đề)"}</div>
                   {post.shortDescription && (
-                    <div className="apl-post-card-desc">{post.shortDescription}</div>
+                    <div className="apl-post-card-desc">Mô tả ngắn: {post.shortDescription}</div>
                   )}
                   <div className="apl-post-card-meta">
                     <span>Danh mục: {post.posttypeName || post.postTypeName || post.PosttypeName || "Không có danh mục"}</span>

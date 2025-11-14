@@ -66,17 +66,20 @@ namespace Keytietkiem.Controllers
 
         /**
          * Summary: Get order history for current user.
-         * Route: GET /api/orders/history
-         * Returns: 200 OK with list of orders (filtering and sorting done in FE)
+         * Route: GET /api/orders/history?userId={userId}
+         * Params: userId (Guid) - User identifier (optional, can be from auth context in future)
+         * Returns: 200 OK with list of orders for the specified user
          */
         [HttpGet("history")]
-        public async Task<IActionResult> GetOrderHistory()
+        public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {
-            // TODO: Get current user ID from authentication context
-            // For now, this endpoint will return all orders
-            // In production, filter by current user: .Where(o => o.UserId == currentUserId)
+            if (!userId.HasValue)
+            {
+                return BadRequest(new { message = "UserId is required" });
+            }
 
             var orders = await _context.Orders
+                .Where(o => o.UserId == userId.Value)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Product)
                 .Include(o => o.Payments)
@@ -88,6 +91,7 @@ namespace Keytietkiem.Controllers
                 return new OrderHistoryItemDTO
                 {
                     OrderId = o.OrderId,
+                    UserId = o.UserId,
                     OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
                     TotalAmount = o.TotalAmount,
                     FinalAmount = o.FinalAmount,

@@ -74,11 +74,12 @@ export default function LoginPage() {
 
       // Redirect based on user role
       const userRoles = response.user.roles || [];
-      if (userRoles.includes("Admin") || userRoles.includes("Manager")) {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+      // if (userRoles.includes("Admin") || userRoles.includes("Manager")) {
+      //   navigate("/admin");
+      // } else {
+      //   navigate("/");
+      // }
+      navigate("/orders/history");
     } catch (error) {
       const responseData = error?.response?.data;
       const apiErrorMessage =

@@ -195,7 +195,21 @@ namespace Keytietkiem.Controllers
             };
 
             _context.Posts.Add(newPost);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                // Kiểm tra unique constraint violation trên Slug
+                if (
+                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+                throw; // Re-throw nếu không phải lỗi unique constraint
+            }
 
             // Add Tags
             if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
@@ -204,7 +218,21 @@ namespace Keytietkiem.Controllers
                     .Where(t => createPostDto.TagIds.Contains(t.TagId))
                     .ToListAsync();
                 newPost.Tags = tags;
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Kiểm tra unique constraint violation trên Slug
+                    if (
+                        ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                        ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                    {
+                        return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                    }
+                    throw; // Re-throw nếu không phải lỗi unique constraint
+                }
             }
 
             // Reload post with relations
@@ -315,7 +343,21 @@ namespace Keytietkiem.Controllers
             }
 
             _context.Posts.Update(existing);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                // Kiểm tra unique constraint violation trên Slug
+                if (
+                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+                throw; // Re-throw nếu không phải lỗi unique constraint
+            }
 
             return NoContent();
         }
@@ -412,9 +454,9 @@ namespace Keytietkiem.Controllers
             return NoContent();
 
         }
-    
 
-    [HttpDelete("posttypes/{id}")]
+
+        [HttpDelete("posttypes/{id}")]
         public async Task<IActionResult> DeletePosttype(Guid id)
         {
             var existing = await _context.PostTypes

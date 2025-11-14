@@ -75,6 +75,7 @@ namespace Keytietkiem.DTOs.Orders
     public class OrderHistoryItemDTO
     {
         public Guid OrderId { get; set; }
+        public Guid UserId { get; set; }
         public string OrderNumber { get; set; } = null!; // Format: ORD-YYYYMMDD-XXXX
         public decimal TotalAmount { get; set; }
         public decimal? FinalAmount { get; set; }

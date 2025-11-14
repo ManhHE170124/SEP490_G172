@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ORDER_HISTORY_MOCK } from "./orderMocks";
+import { orderApi } from "../../services/orderApi";
 import "./OrderHistoryPage.css";
 
 const PAGE_SIZE = 25;
@@ -50,6 +50,9 @@ export default function OrderHistoryPage() {
   const [filters, setFilters] = React.useState(initialFilters);
   const [debouncedFilters, setDebouncedFilters] = React.useState(initialFilters);
   const [errors, setErrors] = React.useState({});
+  const [orders, setOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
   // Get user info from localStorage
   const userInfo = React.useMemo(() => {
@@ -62,6 +65,12 @@ export default function OrderHistoryPage() {
       return null;
     }
   }, []);
+
+  // Get userId from localStorage
+  const userId = React.useMemo(() => {
+    if (!userInfo) return null;
+    return userInfo.userId || userInfo.UserId || userInfo.id || null;
+  }, [userInfo]);
 
   // Validate filters
   const validateFilters = React.useCallback((filterValues) => {
@@ -173,21 +182,67 @@ export default function OrderHistoryPage() {
     }
   }, [filters.fromDate, filters.toDate, filters, validateFilters]);
 
-  const orders = React.useMemo(
-    () =>
-      ORDER_HISTORY_MOCK.map((order) => ({
-        ...order,
-        statusLabel: order.status === "Completed" ? "Đã xử lý" : "Đang xử lý",
-        statusClass: order.status === "Completed" ? "processed" : "processing",
-        sortQuantity: order.itemCount ?? order.productNames?.length ?? 0,
-        sortProduct: order.productNames?.[0] ?? "",
-        sortTotal:
-          typeof order.finalAmount === "number"
-            ? order.finalAmount
-            : order.totalAmount,
-      })),
-    []
-  );
+  // Fetch order history from API
+  React.useEffect(() => {
+    const fetchOrders = async () => {
+      // Don't fetch if no userId
+      if (!userId) {
+        setLoading(false);
+        setOrders([]);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await orderApi.history(userId);
+        // axiosClient interceptor already unwraps response.data, so response is already the data
+        const data = Array.isArray(response) ? response : (response?.data || []);
+        
+        console.log("Order history API response:", response);
+        console.log("Current userId:", userId);
+        
+        // Map API response to component format (already filtered by backend)
+        const mappedOrders = data.map((order) => ({
+          orderId: order.orderId || order.OrderId,
+          orderNumber: order.orderNumber || order.OrderNumber || "",
+          totalAmount: order.totalAmount || order.TotalAmount || 0,
+          finalAmount: order.finalAmount ?? order.FinalAmount ?? null,
+          status: order.status || order.Status || "Pending",
+          createdAt: order.createdAt || order.CreatedAt,
+          itemCount: order.itemCount ?? order.ItemCount ?? 0,
+          productNames: order.productNames || order.ProductNames || [],
+          thumbnailUrl: order.thumbnailUrl || order.ThumbnailUrl || null,
+          paymentStatus: order.paymentStatus || order.PaymentStatus || "Unpaid",
+          // Computed fields
+          statusLabel: order.status === "Completed" ? "Đã xử lý" : 
+                      order.status === "Processing" ? "Đang xử lý" :
+                      order.status === "Pending" ? "Đang chờ" :
+                      order.status === "Cancelled" ? "Đã hủy" :
+                      order.status === "Refunded" ? "Đã hoàn" : "Đang xử lý",
+          statusClass: order.status === "Completed" ? "processed" : 
+                      order.status === "Cancelled" ? "cancelled" :
+                      order.status === "Refunded" ? "refunded" : "processing",
+          sortQuantity: order.itemCount ?? order.ItemCount ?? order.productNames?.length ?? 0,
+          sortProduct: order.productNames?.[0] ?? order.ProductNames?.[0] ?? "",
+          sortTotal:
+            typeof (order.finalAmount ?? order.FinalAmount) === "number"
+              ? (order.finalAmount ?? order.FinalAmount)
+              : (order.totalAmount || order.TotalAmount || 0),
+        }));
+        
+        setOrders(mappedOrders);
+      } catch (err) {
+        console.error("Failed to fetch order history:", err);
+        setError(err.response?.data?.message || err.message || "Không thể tải lịch sử đơn hàng");
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [userId]);
 
   const filteredOrders = React.useMemo(() => {
     return orders.filter((order) => {
@@ -423,137 +478,160 @@ export default function OrderHistoryPage() {
       </section>
 
       <section className="oh-table-card">
-        <table className="oh-table">
-          <thead>
-            <tr>
-              <th>
-                <button
-                  type="button"
-                  className={`oh-sort ${
-                    sort.key === "createdAt" ? `active ${sort.direction}` : ""
-                  }`}
-                  onClick={() => changeSort("createdAt")}
-                >
-                  Thời gian
-                </button>
-              </th>
-              <th>
-                <button
-                  type="button"
-                  className={`oh-sort ${
-                    sort.key === "orderNumber" ? `active ${sort.direction}` : ""
-                  }`}
-                  onClick={() => changeSort("orderNumber")}
-                >
-                  Mã đơn hàng
-                </button>
-              </th>
-              <th>
-                <button
-                  type="button"
-                  className={`oh-sort ${
-                    sort.key === "product" ? `active ${sort.direction}` : ""
-                  }`}
-                  onClick={() => changeSort("product")}
-                >
-                  Sản phẩm
-                </button>
-              </th>
-              <th>
-                <button
-                  type="button"
-                  className={`oh-sort ${
-                    sort.key === "quantity" ? `active ${sort.direction}` : ""
-                  }`}
-                  onClick={() => changeSort("quantity")}
-                >
-                  Số lượng
-                </button>
-              </th>
-              <th className="oh-right">
-                <button
-                  type="button"
-                  className={`oh-sort ${
-                    sort.key === "totalAmount" ? `active ${sort.direction}` : ""
-                  }`}
-                  onClick={() => changeSort("totalAmount")}
-                >
-                  Tổng tiền
-                </button>
-              </th>
-              <th className="oh-center">
-                <button
-                  type="button"
-                  className={`oh-sort ${
-                    sort.key === "status" ? `active ${sort.direction}` : ""
-                  }`}
-                  onClick={() => changeSort("status")}
-                >
-                  Trạng thái
-                </button>
-              </th>
-              <th className="oh-center">Chi tiết</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayedOrders.map((order) => {
-              const quantity = order.sortQuantity;
-              const finalAmount = order.sortTotal;
-
-              return (
-                <tr key={order.orderId}>
-                  <td>{formatDateTime(order.createdAt)}</td>
-                  <td>
-                    <span className="oh-code">{order.orderNumber}</span>
-                  </td>
-                  <td>
-                    <div className="oh-product">
-                      <span>{order.sortProduct || "—"}</span>
-                      {quantity > 1 ? (
-                        <small>+ {quantity - 1} sản phẩm khác</small>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td>x{quantity}</td>
-                  <td className="oh-right">{formatCurrency(finalAmount)}</td>
-                  <td className="oh-center">
-                    <span className={`oh-status ${order.statusClass}`}>
-                      {order.statusLabel}
-                    </span>
-                  </td>
-                  <td className="oh-center">
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}>
+            <p>Đang tải dữ liệu...</p>
+          </div>
+        ) : error ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}>
+            <p style={{ color: "red" }}>{error}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              style={{ marginTop: "1rem", padding: "0.5rem 1rem" }}
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : displayedOrders.length === 0 ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}>
+            <p>Không có đơn hàng nào</p>
+          </div>
+        ) : (
+          <>
+            <table className="oh-table">
+              <thead>
+                <tr>
+                  <th>
                     <button
                       type="button"
-                      className="oh-link"
-                      onClick={() => navigate(`/orders/${order.orderId}`)}
+                      className={`oh-sort ${
+                        sort.key === "createdAt" ? `active ${sort.direction}` : ""
+                      }`}
+                      onClick={() => changeSort("createdAt")}
                     >
-                      Chi tiết
+                      Thời gian
                     </button>
-                  </td>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`oh-sort ${
+                        sort.key === "orderNumber" ? `active ${sort.direction}` : ""
+                      }`}
+                      onClick={() => changeSort("orderNumber")}
+                    >
+                      Mã đơn hàng
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`oh-sort ${
+                        sort.key === "product" ? `active ${sort.direction}` : ""
+                      }`}
+                      onClick={() => changeSort("product")}
+                    >
+                      Sản phẩm
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`oh-sort ${
+                        sort.key === "quantity" ? `active ${sort.direction}` : ""
+                      }`}
+                      onClick={() => changeSort("quantity")}
+                    >
+                      Số lượng
+                    </button>
+                  </th>
+                  <th className="oh-right">
+                    <button
+                      type="button"
+                      className={`oh-sort ${
+                        sort.key === "totalAmount" ? `active ${sort.direction}` : ""
+                      }`}
+                      onClick={() => changeSort("totalAmount")}
+                    >
+                      Tổng tiền
+                    </button>
+                  </th>
+                  <th className="oh-center">
+                    <button
+                      type="button"
+                      className={`oh-sort ${
+                        sort.key === "status" ? `active ${sort.direction}` : ""
+                      }`}
+                      onClick={() => changeSort("status")}
+                    >
+                      Trạng thái
+                    </button>
+                  </th>
+                  <th className="oh-center">Chi tiết</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <footer className="oh-pagination">
-          <button
-            type="button"
-            onClick={() => goToPage(page - 1)}
-            disabled={page === 1}
-          >
-            Trước
-          </button>
-          <span>
-            Trang {page}/{totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => goToPage(page + 1)}
-            disabled={page === totalPages}
-          >
-            Tiếp
-          </button>
-        </footer>
+              </thead>
+              <tbody>
+                {displayedOrders.map((order) => {
+                  const quantity = order.sortQuantity;
+                  const finalAmount = order.sortTotal;
+
+                  return (
+                    <tr key={order.orderId}>
+                      <td>{formatDateTime(order.createdAt)}</td>
+                      <td>
+                        <span className="oh-code">{order.orderNumber}</span>
+                      </td>
+                      <td>
+                        <div className="oh-product">
+                          <span>{order.sortProduct || "—"}</span>
+                          {quantity > 1 ? (
+                            <small>+ {quantity - 1} sản phẩm khác</small>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>x{quantity}</td>
+                      <td className="oh-right">{formatCurrency(finalAmount)}</td>
+                      <td className="oh-center">
+                        <span className={`oh-status ${order.statusClass}`}>
+                          {order.statusLabel}
+                        </span>
+                      </td>
+                      <td className="oh-center">
+                        <button
+                          type="button"
+                          className="oh-link"
+                          onClick={() => navigate(`/orders/${order.orderId}`)}
+                        >
+                          Chi tiết
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <footer className="oh-pagination">
+              <button
+                type="button"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1}
+              >
+                Trước
+              </button>
+              <span>
+                Trang {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => goToPage(page + 1)}
+                disabled={page === totalPages}
+              >
+                Tiếp
+              </button>
+            </footer>
+          </>
+        )}
       </section>
     </div>
   );
