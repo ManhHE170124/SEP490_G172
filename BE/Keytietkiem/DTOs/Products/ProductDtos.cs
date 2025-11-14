@@ -55,11 +55,8 @@ namespace Keytietkiem.DTOs.Products
         string VariantCode,
         string Title,
         int? DurationDays,
-        decimal? OriginalPrice,
-        decimal Price,
         int StockQty,
-        string Status,
-        int SortOrder
+        string Status
     );
 
     // LIST ITEM (không có giá)
@@ -70,7 +67,6 @@ namespace Keytietkiem.DTOs.Products
         string ProductType,
         int TotalStockQty,                 // Tổng stock của các biến thể
         string Status,
-        string? ThumbnailUrl,
         IEnumerable<int> CategoryIds,
         IEnumerable<string> BadgeCodes
     );
@@ -81,12 +77,9 @@ namespace Keytietkiem.DTOs.Products
         string ProductCode,
         string ProductName,
         string ProductType,
-        bool AutoDelivery,
         string Status,
-        string? ThumbnailUrl,
         IEnumerable<int> CategoryIds,
         IEnumerable<string> BadgeCodes,
-        IEnumerable<ProductImageDto> Images,
         IEnumerable<ProductFaqDto> Faqs,
         IEnumerable<ProductVariantMiniDto> Variants
     );
@@ -96,9 +89,7 @@ namespace Keytietkiem.DTOs.Products
         string ProductCode,
         string ProductName,
         string ProductType,
-        bool AutoDelivery,
         string? Status,
-        string? ThumbnailUrl,
         IEnumerable<int>? CategoryIds,
         IEnumerable<string>? BadgeCodes,
         string? Slug
@@ -107,11 +98,10 @@ namespace Keytietkiem.DTOs.Products
     public record ProductUpdateDto(
         string ProductName,
         string ProductType,
-        bool AutoDelivery,
         string? Status,
-        string? ThumbnailUrl,
         IEnumerable<int>? CategoryIds,
         IEnumerable<string>? BadgeCodes,
-        string? Slug
+        string? Slug,
+        string? ProductCode
     );
 }
