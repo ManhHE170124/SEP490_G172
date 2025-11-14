@@ -343,10 +343,9 @@ export default function AdminTicketManagement() {
       {/* Table */}
       <div className="tk-table-wrap">
         <table className="tk-table">
-          {/* ✅ Bỏ STT + Khách hàng, chỉ giữ 8 cột */}
           <colgroup>
             <col style={{ width: 110 }} /> {/* Mã */}
-            <col /> {/* Tiêu đề – ăn hết phần còn lại */}
+            <col /> {/* Tiêu đề */}
             <col style={{ width: 120 }} /> {/* Trạng thái */}
             <col style={{ width: 120 }} /> {/* Mức độ */}
             <col style={{ width: 120 }} /> {/* SLA */}
@@ -383,7 +382,9 @@ export default function AdminTicketManagement() {
                     <td className="mono">{r.ticketCode}</td>
 
                     {/* Tiêu đề */}
-                    <td className="ellipsis">{r.subject}</td>
+                    <td className="ellipsis" title={r.subject}>
+                      {r.subject}
+                    </td>
 
                     {/* Trạng thái / Mức độ / SLA */}
                     <td>
@@ -420,11 +421,12 @@ export default function AdminTicketManagement() {
                     {/* Ngày tạo */}
                     <td className="muted">{fmtVNDate(r.createdAt)}</td>
 
-                    {/* Thao tác – xếp theo cột dọc */}
+                    {/* Thao tác – icon + tooltip, luôn cùng hàng với Ngày tạo */}
                     <td className="tk-row-actions">
                       {a.canAssign && (
                         <button
-                          className="btn xs"
+                          className="btn icon-btn primary"
+                          title="Gán"
                           onClick={() =>
                             setModal({
                               open: true,
@@ -434,12 +436,14 @@ export default function AdminTicketManagement() {
                             })
                           }
                         >
-                          Gán
+                          <span aria-hidden="true">👤</span>
                         </button>
                       )}
+
                       {a.canTransfer && (
                         <button
-                          className="btn xs"
+                          className="btn icon-btn warning"
+                          title="Chuyển hỗ trợ"
                           onClick={() =>
                             setModal({
                               open: true,
@@ -449,30 +453,36 @@ export default function AdminTicketManagement() {
                             })
                           }
                         >
-                          Chuyển hỗ trợ
+                          <span aria-hidden="true">🔁</span>
                         </button>
                       )}
+
                       {a.canComplete && (
                         <button
-                          className="btn xs"
+                          className="btn icon-btn success"
+                          title="Hoàn thành"
                           onClick={() => doComplete(r.ticketId)}
                         >
-                          Hoàn thành
+                          <span aria-hidden="true">✔</span>
                         </button>
                       )}
+
                       {normalizeStatus(r.status) === "New" && (
                         <button
-                          className="btn xs danger"
+                          className="btn icon-btn danger"
+                          title="Đóng"
                           onClick={() => doClose(r.ticketId)}
                         >
-                          Đóng
+                          <span aria-hidden="true">✖</span>
                         </button>
                       )}
+
                       <button
-                        className="btn xs ghost"
+                        className="btn icon-btn ghost"
+                        title="Chi tiết"
                         onClick={() => nav(`/admin/tickets/${r.ticketId}`)}
                       >
-                        Chi tiết
+                        <span aria-hidden="true">🔍</span>
                       </button>
                     </td>
                   </tr>
@@ -518,7 +528,9 @@ export default function AdminTicketManagement() {
             ? "Chuyển hỗ trợ"
             : "Gán nhân viên phụ trách"
         }
-        excludeUserId={modal.mode === "transfer" ? modal.currentAssigneeId : null}
+        excludeUserId={
+          modal.mode === "transfer" ? modal.currentAssigneeId : null
+        }
         onClose={() =>
           setModal({
             open: false,
@@ -615,7 +627,7 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
       <div className="tk-modal-card">
         <div className="tk-modal-head">
           <h3 className="tk-modal-title">{title}</h3>
-          <button type="button" className="btn icon" onClick={onClose}>
+          <button type="button" className="btn icon-btn ghost" onClick={onClose} title="Đóng">
             ✕
           </button>
         </div>
@@ -624,19 +636,15 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
             <label>Tìm theo tên hoặc email</label>
             <input
               className="ip"
-              placeholder="Nhập tên hoặc email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nhập từ khoá..."
             />
           </div>
           <div className="staff-list">
-            {loading && (
-              <div className="empty small">Đang tải danh sách nhân viên...</div>
-            )}
+            {loading && <div className="muted">Đang tải...</div>}
             {!loading && !list.length && (
-              <div className="empty small">
-                Không tìm thấy nhân viên phù hợp.
-              </div>
+              <div className="muted">Không có nhân viên phù hợp.</div>
             )}
             {!loading && !!list.length && (
               <ul className="staff-ul">
@@ -648,7 +656,12 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
                     }
                     onClick={() => setSelected(u.id)}
                   >
-                    <span className="staff-dot">•</span>
+                    <span className="staff-avatar">
+                      {String(u.name || "")
+                        .trim()
+                        .substring(0, 1)
+                        .toUpperCase()}
+                    </span>
                     <span className="staff-info">
                       <span className="staff-name">{u.name}</span>
                       <span className="staff-email">{u.email}</span>
@@ -661,7 +674,7 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
         </div>
         <div className="tk-modal-foot">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Hủy
+            Huỷ
           </button>
           <button
             type="button"

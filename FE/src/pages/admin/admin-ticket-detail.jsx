@@ -28,8 +28,7 @@ const MAP_ASN = {
 
 function fmtDateTime(v) {
   try {
-    const d =
-      typeof v === "string" || typeof v === "number" ? new Date(v) : v;
+    const d = typeof v === "string" || typeof v === "number" ? new Date(v) : v;
     return new Intl.DateTimeFormat("vi-VN", {
       day: "2-digit",
       month: "2-digit",
@@ -41,6 +40,7 @@ function fmtDateTime(v) {
     return "";
   }
 }
+
 function normalizeStatus(s) {
   const v = String(s || "").toLowerCase();
   if (v === "open" || v === "new") return "New";
@@ -49,6 +49,7 @@ function normalizeStatus(s) {
   if (v === "closed" || v === "close") return "Closed";
   return "New";
 }
+
 function StatusBadge({ value }) {
   const v = normalizeStatus(value);
   const cls =
@@ -61,6 +62,7 @@ function StatusBadge({ value }) {
       : "st st-closed";
   return <span className={cls}>{MAP_STATUS[v] || v}</span>;
 }
+
 function SeverityTag({ value }) {
   const v = String(value);
   const cls =
@@ -73,6 +75,7 @@ function SeverityTag({ value }) {
       : "tag tag-critical";
   return <span className={cls}>{MAP_SEV[v] || v}</span>;
 }
+
 function SlaPill({ value }) {
   const v = String(value);
   const cls =
@@ -199,7 +202,7 @@ export default function AdminTicketDetail() {
       setData((prev) => {
         if (!prev) return prev;
         const list = prev.replies || [];
-        // tránh trùng khi chính mình gửi: check ReplyId
+        // tránh trùng khi chính mình gửi: check replyId
         if (list.some((x) => x.replyId === reply.replyId)) return prev;
         return {
           ...prev,
@@ -213,8 +216,8 @@ export default function AdminTicketDetail() {
     connection
       .start()
       .then(() => connection.invoke("JoinTicketGroup", id))
-      .catch((error) => {
-        console.error("[SignalR] start failed", error);
+      .catch(() => {
+        // Bỏ log lỗi AbortError khi điều hướng / refresh trong lúc negotiating
       });
 
     return () => {
@@ -272,6 +275,12 @@ export default function AdminTicketDetail() {
     };
   }, [data]);
 
+  // 🔒 FE: ticket chỉ được phản hồi khi còn New / InProgress
+  const canReply = useMemo(() => {
+    const s = normalizeStatus(data?.status);
+    return s === "New" || s === "InProgress";
+  }, [data?.status]);
+
   const doAssign = async (assigneeId) => {
     try {
       await ticketsApi.assign(id, assigneeId);
@@ -280,6 +289,7 @@ export default function AdminTicketDetail() {
       alert(e?.response?.data?.message || e.message || "Gán ticket thất bại.");
     }
   };
+
   const doTransfer = async (assigneeId) => {
     try {
       await ticketsApi.transferTech(id, assigneeId);
@@ -290,6 +300,7 @@ export default function AdminTicketDetail() {
       );
     }
   };
+
   const doComplete = async () => {
     if (!window.confirm("Xác nhận đánh dấu Hoàn thành?")) return;
     try {
@@ -299,6 +310,7 @@ export default function AdminTicketDetail() {
       alert(e?.response?.data?.message || e.message || "Hoàn thành thất bại.");
     }
   };
+
   const doClose = async () => {
     if (!window.confirm("Xác nhận Đóng ticket?")) return;
     try {
@@ -311,6 +323,7 @@ export default function AdminTicketDetail() {
 
   const handleQuickInsert = (t) =>
     setReplyText((prev) => (prev ? `${prev}\n${t}` : t));
+
   const handleSaveDraft = () => {
     localStorage.setItem(draftKey, replyText || "");
     alert("Đã lưu nháp phản hồi.");
@@ -334,17 +347,9 @@ export default function AdminTicketDetail() {
     try {
       setSending(true);
       setReplyError("");
-      const res = await ticketsApi.reply(id, { message: msg, sendEmail });
+      await ticketsApi.reply(id, { message: msg, sendEmail });
 
-      // Cập nhật ngay (lạc quan) – SignalR sẽ gửi lại, nhưng đã có check trùng
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              replies: [...(prev.replies || []), res],
-            }
-          : prev
-      );
+      // KHÔNG tự append nữa, chờ SignalR đẩy tin về
       setReplyText("");
       localStorage.removeItem(draftKey);
     } catch (e) {
@@ -507,101 +512,104 @@ export default function AdminTicketDetail() {
               })}
             </div>
 
-            {/* Reply box */}
-            <div className="reply-box">
-              <div className="reply-title">Phản hồi khách hàng</div>
-              <textarea
-                className="reply-textarea"
-                placeholder="Nhập nội dung phản hồi cho khách hàng..."
-                value={replyText}
-                onChange={(e) => {
-                  setReplyText(e.target.value);
-                  if (replyError) setReplyError("");
-                }}
-              />
-              <div className="reply-quick">
-                <span>Mẫu phản hồi nhanh</span>
-                <div className="reply-quick-buttons">
-                  <button
-                    type="button"
-                    className="chip-btn"
-                    onClick={() =>
-                      handleQuickInsert(
-                        "Chào anh/chị, hệ thống đã tiếp nhận yêu cầu. Em sẽ kiểm tra và phản hồi sớm nhất ạ."
-                      )
-                    }
-                  >
-                    Chào hỏi
-                  </button>
-                  <button
-                    type="button"
-                    className="chip-btn"
-                    onClick={() =>
-                      handleQuickInsert(
-                        "Hiện tại em đang kiểm tra lại thông tin đơn hàng và key kích hoạt cho anh/chị."
-                      )
-                    }
-                  >
-                    Đang kiểm tra
-                  </button>
-                  <button
-                    type="button"
-                    className="chip-btn"
-                    onClick={() =>
-                      handleQuickInsert(
-                        "Em đã cập nhật lại key/tài khoản cho anh/chị. Anh/chị vui lòng thử lại và phản hồi giúp em nhé."
-                      )
-                    }
-                  >
-                    Giải pháp
-                  </button>
-                  <button
-                    type="button"
-                    className="chip-btn"
-                    onClick={() =>
-                      handleQuickInsert(
-                        "Vấn đề đã được xử lý. Nếu cần thêm hỗ trợ anh/chị có thể phản hồi lại ticket này hoặc tạo ticket mới ạ."
-                      )
-                    }
-                  >
-                    Kết thúc
-                  </button>
+            {/* Reply box – chỉ hiển thị nếu ticket chưa hoàn thành/đóng */}
+            {canReply && (
+              <div className="reply-box">
+                <div className="reply-title">Phản hồi khách hàng</div>
+                <textarea
+                  className="reply-textarea"
+                  placeholder="Nhập nội dung phản hồi cho khách hàng..."
+                  value={replyText}
+                  onChange={(e) => {
+                    setReplyText(e.target.value);
+                    if (replyError) setReplyError("");
+                  }}
+                />
+                <div className="reply-quick">
+                  <span>Mẫu phản hồi nhanh</span>
+                  <div className="reply-quick-buttons">
+                    <button
+                      type="button"
+                      className="chip-btn"
+                      onClick={() =>
+                        handleQuickInsert(
+                          "Chào anh/chị, hệ thống đã tiếp nhận yêu cầu. Em sẽ kiểm tra và phản hồi sớm nhất ạ."
+                        )
+                      }
+                    >
+                      Chào hỏi
+                    </button>
+                    <button
+                      type="button"
+                      className="chip-btn"
+                      onClick={() =>
+                        handleQuickInsert(
+                          "Hiện tại em đang kiểm tra lại thông tin đơn hàng và key kích hoạt cho anh/chị."
+                        )
+                      }
+                    >
+                      Đang kiểm tra
+                    </button>
+                    <button
+                      type="button"
+                      className="chip-btn"
+                      onClick={() =>
+                        handleQuickInsert(
+                          "Em đã cập nhật lại key/tài khoản cho anh/chị. Anh/chị vui lòng thử lại và phản hồi giúp em nhé."
+                        )
+                      }
+                    >
+                      Giải pháp
+                    </button>
+                    <button
+                      type="button"
+                      className="chip-btn"
+                      onClick={() =>
+                        handleQuickInsert(
+                          "Vấn đề đã được xử lý. Nếu cần thêm hỗ trợ anh/chị có thể phản hồi lại ticket này hoặc tạo ticket mới ạ."
+                        )
+                      }
+                    >
+                      Kết thúc
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lỗi gửi phản hồi (chưa login / nội dung trống / lỗi server) */}
+                {replyError && <div className="reply-error">{replyError}</div>}
+
+                <div className="reply-footer">
+                  <div className="left">
+                    {/* Checkbox gửi email nếu sau này dùng */}
+                    {/* <label>
+                      <input
+                        type="checkbox"
+                        checked={sendEmail}
+                        onChange={(e) => setSendEmail(e.target.checked)}
+                      />
+                      Gửi email thông báo
+                    </label> */}
+                  </div>
+                  <div className="right">
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={handleSaveDraft}
+                    >
+                      Lưu nháp
+                    </button>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={handleSendReply}
+                      disabled={sending}
+                    >
+                      {sending ? "Đang gửi..." : "Gửi phản hồi"}
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              {/* Lỗi gửi phản hồi (chưa login / nội dung trống / lỗi server) */}
-              {replyError && <div className="reply-error">{replyError}</div>}
-
-              <div className="reply-footer">
-                <div className="left">
-                  {/* <label>
-                    <input
-                      type="checkbox"
-                      checked={sendEmail}
-                      onChange={(e) => setSendEmail(e.target.checked)}
-                    />
-                    Gửi email thông báo
-                  </label> */}
-                </div>
-                <div className="right">
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={handleSaveDraft}
-                  >
-                    Lưu nháp
-                  </button>
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={handleSendReply}
-                    disabled={sending}
-                  >
-                    {sending ? "Đang gửi..." : "Gửi phản hồi"}
-                  </button>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -624,7 +632,7 @@ export default function AdminTicketDetail() {
             </div>
           </div>
 
-          {/* Nhân viên – tách card riêng */}
+          {/* Nhân viên */}
           <div className="card">
             <div className="card-title">Thông tin nhân viên</div>
             {data.assigneeName || data.assigneeEmail ? (
@@ -826,30 +834,26 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
       <div className="tk-modal-card">
         <div className="tk-modal-head">
           <h3 className="tk-modal-title">{title}</h3>
-          <button type="button" className="btn ghost" onClick={onClose}>
-            ×
+          <button type="button" className="btn icon" onClick={onClose}>
+            ✕
           </button>
         </div>
         <div className="tk-modal-body">
           <div className="form-group">
-            <label>Tìm nhân viên</label>
+            <label>Tìm theo tên hoặc email</label>
             <input
-              type="text"
-              className="reply-textarea"
-              style={{ minHeight: 0 }}
-              placeholder="Nhập tên hoặc email..."
+              className="ip"
+              placeholder="Nhập từ khóa..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="staff-list">
             {loading && <div className="empty small">Đang tải...</div>}
-            {!loading && !list.length && (
-              <div className="empty small">
-                Không tìm thấy nhân viên phù hợp.
-              </div>
+            {!loading && (!list || list.length === 0) && (
+              <div className="empty small">Không có nhân viên phù hợp.</div>
             )}
-            {!loading && !!list.length && (
+            {!loading && list && list.length > 0 && (
               <ul className="staff-ul">
                 {list.map((u) => (
                   <li
@@ -859,10 +863,10 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
                     }
                     onClick={() => setSelected(u.id)}
                   >
-                    <div className="staff-info">
-                      <div className="staff-name">{u.name}</div>
-                      <div className="staff-email">{u.email}</div>
-                    </div>
+                    <span className="staff-info">
+                      <span className="staff-name">{u.name}</span>
+                      <span className="staff-email">{u.email}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -877,10 +881,7 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
             type="button"
             className="btn primary"
             disabled={!selected}
-            onClick={() => {
-              if (!selected) return;
-              onConfirm(selected);
-            }}
+            onClick={() => selected && onConfirm(selected)}
           >
             Xác nhận
           </button>
