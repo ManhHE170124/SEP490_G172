@@ -22,10 +22,6 @@ import PostCreateEdit from "../pages/PostManage/CreateEditPost";
 import TagPostTypeManage from "../pages/PostManage/TagAndPostTypeManage";
 
 // Admin pages
-import BadgeAdd from "../pages/admin/BadgeAdd.jsx";
-import BadgeDetail from "../pages/admin/BadgeDetail.jsx";
-import CategoryAdd from "../pages/admin/CategoryAdd.jsx";
-import CategoryDetail from "../pages/admin/CategoryDetail.jsx";
 import CategoryPage from "../pages/admin/CategoryPage.jsx";
 import ProductAdd from "../pages/admin/ProductAdd.jsx";
 import ProductDetail from "../pages/admin/ProductDetail.jsx";
@@ -154,40 +150,6 @@ export default function AppRoutes() {
         element={
           <AdminLayout>
             <CategoryPage />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/admin/categories/add"
-        element={
-          <AdminLayout>
-            <CategoryAdd />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/admin/categories/:id"
-        element={
-          <AdminLayout>
-            <CategoryDetail />
-          </AdminLayout>
-        }
-      />
-
-      {/* Badges */}
-      <Route
-        path="/admin/badges/add"
-        element={
-          <AdminLayout>
-            <BadgeAdd />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/admin/badges/:code"
-        element={
-          <AdminLayout>
-            <BadgeDetail />{" "}
           </AdminLayout>
         }
       />

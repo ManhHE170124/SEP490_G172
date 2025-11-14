@@ -101,6 +101,7 @@ namespace Keytietkiem.DTOs.Products
         string? Status,
         IEnumerable<int>? CategoryIds,
         IEnumerable<string>? BadgeCodes,
-        string? Slug
+        string? Slug,
+        string? ProductCode
     );
 }

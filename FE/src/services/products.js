@@ -23,13 +23,29 @@ export const typeLabelOf   = (v) => PRODUCT_TYPES.find((x) => x.value === v)?.la
 export const statusLabelOf = (v) => PRODUCT_STATUSES.find((x) => x.value === v)?.label || v;
 
 // ==== Chuẩn hoá phân trang (paged result) ====
-const normalizePaged = (res, fallbackPageSize = 10) => ({
-  items:      res?.items      ?? res?.Items      ?? [],
-  totalItems: res?.totalItems ?? res?.TotalItems ?? (res?.items?.length ?? 0),
-  totalPages: res?.totalPages ?? res?.TotalPages ?? 1,
-  page:       res?.page       ?? res?.Page       ?? 1,
-  pageSize:   res?.pageSize   ?? res?.PageSize   ?? fallbackPageSize,
-});
+const normalizePaged = (res, fallbackPageSize = 10) => {
+  const items = res?.items ?? res?.Items ?? [];
+  const pageSize = res?.pageSize ?? res?.PageSize ?? fallbackPageSize;
+  const total =
+    res?.totalItems ?? res?.TotalItems ??
+    res?.total      ?? res?.Total      ??
+    items.length;
+
+  const page =
+    res?.page ?? res?.Page ?? 1;
+
+  const totalPages =
+    res?.totalPages ?? res?.TotalPages ??
+    Math.max(1, Math.ceil(total / pageSize));
+
+  return {
+    items,
+    totalItems: total,
+    totalPages,
+    page,
+    pageSize,
+  };
+};
 
 // ==== Chuẩn hoá item list (ProductListItemDto) ====
 // DTO BE: (… , int TotalStockQty, IEnumerable<int> CategoryIds, IEnumerable<string> BadgeCodes)

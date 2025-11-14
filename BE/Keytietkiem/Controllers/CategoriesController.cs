@@ -2,8 +2,8 @@
  * File: CategoriesController.cs
  * Author: ManhLDHE170124
  * Created: 24/10/2025
- * Last Updated: 28/10/2025
- * Version: 1.0.0
+ * Last Updated: 13/11/2025
+ * Version: 1.1.0
  * Purpose: Manage product categories (CRUD, toggle), bulk upsert, and CSV import/export.
  * Endpoints:
  *   - GET    /api/categories                     : List categories (keyword/active filter, sort)
@@ -23,7 +23,6 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Formats.Asn1;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -60,7 +59,7 @@ public class CategoriesController : ControllerBase
      * Params:
      *   - keyword   (query, optional): search across CategoryCode, CategoryName, Description
      *   - active    (query, optional): filter by IsActive (true/false)
-     *   - sort      (query, optional): one of [name|code|displayOrder|active], default "displayOrder"
+     *   - sort      (query, optional): one of [name|code|active], default "name"
      *   - direction (query, optional): "asc" | "desc", default "asc"
      *   - page      (query, optional): page index starts from 1, default 1
      *   - pageSize  (query, optional): page size (1..200), default 20
@@ -68,12 +67,12 @@ public class CategoriesController : ControllerBase
      *   - 200 OK with { items, total, page, pageSize } where items is IEnumerable<CategoryListItemDto>
      */
     public async Task<IActionResult> Get(
-     [FromQuery] string? keyword,
-     [FromQuery] bool? active,
-     [FromQuery] string? sort = "displayOrder",
-     [FromQuery] string? direction = "asc",
-     [FromQuery] int page = 1,
-     [FromQuery] int pageSize = 10)
+        [FromQuery] string? keyword,
+        [FromQuery] bool? active,
+        [FromQuery] string? sort = "name",
+        [FromQuery] string? direction = "asc",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Categories.AsNoTracking();
@@ -94,17 +93,16 @@ public class CategoriesController : ControllerBase
         sort = sort?.Trim().ToLowerInvariant();
         direction = direction?.Trim().ToLowerInvariant();
 
+        // Sort không còn dùng DisplayOrder – fallback dùng CategoryName / CategoryId
         q = (sort, direction) switch
         {
             ("name", "asc") => q.OrderBy(c => c.CategoryName),
             ("name", "desc") => q.OrderByDescending(c => c.CategoryName),
             ("code", "asc") => q.OrderBy(c => c.CategoryCode),
             ("code", "desc") => q.OrderByDescending(c => c.CategoryCode),
-            ("displayorder", "asc") => q.OrderBy(c => c.DisplayOrder),
-            ("displayorder", "desc") => q.OrderByDescending(c => c.DisplayOrder),
             ("active", "asc") => q.OrderBy(c => c.IsActive),
             ("active", "desc") => q.OrderByDescending(c => c.IsActive),
-            _ => q.OrderBy(c => c.DisplayOrder)
+            _ => q.OrderBy(c => c.CategoryId)
         };
 
         // ===== Pagination =====
@@ -122,14 +120,12 @@ public class CategoriesController : ControllerBase
                 c.CategoryCode,
                 c.CategoryName,
                 c.IsActive,
-                c.DisplayOrder,
-                c.Products.Count() // productsCount giống trước đây
+                c.Products.Count() // productsCount
             ))
             .ToListAsync();
 
         return Ok(new { items, total, page, pageSize });
     }
-
 
     [HttpGet("{id:int}")]
     /**
@@ -152,7 +148,6 @@ public class CategoriesController : ControllerBase
                 c.CategoryName,
                 c.Description,
                 c.IsActive,
-                c.DisplayOrder,
                 c.Products.Count()
             ))
             .FirstOrDefaultAsync();
@@ -164,7 +159,7 @@ public class CategoriesController : ControllerBase
     /**
      * Summary: Create a new category.
      * Route: POST /api/categories
-     * Body: CategoryCreateDto { CategoryCode, CategoryName, Description?, IsActive, DisplayOrder }
+     * Body: CategoryCreateDto { CategoryCode, CategoryName, Description?, IsActive }
      * Behavior: Normalizes CategoryCode to slug; ensures uniqueness.
      * Returns: 201 Created with Location header (GetById), 400/409 on validation errors
      */
@@ -185,7 +180,6 @@ public class CategoriesController : ControllerBase
             CategoryName = dto.CategoryName.Trim(),
             Description = dto.Description,
             IsActive = dto.IsActive,
-            DisplayOrder = dto.DisplayOrder,
             CreatedAt = _clock.UtcNow
         };
 
@@ -194,9 +188,15 @@ public class CategoriesController : ControllerBase
 
         // ProductCount = 0 khi mới tạo
         return CreatedAtAction(nameof(GetById), new { id = e.CategoryId },
-            new CategoryDetailDto(e.CategoryId, e.CategoryCode, e.CategoryName, e.Description, e.IsActive, e.DisplayOrder, 0 ));
+            new CategoryDetailDto(
+                e.CategoryId,
+                e.CategoryCode,
+                e.CategoryName,
+                e.Description,
+                e.IsActive,
+                0 // productCount
+            ));
     }
-
 
     [HttpPut("{id:int}")]
     /**
@@ -204,7 +204,7 @@ public class CategoriesController : ControllerBase
      * Route: PUT /api/categories/{id}
      * Params:
      *   - id (route, int): category identifier
-     * Body: CategoryUpdateDto { CategoryName, Description?, IsActive, DisplayOrder }
+     * Body: CategoryUpdateDto { CategoryName, Description?, IsActive }
      * Returns: 204 No Content, 404 Not Found
      */
     public async Task<IActionResult> Update(int id, CategoryUpdateDto dto)
@@ -216,7 +216,6 @@ public class CategoriesController : ControllerBase
         e.CategoryName = dto.CategoryName.Trim();
         e.Description = dto.Description;
         e.IsActive = dto.IsActive;
-        e.DisplayOrder = dto.DisplayOrder;
         e.UpdatedAt = _clock.UtcNow;
 
         await db.SaveChangesAsync();
@@ -267,7 +266,7 @@ public class CategoriesController : ControllerBase
     /**
      * Summary: Bulk upsert categories from payload items.
      * Route: POST /api/categories/bulk-upsert
-     * Body: CategoryBulkUpsertDto { Items: List<{ CategoryCode, CategoryName, Description?, IsActive, DisplayOrder }> }
+     * Body: CategoryBulkUpsertDto { Items: List<{ CategoryCode, CategoryName, Description?, IsActive }> }
      * Behavior: Insert if not exists (by normalized CategoryCode), else update fields.
      * Returns: 200 OK with { created, updated, changed }
      */
@@ -293,7 +292,6 @@ public class CategoriesController : ControllerBase
                     CategoryName = item.CategoryName.Trim(),
                     Description = item.Description,
                     IsActive = item.IsActive,
-                    DisplayOrder = item.DisplayOrder,
                     CreatedAt = _clock.UtcNow
                 });
                 created++;
@@ -303,7 +301,6 @@ public class CategoriesController : ControllerBase
                 e.CategoryName = item.CategoryName.Trim();
                 e.Description = item.Description;
                 e.IsActive = item.IsActive;
-                e.DisplayOrder = item.DisplayOrder;
                 e.UpdatedAt = _clock.UtcNow;
                 updated++;
             }
@@ -313,7 +310,8 @@ public class CategoriesController : ControllerBase
         return Ok(new { created, updated, changed });
     }
 
-    public record CategoryCsvRow(string CategoryCode, string CategoryName, string Description, bool IsActive, int DisplayOrder);
+    // CSV row không còn DisplayOrder
+    public record CategoryCsvRow(string CategoryCode, string CategoryName, string Description, bool IsActive);
 
     [HttpGet("export.csv")]
     /**
@@ -326,8 +324,13 @@ public class CategoriesController : ControllerBase
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var rows = await db.Categories.AsNoTracking()
-            .OrderBy(x => x.DisplayOrder)
-            .Select(x => new CategoryCsvRow(x.CategoryCode, x.CategoryName, x.Description ?? "", x.IsActive, x.DisplayOrder))
+            .OrderBy(x => x.CategoryName)
+            .Select(x => new CategoryCsvRow(
+                x.CategoryCode,
+                x.CategoryName,
+                x.Description ?? "",
+                x.IsActive
+            ))
             .ToListAsync();
 
         var cfg = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
@@ -345,15 +348,21 @@ public class CategoriesController : ControllerBase
     /**
      * Summary: Import categories from a CSV file.
      * Route: POST /api/categories/import.csv
-     * Body: IFormFile file (CSV with headers: CategoryCode,CategoryName,Description,IsActive,DisplayOrder)
+     * Body: IFormFile file (CSV with headers: CategoryCode,CategoryName,Description,IsActive)
      * Behavior: Upserts by normalized CategoryCode.
      * Returns: 200 OK with { created, updated, total }
      */
     public async Task<IActionResult> ImportCsv(IFormFile file)
     {
-        if (file == null || file.Length == 0) return BadRequest(new { message = "CSV file is required" });
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "CSV file is required" });
 
-        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true, MissingFieldFound = null, BadDataFound = null };
+        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            BadDataFound = null
+        };
         using var stream = file.OpenReadStream();
         using var reader = new StreamReader(stream, Encoding.UTF8);
         using var csv = new CsvReader(reader, cfg);
@@ -376,7 +385,6 @@ public class CategoriesController : ControllerBase
                     CategoryName = r.CategoryName.Trim(),
                     Description = r.Description,
                     IsActive = r.IsActive,
-                    DisplayOrder = r.DisplayOrder,
                     CreatedAt = _clock.UtcNow
                 });
                 created++;
@@ -386,7 +394,6 @@ public class CategoriesController : ControllerBase
                 e.CategoryName = r.CategoryName.Trim();
                 e.Description = r.Description;
                 e.IsActive = r.IsActive;
-                e.DisplayOrder = r.DisplayOrder;
                 e.UpdatedAt = _clock.UtcNow;
                 updated++;
             }

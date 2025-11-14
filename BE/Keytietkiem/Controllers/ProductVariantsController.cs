@@ -220,8 +220,29 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> Delete(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
+
+            var v = await db.ProductVariants
+                            .FirstOrDefaultAsync(x => x.ProductId == productId &&
+                                                      x.VariantId == variantId);
             if (v is null) return NotFound();
+
+            // 1) Check SECTION trước – giống logic bên Product
+            // TODO: ĐỔI LẠI cho đúng DbSet + FK của project bạn
+            var hasSections = await db.ProductSections
+                                      .AnyAsync(s => s.VariantId == variantId);
+            if (hasSections)
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_IN_USE_SECTION",
+                    message = "Không thể xoá biến thể này vì đang được sử dụng trong các section. " +
+                              "Vui lòng xoá hoặc cập nhật các section liên quan trước."
+                });
+            }
+
+            // 2) Sau này muốn bắt Key / Account / Order thì thêm tương tự ở đây:
+            // var hasKeys = await db.Keys.AnyAsync(k => k.VariantId == variantId);
+            // if (hasKeys) return Conflict(new { code = "VARIANT_IN_USE_KEY", message = "..." });
 
             db.ProductVariants.Remove(v);
             await db.SaveChangesAsync();

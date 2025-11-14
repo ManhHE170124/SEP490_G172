@@ -852,3 +852,90 @@ label {
   overflow: visible !important;
   max-height: none !important;
 }
+.input-readonly {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+.grid {
+  display: grid;
+  gap: 14px; /* tăng nhẹ so với 12px để các field không sát nhau */
+}
+
+/* Nhóm input chung – tăng khoảng cách hàng */
+.input-group {
+  row-gap: 18px; /* khoảng cách dọc giữa các group trong cùng form */
+}
+
+/* Group trong form: thêm khoảng margin dưới */
+.input-group .group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px; /* tách nhẹ giữa các hàng */
+}
+
+/* Input lỗi */
+.input-error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35);
+}
+.field-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #dc2626;
+}
+/* Input readonly (không được sửa) */
+.input-readonly {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+/* Panel hover “động khi chỉ vào” giống card sản phẩm */
+.panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+/* Nếu còn .panel:hover cũ thì ghi đè lại như này để panel đứng yên */
+.panel:hover {
+  box-shadow: none;
+  transform: none;
+}
+/* ====== Hàng trong Biến thể & FAQ (bảng variants-table) ====== */
+.variants-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px; /* khoảng cách dọc giữa các biến thể/FAQ */
+}
+
+/* mỗi hàng là một “thẻ” riêng, có shadow */
+.variants-table tbody tr {
+  background: #fff;
+  box-shadow: var(--shadow);
+  transition: transform 0.05s ease, box-shadow 0.2s ease;
+}
+
+/* hover động trên từng biến thể/FAQ */
+.variants-table tbody tr:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* viền trên/dưới cho row */
+.variants-table tbody td {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+/* bo góc trái/phải cho mỗi row */
+.variants-table tbody td:first-child {
+  border-left: 1px solid var(--line);
+  border-radius: 10px 0 0 10px;
+}
+.variants-table tbody td:last-child {
+  border-right: 1px solid var(--line);
+  border-radius: 0 10px 10px 0;
+}
