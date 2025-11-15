@@ -13,7 +13,6 @@ namespace Keytietkiem.DTOs.Orders
         public string ProductName { get; set; } = null!;
         public string? ProductCode { get; set; }
         public string? ProductType { get; set; }
-        public string? ThumbnailUrl { get; set; }
         public int Quantity { get; set; }
         public decimal UnitPrice { get; set; }
         public Guid? KeyId { get; set; }
@@ -83,7 +82,6 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
         public int ItemCount { get; set; }
         public List<string> ProductNames { get; set; } = new List<string>();
-        public string? ThumbnailUrl { get; set; }
         public string PaymentStatus { get; set; } = "Unpaid";
     }
 

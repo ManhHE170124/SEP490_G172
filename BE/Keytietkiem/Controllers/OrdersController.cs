@@ -99,7 +99,6 @@ namespace Keytietkiem.Controllers
                     CreatedAt = o.CreatedAt,
                     ItemCount = o.OrderDetails?.Count ?? 0,
                     ProductNames = o.OrderDetails?.Select(od => od.Product?.ProductName ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList() ?? new List<string>(),
-                    ThumbnailUrl = firstProduct?.ThumbnailUrl,
                     PaymentStatus = ComputePaymentStatus(o.Payments, o.FinalAmount ?? o.TotalAmount - o.DiscountAmount)
                 };
             }).ToList();
@@ -149,7 +148,6 @@ namespace Keytietkiem.Controllers
                     ProductName = od.Product?.ProductName ?? "",
                     ProductCode = od.Product?.ProductCode,
                     ProductType = od.Product?.ProductType,
-                    ThumbnailUrl = od.Product?.ThumbnailUrl,
                     Quantity = od.Quantity,
                     UnitPrice = od.UnitPrice,
                     KeyId = od.KeyId,
@@ -412,7 +410,6 @@ namespace Keytietkiem.Controllers
                 ProductName = od.Product?.ProductName ?? "",
                 ProductCode = od.Product?.ProductCode,
                 ProductType = od.Product?.ProductType,
-                ThumbnailUrl = od.Product?.ThumbnailUrl,
                 Quantity = od.Quantity,
                 UnitPrice = od.UnitPrice,
                 KeyId = od.KeyId,
@@ -509,7 +506,6 @@ namespace Keytietkiem.Controllers
                     ProductName = od.Product?.ProductName ?? "",
                     ProductCode = od.Product?.ProductCode,
                     ProductType = od.Product?.ProductType,
-                    ThumbnailUrl = od.Product?.ThumbnailUrl,
                     Quantity = od.Quantity,
                     UnitPrice = od.UnitPrice,
                     KeyId = od.KeyId,
