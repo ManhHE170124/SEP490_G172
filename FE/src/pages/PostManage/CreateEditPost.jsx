@@ -49,6 +49,38 @@ const CreateEditPost = () => {
   const imageInputRef = useRef(null);
   const prevImagesRef = useRef([]);
 
+  // Reset form to initial state
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setContent('');
+    setStatus('Draft');
+    setPosttypeId('');
+    setErrors({ title: '', description: '' });
+    setTags([]);
+    setFeaturedImage(null);
+    setFeaturedImageUrl(null);
+    if (quillRef.current) {
+      quillRef.current.clipboard.dangerouslyPasteHTML('<p></p>');
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Reset form when switching from edit to create mode
+  useEffect(() => {
+    if (!isEditMode && !postId) {
+      // Only reset if we're in create mode and there's no postId
+      // This handles the case when navigating from edit to create
+      // Check if form has data to avoid unnecessary resets
+      if (title || description || content || posttypeId || tags.length > 0 || featuredImageUrl) {
+        resetForm();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, postId]);
+
   // Fetch available tags
   useEffect(() => {
     const fetchTags = async () => {
@@ -286,8 +318,8 @@ const CreateEditPost = () => {
       isValid = false;
     }
 
-    if (description.length > 5000) {
-      newErrors.description = 'Mô tả không được vượt quá 5000 ký tự';
+    if (description.length > 255) {
+      newErrors.description = 'Mô tả không được vượt quá 255 ký tự';
       isValid = false;
     }
 
@@ -305,6 +337,18 @@ const CreateEditPost = () => {
     try {
       setSaving(true);
 
+      // Get userId from localStorage
+      let authorId = null;
+      try {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          authorId = user?.userId || user?.UserId || user?.id || null;
+        }
+      } catch (err) {
+        console.error("Failed to parse user from localStorage:", err);
+      }
+
       // Prepare tag IDs - ensure we get valid IDs
       const tagIds = tags
         .filter(t => t.tagId || t.TagId || t.id) // Handle different ID property names
@@ -318,7 +362,7 @@ const CreateEditPost = () => {
         content: content || '<p></p>',
         thumbnail: featuredImageUrl || null,
         posttypeId: posttypeId || null,
-        authorId: null, // TODO: Get from auth context
+        authorId: authorId,
         status: typeof postStatus === 'string' ? postStatus : postStatus.status,
         tagIds: tagIds.length > 0 ? tagIds : []
       };
@@ -346,14 +390,28 @@ const CreateEditPost = () => {
         }
       }
     } catch (err) {
-    console.error(err);
-    showError(
-      'Lỗi xử lý bài viết',
-      err.message || 'Không thể thực hiện thao tác. Vui lòng thử lại.'
-    );
-  } finally {
-    setSaving(false);
-  }
+      console.error(err);
+      const errorMessage = err.response?.data?.message || err.message || '';
+      
+      // Kiểm tra lỗi trùng title
+      if (errorMessage.includes('Tiêu đề đã tồn tại') || 
+          errorMessage.toLowerCase().includes('duplicate') ||
+          errorMessage.toLowerCase().includes('unique')) {
+        setErrors(prev => ({ 
+          ...prev, 
+          title: 'Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác.' 
+        }));
+        return; // Không show toast error chung
+      }
+      
+      // Các lỗi khác vẫn show toast như cũ
+      showError(
+        'Lỗi xử lý bài viết',
+        errorMessage || 'Không thể thực hiện thao tác. Vui lòng thử lại.'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveDraft = () =>
@@ -622,7 +680,7 @@ const handlePublish = () =>
           <div className="cep-post-description-section">
             <div className="cep-label-row">
               <label htmlFor="cep-post-description">Mô tả ngắn</label>
-              <div className="cep-field-meta">{description.length}/5000</div>
+              <div className="cep-field-meta">{description.length}/255</div>
             </div>
             <textarea
               id="post-description"
@@ -631,13 +689,13 @@ const handlePublish = () =>
               onChange={(e) => {
                 const newDesc = e.target.value;
                 setDescription(newDesc);
-                if (newDesc.length > 5000) {
-                  setErrors(prev => ({ ...prev, description: 'Mô tả không được vượt quá 5000 ký tự' }));
+                if (newDesc.length > 255) {
+                  setErrors(prev => ({ ...prev, description: 'Mô tả không được vượt quá 255 ký tự' }));
                 } else {
                   setErrors(prev => ({ ...prev, description: '' }));
                 }
               }}
-              maxLength={5000}
+              maxLength={256}
               rows={4}
               className={errors.description ? 'error' : ''}
               disabled={saving}
@@ -712,6 +770,21 @@ const handlePublish = () =>
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12Zm11 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                   Xem trước
+                </button>
+              )}
+              {isEditMode && (
+                <button
+                  className="btn secondary"
+                  onClick={() => {
+                    resetForm();
+                    navigate('/post-create-edit');
+                  }}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Tạo bài viết mới
                 </button>
               )}
             </div>

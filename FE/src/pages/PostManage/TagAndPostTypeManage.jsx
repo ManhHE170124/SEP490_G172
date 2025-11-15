@@ -178,7 +178,8 @@ export default function TagAndPosttypeManage() {
             const created = await postsApi.createTag({
                 tagName: form.tagName,
                 // always generate slug from tag name
-                slug: toSlug(form.tagName)
+                slug: toSlug(form.tagName),
+                // createdAt: new Date().toISOString()
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddTagOpen(false);
@@ -200,7 +201,8 @@ export default function TagAndPosttypeManage() {
             const created = await postsApi.createPosttype({
                 postTypeName: form.postTypeName || form.posttypeName,
                 description: form.description || "",
-                slug: toSlug(form.postTypeName || form.posttypeName)
+                slug: toSlug(form.postTypeName || form.posttypeName),
+                createdAt: new Date().toISOString()
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddPosttypeOpen(false);

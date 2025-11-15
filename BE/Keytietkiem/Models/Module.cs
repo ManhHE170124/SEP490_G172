@@ -9,6 +9,8 @@ public partial class Module
 
     public string ModuleName { get; set; } = null!;
 
+    public string? Code { get; set; }
+
     public string? Description { get; set; }
 
     public DateTime CreatedAt { get; set; }
