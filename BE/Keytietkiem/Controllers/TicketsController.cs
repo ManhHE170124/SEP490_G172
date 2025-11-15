@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Controllers;
 
@@ -316,7 +317,6 @@ public class TicketsController : ControllerBase
         return NoContent();
     }
 
-    // ============ REPLIES (có broadcast SignalR) ============
     [HttpPost("{id:guid}/replies")]
     public async Task<ActionResult<TicketReplyDto>> CreateReply(Guid id, [FromBody] CreateTicketReplyDto dto)
     {
@@ -342,6 +342,27 @@ public class TicketsController : ControllerBase
 
         if (sender is null)
             return Unauthorized();
+
+        // 🔒 Kiểm tra quyền gửi phản hồi:
+        //  - Chủ ticket (UserId)
+        //  - Nhân viên được gán (AssigneeId)
+        //  - Admin (role Name / RoleId = "Admin")
+        var isTicketOwner = t.UserId == sender.UserId;
+        var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == sender.UserId;
+
+        var isAdmin = sender.Roles.Any(r =>
+        {
+            var name = (r.Name ?? string.Empty).Trim().ToLower();
+            var rid = (r.RoleId ?? string.Empty).Trim().ToLower();
+            return name == "admin" || rid == "admin";
+        });
+
+        if (!isTicketOwner && !isAssignee && !isAdmin)
+        {
+            // Trả về 403 + message để FE hiển thị ở chỗ "Bạn cần đăng nhập..."
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Người dùng không có quyền hạn để phản hồi." });
+        }
 
         // Xác định có phải staff không:
         // Staff = có ít nhất 1 role khác "Customer"
@@ -380,6 +401,7 @@ public class TicketsController : ControllerBase
         // FE vẫn nhận response trực tiếp để xử lý lạc quan
         return Ok(dtoOut);
     }
+
 
     // ============ NEW: staff lookups (Assign / Transfer) ============
     public class StaffMiniDto
