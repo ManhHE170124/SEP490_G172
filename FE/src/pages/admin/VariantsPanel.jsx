@@ -5,6 +5,11 @@ import ProductVariantsApi from "../../services/productVariants";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
 
+const TITLE_MAX = 60;
+const CODE_MAX = 50;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+
 export default function VariantsPanel({
   productId,
   productName,
@@ -40,6 +45,9 @@ export default function VariantsPanel({
   // Upload preview/state
   const [thumbPreview, setThumbPreview] = React.useState(null);
   const [thumbUrl, setThumbUrl] = React.useState(null);
+
+  // Status trong modal (giống Detail: switch + badge)
+  const [modalStatus, setModalStatus] = React.useState("ACTIVE");
 
   // Toast + Confirm (local)
   const [toasts, setToasts] = React.useState([]);
@@ -98,42 +106,45 @@ export default function VariantsPanel({
   };
 
   // ===== Load từ server =====
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await ProductVariantsApi.list(productId, {
-        q,
-        status,
-        dur,
-        sort,
-        dir,
-        page,
-        pageSize: size,
-      });
-      const list = res.items || [];
-      setItems(list);
-      setTotal(res.totalItems || 0);
-      setTotalPages(res.totalPages || 1);
+  const load = React.useCallback(
+    async () => {
+      setLoading(true);
+      try {
+        const res = await ProductVariantsApi.list(productId, {
+          q,
+          status,
+          dur,
+          sort,
+          dir,
+          page,
+          pageSize: size,
+        });
+        const list = res.items || [];
+        setItems(list);
+        setTotal(res.totalItems || 0);
+        setTotalPages(res.totalPages || 1);
 
-      // nếu BE trả kèm tổng tồn kho, có thể onTotalChange ở đây
-      if (typeof onTotalChange === "function" && Array.isArray(list)) {
-        const sum = list.reduce(
-          (acc, v) => acc + (Number(v.stockQty) || 0),
-          0
+        // nếu BE trả kèm tổng tồn kho, có thể onTotalChange ở đây
+        if (typeof onTotalChange === "function" && Array.isArray(list)) {
+          const sum = list.reduce(
+            (acc, v) => acc + (Number(v.stockQty) || 0),
+            0
+          );
+          onTotalChange(sum);
+        }
+      } catch (e) {
+        console.error(e);
+        addToast(
+          "error",
+          "Lỗi tải biến thể",
+          e?.response?.data?.message || e.message
         );
-        onTotalChange(sum);
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-      addToast(
-        "error",
-        "Lỗi tải biến thể",
-        e?.response?.data?.message || e.message
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [productId, q, status, dur, sort, dir, page, size, onTotalChange, addToast]);
+    },
+    [productId, q, status, dur, sort, dir, page, size, onTotalChange, addToast]
+  );
 
   React.useEffect(() => {
     load();
@@ -160,6 +171,7 @@ export default function VariantsPanel({
     setThumbPreview(null);
     setThumbUrl(null);
     setModalErrors({});
+    setModalStatus("ACTIVE");
     setShowModal(true);
   };
 
@@ -182,7 +194,33 @@ export default function VariantsPanel({
     reader.readAsDataURL(file);
   };
 
+  const validateImageFile = (file) => {
+    if (!file) return false;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      addToast(
+        "warning",
+        "Định dạng ảnh không hỗ trợ",
+        "Vui lòng chọn ảnh JPG, PNG, GIF hoặc WEBP."
+      );
+      return false;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      addToast(
+        "warning",
+        "Ảnh quá lớn",
+        "Dung lượng tối đa cho ảnh thumbnail là 2MB."
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   const uploadThumbnailFile = async (file) => {
+    if (!validateImageFile(file)) return;
+
     handleLocalPreview(file);
     try {
       const up = await ProductVariantsApi.uploadImage(file);
@@ -194,7 +232,11 @@ export default function VariantsPanel({
         (typeof up === "string" ? up : null);
       if (!imageUrl) throw new Error("Không lấy được URL ảnh sau khi upload.");
       setThumbUrl(imageUrl);
-      addToast("success", "Upload ảnh thành công", "Ảnh thumbnail đã được tải lên.");
+      addToast(
+        "success",
+        "Upload ảnh thành công",
+        "Ảnh thumbnail đã được tải lên."
+      );
     } catch (err) {
       console.error(err);
       setThumbPreview(null);
@@ -266,6 +308,12 @@ export default function VariantsPanel({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const parseIntOrNull = (v) => {
+    if (v === "" || v == null) return null;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? null : n;
+  };
+
   // ===== Validate & Submit modal =====
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -276,33 +324,46 @@ export default function VariantsPanel({
     const durationRaw = fd.get("durationDays");
     const warrantyRaw = fd.get("warrantyDays");
 
-    const durationDays =
-      durationRaw === "" ? null : Number(durationRaw || 0);
-    const warrantyDays =
-      warrantyRaw === "" ? null : Number(warrantyRaw || 0);
+    const durationDays = parseIntOrNull(durationRaw);
+    const warrantyDays = parseIntOrNull(warrantyRaw);
 
     const errors = {};
 
+    // Tên biến thể
     if (!title) {
       errors.title = "Tên biến thể là bắt buộc.";
-    }
-    if (!variantCode) {
-      errors.variantCode = "Mã biến thể là bắt buộc.";
+    } else if (title.length > TITLE_MAX) {
+      errors.title = `Tên biến thể không được vượt quá ${TITLE_MAX} ký tự.`;
     }
 
+    // Mã biến thể
+    if (!variantCode) {
+      errors.variantCode = "Mã biến thể là bắt buộc.";
+    } else if (variantCode.length > CODE_MAX) {
+      errors.variantCode = `Mã biến thể không được vượt quá ${CODE_MAX} ký tự.`;
+    }
+
+    // Không trùng trong cùng sản phẩm (so với list hiện tại)
     const lowerTitle = title.toLowerCase();
     const lowerCode = variantCode.toLowerCase();
 
     items.forEach((v) => {
       if (editing && v.variantId === editing.variantId) return;
       if ((v.title || "").trim().toLowerCase() === lowerTitle) {
-        errors.title = "Tên biến thể đã tồn tại.";
+        errors.title = "Tên biến thể đã tồn tại trong sản phẩm này.";
       }
       if ((v.variantCode || "").trim().toLowerCase() === lowerCode) {
-        errors.variantCode = "Mã biến thể đã tồn tại.";
+        errors.variantCode = "Mã biến thể đã tồn tại trong sản phẩm này.";
       }
     });
 
+    // Thời lượng / Bảo hành: số nguyên >= 0
+    if (durationDays != null && durationDays < 0) {
+      errors.durationDays = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0.";
+    }
+    if (warrantyDays != null && warrantyDays < 0) {
+      errors.warrantyDays = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0.";
+    }
     if (
       durationDays != null &&
       warrantyDays != null &&
@@ -330,9 +391,7 @@ export default function VariantsPanel({
         title,
         durationDays,
         warrantyDays,
-        status: document.getElementById("variantStatusSwitch").checked
-          ? "ACTIVE"
-          : "INACTIVE",
+        status: modalStatus, // dùng state, không dùng document.getElementById
         thumbnail: sanitizeThumbnail(thumbUrl) || null,
       };
 
@@ -406,6 +465,7 @@ export default function VariantsPanel({
       }
     }
   };
+
   // ===== SORT header =====
   const headerSort = (key) => {
     setSort((cur) => {
@@ -728,10 +788,7 @@ export default function VariantsPanel({
                     className="row"
                     style={{ gap: 6, alignItems: "center" }}
                   >
-                    <span
-                      className="muted"
-                      style={{ fontSize: 12 }}
-                    >
+                    <span className="muted" style={{ fontSize: 12 }}>
                       Dòng/trang
                     </span>
                     <select
@@ -830,20 +887,24 @@ export default function VariantsPanel({
                 {editing ? "Sửa biến thể" : "Thêm biến thể"}
               </h3>
               <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  Trạng thái
-                </span>
                 <label className="switch" title="Bật/Tắt hiển thị">
                   <input
                     type="checkbox"
-                    id="variantStatusSwitch"
-                    defaultChecked={
-                      !editing ||
-                      String(editing.status || "").toUpperCase() === "ACTIVE"
+                    checked={modalStatus === "ACTIVE"}
+                    onChange={(e) =>
+                      setModalStatus(e.target.checked ? "ACTIVE" : "INACTIVE")
                     }
                   />
                   <span className="slider" />
                 </label>
+                <span
+                  className={
+                    modalStatus === "ACTIVE" ? "badge green" : "badge gray"
+                  }
+                  style={{ textTransform: "none", fontSize: 12 }}
+                >
+                  {modalStatus === "ACTIVE" ? "Đang hiển thị" : "Đang ẩn"}
+                </span>
               </div>
             </div>
 
@@ -860,6 +921,7 @@ export default function VariantsPanel({
                   <input
                     name="title"
                     defaultValue={editing?.title ?? productName ?? ""}
+                    maxLength={TITLE_MAX}
                     className={modalErrors.title ? "input-error" : ""}
                   />
                   {modalErrors.title && (
@@ -873,6 +935,7 @@ export default function VariantsPanel({
                   <input
                     name="variantCode"
                     defaultValue={editing?.variantCode ?? productCode ?? ""}
+                    maxLength={CODE_MAX}
                     className={modalErrors.variantCode ? "input-error" : ""}
                   />
                   {modalErrors.variantCode && (
@@ -885,7 +948,7 @@ export default function VariantsPanel({
 
               <div className="grid cols-2" style={{ marginTop: 8 }}>
                 <div className="group">
-                  <span>Thời lượng (ngày)</span>
+                  <span>Thời lượng (ngày)<span style={{ color: "#dc2626" }}>*</span></span>
                   <input
                     type="number"
                     min={0}
@@ -908,7 +971,13 @@ export default function VariantsPanel({
                     step={1}
                     name="warrantyDays"
                     defaultValue={editing?.warrantyDays ?? 0}
+                    className={modalErrors.warrantyDays ? "input-error" : ""}
                   />
+                  {modalErrors.warrantyDays && (
+                    <div className="field-error">
+                      {modalErrors.warrantyDays}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1002,4 +1071,3 @@ export default function VariantsPanel({
     </div>
   );
 }
-

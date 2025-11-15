@@ -572,31 +572,31 @@ export default function ProductsPage() {
                           )}
                     </td>
 
-                    {/* Nhãn */}
-                    <td style={{ maxWidth: 360 }}>
-                      {(p.badges ?? []).map((code) => {
-                        const meta =
-                          badgesDict[code] || {
-                            name: code,
-                            color: "#6b7280",
-                          };
-                        return (
-                          <span
-                            key={code}
-                            className="label-chip"
-                            style={{
-                              background: meta.color,
-                              color: "#fff",
-                              marginRight: 6,
-                              marginBottom: 4,
-                            }}
-                            title={meta.name}
-                          >
-                            {meta.name}
-                          </span>
-                        );
-                      })}
-                    </td>
+                   {/* Nhãn */}
+<td style={{ maxWidth: 360 }}>
+  {(p.badges ?? []).map((code) => {
+    const meta = badgesDict[code];
+
+    // Nếu badge không có trong dict (tức đã bị ẩn / không tồn tại) -> không hiển thị
+    if (!meta) return null;
+
+    return (
+      <span
+        key={code}
+        className="label-chip"
+        style={{
+          background: meta.color,
+          color: "#fff",
+          marginRight: 6,
+          marginBottom: 4,
+        }}
+        title={meta.name}
+      >
+        {meta.name}
+      </span>
+    );
+  })}
+</td>
 
                     <td className="col-status">
                       <span

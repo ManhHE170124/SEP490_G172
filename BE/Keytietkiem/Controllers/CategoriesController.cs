@@ -35,13 +35,15 @@ public class CategoriesController : ControllerBase
 {
     private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
     private readonly IClock _clock;
-
+    private const int CategoryCodeMaxLength = 50;
+    private const int CategoryNameMaxLength = 100;
+    private const int CategoryDescriptionMaxLength = 200;
     public CategoriesController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
     {
         _dbFactory = dbFactory;
         _clock = clock;
     }
-
+ 
     private static string NormalizeSlug(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
@@ -113,18 +115,21 @@ public class CategoriesController : ControllerBase
         var total = await q.CountAsync();
 
         var items = await q
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(c => new CategoryListItemDto(
-                c.CategoryId,
-                c.CategoryCode,
-                c.CategoryName,
-                c.IsActive,
-                c.Products.Count() // productsCount
-            ))
-            .ToListAsync();
+     .Skip((page - 1) * pageSize)
+     .Take(pageSize)
+     .Select(c => new
+     {
+         c.CategoryId,
+         c.CategoryCode,
+         c.CategoryName,
+         c.Description,
+         c.IsActive,
+         ProductsCount = c.Products.Count()
+     })
+     .ToListAsync();
 
         return Ok(new { items, total, page, pageSize });
+
     }
 
     [HttpGet("{id:int}")]
@@ -167,9 +172,24 @@ public class CategoriesController : ControllerBase
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var code = NormalizeSlug(dto.CategoryCode);
+        var name = dto.CategoryName?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return BadRequest(new { message = "CategoryName is required" });
+
+        if (name.Length > CategoryNameMaxLength)
+            return BadRequest(new { message = $"CategoryName cannot exceed {CategoryNameMaxLength} characters" });
+
+        var rawCode = dto.CategoryCode ?? "";
+        var code = NormalizeSlug(rawCode);
         if (string.IsNullOrEmpty(code))
             return BadRequest(new { message = "CategoryCode (slug) is required" });
+
+        if (code.Length > CategoryCodeMaxLength)
+            return BadRequest(new { message = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters" });
+
+        var desc = dto.Description;
+        if (desc != null && desc.Length > CategoryDescriptionMaxLength)
+            return BadRequest(new { message = $"Description cannot exceed {CategoryDescriptionMaxLength} characters" });
 
         if (await db.Categories.AnyAsync(c => c.CategoryCode == code))
             return Conflict(new { message = "CategoryCode already exists" });
@@ -177,8 +197,8 @@ public class CategoriesController : ControllerBase
         var e = new Category
         {
             CategoryCode = code,
-            CategoryName = dto.CategoryName.Trim(),
-            Description = dto.Description,
+            CategoryName = name,
+            Description = desc,
             IsActive = dto.IsActive,
             CreatedAt = _clock.UtcNow
         };
@@ -186,7 +206,6 @@ public class CategoriesController : ControllerBase
         db.Categories.Add(e);
         await db.SaveChangesAsync();
 
-        // ProductCount = 0 khi mới tạo
         return CreatedAtAction(nameof(GetById), new { id = e.CategoryId },
             new CategoryDetailDto(
                 e.CategoryId,
@@ -194,9 +213,10 @@ public class CategoriesController : ControllerBase
                 e.CategoryName,
                 e.Description,
                 e.IsActive,
-                0 // productCount
+                0
             ));
     }
+
 
     [HttpPut("{id:int}")]
     /**
@@ -213,14 +233,47 @@ public class CategoriesController : ControllerBase
         var e = await db.Categories.FirstOrDefaultAsync(c => c.CategoryId == id);
         if (e is null) return NotFound();
 
-        e.CategoryName = dto.CategoryName.Trim();
-        e.Description = dto.Description;
+        var name = dto.CategoryName?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return BadRequest(new { message = "CategoryName is required" });
+
+        if (name.Length > CategoryNameMaxLength)
+            return BadRequest(new { message = $"CategoryName cannot exceed {CategoryNameMaxLength} characters" });
+
+        var desc = dto.Description;
+        if (desc != null && desc.Length > CategoryDescriptionMaxLength)
+            return BadRequest(new { message = $"Description cannot exceed {CategoryDescriptionMaxLength} characters" });
+
+        // ===== Xử lý CategoryCode (cho phép sửa bất kể có sản phẩm hay không) =====
+        if (dto.CategoryCode is not null)
+        {
+            var rawCode = dto.CategoryCode;
+            var code = NormalizeSlug(rawCode);
+
+            if (string.IsNullOrEmpty(code))
+                return BadRequest(new { message = "CategoryCode (slug) is required" });
+
+            if (code.Length > CategoryCodeMaxLength)
+                return BadRequest(new { message = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters" });
+
+            var exists = await db.Categories
+                .AnyAsync(c => c.CategoryCode == code && c.CategoryId != id);
+
+            if (exists)
+                return Conflict(new { message = "CategoryCode already exists" });
+
+            e.CategoryCode = code;
+        }
+
+        e.CategoryName = name;
+        e.Description = desc;
         e.IsActive = dto.IsActive;
         e.UpdatedAt = _clock.UtcNow;
 
         await db.SaveChangesAsync();
         return NoContent();
     }
+
 
     [HttpDelete("{id:int}")]
     /**

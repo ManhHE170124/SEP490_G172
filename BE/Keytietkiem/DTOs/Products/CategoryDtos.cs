@@ -58,8 +58,11 @@ public record CategoryCreateDto(
 
 public record CategoryUpdateDto(
     string CategoryName,
+
     string? Description,
-    bool IsActive
+    bool IsActive,
+   string? CategoryCode
+
 );
 
 public record CategoryUpsertItem(

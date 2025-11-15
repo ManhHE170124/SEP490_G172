@@ -7,6 +7,7 @@ import ColorPickerTabs, {
   bestTextColor,
 } from "../../components/color/ColorPickerTabs";
 import "./CategoryPage.css";
+
 /* ============ Helpers: Label + Error ============ */
 const RequiredMark = () => (
   <span style={{ color: "#dc2626", marginLeft: 4 }}>*</span>
@@ -25,6 +26,19 @@ const FieldError = ({ message }) =>
     </div>
   );
 
+const CATEGORY_NAME_MAX = 100;
+const CATEGORY_CODE_MAX = 50;
+const CATEGORY_DESC_MAX = 200;
+
+// Giới hạn badge code + validate màu hex
+const BADGE_CODE_MAX = 32;
+const isValidHexColor = (value) => {
+  if (!value) return false;
+  const v = value.trim();
+  // #RGB hoặc #RRGGBB
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(v);
+};
+
 /* ============ Modal: Category (Add / Edit) ============ */
 function CategoryModal({
   open,
@@ -33,6 +47,8 @@ function CategoryModal({
   onClose,
   onSubmit,
   submitting,
+  addToast,
+  openConfirm,
 }) {
   const isEdit = mode === "edit";
 
@@ -43,80 +59,179 @@ function CategoryModal({
     isActive: true,
   });
   const [errors, setErrors] = React.useState({});
+  const initialRef = React.useRef(null);
 
   React.useEffect(() => {
     if (open) {
-      setForm({
+      const next = {
         categoryName: initial?.categoryName || "",
         categoryCode: initial?.categoryCode || "",
         description: initial?.description || "",
         isActive:
           typeof initial?.isActive === "boolean" ? initial.isActive : true,
-      });
+      };
+      setForm(next);
       setErrors({});
+      initialRef.current = next;
     }
   }, [open, initial]);
+
+  const isDirty = React.useMemo(() => {
+    if (!open || !initialRef.current) return false;
+    return JSON.stringify(form) !== JSON.stringify(initialRef.current);
+  }, [open, form]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const validate = () => {
     const e = {};
-    if (!form.categoryName.trim()) {
+    const name = form.categoryName.trim();
+    const code = form.categoryCode.trim();
+    const desc = form.description || "";
+
+    if (!name) {
       e.categoryName = "Tên danh mục là bắt buộc.";
+    } else if (name.length > CATEGORY_NAME_MAX) {
+      e.categoryName = `Tên danh mục không được vượt quá ${CATEGORY_NAME_MAX} ký tự.`;
     }
-    if (!isEdit) {
-      const code = form.categoryCode.trim();
-      if (!code) {
-        e.categoryCode = "Mã danh mục là bắt buộc.";
-      } else if (/\s/.test(code)) {
-        e.categoryCode = "Mã danh mục không được chứa dấu cách.";
-      }
+
+    // Validate mã danh mục cho cả add & edit
+    if (!code) {
+      e.categoryCode = "Mã danh mục là bắt buộc.";
+    } else if (/\s/.test(code)) {
+      e.categoryCode = "Mã danh mục không được chứa dấu cách.";
+    } else if (code.length > CATEGORY_CODE_MAX) {
+      e.categoryCode = `Mã danh mục không được vượt quá ${CATEGORY_CODE_MAX} ký tự.`;
     }
+
+    if (desc && desc.length > CATEGORY_DESC_MAX) {
+      e.description = `Mô tả không được vượt quá ${CATEGORY_DESC_MAX} ký tự.`;
+    }
+
     setErrors(e);
+
+    if (Object.keys(e).length > 0 && typeof addToast === "function") {
+      addToast(
+        "warning",
+        "Vui lòng kiểm tra các trường được đánh dấu.",
+        "Dữ liệu chưa hợp lệ"
+      );
+    }
+
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async (evt) => {
     evt.preventDefault();
     if (!validate()) return;
-    await onSubmit?.({
-      categoryName: form.categoryName.trim(),
-      categoryCode: form.categoryCode.trim(),
-      description: form.description,
-      isActive: !!form.isActive,
-    });
+
+    try {
+      await onSubmit?.({
+        categoryName: form.categoryName.trim(),
+        categoryCode: form.categoryCode.trim(),
+        description: form.description,
+        isActive: !!form.isActive,
+      });
+    } catch (err) {
+      // Map lỗi BE -> field + toast (theo style VariantDetail)
+      const resp = err?.response || err;
+      const status = resp?.status;
+      const data = resp?.data || {};
+      const msg = data.message || resp.message || "";
+      const fieldErrors = {};
+
+      if (status === 409) {
+        // Lỗi mã trùng
+        fieldErrors.categoryCode =
+          "Mã danh mục đã tồn tại, vui lòng chọn mã khác.";
+        if (typeof addToast === "function") {
+          addToast(
+            "warning",
+            "Mã danh mục đã tồn tại, vui lòng chọn mã khác.",
+            "Mã danh mục trùng"
+          );
+        }
+      }
+
+      // Trường hợp BE trả lỗi tên (phòng hờ)
+      if (status === 400 && /CategoryName/i.test(msg)) {
+        fieldErrors.categoryName = "Tên danh mục không hợp lệ.";
+        if (typeof addToast === "function") {
+          addToast(
+            "warning",
+            "Tên danh mục không hợp lệ.",
+            "Dữ liệu chưa hợp lệ"
+          );
+        }
+      }
+
+      if (Object.keys(fieldErrors).length === 0) {
+        // Lỗi khác: bắn toast error chung
+        if (typeof addToast === "function") {
+          addToast("error", msg || "Lưu danh mục thất bại.", "Lỗi");
+        }
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
+    }
+  };
+
+  const handleClose = () => {
+    if (isDirty) {
+      // Dùng ConfirmDialog
+      if (typeof openConfirm === "function") {
+        openConfirm({
+          title: "Đóng cửa sổ?",
+          message:
+            "Bạn có các thay đổi chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này.",
+          onConfirm: () => {
+            onClose?.();
+          },
+        });
+      } else {
+        const ok = window.confirm(
+          "Bạn có các thay đổi chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này. Bạn có chắc muốn thoát?"
+        );
+        if (!ok) return;
+        onClose?.();
+      }
+    } else {
+      onClose?.();
+    }
   };
 
   if (!open) return null;
 
- return (
-  <div className="cat-modal-backdrop">
-    <div className="cat-modal-card">
-      <div className="cat-modal-header">
+  return (
+    <div className="cat-modal-backdrop">
+      <div className="cat-modal-card">
+        <div className="cat-modal-header">
           <h3>{isEdit ? "Chỉnh sửa danh mục" : "Thêm danh mục"}</h3>
-           {/* Trạng thái */}
-            <div className="group" style={{ gridColumn: "1 / 3" }}>
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <label className="switch" title="Bật/Tắt hiển thị">
-                  <input
-                    type="checkbox"
-                    checked={!!form.isActive}
-                    onChange={() => set("isActive", !form.isActive)}
-                  />
-                  <span className="slider" />
-                </label>
-                <span
-                  className={form.isActive ? "badge green" : "badge gray"}
-                  style={{ textTransform: "none" }}
-                >
-                  {form.isActive ? "Đang hiển thị" : "Đang ẩn"}
-                </span>
-              </div>
+          {/* Trạng thái */}
+          <div className="group" style={{ gridColumn: "1 / 3" }}>
+            <div className="row" style={{ gap: 8, alignItems: "center" }}>
+              <label className="switch" title="Bật/Tắt hiển thị">
+                <input
+                  type="checkbox"
+                  checked={!!form.isActive}
+                  onChange={() => set("isActive", !form.isActive)}
+                />
+                <span className="slider" />
+              </label>
+              <span
+                className={form.isActive ? "badge green" : "badge gray"}
+                style={{ textTransform: "none" }}
+              >
+                {form.isActive ? "Đang hiển thị" : "Đang ẩn"}
+              </span>
             </div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
-        <div className="cat-modal-body grid cols-2 input-group">
+          <div className="cat-modal-body grid cols-2 input-group">
             {/* Tên danh mục */}
             <div className="group" style={{ gridColumn: "1 / 2" }}>
               <span>
@@ -126,6 +241,7 @@ function CategoryModal({
                 value={form.categoryName}
                 onChange={(e) => set("categoryName", e.target.value)}
                 placeholder="VD: Office"
+                maxLength={CATEGORY_NAME_MAX}
               />
               <FieldError message={errors.categoryName} />
             </div>
@@ -133,19 +249,15 @@ function CategoryModal({
             {/* Mã danh mục */}
             <div className="group" style={{ gridColumn: "2 / 3" }}>
               <span>
-                Mã danh mục {!isEdit && <RequiredMark />}
+                Mã danh mục <RequiredMark />
               </span>
               <input
                 value={form.categoryCode}
                 onChange={(e) => set("categoryCode", e.target.value)}
                 placeholder="VD: office"
-                readOnly={isEdit}
-                className={`mono ${isEdit ? "input-readonly" : ""}`}
-                title={
-                  isEdit
-                    ? "Mã danh mục (slug) do BE chuẩn hoá; không chỉnh tại đây"
-                    : "Không chứa dấu cách"
-                }
+                maxLength={CATEGORY_CODE_MAX}
+                className="mono"
+                title="Không chứa dấu cách"
               />
               <FieldError message={errors.categoryCode} />
             </div>
@@ -158,17 +270,17 @@ function CategoryModal({
                 value={form.description}
                 onChange={(e) => set("description", e.target.value)}
                 placeholder="Mô tả ngắn sẽ hiển thị trên website…"
+                maxLength={CATEGORY_DESC_MAX}
               />
+              <FieldError message={errors.description} />
             </div>
-
-           
           </div>
 
-        <div className="cat-modal-footer">
+          <div className="cat-modal-footer">
             <button
               type="button"
               className="btn ghost"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={submitting}
             >
               Hủy
@@ -201,6 +313,8 @@ function BadgeModal({
   onClose,
   onSubmit,
   submitting,
+  addToast,
+  openConfirm,
 }) {
   const isEdit = mode === "edit";
 
@@ -213,22 +327,29 @@ function BadgeModal({
   });
   const [errors, setErrors] = React.useState({});
   const [showPreview, setShowPreview] = React.useState(false);
+  const initialRef = React.useRef(null);
 
   React.useEffect(() => {
     if (open) {
-      setForm({
+      const next = {
         badgeCode: initial?.badgeCode || "",
         displayName: initial?.displayName || "",
-        colorHex:
-          initial?.colorHex || initial?.color || "#1e40af",
+        colorHex: initial?.colorHex || initial?.color || "#1e40af",
         icon: initial?.icon || "",
         isActive:
           typeof initial?.isActive === "boolean" ? initial.isActive : true,
-      });
+      };
+      setForm(next);
       setErrors({});
       setShowPreview(false);
+      initialRef.current = next;
     }
   }, [open, initial]);
+
+  const isDirty = React.useMemo(() => {
+    if (!open || !initialRef.current) return false;
+    return JSON.stringify(form) !== JSON.stringify(initialRef.current);
+  }, [open, form]);
 
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
@@ -236,62 +357,145 @@ function BadgeModal({
     const e = {};
     const code = form.badgeCode.trim();
     const name = form.displayName.trim();
+    const color = (form.colorHex || "").trim();
 
+    // BadgeCode: bắt buộc, không space, giới hạn độ dài
     if (!code) {
       e.badgeCode = "Mã nhãn là bắt buộc.";
     } else if (/\s/.test(code)) {
       e.badgeCode = "Mã nhãn không được chứa dấu cách.";
+    } else if (code.length > BADGE_CODE_MAX) {
+      e.badgeCode = `Mã nhãn không được vượt quá ${BADGE_CODE_MAX} ký tự.`;
     }
+
+    // DisplayName: bắt buộc
     if (!name) {
       e.displayName = "Tên hiển thị là bắt buộc.";
     }
 
+    // ColorHex: nếu có thì phải là mã hex hợp lệ
+    if (color && !isValidHexColor(color)) {
+      e.colorHex = "Màu phải là mã hex hợp lệ, ví dụ: #1e40af.";
+    }
+
     setErrors(e);
+
+    if (Object.keys(e).length > 0 && typeof addToast === "function") {
+      addToast(
+        "warning",
+        "Vui lòng kiểm tra các trường được đánh dấu.",
+        "Dữ liệu chưa hợp lệ"
+      );
+    }
+
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async (evt) => {
     evt.preventDefault();
     if (!validate()) return;
-    await onSubmit?.({
-      badgeCode: form.badgeCode.trim(),
-      displayName: form.displayName.trim(),
-      colorHex: form.colorHex,
-      icon: form.icon?.trim(),
-      isActive: !!form.isActive,
-    });
+
+    try {
+      await onSubmit?.({
+        badgeCode: form.badgeCode.trim(),
+        displayName: form.displayName.trim(),
+        colorHex: (form.colorHex || "").trim(),
+        icon: form.icon?.trim(),
+        isActive: !!form.isActive,
+      });
+    } catch (err) {
+      const resp = err?.response || err;
+      const status = resp?.status;
+      const data = resp?.data || {};
+      const msg = data.message || resp.message || "";
+      const fieldErrors = {};
+
+      if (status === 409) {
+        // BadgeCode trùng
+        fieldErrors.badgeCode =
+          "Mã nhãn đã tồn tại, vui lòng chọn mã khác.";
+        addToast?.(
+          "warning",
+          "Mã nhãn đã tồn tại, vui lòng chọn mã khác.",
+          "Mã nhãn trùng"
+        );
+      }
+
+      // Trường hợp BE trả lỗi chỉ rõ BadgeCode/DisplayName/ColorHex
+      if (status === 400) {
+        if (/BadgeCode/i.test(msg) && !fieldErrors.badgeCode) {
+          fieldErrors.badgeCode = "Mã nhãn không hợp lệ.";
+        }
+        if (/DisplayName/i.test(msg) && !fieldErrors.displayName) {
+          fieldErrors.displayName = "Tên hiển thị không hợp lệ.";
+        }
+        if (/ColorHex/i.test(msg) && !fieldErrors.colorHex) {
+          fieldErrors.colorHex = "Màu không hợp lệ.";
+        }
+      }
+
+      if (Object.keys(fieldErrors).length === 0) {
+        // Lỗi chung
+        addToast?.("error", msg || "Lưu nhãn thất bại.", "Lỗi");
+      } else {
+        setErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
+    }
+  };
+
+  const handleClose = () => {
+    if (isDirty) {
+      if (typeof openConfirm === "function") {
+        openConfirm({
+          title: "Đóng cửa sổ?",
+          message:
+            "Bạn có các thay đổi chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này.",
+          onConfirm: () => {
+            onClose?.();
+          },
+        });
+      } else {
+        const ok = window.confirm(
+          "Bạn có các thay đổi chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này. Bạn có chắc muốn thoát?"
+        );
+        if (!ok) return;
+        onClose?.();
+      }
+    } else {
+      onClose?.();
+    }
   };
 
   if (!open) return null;
 
   return (
     <div className="cat-modal-backdrop">
-    <div className="cat-modal-card">
-      <div className="cat-modal-header">
+      <div className="cat-modal-card">
+        <div className="cat-modal-header">
           <h3>{isEdit ? "Chỉnh sửa nhãn" : "Thêm nhãn"}</h3>
-           {/* Trạng thái */}
-            <div className="group" style={{ marginTop: 8 }}>
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <label className="switch" title="Bật/Tắt hiển thị">
-                  <input
-                    type="checkbox"
-                    checked={!!form.isActive}
-                    onChange={() => set("isActive", !form.isActive)}
-                  />
-                  <span className="slider" />
-                </label>
-                <span
-                  className={form.isActive ? "badge green" : "badge gray"}
-                  style={{ textTransform: "none" }}
-                >
-                  {form.isActive ? "Đang hiển thị" : "Đang ẩn"}
-                </span>
-              </div>
+          {/* Trạng thái */}
+          <div className="group" style={{ marginTop: 8 }}>
+            <div className="row" style={{ gap: 8, alignItems: "center" }}>
+              <label className="switch" title="Bật/Tắt hiển thị">
+                <input
+                  type="checkbox"
+                  checked={!!form.isActive}
+                  onChange={() => set("isActive", !form.isActive)}
+                />
+                <span className="slider" />
+              </label>
+              <span
+                className={form.isActive ? "badge green" : "badge gray"}
+                style={{ textTransform: "none" }}
+              >
+                {form.isActive ? "Đang hiển thị" : "Đang ẩn"}
+              </span>
             </div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
-        <div className="cat-modal-body input-group">
+          <div className="cat-modal-body input-group">
             <div className="grid cols-2">
               {/* Mã nhãn */}
               <div className="group">
@@ -302,8 +506,8 @@ function BadgeModal({
                   value={form.badgeCode}
                   onChange={(e) => set("badgeCode", e.target.value)}
                   placeholder="VD: HOT"
-                  readOnly={isEdit}
-                  className={`mono ${isEdit ? "input-readonly" : ""}`}
+                  className="mono"
+                  maxLength={BADGE_CODE_MAX}
                 />
                 <FieldError message={errors.badgeCode} />
               </div>
@@ -338,10 +542,9 @@ function BadgeModal({
                   value={form.colorHex || "#1e40af"}
                   onChange={(hex) => set("colorHex", hex)}
                 />
+                <FieldError message={errors.colorHex} />
               </div>
             </div>
-
-           
 
             {/* Preview */}
             <div
@@ -370,11 +573,11 @@ function BadgeModal({
             </div>
           </div>
 
-        <div className="cat-modal-footer">
+          <div className="cat-modal-footer">
             <button
               type="button"
               className="btn ghost"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={submitting}
             >
               Hủy
@@ -399,7 +602,6 @@ function BadgeModal({
   );
 }
 
-
 /* ============ MAIN PAGE ============ */
 export default function CategoryPage() {
   // ====== Toast & ConfirmDialog ======
@@ -411,6 +613,7 @@ export default function CategoryPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // signature: (type, message, title)
   const addToast = (type, message, title) => {
     const id = toastIdRef.current++;
     setToasts((prev) => [
@@ -418,7 +621,6 @@ export default function CategoryPage() {
       { id, type, message, title: title || undefined },
     ]);
 
-    // Auto close sau 5 giây
     setTimeout(() => {
       removeToast(id);
     }, 5000);
@@ -489,8 +691,23 @@ export default function CategoryPage() {
 
   const catToggle = async (id) => {
     try {
-      await CategoryApi.toggle(id);
-      addToast("success", "Đã cập nhật trạng thái danh mục.", "Thành công");
+      const resp = await CategoryApi.toggle(id);
+      const isActive =
+        resp?.isActive ??
+        resp?.IsActive ??
+        resp?.data?.isActive ??
+        resp?.data?.IsActive;
+
+      let message;
+      if (isActive === true) {
+        message = "Danh mục đang được hiển thị.";
+      } else if (isActive === false) {
+        message = "Danh mục đã được ẩn.";
+      } else {
+        message = "Đã cập nhật trạng thái danh mục.";
+      }
+
+      addToast("success", message, "Thành công");
       loadCategories();
     } catch (err) {
       console.error(err);
@@ -543,6 +760,7 @@ export default function CategoryPage() {
       } else if (catModal.mode === "edit" && catModal.data) {
         await CategoryApi.update(catModal.data.categoryId, {
           categoryName: form.categoryName,
+          categoryCode: form.categoryCode,
           description: form.description,
           isActive: form.isActive,
         });
@@ -552,11 +770,8 @@ export default function CategoryPage() {
       loadCategories();
     } catch (err) {
       console.error(err);
-      addToast(
-        "error",
-        err?.response?.data?.message || "Lưu danh mục thất bại.",
-        "Lỗi"
-      );
+      // Lỗi validate/trùng đã xử lý ở CategoryModal (toast + field)
+      throw err;
     } finally {
       setCatSubmitting(false);
     }
@@ -680,8 +895,23 @@ export default function CategoryPage() {
 
   const toggleBadge = async (code) => {
     try {
-      await BadgesApi.toggle(code);
-      addToast("success", "Đã cập nhật trạng thái nhãn.", "Thành công");
+      const resp = await BadgesApi.toggle(code);
+      const isActive =
+        resp?.isActive ??
+        resp?.IsActive ??
+        resp?.data?.isActive ??
+        resp?.data?.IsActive;
+
+      let message;
+      if (isActive === true) {
+        message = "Nhãn đang được hiển thị.";
+      } else if (isActive === false) {
+        message = "Nhãn đã được ẩn.";
+      } else {
+        message = "Đã cập nhật trạng thái nhãn.";
+      }
+
+      addToast("success", message, "Thành công");
       loadBadges();
     } catch (e) {
       console.error(e);
@@ -727,23 +957,11 @@ export default function CategoryPage() {
         await BadgesApi.create(form);
         addToast("success", "Đã tạo nhãn.", "Thành công");
       } else if (badgeModal.mode === "edit" && badgeModal.data) {
-        await BadgesApi.update(badgeModal.data.badgeCode, {
-          displayName: form.displayName,
-          colorHex: form.colorHex,
-          icon: form.icon,
-          isActive: form.isActive,
-        });
+        await BadgesApi.update(badgeModal.data.badgeCode, form);
         addToast("success", "Đã lưu thay đổi nhãn.", "Thành công");
       }
       setBadgeModal((m) => ({ ...m, open: false }));
       loadBadges();
-    } catch (err) {
-      console.error(err);
-      addToast(
-        "error",
-        err?.response?.data?.message || "Lưu nhãn thất bại.",
-        "Lỗi"
-      );
     } finally {
       setBadgeSubmitting(false);
     }
@@ -1248,6 +1466,8 @@ export default function CategoryPage() {
         onClose={() => setCatModal((m) => ({ ...m, open: false }))}
         onSubmit={handleCategorySubmit}
         submitting={catSubmitting}
+        addToast={addToast}
+        openConfirm={openConfirm}
       />
 
       <BadgeModal
@@ -1257,6 +1477,8 @@ export default function CategoryPage() {
         onClose={() => setBadgeModal((m) => ({ ...m, open: false }))}
         onSubmit={handleBadgeSubmit}
         submitting={badgeSubmitting}
+        addToast={addToast}
+        openConfirm={openConfirm}
       />
 
       {/* Toast + Confirm Dialog */}

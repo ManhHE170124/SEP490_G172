@@ -1,18 +1,24 @@
+// src/pages/admin/ProductSectionsPanel.jsx
 import React from "react";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 
 import { ProductSectionsApi } from "../../services/productSections";
 import { postsApi } from "../../services/postsApi";
+import ToastContainer from "../../components/Toast/ToastContainer";
 
 const TYPES = [
-  { value: "DETAIL",   label: "Chi tiết" },
+  { value: "DETAIL", label: "Chi tiết" },
   { value: "WARRANTY", label: "Bảo hành" },
-  { value: "NOTE",     label: "Lưu ý" },
+  { value: "NOTE", label: "Lưu ý" },
 ];
 
+const SECTION_TITLE_MAX = 200;
+
 const typeLabel = (v) =>
-  TYPES.find((t) => t.value === String(v || "").toUpperCase())?.label || v || "—";
+  TYPES.find((t) => t.value === String(v || "").toUpperCase())?.label ||
+  v ||
+  "—";
 
 const snippet = (html, n = 120) => {
   const t = String(html || "")
@@ -26,7 +32,9 @@ const snippet = (html, n = 120) => {
 const getId = (row) => row.sectionId ?? row.SectionId;
 const getTitle = (row) => row.title ?? row.Title ?? "";
 const getType = (row) =>
-  String(row.sectionType ?? row.SectionType ?? row.type ?? row.Type ?? "").toUpperCase();
+  String(
+    row.sectionType ?? row.SectionType ?? row.type ?? row.Type ?? ""
+  ).toUpperCase();
 const getActive = (row) =>
   Boolean(row.isActive ?? row.IsActive ?? row.active ?? row.Active ?? true);
 const getSortVal = (row) =>
@@ -68,6 +76,41 @@ export default function ProductSectionsPanel({
   const [sort, setSort] = React.useState("sort"); // sort|title|type|active
   const [dir, setDir] = React.useState("asc"); // asc|desc
 
+  // Toast + Confirm
+  const [toasts, setToasts] = React.useState([]);
+  const [confirmDialog, setConfirmDialog] = React.useState(null);
+
+  const removeToast = React.useCallback(
+    (id) => setToasts((ts) => ts.filter((t) => t.id !== id)),
+    []
+  );
+
+  const addToast = React.useCallback(
+    (type, title, message) => {
+      const id = `${Date.now()}-${Math.random()}`;
+      setToasts((ts) => [...ts, { id, type, title, message }]);
+      setTimeout(() => removeToast(id), 5000);
+    },
+    [removeToast]
+  );
+
+  const askConfirm = React.useCallback((title, message) => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        title,
+        message,
+        onConfirm: () => {
+          setConfirmDialog(null);
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmDialog(null);
+          resolve(false);
+        },
+      });
+    });
+  }, []);
+
   // Modal
   const [showModal, setShowModal] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
@@ -79,41 +122,57 @@ export default function ProductSectionsPanel({
   const [fSort, setFSort] = React.useState(0);
   const [fContent, setFContent] = React.useState("");
 
+  const [modalErrors, setModalErrors] = React.useState({});
+  const [saving, setSaving] = React.useState(false);
+
+  // Snapshot form ban đầu trong modal để detect unsaved changes
+  const modalInitialRef = React.useRef(null);
+
   // Quill
   const quillRef = React.useRef(null);
   const editorWrapRef = React.useRef(null);
   const imageInputRef = React.useRef(null);
 
   // ===== Load list =====
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const apiSort = mapSortKeyForApi(sort);
-      const res = await ProductSectionsApi.listPaged(productId, variantId, {
-        q,
-        type,
-        active,
-        sort: apiSort,
-        dir,
-        page,
-        pageSize: size,
-      });
-      // Chuẩn hoá items ngay tại UI (dù service đã cố gắng chuẩn hoá)
-      const normItems = (res.items || []).map((r) => ({
-        sectionId: getId(r),
-        title: getTitle(r),
-        sectionType: getType(r),
-        isActive: getActive(r),
-        sortOrder: getSortVal(r),
-        content: getContent(r),
-      }));
-      setItems(normItems);
-      setTotal(res.totalItems || 0);
-      setTotalPages(res.totalPages || 1);
-    } finally {
-      setLoading(false);
-    }
-  }, [productId, variantId, q, type, active, sort, dir, page, size]);
+  const load = React.useCallback(
+    async () => {
+      setLoading(true);
+      try {
+        const apiSort = mapSortKeyForApi(sort);
+        const res = await ProductSectionsApi.listPaged(productId, variantId, {
+          q,
+          type,
+          active,
+          sort: apiSort,
+          dir,
+          page,
+          pageSize: size,
+        });
+        // Chuẩn hoá items ngay tại UI
+        const normItems = (res.items || []).map((r) => ({
+          sectionId: getId(r),
+          title: getTitle(r),
+          sectionType: getType(r),
+          isActive: getActive(r),
+          sortOrder: getSortVal(r),
+          content: getContent(r),
+        }));
+        setItems(normItems);
+        setTotal(res.totalItems || 0);
+        setTotalPages(res.totalPages || 1);
+      } catch (err) {
+        console.error(err);
+        addToast(
+          "error",
+          "Lỗi tải sections",
+          err?.response?.data?.message || err.message
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [productId, variantId, q, type, active, sort, dir, page, size, addToast]
+  );
 
   React.useEffect(() => {
     load();
@@ -138,133 +197,238 @@ export default function ProductSectionsPanel({
 
   // ===== CRUD =====
   const openCreate = () => {
+    const initial = {
+      title: "",
+      type: "DETAIL",
+      active: true,
+      sort: 0,
+      content: "",
+    };
     setEditing(null);
-    setFTitle("");
-    setFType("DETAIL");
-    setFActive(true);
-    setFSort(0);
-    setFContent("");
+    setFTitle(initial.title);
+    setFType(initial.type);
+    setFActive(initial.active);
+    setFSort(initial.sort);
+    setFContent(initial.content);
+    setModalErrors({});
+    modalInitialRef.current = initial;
     setShowModal(true);
   };
 
   const openEdit = (row) => {
+    const initial = {
+      title: getTitle(row),
+      type: getType(row) || "DETAIL",
+      active: getActive(row),
+      sort: getSortVal(row),
+      content: getContent(row),
+    };
     setEditing(row);
-    setFTitle(getTitle(row));
-    setFType(getType(row) || "DETAIL");
-    setFActive(getActive(row));
-    setFSort(getSortVal(row));
-    setFContent(getContent(row));
+    setFTitle(initial.title);
+    setFType(initial.type);
+    setFActive(initial.active);
+    setFSort(initial.sort);
+    setFContent(initial.content);
+    setModalErrors({});
+    modalInitialRef.current = initial;
     setShowModal(true);
   };
 
   const onDelete = async (id) => {
-    if (!window.confirm("Xoá mục này?")) return;
-    await ProductSectionsApi.remove(productId, variantId, id);
-    await load();
+    const ok = await askConfirm(
+      "Xoá section",
+      "Bạn có chắc chắn muốn xoá section này?"
+    );
+    if (!ok) return;
+    try {
+      await ProductSectionsApi.remove(productId, variantId, id);
+      addToast("success", "Đã xoá section", "Section đã được xoá.");
+      await load();
+    } catch (err) {
+      console.error(err);
+      addToast(
+        "error",
+        "Xoá section thất bại",
+        err?.response?.data?.message || err.message
+      );
+    }
   };
 
- const toggleActive = async (row) => {
-  const id = getId(row);
-  try {
-    const resp = await ProductSectionsApi.toggle(productId, variantId, id);
+  const toggleActive = async (row) => {
+    const id = getId(row);
+    try {
+      const resp = await ProductSectionsApi.toggle(productId, variantId, id);
 
-    setItems((prev) => {
-      const before = prev.find((x) => x.sectionId === id);
-      if (!before) return prev;
+      setItems((prev) => {
+        const before = prev.find((x) => x.sectionId === id);
+        if (!before) return prev;
 
-      // Nếu BE trả về record đầy đủ/partial -> MERGE với dữ liệu cũ
-      const isObject =
-        resp && typeof resp === "object" && !Array.isArray(resp);
+        // Nếu BE trả về record đầy đủ/partial -> MERGE với dữ liệu cũ
+        const isObject =
+          resp && typeof resp === "object" && !Array.isArray(resp);
 
-      if (isObject) {
-        const mergedRaw = { ...before, ...resp }; // merge thô
-        const patched = {
-          sectionId: getId(mergedRaw) ?? before.sectionId,
-          title: getTitle(mergedRaw) || before.title,
-          sectionType: getType(mergedRaw) || before.sectionType,
-          isActive:
-            typeof getActive(mergedRaw) === "boolean"
-              ? getActive(mergedRaw)
-              : before.isActive,
-          sortOrder: Number.isFinite(getSortVal(mergedRaw))
-            ? getSortVal(mergedRaw)
-            : before.sortOrder,
-          content: getContent(mergedRaw) || before.content,
-        };
-        return prev.map((x) => (x.sectionId === id ? patched : x));
+        if (isObject) {
+          const mergedRaw = { ...before, ...resp };
+          const patched = {
+            sectionId: getId(mergedRaw) ?? before.sectionId,
+            title: getTitle(mergedRaw) || before.title,
+            sectionType: getType(mergedRaw) || before.sectionType,
+            isActive:
+              typeof getActive(mergedRaw) === "boolean"
+                ? getActive(mergedRaw)
+                : before.isActive,
+            sortOrder: Number.isFinite(getSortVal(mergedRaw))
+              ? getSortVal(mergedRaw)
+              : before.sortOrder,
+            content: getContent(mergedRaw) || before.content,
+          };
+          return prev.map((x) => (x.sectionId === id ? patched : x));
+        }
+
+        // Fallback: BE trả true/false hoặc rỗng -> chỉ flip isActive
+        return prev.map((x) =>
+          x.sectionId === id ? { ...x, isActive: !x.isActive } : x
+        );
+      });
+
+      addToast(
+        "success",
+        "Cập nhật trạng thái",
+        resp?.isActive ?? resp?.IsActive
+          ? "Section đang được hiển thị."
+          : "Section đã được ẩn."
+      );
+    } catch (e) {
+      console.error(e);
+      addToast(
+        "error",
+        "Đổi trạng thái thất bại",
+        e?.response?.data?.message || e.message
+      );
+    }
+  };
+
+  // ===== VALIDATION =====
+  const validateForm = React.useCallback(
+    ({ silent = true } = {}) => {
+      const errors = {};
+
+      // Tiêu đề: bắt buộc, <= 200, không chỉ whitespace
+      const titleTrimmed = (fTitle || "").trim();
+      if (!titleTrimmed) {
+        errors.title = "Tiêu đề section là bắt buộc.";
+      } else if (titleTrimmed.length > SECTION_TITLE_MAX) {
+        errors.title = `Tiêu đề section không được vượt quá ${SECTION_TITLE_MAX} ký tự.`;
       }
 
-      // Fallback: BE trả true/false hoặc rỗng -> chỉ flip isActive
-      return prev.map((x) =>
-        x.sectionId === id ? { ...x, isActive: !x.isActive } : x
+      // Sort: số nguyên không âm (blank => 0)
+      let sortNum = 0;
+      const rawSort = fSort;
+      if (rawSort === "" || rawSort == null) {
+        sortNum = 0;
+      } else if (!/^-?\d+$/.test(String(rawSort))) {
+        errors.sortOrder = "Thứ tự phải là số nguyên không âm.";
+      } else {
+        sortNum = Number(rawSort);
+        if (!Number.isInteger(sortNum) || sortNum < 0) {
+          errors.sortOrder = "Thứ tự phải là số nguyên không âm.";
+        }
+      }
+
+      // Nội dung: bắt buộc (check rỗng sau khi bỏ tag & khoảng trắng)
+      const html = (fContent || "").trim();
+      const plain = html
+        .replace(/<[^>]+>/g, "")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, "")
+        .trim();
+      if (!plain) {
+        errors.content = "Nội dung section là bắt buộc.";
+      }
+
+      if (!silent) {
+        setModalErrors(errors);
+      }
+
+      const isValid = Object.keys(errors).length === 0;
+
+      const dto = isValid
+        ? {
+            title: titleTrimmed,
+            sectionType: (fType || "DETAIL").toUpperCase(), // WARRANTY|NOTE|DETAIL
+            content: html || "<p></p>",
+            isActive: !!fActive,
+            sortOrder: sortNum,
+          }
+        : null;
+
+      return { errors, isValid, dto };
+    },
+    [fTitle, fType, fActive, fSort, fContent]
+  );
+
+  // Detect unsaved change trong modal
+  const isModalDirty = React.useMemo(() => {
+    if (!showModal || !modalInitialRef.current) return false;
+    const cur = {
+      title: fTitle,
+      type: fType,
+      active: fActive,
+      sort: fSort,
+      content: fContent,
+    };
+    return JSON.stringify(cur) !== JSON.stringify(modalInitialRef.current);
+  }, [showModal, fTitle, fType, fActive, fSort, fContent]);
+
+  const handleCloseModal = async () => {
+    if (isModalDirty) {
+      const ok = await askConfirm(
+        "Huỷ thay đổi?",
+        "Bạn có các thay đổi chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này."
       );
-    });
-  } catch (e) {
-    alert(e?.response?.data?.message || e.message);
-  }
-};
+      if (!ok) return;
+    }
+    setShowModal(false);
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
-    const dto = {
-      title: fTitle?.trim(),
-      sectionType: (fType || "DETAIL").toUpperCase(), // WARRANTY|NOTE|DETAIL
-      content: quillRef.current
-        ? quillRef.current.root.innerHTML
-        : fContent || "<p></p>",
-      isActive: !!fActive,
-      sortOrder: Number.isFinite(Number(fSort)) ? Number(fSort) : 0,
-    };
-    if (!dto.title) return;
+    const { isValid, dto } = validateForm({ silent: false });
+    if (!isValid || !dto) {
+      addToast(
+        "warning",
+        "Dữ liệu chưa hợp lệ",
+        "Vui lòng kiểm tra các trường được đánh dấu."
+      );
+      return;
+    }
 
     try {
+      setSaving(true);
       if (editing?.sectionId) {
-        const updated = await ProductSectionsApi.update(
+        await ProductSectionsApi.update(
           productId,
           variantId,
           editing.sectionId,
           dto
         );
-        // Nếu API trả record sau update, đồng bộ ngay UI (giảm flash)
-        if (updated && (updated.sectionId || updated.SectionId)) {
-          const patched = {
-            sectionId: getId(updated),
-            title: getTitle(updated),
-            sectionType: getType(updated),
-            isActive: getActive(updated),
-            sortOrder: getSortVal(updated),
-            content: getContent(updated),
-          };
-          setItems((prev) =>
-            prev.map((x) => (x.sectionId === editing.sectionId ? patched : x))
-          );
-        } else {
-          await load();
-        }
+        addToast("success", "Cập nhật section", "Section đã được lưu thay đổi.");
       } else {
-        const created = await ProductSectionsApi.create(
-          productId,
-          variantId,
-          dto
-        );
-        if (created && (created.sectionId || created.SectionId)) {
-          const norm = {
-            sectionId: getId(created),
-            title: getTitle(created),
-            sectionType: getType(created),
-            isActive: getActive(created),
-            sortOrder: getSortVal(created),
-            content: getContent(created),
-          };
-          setItems((prev) => [norm, ...prev]);
-          setTotal((t) => t + 1);
-        } else {
-          await load();
-        }
+        await ProductSectionsApi.create(productId, variantId, dto);
+        addToast("success", "Thêm section", "Section mới đã được tạo.");
       }
+
+      await load();
       setShowModal(false);
-      setPage(1);
     } catch (err) {
-      alert(err?.response?.data?.message || err.message);
+      console.error(err);
+      addToast(
+        "error",
+        "Lưu section thất bại",
+        err?.response?.data?.message || err.message
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -298,8 +462,7 @@ export default function ProductSectionsPanel({
     if (quillRef.current) {
       try {
         const container = quillRef.current.root?.parentNode?.parentNode;
-        if (container && container.parentNode)
-          container.parentNode.innerHTML = "";
+        if (container && container.parentNode) container.parentNode.innerHTML = "";
       } catch (_) {}
       quillRef.current = null;
     }
@@ -334,14 +497,19 @@ export default function ProductSectionsPanel({
     });
 
     if (fContent) q.clipboard.dangerouslyPasteHTML(fContent);
+
+    // Sync nội dung về state để validation realtime
+    q.on("text-change", () => {
+      setFContent(q.root.innerHTML);
+    });
+
     quillRef.current = q;
 
     return () => {
       try {
         q.off("text-change");
         const container = q.root?.parentNode?.parentNode;
-        if (container && container.parentNode)
-          container.parentNode.innerHTML = "";
+        if (container && container.parentNode) container.parentNode.innerHTML = "";
       } catch (_) {}
       quillRef.current = null;
     };
@@ -370,7 +538,7 @@ export default function ProductSectionsPanel({
       quillRef.current.setSelection(range.index + 1);
     } catch (err) {
       console.error("Upload ảnh thất bại:", err);
-      alert("Tải ảnh thất bại. Vui lòng thử lại.");
+      addToast("error", "Tải ảnh thất bại", "Vui lòng thử lại sau.");
     } finally {
       e.target.value = "";
     }
@@ -464,7 +632,6 @@ export default function ProductSectionsPanel({
                       >
                         Thứ tự{sortMark("sort")}
                       </th>
-                      {/* NEW: cột Trạng thái thay cho "Cập nhật" */}
                       <th
                         onClick={() => headerSort("active")}
                         style={{ cursor: "pointer" }}
@@ -477,25 +644,22 @@ export default function ProductSectionsPanel({
                   <tbody>
                     {items.map((r) => (
                       <tr key={r.sectionId}>
-                        {/* Tiêu đề: KHÔNG còn badge trạng thái ở đây */}
                         <td>
                           <div style={{ fontWeight: 600 }}>
                             {r.title || "—"}
                           </div>
                         </td>
 
-                        {/* Loại: đọc từ sectionType */}
                         <td>{typeLabel(r.sectionType)}</td>
 
-                        {/* Nội dung: snippet */}
                         <td title={snippet(r.content, 300)}>
                           {snippet(r.content, 80)}
                         </td>
 
-                        {/* Thứ tự */}
-                        <td className="td-right">{Number(r.sortOrder || 0)}</td>
+                        <td className="td-right">
+                          {Number(r.sortOrder || 0)}
+                        </td>
 
-                        {/* NEW: Trạng thái riêng cột */}
                         <td className="col-status">
                           {r.isActive ? (
                             <span className="badge green">Hiển thị</span>
@@ -504,7 +668,6 @@ export default function ProductSectionsPanel({
                           )}
                         </td>
 
-                        {/* Thao tác */}
                         <td className="td-actions td-left">
                           <div className="row" style={{ gap: 8 }}>
                             <button
@@ -684,36 +847,48 @@ export default function ProductSectionsPanel({
               <h3 style={{ margin: 0 }}>
                 {editing ? "Sửa section" : "Thêm section"}
               </h3>
-              <div className="row" style={{ gap: 12, alignItems: "center" }}>
-                <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    Hiển thị
-                  </span>
-                  <label className="switch" title="Bật/Tắt hiển thị">
-                    <input
-                      type="checkbox"
-                      checked={!!fActive}
-                      onChange={(e) => setFActive(e.target.checked)}
-                    />
-                    <span className="slider" />
-                  </label>
-                </div>
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                <label className="switch" title="Bật/Tắt hiển thị">
+                  <input
+                    type="checkbox"
+                    checked={!!fActive}
+                    onChange={(e) => setFActive(e.target.checked)}
+                  />
+                  <span className="slider" />
+                </label>
+                <span
+                  className={fActive ? "badge green" : "badge gray"}
+                  style={{ textTransform: "none", fontSize: 12 }}
+                >
+                  {fActive ? "Đang hiển thị" : "Đang ẩn"}
+                </span>
               </div>
             </div>
 
-            <form onSubmit={onSubmit} className="input-group" style={{ marginTop: 12 }}>
+            <form
+              onSubmit={onSubmit}
+              className="input-group"
+              style={{ marginTop: 12 }}
+            >
               {/* Hàng 1: Title - Type - Sort */}
               <div className="grid cols-3">
                 <div className="group">
-                  <span>Tiêu đề *</span>
+                  <span>
+                    Tiêu đề{" "}
+                    <span style={{ color: "#dc2626" }}>*</span>
+                  </span>
                   <input
                     value={fTitle}
                     onChange={(e) => setFTitle(e.target.value)}
-                    required
+                    maxLength={SECTION_TITLE_MAX}
+                    className={modalErrors.title ? "input-error" : ""}
                   />
+                  {modalErrors.title && (
+                    <div className="field-error">{modalErrors.title}</div>
+                  )}
                 </div>
                 <div className="group">
-                  <span>Loại *</span>
+                  <span>Loại</span>
                   <select
                     value={fType}
                     onChange={(e) => setFType(e.target.value)}
@@ -730,15 +905,27 @@ export default function ProductSectionsPanel({
                   <input
                     type="number"
                     value={fSort}
+                    min={0}
+                    step={1}
                     onChange={(e) => setFSort(e.target.value)}
+                    className={modalErrors.sortOrder ? "input-error" : ""}
                   />
+                  {modalErrors.sortOrder && (
+                    <div className="field-error">{modalErrors.sortOrder}</div>
+                  )}
                 </div>
               </div>
 
               {/* Content (Quill) */}
               <div className="group" style={{ marginTop: 10 }}>
-                <span>Nội dung</span>
-                <div ref={editorWrapRef} />
+                <span>
+                  Nội dung{" "}
+                  <span style={{ color: "#dc2626" }}>*</span>
+                </span>
+                <div
+                  ref={editorWrapRef}
+                  className={modalErrors.content ? "input-error" : ""}
+                />
                 <input
                   type="file"
                   accept="image/*"
@@ -746,6 +933,9 @@ export default function ProductSectionsPanel({
                   style={{ display: "none" }}
                   onChange={handleQuillImage}
                 />
+                {modalErrors.content && (
+                  <div className="field-error">{modalErrors.content}</div>
+                )}
               </div>
 
               <div
@@ -755,18 +945,33 @@ export default function ProductSectionsPanel({
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setShowModal(false)}
+                  onClick={handleCloseModal}
                 >
                   Hủy
                 </button>
-                <button type="submit" className="btn primary">
-                  {editing ? "Lưu" : "Thêm"}
+                <button
+                  type="submit"
+                  className="btn primary"
+                  disabled={saving}
+                >
+                  {saving
+                    ? "Đang lưu…"
+                    : editing
+                    ? "Lưu thay đổi"
+                    : "Thêm"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Toast + Confirm */}
+      <ToastContainer
+        toasts={toasts}
+        onRemove={removeToast}
+        confirmDialog={confirmDialog}
+      />
     </div>
   );
 }

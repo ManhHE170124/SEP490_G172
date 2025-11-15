@@ -58,6 +58,7 @@ namespace Keytietkiem.DTOs.Products
 
     public record ProductVariantUpdateDto(
         string Title,
+        string? VariantCode,
         int? DurationDays,
         int StockQty,
         int? WarrantyDays,

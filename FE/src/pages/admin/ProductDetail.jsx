@@ -240,7 +240,7 @@ export default function ProductDetail() {
 
   const handleBack = () => {
     if (!isDirty) {
-      nav(-1);
+      nav("/admin/products");
       return;
     }
 
@@ -249,7 +249,7 @@ export default function ProductDetail() {
       message:
         "Bạn có các thay đổi chưa lưu. Rời khỏi trang sẽ làm mất các thay đổi này.",
       onConfirm: () => {
-        nav(-1);
+      nav("/admin/products");
       },
     });
   };
@@ -337,7 +337,7 @@ export default function ProductDetail() {
         // ignore
       }
 
-      nav(-1);
+      nav("/admin/products");
     } catch (e) {
       const msg = e?.response?.data?.message || e.message;
 
