@@ -7,10 +7,8 @@ const truncate = (s, n = 140) =>
   s && s.length > n ? s.slice(0, n) + "…" : s ?? "—";
 
 const QUESTION_MIN = 10;
-const QUESTION_MAX = 200;
+const QUESTION_MAX = 500;
 const ANSWER_MIN = 10;
-const ANSWER_MAX = 2000;
-
 export default function FaqsPanel({ productId, onTotalChange }) {
   // Data + paging
   const [items, setItems] = React.useState([]);
@@ -31,10 +29,15 @@ export default function FaqsPanel({ productId, onTotalChange }) {
   const [editing, setEditing] = React.useState(null);
   const [faqForm, setFaqForm] = React.useState({
     question: "",
-    answer: "",
-    sortOrder: 0,
+  answer: "",
+  sortOrder: 0,
+  isActive: true,
   });
+  const initialFormRef = React.useRef(null);
   const [faqErrors, setFaqErrors] = React.useState({});
+const setFaqField = (field, value) => {
+  setFaqForm((prev) => ({ ...prev, [field]: value }));
+};
 
   // Toast + Confirm
   const [toasts, setToasts] = React.useState([]);
@@ -136,52 +139,85 @@ export default function FaqsPanel({ productId, onTotalChange }) {
     sort === key ? (dir === "asc" ? " ▲" : " ▼") : "";
 
   // ===== CRUD =====
-  const openCreate = () => {
-    setEditing(null);
-    setFaqForm({ question: "", answer: "", sortOrder: 0 });
-    setFaqErrors({});
-    setShowModal(true);
+const openCreate = () => {
+  const base = { question: "", answer: "", sortOrder: 0, isActive: true };
+  setEditing(null);
+  setFaqForm(base);
+  setFaqErrors({});
+  initialFormRef.current = base;
+  setShowModal(true);
+};
+
+
+ const openEdit = (f) => {
+  const base = {
+    question: f.question || "",
+    answer: f.answer || "",
+    sortOrder: f.sortOrder ?? 0,
+    isActive: f.isActive ?? true,
   };
+  setEditing(f);
+  setFaqForm(base);
+  setFaqErrors({});
+  initialFormRef.current = base;
+  setShowModal(true);
+};
 
-  const openEdit = (f) => {
-    setEditing(f);
-    setFaqForm({
-      question: f.question || "",
-      answer: f.answer || "",
-      sortOrder: f.sortOrder ?? 0,
-    });
-    setFaqErrors({});
-    setShowModal(true);
-  };
 
-  const handleFaqChange = (field) => (e) => {
-    const value =
-      field === "sortOrder" ? e.target.value : e.target.value || "";
-    setFaqForm((prev) => ({ ...prev, [field]: value }));
-  };
+const handleFaqChange = (field) => (e) => {
+  if (field === "sortOrder") {
+    const raw = e.target.value;
+    const num = Math.max(0, parseInt(raw, 10) || 0);
+    setFaqField("sortOrder", num);
+  } else {
+    setFaqField(field, e.target.value || "");
+  }
+};
 
-  const validateFaq = () => {
-    const errors = {};
-    const qText = faqForm.question.trim();
-    const aText = faqForm.answer.trim();
-    const qLen = qText.length;
-    const aLen = aText.length;
 
-    if (!qText) {
-      errors.question = "Câu hỏi là bắt buộc.";
-    } else if (qLen < QUESTION_MIN || qLen > QUESTION_MAX) {
-      errors.question = `Câu hỏi phải từ ${QUESTION_MIN}–${QUESTION_MAX} ký tự.`;
-    }
+const validateFaq = () => {
+  const errors = {};
+  const qText = faqForm.question.trim();
+  const aText = faqForm.answer.trim();
+  const qLen = qText.length;
+  const aLen = aText.length;
 
-    if (!aText) {
-      errors.answer = "Trả lời là bắt buộc.";
-    } else if (aLen < ANSWER_MIN || aLen > ANSWER_MAX) {
-      errors.answer = `Trả lời phải từ ${ANSWER_MIN}–${ANSWER_MAX} ký tự.`;
-    }
+  if (!qText) {
+    errors.question = "Câu hỏi là bắt buộc.";
+  } else if (qLen < QUESTION_MIN || qLen > QUESTION_MAX) {
+    errors.question = `Câu hỏi phải từ ${QUESTION_MIN}–${QUESTION_MAX} ký tự.`;
+  }
 
-    setFaqErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  if (!aText) {
+    errors.answer = "Trả lời là bắt buộc.";
+  } else if (aLen < ANSWER_MIN) {
+    errors.answer = `Trả lời phải từ ${ANSWER_MIN} ký tự trở lên.`;
+  }
+
+  setFaqErrors(errors);
+  return Object.keys(errors).length === 0;
+};
+
+const handleCloseModal = async () => {
+  // nếu chưa set initialFormRef thì đóng luôn
+  if (!initialFormRef.current) {
+    setShowModal(false);
+    return;
+  }
+
+  const initialJson = JSON.stringify(initialFormRef.current);
+  const currentJson = JSON.stringify(faqForm);
+
+  if (initialJson !== currentJson) {
+    const ok = await askConfirm(
+      "Đóng cửa sổ?",
+      "Các thay đổi FAQ chưa được lưu. Bạn có chắc muốn thoát không?"
+    );
+    if (!ok) return;
+  }
+
+  setShowModal(false);
+};
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -197,12 +233,13 @@ export default function FaqsPanel({ productId, onTotalChange }) {
     const isActiveSwitch = document.getElementById("faqActiveSwitch");
     const isActiveValue = isActiveSwitch ? !!isActiveSwitch.checked : true;
 
-    const dto = {
-      question: faqForm.question.trim(),
-      answer: faqForm.answer.trim(),
-      sortOrder: Number(faqForm.sortOrder || 0) || 0,
-      isActive: isActiveValue,
-    };
+   const dto = {
+  question: faqForm.question.trim(),
+  answer: faqForm.answer.trim(),
+  sortOrder: Number(faqForm.sortOrder || 0) || 0,
+  isActive: !!faqForm.isActive,
+};
+
 
     try {
       if (editing?.faqId) {
@@ -298,13 +335,6 @@ export default function FaqsPanel({ productId, onTotalChange }) {
 
   const startIdx = total === 0 ? 0 : (page - 1) * size + 1;
   const endIdx = Math.min(total, page * size);
-
-  const qLen = faqForm.question.length;
-  const aLen = faqForm.answer.length;
-  const qLenInvalid =
-    qLen > 0 && (qLen < QUESTION_MIN || qLen > QUESTION_MAX);
-  const aLenInvalid =
-    aLen > 0 && (aLen < ANSWER_MIN || aLen > ANSWER_MAX);
 
   return (
     <div className="group" style={{ gridColumn: "1 / 3" }}>
@@ -583,24 +613,28 @@ export default function FaqsPanel({ productId, onTotalChange }) {
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal">
-            <div className="modal-topbar">
-              <h3 style={{ margin: 0 }}>
-                {editing ? "Sửa FAQ" : "Thêm FAQ"}
-              </h3>
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  Hiển thị
-                </span>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    id="faqActiveSwitch"
-                    defaultChecked={editing?.isActive ?? true}
-                  />
-                  <span className="slider" />
-                </label>
-              </div>
-            </div>
+<div className="modal-topbar">
+  <h3 style={{ margin: 0 }}>
+    {editing ? "Sửa FAQ" : "Thêm FAQ"}
+  </h3>
+  <div className="row" style={{ gap: 8, alignItems: "center" }}>
+    <label className="switch" title="Bật/Tắt hiển thị">
+      <input
+        type="checkbox"
+        checked={!!faqForm.isActive}
+        onChange={(e) => setFaqField("isActive", e.target.checked)}
+      />
+      <span className="slider" />
+    </label>
+    <span
+      className={faqForm.isActive ? "badge green" : "badge gray"}
+      style={{ textTransform: "none" }}
+    >
+      {faqForm.isActive ? "Đang hiển thị" : "Đang ẩn"}
+    </span>
+  </div>
+</div>
+
 
             <form
               onSubmit={onSubmit}
@@ -617,17 +651,7 @@ export default function FaqsPanel({ productId, onTotalChange }) {
                   onChange={handleFaqChange("question")}
                   className={faqErrors.question ? "input-error" : ""}
                 />
-                <div
-                  className="muted"
-                  style={{
-                    fontSize: 12,
-                    marginTop: 2,
-                    color: qLenInvalid ? "#dc2626" : "var(--muted)",
-                  }}
-                >
-                  {QUESTION_MIN}–{QUESTION_MAX} ký tự. Hiện tại: {qLen}/
-                  {QUESTION_MAX}
-                </div>
+                
                 {faqErrors.question && (
                   <div className="field-error">{faqErrors.question}</div>
                 )}
@@ -643,17 +667,6 @@ export default function FaqsPanel({ productId, onTotalChange }) {
                   onChange={handleFaqChange("answer")}
                   className={faqErrors.answer ? "input-error" : ""}
                 />
-                <div
-                  className="muted"
-                  style={{
-                    fontSize: 12,
-                    marginTop: 2,
-                    color: aLenInvalid ? "#dc2626" : "var(--muted)",
-                  }}
-                >
-                  {ANSWER_MIN}–{ANSWER_MAX} ký tự. Hiện tại: {aLen}/
-                  {ANSWER_MAX}
-                </div>
                 {faqErrors.answer && (
                   <div className="field-error">{faqErrors.answer}</div>
                 )}
@@ -677,12 +690,13 @@ export default function FaqsPanel({ productId, onTotalChange }) {
                 style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}
               >
                 <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowModal(false)}
-                >
-                  Hủy
-                </button>
+  type="button"
+  className="btn"
+  onClick={handleCloseModal}
+>
+  Hủy
+</button>
+
                 <button type="submit" className="btn primary">
                   {editing ? "Lưu" : "Thêm"}
                 </button>

@@ -12,7 +12,9 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
-
+        private const int QuestionMinLength = 10;
+        private const int QuestionMaxLength = 500;
+        private const int AnswerMinLength = 10;
         public ProductFaqsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
         {
             _dbFactory = dbFactory;
@@ -136,12 +138,36 @@ namespace Keytietkiem.Controllers
             var productExists = await db.Products.AsNoTracking().AnyAsync(p => p.ProductId == productId);
             if (!productExists) return NotFound(new { message = "Product not found" });
 
+            var question = (dto.Question ?? string.Empty).Trim();
+            var answer = (dto.Answer ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(question))
+                return BadRequest(new { message = "Question is required" });
+
+            if (question.Length < QuestionMinLength || question.Length > QuestionMaxLength)
+                return BadRequest(new
+                {
+                    message = $"Question length must be between {QuestionMinLength} and {QuestionMaxLength} characters."
+                });
+
+            if (string.IsNullOrWhiteSpace(answer))
+                return BadRequest(new { message = "Answer is required" });
+
+            if (answer.Length < AnswerMinLength)
+                return BadRequest(new
+                {
+                    message = $"Answer length must be at least {AnswerMinLength} characters."
+                });
+
+            if (dto.SortOrder < 0)
+                return BadRequest(new { message = "SortOrder must be greater than or equal to 0." });
+
             var faq = new ProductFaq
             {
                 FaqId = Guid.NewGuid(),
                 ProductId = productId,
-                Question = dto.Question?.Trim() ?? string.Empty,
-                Answer = dto.Answer?.Trim() ?? string.Empty,
+                Question = question,
+                Answer = answer,
                 SortOrder = dto.SortOrder,
                 IsActive = dto.IsActive,
                 CreatedAt = _clock.UtcNow
@@ -157,6 +183,7 @@ namespace Keytietkiem.Controllers
             return CreatedAtAction(nameof(GetById), new { productId, faqId = faq.FaqId }, result);
         }
 
+
         // PUT: /api/products/{productId}/faqs/{faqId}
         [HttpPut("{faqId:guid}")]
         public async Task<IActionResult> Update(Guid productId, Guid faqId, ProductFaqUpdateDto dto)
@@ -166,8 +193,32 @@ namespace Keytietkiem.Controllers
             var faq = await db.ProductFaqs.FirstOrDefaultAsync(f => f.ProductId == productId && f.FaqId == faqId);
             if (faq is null) return NotFound();
 
-            faq.Question = dto.Question?.Trim() ?? string.Empty;
-            faq.Answer = dto.Answer?.Trim() ?? string.Empty;
+            var question = (dto.Question ?? string.Empty).Trim();
+            var answer = (dto.Answer ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(question))
+                return BadRequest(new { message = "Question is required" });
+
+            if (question.Length < QuestionMinLength || question.Length > QuestionMaxLength)
+                return BadRequest(new
+                {
+                    message = $"Question length must be between {QuestionMinLength} and {QuestionMaxLength} characters."
+                });
+
+            if (string.IsNullOrWhiteSpace(answer))
+                return BadRequest(new { message = "Answer is required" });
+
+            if (answer.Length < AnswerMinLength)
+                return BadRequest(new
+                {
+                    message = $"Answer length must be at least {AnswerMinLength} characters."
+                });
+
+            if (dto.SortOrder < 0)
+                return BadRequest(new { message = "SortOrder must be greater than or equal to 0." });
+
+            faq.Question = question;
+            faq.Answer = answer;
             faq.SortOrder = dto.SortOrder;
             faq.IsActive = dto.IsActive;
             faq.UpdatedAt = _clock.UtcNow;
@@ -175,6 +226,7 @@ namespace Keytietkiem.Controllers
             await db.SaveChangesAsync();
             return NoContent();
         }
+
 
         // DELETE: /api/products/{productId}/faqs/{faqId}
         [HttpDelete("{faqId:guid}")]

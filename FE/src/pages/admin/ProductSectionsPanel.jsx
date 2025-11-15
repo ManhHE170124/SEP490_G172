@@ -641,20 +641,29 @@ export default function ProductSectionsPanel({
                       <th>Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {items.map((r) => (
-                      <tr key={r.sectionId}>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>
-                            {r.title || "—"}
-                          </div>
-                        </td>
+                 <tbody>
+  {items.map((r) => (
+    <tr key={r.sectionId}>
+      <td>
+        <div
+          style={{
+            fontWeight: 600,
+            maxWidth: 260,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={r.title || "—"}
+        >
+          {r.title || "—"}
+        </div>
+      </td>
 
-                        <td>{typeLabel(r.sectionType)}</td>
+      <td>{typeLabel(r.sectionType)}</td>
 
-                        <td title={snippet(r.content, 300)}>
-                          {snippet(r.content, 80)}
-                        </td>
+      <td title={snippet(r.content, 300)}>
+        {snippet(r.content, 80)}
+      </td>
 
                         <td className="td-right">
                           {Number(r.sortOrder || 0)}

@@ -26,6 +26,22 @@ const FieldError = ({ message }) =>
     </div>
   );
 
+// Cell hiển thị 1 dòng + ellipsis, hover xem full
+const EllipsisCell = ({ children, title, maxWidth = 260, mono = false }) => (
+  <div
+    className={mono ? "mono" : undefined}
+    title={title ?? (typeof children === "string" ? children : "")}
+    style={{
+      maxWidth,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}
+  >
+    {children}
+  </div>
+);
+
 const CATEGORY_NAME_MAX = 100;
 const CATEGORY_CODE_MAX = 50;
 const CATEGORY_DESC_MAX = 200;
@@ -370,15 +386,10 @@ function BadgeModal({
     }
 
     // DisplayName: bắt buộc
-  if (!name) {
-    e.displayName = "Tên hiển thị là bắt buộc.";
-  } else if (name.length > BADGE_NAME_MAX) {
-    e.displayName = `Tên hiển thị không được vượt quá ${BADGE_NAME_MAX} ký tự.`;
-  }
-
-    // ColorHex: nếu có thì phải là mã hex hợp lệ
-    if (color && !isValidHexColor(color)) {
-      e.colorHex = "Màu phải là mã hex hợp lệ, ví dụ: #1e40af.";
+    if (!name) {
+      e.displayName = "Tên hiển thị là bắt buộc.";
+    } else if (name.length > BADGE_NAME_MAX) {
+      e.displayName = `Tên hiển thị không được vượt quá ${BADGE_NAME_MAX} ký tự.`;
     }
 
     // ColorHex: nếu có thì phải là mã hex hợp lệ
@@ -420,8 +431,7 @@ function BadgeModal({
 
       if (status === 409) {
         // BadgeCode trùng
-        fieldErrors.badgeCode =
-          "Mã nhãn đã tồn tại, vui lòng chọn mã khác.";
+        fieldErrors.badgeCode = "Mã nhãn đã tồn tại, vui lòng chọn mã khác.";
         addToast?.(
           "warning",
           "Mã nhãn đã tồn tại, vui lòng chọn mã khác.",
@@ -529,7 +539,7 @@ function BadgeModal({
                   value={form.displayName}
                   onChange={(e) => set("displayName", e.target.value)}
                   placeholder="VD: Nổi bật"
-                 maxLength={BADGE_NAME_MAX}
+                  maxLength={BADGE_NAME_MAX}
                 />
                 <FieldError message={errors.displayName} />
               </div>
@@ -566,6 +576,10 @@ function BadgeModal({
                   style={{
                     backgroundColor: form.colorHex,
                     color: bestTextColor(form.colorHex),
+                    maxWidth: 220,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                   title={form.displayName || form.badgeCode}
                 >
@@ -1126,11 +1140,34 @@ export default function CategoryPage() {
             <tbody>
               {categories.map((c) => (
                 <tr key={c.categoryId}>
-                  <td>{c.categoryName}</td>
-                  <td className="mono">{c.categoryCode}</td>
-                  <td>{c.productsCount ?? c.productCount ?? c.products ?? 0}</td>
+                  {/* Tên danh mục – rút gọn, hover xem full */}
                   <td>
-                    <span className={c.isActive ? "badge green" : "badge gray"}>
+                    <EllipsisCell maxWidth={260} title={c.categoryName}>
+                      {c.categoryName}
+                    </EllipsisCell>
+                  </td>
+
+                  {/* Mã danh mục – rút gọn, mono */}
+                  <td>
+                    <EllipsisCell
+                      mono
+                      maxWidth={200}
+                      title={c.categoryCode}
+                    >
+                      {c.categoryCode}
+                    </EllipsisCell>
+                  </td>
+
+                  <td>
+                    {c.productsCount ??
+                      c.productCount ??
+                      c.products ??
+                      0}
+                  </td>
+                  <td>
+                    <span
+                      className={c.isActive ? "badge green" : "badge gray"}
+                    >
                       {c.isActive ? "Hiển thị" : "Ẩn"}
                     </span>
                   </td>
@@ -1363,8 +1400,21 @@ export default function CategoryPage() {
 
                 return (
                   <tr key={b.badgeCode}>
-                    <td className="mono">{b.badgeCode}</td>
-                    <td>{name}</td>
+                    {/* Mã nhãn – rút gọn */}
+                    <td>
+                      <EllipsisCell mono maxWidth={160} title={b.badgeCode}>
+                        {b.badgeCode}
+                      </EllipsisCell>
+                    </td>
+
+                    {/* Tên nhãn – rút gọn */}
+                    <td>
+                      <EllipsisCell maxWidth={220} title={name}>
+                        {name}
+                      </EllipsisCell>
+                    </td>
+
+                    {/* Chip hiển thị – cũng rút gọn để không phá layout */}
                     <td>
                       <span
                         className="label-chip"
@@ -1375,14 +1425,26 @@ export default function CategoryPage() {
                           borderRadius: 8,
                           fontSize: 12,
                           display: "inline-block",
+                          maxWidth: 220,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                         title={name}
                       >
                         {name}
                       </span>
                     </td>
+
                     <td className="mono">{count}</td>
-                    <td className="mono">{color}</td>
+
+                    {/* Mã màu – rút gọn (phòng TH có format dài) */}
+                    <td>
+                      <EllipsisCell mono maxWidth={160} title={color}>
+                        {color}
+                      </EllipsisCell>
+                    </td>
+
                     <td>
                       <span
                         className={b.isActive ? "badge green" : "badge gray"}
