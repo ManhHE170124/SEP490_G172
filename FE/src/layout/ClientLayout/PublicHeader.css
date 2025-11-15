@@ -119,6 +119,7 @@
 
 .nav-item {
   position: relative;
+  padding-bottom: 8px; /* keep hover active between trigger and dropdown */
 }
 
 .nav-link {
@@ -140,7 +141,7 @@
 .dropdown {
   position: absolute;
   left: 0;
-  top: calc(100% + 8px);
+  top: 100%;
   min-width: 260px;
   background: var(--card);
   border: 1px solid var(--line);
@@ -151,7 +152,9 @@
   z-index: 45;
 }
 
-.nav-item:hover .dropdown {
+.nav-item:hover .dropdown,
+.nav-item.open .dropdown,
+.nav-item:focus-within .dropdown {
   display: block;
 }
 

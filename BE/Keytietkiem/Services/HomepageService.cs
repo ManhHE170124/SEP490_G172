@@ -91,7 +91,8 @@ namespace Keytietkiem.Services
                 .Select(c => new
                 {
                     c.CategoryId,
-                    c.CategoryName
+                    c.CategoryName,
+                    c.CategoryCode
                 })
                 .Take(6)
                 .ToListAsync(cancellationToken);
@@ -99,7 +100,7 @@ namespace Keytietkiem.Services
             var chips = categories
                 .Select(c => new FilterChipDto(
                     c.CategoryName,
-                    $"/product-list?categoryId={c.CategoryId}",
+                    $"/product-list?category={c.CategoryCode}",
                     "solid",
                     null))
                 .ToList();
