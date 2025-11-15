@@ -7,7 +7,7 @@
  * Purpose: Role management page for Modules, Permissions, and Roles with tabbed navigation.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { roleApi } from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
@@ -28,7 +28,7 @@ const TABS = {
  * @param {string} activeTab - One of 'modules', 'permissions', or 'roles'.
  * @returns {Object} - { data, loading, error, setData }
  */
-function useFetchData(activeTab) {
+function useFetchData(activeTab, showError, networkErrorShownRef) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,7 +45,20 @@ function useFetchData(activeTab) {
         else if (activeTab === TABS.ROLES) res = await roleApi.getAllRoles();
         if (isMounted) setData(Array.isArray(res) ? res : []);
       } catch (e) {
-        if (isMounted) setError(e.message || "Không thể tải dữ liệu");
+        if (isMounted) {
+          setError(e.message || "Không thể tải dữ liệu");
+          // Handle network errors globally - only show one toast
+          if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+            if (networkErrorShownRef && !networkErrorShownRef.current) {
+              networkErrorShownRef.current = true;
+              if (showError) {
+                showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+              }
+            }
+          } else if (showError) {
+            showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+          }
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -54,7 +67,7 @@ function useFetchData(activeTab) {
     return () => {
       isMounted = false;
     };
-  }, [activeTab]);
+  }, [activeTab, showError, networkErrorShownRef]);
 
   return { data, loading, error, setData };
 }
@@ -94,8 +107,16 @@ function removeDiacritics(str) {
  */
 export default function RoleManagement() {
   const [activeTab, setActiveTab] = useState(TABS.MODULES);
-  const { data, loading, error, setData } = useFetchData(activeTab);
   const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
+  
+  // Global network error handler - only show one toast for network errors
+  const networkErrorShownRef = useRef(false);
+  useEffect(() => {
+    // Reset the flag when component mounts
+    networkErrorShownRef.current = false;
+  }, []);
+  
+  const { data, loading, error, setData } = useFetchData(activeTab, showError, networkErrorShownRef);
 
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("");
@@ -274,8 +295,16 @@ export default function RoleManagement() {
         `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
-      showError("Tạo Vai trò thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
+        showError("Tạo Vai trò thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -301,8 +330,16 @@ export default function RoleManagement() {
         `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và quyền.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
-      showError("Tạo Mô-đun thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
+        showError("Tạo Mô-đun thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -328,8 +365,16 @@ export default function RoleManagement() {
         `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
-      showError("Tạo Quyền thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
+        showError("Tạo Quyền thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -407,8 +452,16 @@ export default function RoleManagement() {
             `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
           );
         } catch (e) {
-          const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
-          showError(`Xóa ${entityType} thất bại!`, errorMessage);
+          // Handle network errors globally - only show one toast
+          if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+            if (!networkErrorShownRef.current) {
+              networkErrorShownRef.current = true;
+              showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+            }
+          } else {
+            const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
+            showError(`Xóa ${entityType} thất bại!`, errorMessage);
+          }
         }
       },
       () => {
@@ -473,9 +526,17 @@ export default function RoleManagement() {
         `${entityType} "${entityName}" đã được cập nhật thành công.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
-      const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
-      showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
+        const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+        showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+      }
     } finally {
       setEditSubmitting(false);
     }

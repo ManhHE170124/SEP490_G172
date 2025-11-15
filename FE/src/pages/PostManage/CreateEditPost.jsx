@@ -13,7 +13,7 @@
  * @returns
  * A React component that allows creating and editing posts with integrated tag, image, and SEO controls.
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './CreateEditPost.css';
 import Quill from 'quill';
@@ -42,6 +42,19 @@ const CreateEditPost = () => {
   const [availableTags, setAvailableTags] = useState([]);
   const [featuredImage, setFeaturedImage] = useState(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState(null); // Cloudinary URL
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentFilter, setCommentFilter] = useState('all'); // 'all', 'visible', 'hidden'
+  const [commentPage, setCommentPage] = useState(1);
+  const [commentPageSize] = useState(20);
+  const [commentTotalPages, setCommentTotalPages] = useState(1);
+  const [commentTotalCount, setCommentTotalCount] = useState(0);
+  const [replyingTo, setReplyingTo] = useState(null); // CommentId being replied to
+  const [replyContent, setReplyContent] = useState('');
+  const [replyLoading, setReplyLoading] = useState(false);
+  const [newCommentContent, setNewCommentContent] = useState('');
+  const [newCommentLoading, setNewCommentLoading] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null); // CommentId with open dropdown
 
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -81,6 +94,13 @@ const CreateEditPost = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, postId]);
 
+  // Global network error handler - only show one toast for network errors
+  const networkErrorShownRef = useRef(false);
+  useEffect(() => {
+    // Reset the flag when component mounts or when network is restored
+    networkErrorShownRef.current = false;
+  }, []);
+
   // Fetch available tags
   useEffect(() => {
     const fetchTags = async () => {
@@ -89,7 +109,15 @@ const CreateEditPost = () => {
         setAvailableTags(tagsList || []);
       } catch (err) {
         console.error('Failed to fetch tags:', err);
-        showError('Lỗi tải tags', 'Không thể tải danh sách tags.');
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+          }
+        } else {
+          showError('Lỗi tải tags', 'Không thể tải danh sách tags.');
+        }
       }
     };
 
@@ -105,7 +133,15 @@ const CreateEditPost = () => {
         setPosttypes(types || []);
       } catch (err) {
         console.error('Failed to fetch post types:', err);
-        showError('Lỗi tải danh mục', 'Không thể tải danh sách danh mục bài viết.');
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+          }
+        } else {
+          showError('Lỗi tải danh mục', 'Không thể tải danh sách danh mục bài viết.');
+        }
       } finally {
         setLoading(false);
       }
@@ -141,7 +177,15 @@ const CreateEditPost = () => {
         }
       } catch (err) {
         console.error('Failed to fetch post data:', err);
-        showError('Lỗi tải bài viết', 'Không thể tải thông tin bài viết.');
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+          }
+        } else {
+          showError('Lỗi tải bài viết', 'Không thể tải thông tin bài viết.');
+        }
       } finally {
         setLoading(false);
       }
@@ -149,6 +193,563 @@ const CreateEditPost = () => {
 
     fetchPostData();
   }, [isEditMode, postId, showError]);
+
+  // Fetch comments in edit mode
+  useEffect(() => {
+    if (!isEditMode || !postId) return;
+
+    const fetchComments = async () => {
+      try {
+        setCommentsLoading(true);
+        const response = await postsApi.getComments(postId, commentPage, commentPageSize);
+        const data = response?.data || response || {};
+        
+        console.log('Comments API Response:', data); // Debug log
+        
+        // Handle paginated response
+        if (data.comments) {
+          setComments(data.comments || []);
+          if (data.pagination) {
+            const totalPages = data.pagination.totalPages || 1;
+            const totalCount = data.pagination.totalCount || 0;
+            console.log('Setting totalPages:', totalPages, 'totalCount:', totalCount); // Debug log
+            setCommentTotalPages(totalPages);
+            setCommentTotalCount(totalCount);
+          } else {
+            console.log('No pagination data, setting to 1'); // Debug log
+            setCommentTotalPages(1);
+            setCommentTotalCount(data.comments?.length || 0);
+          }
+        } else if (Array.isArray(data)) {
+          // Fallback for non-paginated response
+          console.log('Array response, setting to 1 page'); // Debug log
+          setComments(data);
+          setCommentTotalPages(1);
+          setCommentTotalCount(data.length || 0);
+        } else {
+          console.log('Empty response, setting to 1 page'); // Debug log
+          setComments([]);
+          setCommentTotalPages(1);
+          setCommentTotalCount(0);
+        }
+      } catch (err) {
+        console.error('Failed to fetch comments:', err);
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+          }
+        } else {
+          showError('Lỗi tải bình luận', 'Không thể tải danh sách bình luận.');
+        }
+        setComments([]);
+        setCommentTotalPages(1);
+        setCommentTotalCount(0);
+      } finally {
+        setCommentsLoading(false);
+      }
+    };
+
+    fetchComments();
+  }, [isEditMode, postId, commentPage, commentPageSize, showError]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openDropdown && !event.target.closest('[data-dropdown]')) {
+        setOpenDropdown(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDropdown]);
+
+  // Format date helper
+  const formatDateTime = (value) => {
+    if (!value) return "-";
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "-";
+      return date.toLocaleString("vi-VN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return "-";
+    }
+  };
+
+  // Handle comment actions
+  const handleShowComment = async (commentId) => {
+    // Check if comment has a parent and if parent is hidden
+    const comment = filteredComments.find(c => 
+      (c.commentId || c.CommentId) === commentId
+    );
+    
+    if (comment) {
+      const parentId = comment.parentCommentId || comment.ParentCommentId;
+      if (parentId) {
+        const parent = filteredComments.find(c => 
+          (c.commentId || c.CommentId) === parentId
+        );
+        
+        if (parent && !(parent.isApproved ?? parent.IsApproved ?? false)) {
+          showError('Lỗi', 'Không thể hiển thị bình luận con khi bình luận cha đang bị ẩn.');
+          return;
+        }
+      }
+    }
+
+    try {
+      await postsApi.showComment(commentId);
+      showSuccess('Đã hiển thị', 'Bình luận đã được hiển thị.');
+      // Refresh comments
+      const response = await postsApi.getComments(postId, commentPage, commentPageSize);
+      const data = response?.data || response || {};
+      if (data.comments) {
+        setComments(data.comments || []);
+      } else if (Array.isArray(data)) {
+        setComments(data);
+      }
+    } catch (err) {
+      console.error('Failed to show comment:', err);
+      showError('Lỗi hiển thị bình luận', err.response?.data?.message || 'Không thể hiển thị bình luận.');
+    }
+  };
+
+  const handleHideComment = async (commentId) => {
+    try {
+      await postsApi.hideComment(commentId);
+      showSuccess('Đã ẩn', 'Bình luận đã bị ẩn.');
+      // Refresh comments
+      const response = await postsApi.getComments(postId, commentPage, commentPageSize);
+      const data = response?.data || response || {};
+      if (data.comments) {
+        setComments(data.comments || []);
+      } else if (Array.isArray(data)) {
+        setComments(data);
+      }
+    } catch (err) {
+      console.error('Failed to hide comment:', err);
+      showError('Lỗi ẩn bình luận', err.response?.data?.message || 'Không thể ẩn bình luận.');
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    showConfirm(
+      'Xác nhận xóa bình luận',
+      'Bạn có chắc chắn muốn xóa bình luận này? Tất cả các bình luận con cũng sẽ bị xóa.',
+      async () => {
+        try {
+          await postsApi.deleteComment(commentId);
+          showSuccess('Đã xóa', 'Bình luận đã được xóa thành công.');
+          // Refresh comments
+          const response = await postsApi.getComments(postId, commentPage, commentPageSize);
+          const data = response?.data || response || {};
+          if (data.comments) {
+            setComments(data.comments || []);
+          } else if (Array.isArray(data)) {
+            setComments(data);
+          }
+        } catch (err) {
+          console.error('Failed to delete comment:', err);
+          showError('Lỗi xóa bình luận', err.response?.data?.message || 'Không thể xóa bình luận.');
+        }
+      }
+    );
+  };
+
+  // Handle reply to comment
+  const handleReply = async (parentCommentId) => {
+    if (!replyContent.trim()) {
+      showError('Lỗi', 'Vui lòng nhập nội dung bình luận.');
+      return;
+    }
+
+    // Check if parent comment is visible
+    const parentComment = filteredComments.find(c => 
+      (c.commentId || c.CommentId) === parentCommentId
+    );
+    
+    if (parentComment && !(parentComment.isApproved ?? parentComment.IsApproved ?? false)) {
+      showError('Lỗi', 'Không thể trả lời bình luận đã bị ẩn.');
+      return;
+    }
+
+    try {
+      setReplyLoading(true);
+      // Get userId from localStorage
+      let userId = null;
+      try {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          userId = user?.userId || user?.UserId || user?.id || null;
+        }
+      } catch (err) {
+        console.error("Failed to parse user from localStorage:", err);
+      }
+
+      if (!userId) {
+        showError('Lỗi', 'Không tìm thấy thông tin người dùng.');
+        return;
+      }
+
+      await postsApi.createComment({
+        postId: postId,
+        userId: userId,
+        content: replyContent.trim(),
+        parentCommentId: parentCommentId
+      });
+
+      showSuccess('Thành công', 'Bình luận đã được gửi.');
+      setReplyContent('');
+      setReplyingTo(null);
+      
+      // Refresh comments
+      const response = await postsApi.getComments(postId, commentPage, commentPageSize);
+      const data = response?.data || response || {};
+      if (data.comments) {
+        setComments(data.comments || []);
+      } else if (Array.isArray(data)) {
+        setComments(data);
+      }
+    } catch (err) {
+      console.error('Failed to reply comment:', err);
+      showError('Lỗi gửi bình luận', err.response?.data?.message || 'Không thể gửi bình luận.');
+    } finally {
+      setReplyLoading(false);
+    }
+  };
+
+  // Handle new comment (top-level)
+  const handleNewComment = async () => {
+    if (!newCommentContent.trim()) {
+      showError('Lỗi', 'Vui lòng nhập nội dung bình luận.');
+      return;
+    }
+
+    try {
+      setNewCommentLoading(true);
+      // Get userId from localStorage
+      let userId = null;
+      try {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          userId = user?.userId || user?.UserId || user?.id || null;
+        }
+      } catch (err) {
+        console.error("Failed to parse user from localStorage:", err);
+      }
+
+      if (!userId) {
+        showError('Lỗi', 'Không tìm thấy thông tin người dùng.');
+        return;
+      }
+
+      await postsApi.createComment({
+        postId: postId,
+        userId: userId,
+        content: newCommentContent.trim(),
+        parentCommentId: null
+      });
+
+      showSuccess('Thành công', 'Bình luận đã được gửi.');
+      setNewCommentContent('');
+      
+      // Refresh comments and reset to first page
+      setCommentPage(1);
+      const response = await postsApi.getComments(postId, 1, commentPageSize);
+      const data = response?.data || response || {};
+      if (data.comments) {
+        setComments(data.comments || []);
+      } else if (Array.isArray(data)) {
+        setComments(data);
+      }
+    } catch (err) {
+      console.error('Failed to create comment:', err);
+      showError('Lỗi gửi bình luận', err.response?.data?.message || 'Không thể gửi bình luận.');
+    } finally {
+      setNewCommentLoading(false);
+    }
+  };
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCommentPage(1);
+  }, [commentFilter]);
+
+  // Filter comments based on filter state
+  const filteredComments = useMemo(() => {
+    if (commentFilter === 'all') return comments;
+    if (commentFilter === 'visible') return comments.filter(c => c.isApproved ?? c.IsApproved ?? false);
+    if (commentFilter === 'hidden') return comments.filter(c => !(c.isApproved ?? c.IsApproved ?? false));
+    return comments;
+  }, [comments, commentFilter]);
+
+  // Count comments based on filter
+  const commentCount = useMemo(() => {
+    return filteredComments.length;
+  }, [filteredComments]);
+
+  // Group comments by thread (root parent)
+  const groupedComments = useMemo(() => {
+    const groups = new Map();
+    const commentMap = new Map(); // Map commentId to comment for quick lookup
+    
+    // Build comment map
+    filteredComments.forEach(comment => {
+      const commentId = comment.commentId || comment.CommentId;
+      commentMap.set(commentId, comment);
+    });
+    
+    filteredComments.forEach(comment => {
+      const commentId = comment.commentId || comment.CommentId;
+      
+      // Find root comment ID (traverse up the parent chain)
+      let rootId = commentId;
+      const visited = new Set();
+      let current = comment;
+      
+      while (current) {
+        const currentId = current.commentId || current.CommentId;
+        if (visited.has(currentId)) break; // Prevent infinite loop
+        visited.add(currentId);
+        
+        const parentId = current.parentCommentId || current.ParentCommentId;
+        if (!parentId) {
+          // This is a root comment
+          rootId = currentId;
+          break;
+        }
+        
+        // Find parent in comment map
+        const parent = commentMap.get(parentId);
+        if (parent) {
+          current = parent;
+          // Continue traversing up
+        } else {
+          // Parent not in current page, but this comment has a parent
+          // So the root is the first parent we can't find (it's on another page)
+          // For now, treat this as its own root
+          rootId = currentId;
+          break;
+        }
+      }
+      
+      if (!groups.has(rootId)) {
+        groups.set(rootId, []);
+      }
+      groups.get(rootId).push(comment);
+    });
+    
+    // Sort each thread by creation time
+    groups.forEach((thread, rootId) => {
+      thread.sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.CreatedAt || 0).getTime();
+        const timeB = new Date(b.createdAt || b.CreatedAt || 0).getTime();
+        return timeA - timeB; // Chronological order
+      });
+    });
+    
+    return groups;
+  }, [filteredComments]);
+
+  // Render flat comment (no nesting)
+  const renderComment = (comment, isLastInThread = false) => {
+    const commentId = comment.commentId || comment.CommentId;
+    const content = comment.content || comment.Content || '';
+    const userName = comment.userName || comment.UserName || 'Không rõ';
+    const userEmail = comment.userEmail || comment.UserEmail || '';
+    const createdAt = comment.createdAt || comment.CreatedAt;
+    const isVisible = comment.isApproved ?? comment.IsApproved ?? false;
+    const parentId = comment.parentCommentId || comment.ParentCommentId;
+    const isChild = !!parentId;
+
+    return (
+      <div 
+        key={commentId} 
+        style={{ 
+          marginBottom: '12px',
+          position: 'relative'
+        }}
+      >
+        {isChild && (
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: '32px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            paddingTop: '8px'
+          }}>
+            {/* Curved arrow icon - vertical line, curved turn, horizontal line with arrowhead */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              {/* Vertical line from top, curved turn, horizontal line with arrowhead */}
+              <path d="M8 2v8a4 4 0 0 0 4 4h10" />
+              <path d="M20 12l-2 2 2 2" />
+            </svg>
+            {/* Vertical line */}
+            <div style={{
+              width: '2px',
+              flex: 1,
+              background: '#e5e7eb',
+              marginTop: '4px',
+              marginBottom: '8px'
+            }} />
+          </div>
+        )}
+        <div 
+          style={{ 
+            marginLeft: isChild ? '32px' : '0',
+            padding: '12px', 
+            border: '1px solid #e5e7eb', 
+            borderRadius: '8px',
+            background: isChild ? '#f9fafb' : '#ffffff',
+            position: 'relative'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{userName}</span>
+              {userEmail && (
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>({userEmail})</span>
+              )}
+              {isVisible ? (
+                <span style={{ padding: '2px 8px', background: '#d1fae5', color: '#065f46', borderRadius: '4px', fontSize: '11px', marginLeft: '8px' }}>
+                  Hiển thị
+                </span>
+              ) : (
+                <span style={{ padding: '2px 8px', background: '#fee2e2', color: '#991b1b', borderRadius: '4px', fontSize: '11px', marginLeft: '8px' }}>
+                  Đã ẩn
+                </span>
+              )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                {formatDateTime(createdAt)}
+              </span>
+              {/* Dropdown menu with three dots */}
+              <div style={{ position: 'relative' }} data-dropdown>
+                <button
+                  onClick={() => setOpenDropdown(openDropdown === commentId ? null : commentId)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#6b7280'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="5" r="1" />
+                    <circle cx="12" cy="12" r="1" />
+                    <circle cx="12" cy="19" r="1" />
+                  </svg>
+                </button>
+                {openDropdown === commentId && (
+                  <div style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: '100%',
+                    marginTop: '4px',
+                    background: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                    zIndex: 1000,
+                    minWidth: '120px'
+                  }} data-dropdown>
+                    {!isVisible ? (
+                      <button
+                        onClick={() => {
+                          handleShowComment(commentId);
+                          setOpenDropdown(null);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: '#374151'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
+                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                      >
+                        Hiển thị
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          handleHideComment(commentId);
+                          setOpenDropdown(null);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: '#374151'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
+                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                      >
+                        Ẩn
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        handleDeleteComment(commentId);
+                        setOpenDropdown(null);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: '#dc2626',
+                        borderTop: '1px solid #e5e7eb'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#fef2f2'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginBottom: '8px', whiteSpace: 'pre-wrap', fontSize: '14px' }}>{content}</div>
+        </div>
+      </div>
+    );
+  };
 
   // Handle creating new tag with slug
   const handleCreateNewTag = async (tagName, slug) => {
@@ -717,6 +1318,255 @@ const handlePublish = () =>
               />
             </div>
           </div>
+
+          {/* Comments Section - Only in Edit Mode */}
+          {isEditMode && (
+            <div className="cep-post-content-section" style={{ marginTop: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <label style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+                  Bình luận ({commentTotalCount})
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className={commentFilter === 'all' ? 'btn primary' : 'btn secondary'}
+                    style={{ fontSize: '12px', padding: '6px 12px' }}
+                    onClick={() => setCommentFilter('all')}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    className={commentFilter === 'visible' ? 'btn primary' : 'btn secondary'}
+                    style={{ fontSize: '12px', padding: '6px 12px' }}
+                    onClick={() => setCommentFilter('visible')}
+                  >
+                    Không bị ẩn
+                  </button>
+                  <button
+                    className={commentFilter === 'hidden' ? 'btn primary' : 'btn secondary'}
+                    style={{ fontSize: '12px', padding: '6px 12px' }}
+                    onClick={() => setCommentFilter('hidden')}
+                  >
+                    Bị ẩn
+                  </button>
+                </div>
+              </div>
+              {commentsLoading ? (
+                <div className="loading-text" style={{ padding: '24px', textAlign: 'center' }}>Đang tải bình luận...</div>
+              ) : filteredComments.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                  Chưa có bình luận nào
+                </div>
+              ) : (
+                <>
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', maxHeight: '600px', overflowY: 'auto' }}>
+                    {Array.from(groupedComments.entries()).map(([rootId, thread]) => {
+                      // Find root comment (first comment in thread, which has no parent)
+                      const rootComment = thread.find(c => !(c.parentCommentId || c.ParentCommentId)) || thread[0];
+                      const rootCommentId = rootComment?.commentId || rootComment?.CommentId || rootId;
+                      const isRootVisible = rootComment ? (rootComment.isApproved ?? rootComment.IsApproved ?? false) : false;
+                      
+                      return (
+                        <div key={rootId} style={{ marginBottom: '24px' }}>
+                          {thread.map((comment) => renderComment(comment))}
+                          {/* Reply button and form outside the last comment - reply to root comment */}
+                          {isRootVisible && (
+                            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                              <button
+                                className="btn secondary"
+                                style={{ fontSize: '12px', padding: '4px 8px' }}
+                                onClick={() => setReplyingTo(replyingTo === rootCommentId ? null : rootCommentId)}
+                              >
+                                {replyingTo === rootCommentId ? 'Hủy' : 'Phản hồi'}
+                              </button>
+                            </div>
+                          )}
+                          {!isRootVisible && (
+                            <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                              <span style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
+                                Không thể trả lời bình luận đã bị ẩn
+                              </span>
+                            </div>
+                          )}
+                          {replyingTo === rootCommentId && isRootVisible && (
+                            <div style={{ marginTop: '12px', padding: '12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                              <textarea
+                                value={replyContent}
+                                onChange={(e) => setReplyContent(e.target.value)}
+                                placeholder="Nhập bình luận của bạn..."
+                                rows={3}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: '4px',
+                                  fontSize: '14px',
+                                  resize: 'vertical',
+                                  marginBottom: '8px',
+                                  fontFamily: 'inherit'
+                                }}
+                              />
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                <button
+                                  className="btn secondary"
+                                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                                  onClick={() => {
+                                    setReplyingTo(null);
+                                    setReplyContent('');
+                                  }}
+                                  disabled={replyLoading}
+                                >
+                                  Hủy
+                                </button>
+                                <button
+                                  className="btn primary"
+                                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                                  onClick={() => handleReply(rootCommentId)}
+                                  disabled={replyLoading || !replyContent.trim()}
+                                >
+                                  {replyLoading ? 'Đang gửi...' : 'Gửi'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Pagination */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '16px', padding: '12px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                    {commentTotalPages > 1 ? (
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
+                        {/* First page button */}
+                        <button
+                          className="btn secondary"
+                          style={{ fontSize: '14px', padding: '8px 12px', minWidth: '40px' }}
+                          onClick={() => setCommentPage(1)}
+                          disabled={commentPage === 1 || commentsLoading}
+                          title="Về đầu"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
+                          </svg>
+                        </button>
+                        {/* Previous page button */}
+                        <button
+                          className="btn secondary"
+                          style={{ fontSize: '14px', padding: '8px 12px', minWidth: '40px' }}
+                          onClick={() => setCommentPage(prev => Math.max(1, prev - 1))}
+                          disabled={commentPage === 1 || commentsLoading}
+                          title="Trước"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 18l-6-6 6-6" />
+                          </svg>
+                        </button>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          {Array.from({ length: Math.min(commentTotalPages, 5) }, (_, i) => {
+                            let pageNum;
+                            if (commentTotalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (commentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (commentPage >= commentTotalPages - 2) {
+                              pageNum = commentTotalPages - 4 + i;
+                            } else {
+                              pageNum = commentPage - 2 + i;
+                            }
+                            
+                            return (
+                              <button
+                                key={pageNum}
+                                className={commentPage === pageNum ? 'btn primary' : 'btn secondary'}
+                                style={{ 
+                                  fontSize: '14px', 
+                                  padding: '8px 12px',
+                                  minWidth: '40px'
+                                }}
+                                onClick={() => setCommentPage(pageNum)}
+                                disabled={commentsLoading}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                          {commentTotalPages > 5 && commentPage < commentTotalPages - 2 && (
+                            <>
+                              <span style={{ color: '#9ca3af' }}>...</span>
+                              <button
+                                className="btn secondary"
+                                style={{ fontSize: '14px', padding: '8px 12px', minWidth: '40px' }}
+                                onClick={() => setCommentPage(commentTotalPages)}
+                                disabled={commentsLoading}
+                              >
+                                {commentTotalPages}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {/* Next page button */}
+                        <button
+                          className="btn secondary"
+                          style={{ fontSize: '14px', padding: '8px 12px', minWidth: '40px' }}
+                          onClick={() => setCommentPage(prev => Math.min(commentTotalPages, prev + 1))}
+                          disabled={commentPage >= commentTotalPages || commentsLoading}
+                          title="Sau"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </button>
+                        {/* Last page button */}
+                        <button
+                          className="btn secondary"
+                          style={{ fontSize: '14px', padding: '8px 12px', minWidth: '40px' }}
+                          onClick={() => setCommentPage(commentTotalPages)}
+                          disabled={commentPage >= commentTotalPages || commentsLoading}
+                          title="Về cuối"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  
+                  {/* New Comment Form - Always show when in edit mode */}
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', marginTop: '16px', background: '#ffffff' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '14px' }}>
+                      Đăng bình luận mới
+                    </label>
+                    <textarea
+                      value={newCommentContent}
+                      onChange={(e) => setNewCommentContent(e.target.value)}
+                      placeholder="Nhập bình luận của bạn..."
+                      rows={4}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        resize: 'vertical',
+                        marginBottom: '12px',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn primary"
+                        style={{ fontSize: '14px', padding: '8px 16px' }}
+                        onClick={handleNewComment}
+                        disabled={newCommentLoading || !newCommentContent.trim()}
+                      >
+                        {newCommentLoading ? 'Đang gửi...' : 'Gửi bình luận'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right Column - Sidebar */}

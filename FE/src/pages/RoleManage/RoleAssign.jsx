@@ -6,7 +6,7 @@
  * Version: 1.0.0
  * Purpose: Role permission assignment page for managing role-permission relationships.
  */
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {roleApi} from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
@@ -19,6 +19,13 @@ import "./RoleAssign.css";
  */
 export default function RoleAssign() {
   const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
+  
+  // Global network error handler - only show one toast for network errors
+  const networkErrorShownRef = useRef(false);
+  useEffect(() => {
+    // Reset the flag when component mounts
+    networkErrorShownRef.current = false;
+  }, []);
   
   // State for data
   const [roles, setRoles] = useState([]);
@@ -71,7 +78,15 @@ export default function RoleAssign() {
       const response = await roleApi.getRolePermissions(roleId);
       setRolePermissions(response.rolePermissions || []);
     } catch (error) {
-      showError("Lỗi tải quyền", error.message || "Không thể tải quyền của Vai trò");
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi tải quyền", error.message || "Không thể tải quyền của Vai trò");
+      }
     }
   }, [showError]);
   
@@ -94,7 +109,15 @@ export default function RoleAssign() {
 
       setSelectedRole((previous) => previous ?? (rolesData?.[0] ?? null));
     } catch (error) {
-      showError("Lỗi tải dữ liệu", error.message || "Không thể tải dữ liệu");
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi tải dữ liệu", error.message || "Không thể tải dữ liệu");
+      }
     } finally {
       setLoading(false);
     }
@@ -131,8 +154,16 @@ export default function RoleAssign() {
         `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Vai trò";
-      showError("Tạo Vai trò thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Vai trò";
+        showError("Tạo Vai trò thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -158,8 +189,16 @@ export default function RoleAssign() {
         `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Quyền.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Mô-đun";
-      showError("Tạo Mô-đun thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Mô-đun";
+        showError("Tạo Mô-đun thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -185,8 +224,16 @@ export default function RoleAssign() {
         `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Quyền";
-      showError("Tạo Quyền thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Quyền";
+        showError("Tạo Quyền thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -228,7 +275,15 @@ export default function RoleAssign() {
       showSuccess("Đã hủy thay đổi", "Ma trận Quyền đã được reset về trạng thái ban đầu");
     } catch (error) {
       console.error("Lôi khi hủy thay đổi:", error);
-      showError("Lỗi khi hủy", "Không thể reset ma trận Quyền");
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi khi hủy", "Không thể reset ma trận Quyền");
+      }
       throw error;
     }
   };
@@ -333,8 +388,16 @@ export default function RoleAssign() {
       );
       window.dispatchEvent(new Event("role-permissions-updated"));
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
-      showError("Lưu thay đổi thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
+        showError("Lưu thay đổi thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
