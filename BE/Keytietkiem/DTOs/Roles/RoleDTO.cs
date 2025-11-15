@@ -14,6 +14,7 @@
  */
 
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Roles
 {
@@ -30,14 +31,26 @@ namespace Keytietkiem.DTOs.Roles
 
     public class CreateRoleDTO
     {
+        [Required(ErrorMessage = "Tên vai trò không được để trống.")]
+        [StringLength(60, MinimumLength = 2, ErrorMessage = "Tên vai trò phải có từ 2 đến 60 ký tự.")]
         public string Name { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Mã vai trò không được để trống.")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Mã vai trò phải có từ 2 đến 50 ký tự.")]
+        [RegularExpression(@"^[A-Z0-9_]+$", ErrorMessage = "Mã vai trò chỉ được chứa chữ in hoa, số và dấu gạch dưới.")]
         public string Code { get; set; } = null!;
         public bool IsSystem { get; set; } = false;
     }
 
     public class UpdateRoleDTO
     {
+        [Required(ErrorMessage = "Tên vai trò không được để trống.")]
+        [StringLength(60, MinimumLength = 2, ErrorMessage = "Tên vai trò phải có từ 2 đến 60 ký tự.")]
         public string Name { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Mã vai trò không được để trống.")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Mã vai trò phải có từ 2 đến 50 ký tự.")]
+        [RegularExpression(@"^[A-Z0-9_]+$", ErrorMessage = "Mã vai trò chỉ được chứa chữ in hoa, số và dấu gạch dưới.")]
         public string Code { get; set; } = null!;
         public bool IsActive { get; set; }
     }

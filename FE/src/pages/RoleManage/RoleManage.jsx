@@ -160,7 +160,7 @@ export default function RoleManagement() {
         addButtonText: "Thêm Mô-đun",
         columns: [
           { key: "moduleName", label: "Tên Mô-đun" },
-          { key: "code", label: "Code" },
+          { key: "code", label: "Mã" },
           { key: "description", label: "Mô tả" },
           { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
           { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
@@ -172,7 +172,7 @@ export default function RoleManagement() {
         addButtonText: "Thêm Quyền",
         columns: [
           { key: "permissionName", label: "Tên quyền" },
-          { key: "code", label: "Code" },
+          { key: "code", label: "Mã" },
           { key: "description", label: "Mô tả" },
           { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
           { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
@@ -183,7 +183,7 @@ export default function RoleManagement() {
       addButtonText: "Thêm Vai trò",
       columns: [
         { key: "name", label: "Tên Vai trò" },
-        { key: "code", label: "Code" },
+        { key: "code", label: "Mã" },
         { key: "isSystem", label: "System Role", render: (v) => (v ? "Có" : "Không") },
         { key: "isActive", label: "Trạng thái", render: (v) => (v ? "Có" : "Không") },
         { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
@@ -396,22 +396,22 @@ export default function RoleManagement() {
     if (activeTab === TABS.MODULES) {
       setEditTitle("Sửa Mô-đun");
       setEditFields([
-        { name: "moduleName", label: "Tên mô-đun", required: true, defaultValue: row.moduleName },
-        { name: "code", label: "Code", required: true, defaultValue: row.code || "" },
-        { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+        { name: "moduleName", label: "Tên mô-đun", required: true, minLength: 2, maxLength: 80, defaultValue: row.moduleName },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "description", label: "Mô tả", type: "textarea", maxLength: 200, defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
       setEditTitle("Sửa Quyền");
       setEditFields([
-        { name: "permissionName", label: "Tên quyền", required: true, defaultValue: row.permissionName },
-        { name: "code", label: "Code", required: true, defaultValue: row.code || "" },
-        { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+        { name: "permissionName", label: "Tên quyền", required: true, minLength: 2, maxLength: 100, defaultValue: row.permissionName },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "description", label: "Mô tả", type: "textarea", maxLength: 300, defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
-        { name: "name", label: "Tên vai trò", required: true, defaultValue: row.name },
-        { name: "code", label: "Code", required: true, defaultValue: row.code || "" },
+        { name: "name", label: "Tên vai trò", required: true, minLength: 2, maxLength: 60, defaultValue: row.name },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
         { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
@@ -610,8 +610,8 @@ export default function RoleManagement() {
           isOpen={addRoleOpen}
           title="Thêm Vai trò"
           fields={[
-            { name: "name", label: "Tên Vai trò", required: true },
-            { name: "code", label: "Code", required: true },
+            { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
             { name: "isSystem", label: "System Role", type: "checkbox" },
           ]}
           onClose={() => setAddRoleOpen(false)}
@@ -624,9 +624,9 @@ export default function RoleManagement() {
           isOpen={addModuleOpen}
           title="Thêm Mô-đun"
           fields={[
-            { name: "moduleName", label: "Tên Mô-đun", required: true },
-            { name: "code", label: "Code", required: true },
-            { name: "description", label: "Mô tả", type: "textarea" },
+            { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+            { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
           ]}
           onClose={() => setAddModuleOpen(false)}
           onSubmit={handleCreateModule}
@@ -638,9 +638,9 @@ export default function RoleManagement() {
           isOpen={addPermissionOpen}
           title="Thêm Quyền"
           fields={[
-            { name: "permissionName", label: "Tên Quyền", required: true },
-            { name: "code", label: "Code", required: true },
-            { name: "description", label: "Mô tả", type: "textarea" },
+            { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+            { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
           ]}
           onClose={() => setAddPermissionOpen(false)}
           onSubmit={handleCreatePermission}

@@ -124,15 +124,21 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
-            if (createRoleDto == null || string.IsNullOrWhiteSpace(createRoleDto.Name))
+            if (createRoleDto == null)
             {
-                return BadRequest("Role name is required.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existingRole = await _context.Roles
                 .FirstOrDefaultAsync(m => m.Name == createRoleDto.Name);
             if (existingRole != null)
             {
-                return Conflict(new { message = "Role name already exists." });
+                return Conflict(new { message = "Tên vai trò đã tồn tại." });
             }
 
             // Check if Code is unique (if provided)
@@ -142,7 +148,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == createRoleDto.Code);
                 if (existingCode != null)
                 {
-                    return Conflict(new { message = "Role code already exists." });
+                    return Conflict(new { message = "Mã vai trò đã tồn tại." });
                 }
             }
 
@@ -206,7 +212,13 @@ namespace Keytietkiem.Controllers
         {
             if (updateRoleDto == null)
             {
-                return BadRequest("Invalid role data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existingRole = await _context.Roles.FindAsync(id);
             if (existingRole == null)
@@ -220,7 +232,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == updateRoleDto.Code && m.RoleId != id);
                 if (existingCode != null)
                 {
-                    return Conflict(new { message = "Role code already exists." });
+                    return Conflict(new { message = "Mã vai trò đã tồn tại." });
                 }
             }
 

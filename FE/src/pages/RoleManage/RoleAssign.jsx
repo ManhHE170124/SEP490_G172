@@ -657,8 +657,8 @@ export default function RoleAssign() {
         isOpen={addRoleOpen}
         title="Thêm Vai trò"
         fields={[
-          { name: "name", label: "Tên Vai trò", required: true },
-          { name: "code", label: "Code", required: true },
+          { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
+          { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
           { name: "isSystem", label: "Vai trò hệ thống", type: "checkbox" },
         ]}
         onClose={() => setAddRoleOpen(false)}
@@ -670,9 +670,9 @@ export default function RoleAssign() {
         isOpen={addModuleOpen}
         title="Thêm Mô-đun"
         fields={[
-          { name: "moduleName", label: "Tên Mô-đun", required: true },
-          { name: "code", label: "Code", required: true },
-          { name: "description", label: "Mô tả", type: "textarea" },
+          { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
+          { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+          { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
         ]}
         onClose={() => setAddModuleOpen(false)}
         onSubmit={handleCreateModule}
@@ -683,9 +683,9 @@ export default function RoleAssign() {
         isOpen={addPermissionOpen}
         title="Thêm Quyền"
         fields={[
-          { name: "permissionName", label: "Tên Quyền", required: true },
-          { name: "code", label: "Code", required: true },
-          { name: "description", label: "Mô tả", type: "textarea" },
+          { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
+          { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+          { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
         ]}
         onClose={() => setAddPermissionOpen(false)}
         onSubmit={handleCreatePermission}

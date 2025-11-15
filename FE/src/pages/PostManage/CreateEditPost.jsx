@@ -904,10 +904,11 @@ const CreateEditPost = () => {
   };
 
   // Validation
-  const validateForm = () => {
+  const validateForm = (postStatus = null) => {
     let isValid = true;
     const newErrors = { title: '', description: '' };
 
+    // Title validation
     if (title.length === 0) {
       newErrors.title = 'Tiêu đề không được để trống';
       isValid = false;
@@ -919,8 +920,21 @@ const CreateEditPost = () => {
       isValid = false;
     }
 
+    // Description validation
     if (description.length > 255) {
       newErrors.description = 'Mô tả không được vượt quá 255 ký tự';
+      isValid = false;
+    }
+
+    // Content validation (required for publish)
+    if ((postStatus === 'Published' || postStatus === 'Public') && (!content || content.trim() === '' || content === '<p></p>')) {
+      showError('Lỗi validation', 'Nội dung bài viết không được để trống khi đăng bài.');
+      isValid = false;
+    }
+
+    // PostType validation (required for publish)
+    if ((postStatus === 'Published' || postStatus === 'Public') && !posttypeId) {
+      showError('Lỗi validation', 'Vui lòng chọn danh mục bài viết khi đăng bài.');
       isValid = false;
     }
 
@@ -930,7 +944,7 @@ const CreateEditPost = () => {
 
   // Save post (draft or publish)
   const handlePostAction = async (postStatus, successTitle, successMessage) => {
-    if (!validateForm()) {
+    if (!validateForm(postStatus)) {
       showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
       return;
     }
@@ -1258,6 +1272,7 @@ const handlePublish = () =>
               id="post-title"
               placeholder="Nhập tiêu đề"
               value={title}
+              maxLength={250}
               onChange={(e) => {
                 const newTitle = e.target.value;
                 setTitle(newTitle);

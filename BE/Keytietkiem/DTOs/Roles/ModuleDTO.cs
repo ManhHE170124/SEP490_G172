@@ -20,6 +20,7 @@
  */
 
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Roles
 {
@@ -35,15 +36,31 @@ namespace Keytietkiem.DTOs.Roles
 
     public class CreateModuleDTO
     {
+        [Required(ErrorMessage = "Tên module không được để trống.")]
+        [StringLength(80, MinimumLength = 2, ErrorMessage = "Tên module phải có từ 2 đến 80 ký tự.")]
         public string ModuleName { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Mã module không được để trống.")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Mã module phải có từ 2 đến 50 ký tự.")]
+        [RegularExpression(@"^[A-Z0-9_]+$", ErrorMessage = "Mã module chỉ được chứa chữ in hoa, số và dấu gạch dưới.")]
         public string Code { get; set; } = null!;
+        
+        [StringLength(200, ErrorMessage = "Mô tả không được vượt quá 200 ký tự.")]
         public string? Description { get; set; }
     }
 
     public class UpdateModuleDTO
     {
+        [Required(ErrorMessage = "Tên module không được để trống.")]
+        [StringLength(80, MinimumLength = 2, ErrorMessage = "Tên module phải có từ 2 đến 80 ký tự.")]
         public string ModuleName { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Mã module không được để trống.")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Mã module phải có từ 2 đến 50 ký tự.")]
+        [RegularExpression(@"^[A-Z0-9_]+$", ErrorMessage = "Mã module chỉ được chứa chữ in hoa, số và dấu gạch dưới.")]
         public string Code { get; set; } = null!;
+        
+        [StringLength(200, ErrorMessage = "Mô tả không được vượt quá 200 ký tự.")]
         public string? Description { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

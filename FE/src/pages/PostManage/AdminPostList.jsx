@@ -95,6 +95,13 @@ export default function AdminPostList() {
     }
   };
 
+  // Truncate text helper
+  const truncateText = (text, maxLength = 20) => {
+    if (!text) return "";
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + "...";
+  };
+
   // Filter & Sort logic
   const filteredSorted = useMemo(() => {
     let filtered = [...posts];
@@ -672,9 +679,13 @@ export default function AdminPostList() {
                   </td>
                   <td>
                     <div className="apl-post-title-cell">
-                      <div className="apl-post-title">{post.title || "(Không có tiêu đề)"}</div>
+                      <div className="apl-post-title" title={post.title || "(Không có tiêu đề)"}>
+                        {truncateText(post.title || "(Không có tiêu đề)", 20)}
+                      </div>
                       {post.shortDescription && (
-                        <div className="apl-post-short-desc">{post.shortDescription}</div>
+                        <div className="apl-post-short-desc" title={post.shortDescription}>
+                          {truncateText(post.shortDescription, 20)}
+                        </div>
                       )}
                       {post.tags && post.tags.length > 0 && (
                         <div className="apl-post-tags">
@@ -774,9 +785,13 @@ export default function AdminPostList() {
                   )}
                 </div>
                 <div className="apl-post-card-content">
-                  <div className="apl-post-card-title">{post.title || "(Không có tiêu đề)"}</div>
+                  <div className="apl-post-card-title" title={post.title || "(Không có tiêu đề)"}>
+                    {truncateText(post.title || "(Không có tiêu đề)", 20)}
+                  </div>
                   {post.shortDescription && (
-                    <div className="apl-post-card-desc">Mô tả ngắn: {post.shortDescription}</div>
+                    <div className="apl-post-card-desc" title={post.shortDescription}>
+                      Mô tả ngắn: {truncateText(post.shortDescription, 20)}
+                    </div>
                   )}
                   <div className="apl-post-card-meta">
                     <span>Danh mục: {post.posttypeName || post.postTypeName || post.PosttypeName || "Không có danh mục"}</span>

@@ -139,9 +139,15 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePost([FromBody] CreatePostDTO createPostDto)
         {
-            if (createPostDto == null || string.IsNullOrWhiteSpace(createPostDto.Title))
+            if (createPostDto == null)
             {
-                return BadRequest("Tiêu đề không được để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             // Validate PostType exists
@@ -286,9 +292,10 @@ namespace Keytietkiem.Controllers
                 return BadRequest("Dữ liệu không hợp lệ.");
             }
 
-            if (string.IsNullOrWhiteSpace(updatePostDto.Title))
+            if (!ModelState.IsValid)
             {
-                return BadRequest("Tiêu đề không được để trống.");
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             var existing = await _context.Posts
@@ -410,9 +417,15 @@ namespace Keytietkiem.Controllers
         [HttpPost("posttypes")]
         public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
-            if (createPostTypeDto == null || string.IsNullOrWhiteSpace(createPostTypeDto.PostTypeName))
+            if (createPostTypeDto == null)
             {
-                return BadRequest("Tên danh mục không được để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var newPostType = new PostType
             {
@@ -436,9 +449,15 @@ namespace Keytietkiem.Controllers
         [HttpPut("posttypes/{id}")]
         public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
-            if (updatePostTypeDto == null || string.IsNullOrWhiteSpace(updatePostTypeDto.PostTypeName))
+            if (updatePostTypeDto == null)
             {
-                return BadRequest("Tên danh mục không được để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.PostTypes
                 .FirstOrDefaultAsync(pt => pt.PostTypeId == id);

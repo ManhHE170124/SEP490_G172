@@ -267,17 +267,17 @@ export default function TagAndPosttypeManage() {
         if (activeTab === TABS.TAGS) {
             setEditTitle("Sửa Thẻ");
             setEditFields([
-                { name: "tagName", label: "Tên Thẻ", required: true, defaultValue: row.tagName || row.TagName || '' },
+                { name: "tagName", label: "Tên Thẻ", required: true, minLength: 2, maxLength: 100, defaultValue: row.tagName || row.TagName || '' },
                 // slug is auto-generated and not editable
-                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "tagName" },
+                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "tagName", format: "slug", minLength: 2, maxLength: 100 },
             ]);
         } else {
             setEditTitle("Sửa Danh mục");
             setEditFields([
-                { name: "postTypeName", label: "Tên Danh mục", required: true, defaultValue: row.postTypeName || row.posttypeName || row.PostTypeName || '' },
+                { name: "postTypeName", label: "Tên Danh mục", required: true, minLength: 2, maxLength: 100, defaultValue: row.postTypeName || row.posttypeName || row.PostTypeName || '' },
                 // slug is auto-generated from name and should not be editable here
-                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "postTypeName" },
-                { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "postTypeName", format: "slug", minLength: 2, maxLength: 100 },
+                { name: "description", label: "Mô tả", type: "textarea", maxLength: 500, defaultValue: row.description || "" },
             ]);
         }
         setEditOpen(true);
@@ -457,8 +457,8 @@ export default function TagAndPosttypeManage() {
                     isOpen={addTagOpen}
                     title="Thêm Thẻ"
                     fields={[
-                        { name: "tagName", label: "Tên Thẻ", required: true },
-                        { name: "slug", label: "Slug", disabled: true, syncWith: "tagName" },
+                        { name: "tagName", label: "Tên Thẻ", required: true, minLength: 2, maxLength: 100 },
+                        { name: "slug", label: "Slug", disabled: true, syncWith: "tagName", format: "slug", minLength: 2, maxLength: 100 },
                     ]}
                     onClose={() => setAddTagOpen(false)}
                     onSubmit={handleCreateTag}
@@ -470,9 +470,9 @@ export default function TagAndPosttypeManage() {
                     isOpen={addPosttypeOpen}
                     title="Thêm Danh mục"
                     fields={[
-                        { name: "postTypeName", label: "Tên Danh mục", required: true },
-                        { name: "slug", label: "Slug", disabled: true, syncWith: "postTypeName" },
-                        { name: "description", label: "Mô tả", type: "textarea" },
+                        { name: "postTypeName", label: "Tên Danh mục", required: true, minLength: 2, maxLength: 100 },
+                        { name: "slug", label: "Slug", disabled: true, syncWith: "postTypeName", format: "slug", minLength: 2, maxLength: 100 },
+                        { name: "description", label: "Mô tả", type: "textarea", maxLength: 500 },
                     ]}
                     onClose={() => setAddPosttypeOpen(false)}
                     onSubmit={handleCreatePosttype}
