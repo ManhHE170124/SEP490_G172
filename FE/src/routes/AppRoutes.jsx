@@ -56,6 +56,7 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
+import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -397,6 +398,7 @@ export default function AppRoutes() {
       />
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
+      <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />

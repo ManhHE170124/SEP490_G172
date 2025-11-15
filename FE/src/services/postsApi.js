@@ -41,6 +41,10 @@ export const postsApi = {
   updatePost: (id, data) => axiosClient.put(`${END.POSTS}/${id}`, data),
   deletePost: (id) => axiosClient.delete(`${END.POSTS}/${id}`),
 
+  getPostBySlug: (slug) => axiosClient.get(`${END.POSTS}/slug/${slug}`),
+  getRelatedPosts: (postId, limit = 3) =>
+    axiosClient.get(`${END.POSTS}/${postId}/related?limit=${limit}`),
+
   // Tag CRUD group
   getTags: () => axiosClient.get(END.TAGS),
   getTagById: (id) => axiosClient.get(`${END.TAGS}/${id}`),
@@ -64,10 +68,10 @@ export const postsApi = {
   },
 
   deleteImage: (publicId) => {
-  return axiosClient.delete(`${END.POST_IMAGES}/deleteImage`, {
-    data: { publicId }, 
-    headers: { "Content-Type": "application/json" },
-  });
+    return axiosClient.delete(`${END.POST_IMAGES}/deleteImage`, {
+      data: { publicId },
+      headers: { "Content-Type": "application/json" },
+    });
   },
 };
 
