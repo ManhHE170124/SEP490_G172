@@ -13,6 +13,7 @@ import AdminLayout from "../layout/AdminLayout/AdminLayout";
 import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import HomePage from "../pages/home/HomePage";
+import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
@@ -125,6 +126,22 @@ export default function AppRoutes() {
           <ClientLayout>
             {" "}
             <ResetPasswordPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/account/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
           </ClientLayout>
         }
       />
