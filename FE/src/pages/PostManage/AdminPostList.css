@@ -444,21 +444,48 @@
   border-radius: 4px;
 }
 
-.apl-post-card-image {
+.apl-post-card-image-wrapper {
+  position: relative;
   width: 100%;
   height: 180px;
+  overflow: hidden;
+}
+
+.apl-post-card-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
 
 .apl-post-card-image-placeholder {
   width: 100%;
-  height: 180px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--page, #f5f5f5);
   font-size: 3rem;
+}
+
+.apl-post-card-tags-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  z-index: 2;
+  max-width: 60%;
+}
+
+.apl-post-card-tags-overlay .apl-tag-badge {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .apl-post-card-content {

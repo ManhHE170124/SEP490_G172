@@ -32,6 +32,7 @@ const CATEGORY_DESC_MAX = 200;
 
 // Giới hạn badge code + validate màu hex
 const BADGE_CODE_MAX = 32;
+const BADGE_NAME_MAX = 64;
 const isValidHexColor = (value) => {
   if (!value) return false;
   const v = value.trim();
@@ -369,8 +370,15 @@ function BadgeModal({
     }
 
     // DisplayName: bắt buộc
-    if (!name) {
-      e.displayName = "Tên hiển thị là bắt buộc.";
+  if (!name) {
+    e.displayName = "Tên hiển thị là bắt buộc.";
+  } else if (name.length > BADGE_NAME_MAX) {
+    e.displayName = `Tên hiển thị không được vượt quá ${BADGE_NAME_MAX} ký tự.`;
+  }
+
+    // ColorHex: nếu có thì phải là mã hex hợp lệ
+    if (color && !isValidHexColor(color)) {
+      e.colorHex = "Màu phải là mã hex hợp lệ, ví dụ: #1e40af.";
     }
 
     // ColorHex: nếu có thì phải là mã hex hợp lệ
@@ -521,6 +529,7 @@ function BadgeModal({
                   value={form.displayName}
                   onChange={(e) => set("displayName", e.target.value)}
                   placeholder="VD: Nổi bật"
+                 maxLength={BADGE_NAME_MAX}
                 />
                 <FieldError message={errors.displayName} />
               </div>

@@ -50,14 +50,21 @@ import AccountManagementPage from "../pages/storage/AccountManagementPage.jsx";
 import AccountDetailPage from "../pages/storage/AccountDetailPage.jsx";
 import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
+//Blog(Client)
+import BlogList from "../pages/blog/Bloglist.jsx";
+// Order pages
+import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
+import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
+
+
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
     default:
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-        ? m.AdminTicketDetail
-        : () => null,
+          ? m.AdminTicketDetail
+          : () => null,
   }))
 );
 
@@ -138,9 +145,13 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Orders */}
+      <Route path="/orders/history" element={<ClientLayout><OrderHistoryPage /></ClientLayout>} />
+      <Route path="/orders/:id" element={<ClientLayout><OrderDetailPage /></ClientLayout>} />
+
       {/* Products */}
       <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
-      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout> }/>
+      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout>} />
       <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
       <Route path="/admin/products/:id/variants/:variantId" element={<AdminLayout><VariantDetail /></AdminLayout>} />
 
@@ -354,6 +365,8 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
+
+      <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />
