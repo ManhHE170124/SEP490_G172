@@ -12,6 +12,10 @@
   min-height: 100vh;
 }
 
+body.sb-collapsed .al-admin-content {
+  margin-left: 96px;
+}
+
 .al-admin-main {
   flex: 1;
   padding: 2rem;
@@ -23,6 +27,10 @@
 @media (max-width: 1024px) {
   .al-admin-content {
     margin-left: 0; /* Remove sidebar margin on mobile */
+  }
+  
+  body.sb-collapsed .al-admin-content {
+    margin-left: 0;
   }
   
   .al-sb-sidebar {
