@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace Keytietkiem.Models;
 
-namespace Keytietkiem.Models;
-
-public partial class ProductFaq
+public partial class Faq
 {
-    public Guid FaqId { get; set; }
-
-    public Guid ProductId { get; set; }
+    public int FaqId { get; set; }
 
     public string Question { get; set; } = null!;
 
@@ -21,5 +16,7 @@ public partial class ProductFaq
 
     public DateTime? UpdatedAt { get; set; }
 
-    public virtual Product Product { get; set; } = null!;
+    public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
+
+    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 }

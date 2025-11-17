@@ -437,7 +437,6 @@ export default function ProductsPage() {
                 ))}
               </select>
             </div>
-
             {loading && (
               <span className="badge gray">Đang tải…</span>
             )}
@@ -597,7 +596,6 @@ export default function ProductsPage() {
     );
   })}
 </td>
-
                     <td className="col-status">
                       <span
                         className={statusBadge(p.status)}
@@ -664,7 +662,6 @@ export default function ProductsPage() {
               )}
             </tbody>
           </table>
-
           {/* Pager */}
           <div className="pager">
             <button

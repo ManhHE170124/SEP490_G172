@@ -1,5 +1,6 @@
 // services/productFaqs.js
-// Product FAQs service – khớp với ProductFaqsController (Route: api/products/{productId}/faqs)
+// FAQ chung – khớp với FaqsController (Route: api/faqs)
+
 import axiosClient from "../api/axiosClient";
 
 export const ProductFaqsApi = {
@@ -9,28 +10,48 @@ export const ProductFaqsApi = {
    * sort: question|sortOrder|active|created|updated ; direction: asc|desc
    * Trả: { items, total, page, pageSize }
    */
-  listPaged: (productId, params = {}) =>
-    axiosClient.get(`products/${productId}/faqs`, { params }),
+  listPaged: (params = {}) =>
+    axiosClient.get("faqs", { params }),
 
   /** Lấy chi tiết 1 FAQ */
-  getById: (productId, faqId) =>
-    axiosClient.get(`products/${productId}/faqs/${faqId}`),
+  getById: (faqId) =>
+    axiosClient.get(`faqs/${faqId}`),
 
-  /** Tạo mới FAQ: dto = { question, answer, sortOrder, isActive } */
-  create: (productId, dto) =>
-    axiosClient.post(`products/${productId}/faqs`, dto),
+  /**
+   * Tạo mới FAQ:
+   * dto = {
+   *   question,
+   *   answer,
+   *   sortOrder?,
+   *   isActive?,
+   *   categoryIds?: number[],
+   *   productIds?: string[] (GUID)
+   * }
+   */
+  create: (dto) =>
+    axiosClient.post("faqs", dto),
 
-  /** Cập nhật FAQ: dto = { question, answer, sortOrder, isActive } */
-  update: (productId, faqId, dto) =>
-    axiosClient.put(`products/${productId}/faqs/${faqId}`, dto),
+  /**
+   * Cập nhật FAQ:
+   * dto = {
+   *   question,
+   *   answer,
+   *   sortOrder,
+   *   isActive,
+   *   categoryIds?: number[],
+   *   productIds?: string[]
+   * }
+   */
+  update: (faqId, dto) =>
+    axiosClient.put(`faqs/${faqId}`, dto),
 
   /** Xóa FAQ */
-  remove: (productId, faqId) =>
-    axiosClient.delete(`products/${productId}/faqs/${faqId}`),
+  remove: (faqId) =>
+    axiosClient.delete(`faqs/${faqId}`),
 
   /** Đổi trạng thái IsActive */
-  toggle: (productId, faqId) =>
-    axiosClient.patch(`products/${productId}/faqs/${faqId}/toggle`),
+  toggle: (faqId) =>
+    axiosClient.patch(`faqs/${faqId}/toggle`),
 };
 
 export default ProductFaqsApi;
