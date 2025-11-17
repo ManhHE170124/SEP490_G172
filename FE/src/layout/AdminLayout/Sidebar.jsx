@@ -10,6 +10,8 @@
 import React, { Fragment, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import SidebarTooltip from "../../components/SidebarTooltip/SidebarTooltip.jsx";
+import { usePermissions } from "../../context/PermissionContext";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "./Sidebar.css";
 
 /**
@@ -20,6 +22,7 @@ const Sidebar = () => {
   const location = useLocation();
   const currentPage = location.pathname.substring(1) || "home";
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { allowedModuleCodes, loading: permissionsLoading } = usePermissions();
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => !prev);
@@ -72,6 +75,7 @@ const Sidebar = () => {
     {
       id: "storage-section",
       title: "Kho & Nhà cung cấp",
+      moduleCode: MODULE_CODES.WAREHOUSE_MANAGER,
       items: [
         {
           id: "suppliers",
@@ -196,6 +200,7 @@ const Sidebar = () => {
     {
       id: "overview",
       title: "Tổng quan",
+      moduleCode: undefined,
       items: [
         {
           id: "home",
@@ -216,6 +221,7 @@ const Sidebar = () => {
     {
       id: "product",
       title: "Quản lý sản phẩm",
+      moduleCode: MODULE_CODES.PRODUCT_MANAGER,
       items: [
         {
           id: "products",
@@ -270,6 +276,7 @@ const Sidebar = () => {
     {
       id: "role",
       title: "Quản lý phân quyền",
+      moduleCode: MODULE_CODES.ROLE_MANAGER,
       items: [
         {
           id: "role-manage",
@@ -332,6 +339,7 @@ const Sidebar = () => {
     {
       id: "warehouse",
       title: "Kho & Nhà cung cấp",
+      moduleCode: MODULE_CODES.WAREHOUSE_MANAGER,
       items: [
         {
           id: "suppliers-main",
@@ -441,6 +449,7 @@ const Sidebar = () => {
     {
       id: "user",
       title: "Quản lý người dùng",
+      moduleCode: MODULE_CODES.USER_MANAGER,
       items: [
         {
           id: "user-management",
@@ -481,6 +490,7 @@ const Sidebar = () => {
     {
       id: "support",
       title: "Quản lý hỗ trợ",
+      moduleCode: MODULE_CODES.SUPPORT_MANAGER,
       items: [
         {
           id: "tickets",
@@ -511,6 +521,7 @@ const Sidebar = () => {
     {
       id: "posts",
       title: "Quản lý bài viết",
+      moduleCode: MODULE_CODES.POST_MANAGER,
       items: [
         {
           id: "admin-post-list",
@@ -599,6 +610,7 @@ const Sidebar = () => {
     {
       id: "settings",
       title: "Cài đặt",
+      moduleCode: MODULE_CODES.SETTINGS_MANAGER,
       items: [
         {
           id: "website-config",
@@ -624,7 +636,20 @@ const Sidebar = () => {
     },
   ];
 
-  const sectionsToRender = isStorageStaff ? storageSections : defaultSections;
+  const hasModuleAccess = (moduleCode) => {
+    if (!moduleCode) return true;
+    if (permissionsLoading || allowedModuleCodes === null) return true;
+    return allowedModuleCodes.has(moduleCode);
+  };
+
+  const sectionsToRender = (isStorageStaff ? storageSections : defaultSections)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        hasModuleAccess(item.moduleCode || section.moduleCode)
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const renderNavItem = (item) => {
     const linkLabel = item.title || item.label;
@@ -671,7 +696,13 @@ const Sidebar = () => {
         <i>@</i>
         <span>Keytietkiem</span>
       </div>
-      <nav className="sb-nav">{sectionsToRender.map(renderNavSection)}</nav>
+      <nav className="sb-nav">
+        {sectionsToRender.length === 0 ? (
+          <div className="sb-empty">Bạn chưa được cấp quyền hiển thị menu.</div>
+        ) : (
+          sectionsToRender.map((section) => renderNavSection(section))
+        )}
+      </nav>
     </aside>
   );
 };

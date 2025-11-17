@@ -63,6 +63,13 @@ export const roleApi = {
   updatePermission: (id, data) => axiosClient.put(`${END.PERMISSIONS}/${id}`, data),
   deletePermission: (id) => axiosClient.delete(`${END.PERMISSIONS}/${id}`),
   
+  /// Module Access
+  getModuleAccess: (roleCodes = [], permissionCode = "ACCESS") =>
+    axiosClient.post(`${END.ROLES}/module-access`, {
+      roleCodes,
+      permissionCode,
+    }),
+
   /// Permission Check
   checkPermission: (roleCode, moduleCode, permissionCode) => 
     axiosClient.post(`${END.ROLES}/check-permission`, {

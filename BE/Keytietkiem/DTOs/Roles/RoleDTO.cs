@@ -14,6 +14,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Roles
@@ -102,5 +103,18 @@ namespace Keytietkiem.DTOs.Roles
     {
         public bool HasAccess { get; set; }
         public string? Message { get; set; }
+    }
+
+    public class ModuleAccessRequestDTO
+    {
+        public List<string> RoleCodes { get; set; } = new List<string>();
+        public string PermissionCode { get; set; } = "ACCESS";
+    }
+
+    public class ModuleAccessDTO
+    {
+        public long ModuleId { get; set; }
+        public string ModuleName { get; set; } = null!;
+        public string? ModuleCode { get; set; }
     }
 }

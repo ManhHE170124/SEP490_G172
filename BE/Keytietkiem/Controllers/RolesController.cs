@@ -425,6 +425,65 @@ namespace Keytietkiem.Controllers
         }
 
         /**
+         * Summary: Retrieve modules that the provided role codes can access for a specific permission.
+         * Route: POST /api/roles/module-access
+         * Body: ModuleAccessRequestDTO - list of role codes and optional permission code (defaults to ACCESS)
+         * Returns: 200 OK with list of modules the roles can access
+         */
+        [HttpPost("module-access")]
+        public async Task<IActionResult> GetModuleAccessForRoles([FromBody] ModuleAccessRequestDTO request)
+        {
+            if (request == null || request.RoleCodes == null || !request.RoleCodes.Any())
+            {
+                return BadRequest(new { message = "Danh sách vai trò không được để trống." });
+            }
+
+            var normalizedRoleCodes = request.RoleCodes
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim().ToUpper())
+                .Distinct()
+                .ToList();
+
+            if (!normalizedRoleCodes.Any())
+            {
+                return BadRequest(new { message = "Danh sách vai trò không được để trống." });
+            }
+
+            var permissionCode = string.IsNullOrWhiteSpace(request.PermissionCode)
+                ? "ACCESS"
+                : request.PermissionCode.Trim().ToUpper();
+
+            var modules = await _context.RolePermissions
+                .Include(rp => rp.Module)
+                .Include(rp => rp.Permission)
+                .Include(rp => rp.Role)
+                .Where(rp =>
+                    rp.IsActive &&
+                    rp.Module != null &&
+                    rp.Permission != null &&
+                    rp.Role != null &&
+                    !string.IsNullOrWhiteSpace(rp.Role.Code) &&
+                    normalizedRoleCodes.Contains(rp.Role.Code.ToUpper()) &&
+                    !string.IsNullOrWhiteSpace(rp.Permission.Code) &&
+                    rp.Permission.Code.ToUpper() == permissionCode)
+                .GroupBy(rp => new
+                {
+                    rp.ModuleId,
+                    ModuleName = rp.Module!.ModuleName,
+                    ModuleCode = rp.Module.Code
+                })
+                .Select(g => new ModuleAccessDTO
+                {
+                    ModuleId = g.Key.ModuleId,
+                    ModuleName = g.Key.ModuleName,
+                    ModuleCode = g.Key.ModuleCode
+                })
+                .ToListAsync();
+
+            return Ok(modules);
+        }
+
+        /**
          * Summary: Check if a role has active permission for a module and permission.
          * Route: POST /api/roles/check-permission
          * Body: CheckPermissionRequestDTO - role code, module code, permission code

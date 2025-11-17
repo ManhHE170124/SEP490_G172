@@ -23,6 +23,13 @@ const TABS = {
   PERMISSIONS: "permissions",
 };
 
+const HIDDEN_ROLE_CODE = "CUSTOMER";
+
+const filterOutCustomerRoles = (list) =>
+  (Array.isArray(list) ? list : []).filter(
+    (row) => String(row?.code || "").toUpperCase() !== HIDDEN_ROLE_CODE
+  );
+
 /**
  * @summary Custom hook for fetching Role data dynamically based on the active tab.
  * @param {string} activeTab - One of 'modules', 'permissions', or 'roles'.
@@ -43,7 +50,12 @@ function useFetchData(activeTab, showError, networkErrorShownRef) {
         if (activeTab === TABS.MODULES) res = await roleApi.getModules();
         else if (activeTab === TABS.PERMISSIONS) res = await roleApi.getPermissions();
         else if (activeTab === TABS.ROLES) res = await roleApi.getAllRoles();
-        if (isMounted) setData(Array.isArray(res) ? res : []);
+        const normalized = Array.isArray(res) ? res : [];
+        const nextData =
+          activeTab === TABS.ROLES
+            ? filterOutCustomerRoles(normalized)
+            : normalized;
+        if (isMounted) setData(nextData);
       } catch (e) {
         if (isMounted) {
           setError(e.message || "Không thể tải dữ liệu");
@@ -288,7 +300,9 @@ export default function RoleManagement() {
         code: form.code,
         isSystem: form.isSystem || false
       });
-      setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
+      setData((prev) =>
+        filterOutCustomerRoles(Array.isArray(prev) ? [...prev, created] : [created])
+      );
       setAddRoleOpen(false);
       showSuccess(
         "Tạo Vai trò thành công!",
@@ -441,12 +455,22 @@ export default function RoleManagement() {
           if (activeTab === TABS.MODULES) await roleApi.deleteModule(row.moduleId || row.id);
           else if (activeTab === TABS.PERMISSIONS) await roleApi.deletePermission(row.permissionId || row.id);
           else await roleApi.deleteRole(row.roleId || row.id);
-          setData((prev) => prev.filter((x) => {
-            const key = activeTab === TABS.MODULES ? "moduleId" : activeTab === TABS.PERMISSIONS ? "permissionId" : "roleId";
-            const targetId = row[key] ?? row.id;
-            const currentId = x[key] ?? x.id;
-            return currentId !== targetId;
-          }));
+          setData((prev) => {
+            const filtered = prev.filter((x) => {
+              const key =
+                activeTab === TABS.MODULES
+                  ? "moduleId"
+                  : activeTab === TABS.PERMISSIONS
+                  ? "permissionId"
+                  : "roleId";
+              const targetId = row[key] ?? row.id;
+              const currentId = x[key] ?? x.id;
+              return currentId !== targetId;
+            });
+            return activeTab === TABS.ROLES
+              ? filterOutCustomerRoles(filtered)
+              : filtered;
+          });
           showSuccess(
             `Xóa ${entityType} thành công!`,
             `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`

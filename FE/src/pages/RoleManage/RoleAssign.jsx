@@ -7,11 +7,19 @@
  * Purpose: Role permission assignment page for managing role-permission relationships.
  */
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import {roleApi} from "../../services/roleApi";
+import { roleApi } from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./RoleAssign.css";
+
+const ADMIN_ROLE_CODE = "ADMIN";
+const HIDDEN_ROLE_CODE = "CUSTOMER";
+
+const filterOutCustomerRoles = (roles) =>
+  (Array.isArray(roles) ? roles : []).filter(
+    (role) => String(role?.code || "").toUpperCase() !== HIDDEN_ROLE_CODE
+  );
 
 /**
  * @summary: Role permission assignment page component.
@@ -44,6 +52,8 @@ export default function RoleAssign() {
   const [addModuleOpen, setAddModuleOpen] = useState(false);
   const [addPermissionOpen, setAddPermissionOpen] = useState(false);
   const filteredRoles = roles;
+  const isAdminRoleSelected =
+    selectedRole?.code?.toUpperCase() === ADMIN_ROLE_CODE;
 
   const totalPermissionSlots = modules.length * permissions.length;
 
@@ -102,12 +112,21 @@ export default function RoleAssign() {
         roleApi.getModules(),
         roleApi.getPermissions()
       ]);
-      
-      setRoles(rolesData || []);
+
+      const sanitizedRoles = filterOutCustomerRoles(rolesData);
+      setRoles(sanitizedRoles);
       setModules(modulesData || []);
       setPermissions(permissionsData || []);
 
-      setSelectedRole((previous) => previous ?? (rolesData?.[0] ?? null));
+      setSelectedRole((previous) => {
+        if (!previous) {
+          return sanitizedRoles?.[0] ?? null;
+        }
+        const stillExists = sanitizedRoles.find(
+          (role) => role.roleId === previous.roleId
+        );
+        return stillExists ?? sanitizedRoles?.[0] ?? null;
+      });
     } catch (error) {
       // Handle network errors globally - only show one toast
       if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
@@ -145,8 +164,10 @@ export default function RoleAssign() {
         code: form.code,
         isSystem: form.isSystem || false 
       });
-      setRoles(prev => [...prev, created]);
-      setSelectedRole(created);
+      setRoles((prev) => filterOutCustomerRoles([...(prev || []), created]));
+      if (String(created?.code || "").toUpperCase() !== HIDDEN_ROLE_CODE) {
+        setSelectedRole(created);
+      }
       setHasUnsavedChanges(false);
       setAddRoleOpen(false);
       showSuccess(
@@ -267,7 +288,7 @@ export default function RoleAssign() {
    * @returns {Promise<void>}
    */
   const handleCancel = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isAdminRoleSelected) return;
     
     try {
       await loadRolePermissions(selectedRole.roleId);
@@ -294,8 +315,8 @@ export default function RoleAssign() {
    * @param {number} permissionId - Permission identifier
    * @returns {void}
    */ 
-   const handlePermissionToggle = (moduleId, permissionId) => {
-    if (!selectedRole) return;
+  const handlePermissionToggle = (moduleId, permissionId) => {
+    if (!selectedRole || isAdminRoleSelected) return;
     
     setRolePermissions(prev => {
       // Find existing permission for this module-permission combination
@@ -345,6 +366,10 @@ export default function RoleAssign() {
     const handleSaveChanges = async () => {
     if (!selectedRole) {
       showWarning("Chưa chọn Vai trò", "Vui lòng chọn một Vai trò để lưu thay đổi");
+      return;
+    }
+    if (isAdminRoleSelected) {
+      showWarning("Quản trị viên", "Quản trị viên đã có toàn quyền hệ thống.");
       return;
     }
     
@@ -408,7 +433,7 @@ export default function RoleAssign() {
    * @returns {void}
    */
   const handleTickAll = () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isAdminRoleSelected) return;
     
     const allActive = permissions.every(permission => 
       modules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
@@ -487,6 +512,7 @@ export default function RoleAssign() {
                       module.moduleId,
                       permission.permissionId
                     )}
+                    disabled={isAdminRoleSelected}
                     onChange={() =>
                       handlePermissionToggle(
                         module.moduleId,
@@ -621,12 +647,18 @@ export default function RoleAssign() {
             )}
           </div>
 
+          {isAdminRoleSelected && (
+            <div className="ra-alert ra-alert--info" role="status">
+              Quản trị viên được toàn quyền hệ thống và không thể chỉnh sửa quyền.
+            </div>
+          )}
+
           <div className="ra-card-toolbar">
             <button
               className="ra-btn ra-btn--ghost"
               onClick={handleCancel}
               type="button"
-              disabled={!selectedRole}
+              disabled={!selectedRole || isAdminRoleSelected}
             >
               Hủy
             </button>
@@ -634,7 +666,7 @@ export default function RoleAssign() {
               className="ra-btn ra-btn--outline"
               onClick={handleTickAll}
               type="button"
-              disabled={!selectedRole}
+              disabled={!selectedRole || isAdminRoleSelected}
             >
               {isAllTicked ? "Bỏ chọn tất cả" : "Chọn tất cả"}
             </button>
@@ -642,7 +674,12 @@ export default function RoleAssign() {
               className="ra-btn ra-btn--primary"
               onClick={handleSaveChanges}
               type="button"
-              disabled={!selectedRole || submitting || !hasUnsavedChanges}
+              disabled={
+                !selectedRole ||
+                submitting ||
+                !hasUnsavedChanges ||
+                isAdminRoleSelected
+              }
             >
               {submitting ? "Đang lưu..." : "Lưu thay đổi"}
             </button>
