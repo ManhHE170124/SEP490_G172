@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import profileService from "../../services/profile";
 import "./UserProfilePage.css";
 
@@ -53,11 +48,7 @@ const maskEmail = (email = "") => {
 };
 
 const getInitials = (name = "") => {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2);
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(-2);
   if (!parts.length) return "KV";
   return parts.map((part) => part[0]?.toUpperCase()).join("");
 };
@@ -226,17 +217,17 @@ const UserProfilePage = () => {
     []
   );
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  // useEffect(() => {
+  //   loadProfile();
+  // }, [loadProfile]);
 
-  useEffect(() => {
-    fetchOrders(INITIAL_ORDER_FILTERS);
-  }, [fetchOrders]);
+  // useEffect(() => {
+  //   fetchOrders(INITIAL_ORDER_FILTERS);
+  // }, [fetchOrders]);
 
-  useEffect(() => {
-    fetchTransactions(INITIAL_TRANSACTION_FILTERS);
-  }, [fetchTransactions]);
+  // useEffect(() => {
+  //   fetchTransactions(INITIAL_TRANSACTION_FILTERS);
+  // }, [fetchTransactions]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -361,9 +352,7 @@ const UserProfilePage = () => {
   const handleTwoFactorToggle = async () => {
     if (!profile) return;
     const enabled =
-      profile?.security?.twoFactorEnabled ??
-      profile?.twoFactorEnabled ??
-      false;
+      profile?.security?.twoFactorEnabled ?? profile?.twoFactorEnabled ?? false;
     setSecurityNotice(null);
     setTwoFactorUpdating(true);
     try {
@@ -410,9 +399,7 @@ const UserProfilePage = () => {
     fetchTransactions(transactionFilters);
 
   const orderCount =
-    profile?.stats?.orderCount ??
-    profile?.ordersCount ??
-    (orders?.length || 0);
+    profile?.stats?.orderCount ?? profile?.ordersCount ?? (orders?.length || 0);
   const transactionCount =
     profile?.stats?.transactionCount ??
     profile?.transactionsCount ??
@@ -443,9 +430,7 @@ const UserProfilePage = () => {
       })()
     : profile?.joinYear || null;
   const twoFactorEnabled =
-    profile?.security?.twoFactorEnabled ??
-    profile?.twoFactorEnabled ??
-    false;
+    profile?.security?.twoFactorEnabled ?? profile?.twoFactorEnabled ?? false;
   const passwordStatus = profile?.security?.passwordUpdatedAt
     ? `Đã đổi ${formatDate(profile.security.passwordUpdatedAt)}`
     : "Đã đặt";
@@ -515,11 +500,7 @@ const UserProfilePage = () => {
         {pageError && (
           <div className="profile-status error">
             <span>{pageError}</span>
-            <button
-              type="button"
-              className="profile-btn"
-              onClick={loadProfile}
-            >
+            <button type="button" className="profile-btn" onClick={loadProfile}>
               Thử lại
             </button>
           </div>
@@ -611,8 +592,7 @@ const UserProfilePage = () => {
                         <div>{membershipLabel}</div>
                         <div>•</div>
                         <div>
-                          Đã tham gia:{" "}
-                          {memberSinceYear ? memberSinceYear : "—"}
+                          Đã tham gia: {memberSinceYear ? memberSinceYear : "—"}
                         </div>
                       </div>
                     </div>
@@ -643,7 +623,7 @@ const UserProfilePage = () => {
                   </div>
                 </div>
 
-                <div className="profile-card" style={{ padding: 16 }}>
+                {/* <div className="profile-card" style={{ padding: 16 }}>
                   <h4 style={{ margin: "0 0 8px 0" }}>Bảo mật tài khoản</h4>
                   <div className="profile-kv">
                     Mật khẩu: <strong>{passwordStatus}</strong>
@@ -670,7 +650,7 @@ const UserProfilePage = () => {
                     </button>
                   </div>
                   <InlineNotice notice={securityNotice} />
-                </div>
+                </div> */}
               </div>
             </section>
 
@@ -798,10 +778,7 @@ const UserProfilePage = () => {
               </div>
 
               <div className="profile-table-wrapper">
-                <table
-                  className="profile-table"
-                  aria-label="Lịch sử giao dịch"
-                >
+                <table className="profile-table" aria-label="Lịch sử giao dịch">
                   <thead>
                     <tr>
                       <th>Thời gian</th>
@@ -874,16 +851,13 @@ const UserProfilePage = () => {
                       type="password"
                       className="profile-input"
                       name="newPassword"
-                      placeholder="Ít nhất 8 ký tự"
+                      placeholder="Ít nhất 6 ký tự"
                       value={passwordForm.newPassword}
                       onChange={handlePasswordInput}
                     />
                   </div>
                   <div className="profile-field-group">
-                    <label
-                      className="profile-label"
-                      htmlFor="confirmPassword"
-                    >
+                    <label className="profile-label" htmlFor="confirmPassword">
                       Nhập lại mật khẩu mới
                     </label>
                     <input
@@ -908,7 +882,7 @@ const UserProfilePage = () => {
                   <InlineNotice notice={passwordNotice} />
                 </form>
 
-                <div className="profile-card profile-security-card">
+                {/* <div className="profile-card profile-security-card">
                   <h4 style={{ marginTop: 0 }}>Mẹo bảo mật</h4>
                   <ul>
                     <li>Dùng mật khẩu mạnh, khác nhau cho từng dịch vụ.</li>
@@ -923,7 +897,10 @@ const UserProfilePage = () => {
                     }}
                   />
                   <div className="profile-kv">Xác thực 2 bước</div>
-                  <div className="profile-security-actions" style={{ marginTop: 8 }}>
+                  <div
+                    className="profile-security-actions"
+                    style={{ marginTop: 8 }}
+                  >
                     <button
                       type="button"
                       className="profile-btn primary"
@@ -940,7 +917,7 @@ const UserProfilePage = () => {
                       Cài đặt
                     </button>
                   </div>
-                </div>
+                </div> */}
               </div>
             </section>
 
