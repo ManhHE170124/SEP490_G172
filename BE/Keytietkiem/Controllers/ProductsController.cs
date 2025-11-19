@@ -198,7 +198,6 @@ namespace Keytietkiem.Controllers
             var p = await db.Products.AsNoTracking()
                 .Include(x => x.Categories)
                 .Include(x => x.ProductBadges)
-                .Include(x => x.ProductFaqs)
                 .Include(x => x.ProductVariants)
                 .FirstOrDefaultAsync(x => x.ProductId == id);
 
@@ -212,9 +211,6 @@ namespace Keytietkiem.Controllers
                 p.Status,
                 p.Categories.Select(c => c.CategoryId),
                 p.ProductBadges.Select(b => b.Badge),
-                p.ProductFaqs
-                    .OrderBy(f => f.SortOrder)
-                    .Select(f => new ProductFaqDto(f.FaqId, f.Question, f.Answer, f.SortOrder, f.IsActive)),
                 p.ProductVariants
                     .Select(v => new ProductVariantMiniDto(
                         v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
@@ -299,7 +295,6 @@ namespace Keytietkiem.Controllers
                 .Include(p => p.Categories)
                 .Include(p => p.ProductBadges)
                 .Include(p => p.ProductVariants)
-                .Include(p => p.ProductFaqs)
                 .FirstOrDefaultAsync(p => p.ProductId == id);
 
             if (e is null) return NotFound();
@@ -320,8 +315,7 @@ namespace Keytietkiem.Controllers
             if (normalizedCode.Length > MaxProductCodeLength)
                 return BadRequest(new { message = $"ProductCode must not exceed {MaxProductCodeLength} characters." });
             var hasVariants = e.ProductVariants.Any();
-            var hasFaqs = e.ProductFaqs.Any();
-            var locked = hasVariants || hasFaqs;
+            var locked = hasVariants;
 
             if (locked)
             {
@@ -417,31 +411,26 @@ namespace Keytietkiem.Controllers
             // Load product kèm các collection cần check
             var p = await db.Products
                 .Include(x => x.ProductVariants)
-                .Include(x => x.ProductFaqs)
                 .FirstOrDefaultAsync(x => x.ProductId == id);
 
             if (p is null) return NotFound();
 
             // Đếm số Variant / FAQ đang gắn với product này
             var variantCount = p.ProductVariants.Count;
-            var faqCount = p.ProductFaqs.Count;
 
             // (Tuỳ bạn có bảng OrderItem / OrderLines thì thêm check đơn hàng ở đây)
             // Ví dụ (đổi tên DbSet và field cho đúng với project):
             // var orderCount = await db.OrderItems.CountAsync(o => o.ProductId == id);
 
             var hasVariants = variantCount > 0;
-            var hasFaqs = faqCount > 0;
             var hasOrders = false; // set lại nếu bạn có check đơn hàng
 
-            if (hasVariants || hasFaqs || hasOrders)
+            if (hasVariants|| hasOrders)
             {
                 var reasons = new List<string>();
 
                 if (hasVariants)
                     reasons.Add($"{variantCount} biến thể / key");
-                if (hasFaqs)
-                    reasons.Add($"{faqCount} câu hỏi FAQ");
                 if (hasOrders)
                     reasons.Add("các đơn hàng đã phát sinh từ sản phẩm này");
 
@@ -453,9 +442,7 @@ namespace Keytietkiem.Controllers
                         $"Không thể xoá sản phẩm \"{p.ProductName}\" vì đã có {reasonText}. " +
                         "Vui lòng ẩn sản phẩm (tắt hiển thị) hoặc xoá các dữ liệu liên quan trước khi xoá vĩnh viễn.",
                     variantCount,
-                    faqCount,
                     hasVariants,
-                    hasFaqs,
                     hasOrders
                 });
             }

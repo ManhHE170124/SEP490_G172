@@ -80,7 +80,6 @@ namespace Keytietkiem.DTOs.Products
         string Status,
         IEnumerable<int> CategoryIds,
         IEnumerable<string> BadgeCodes,
-        IEnumerable<ProductFaqDto> Faqs,
         IEnumerable<ProductVariantMiniDto> Variants
     );
 

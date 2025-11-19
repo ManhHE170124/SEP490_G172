@@ -29,6 +29,7 @@ import ProductsPage from "../pages/admin/ProductsPage.jsx";
 import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
+import FaqsPage from "../pages/admin/FaqsPage.jsx";
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 
@@ -161,6 +162,15 @@ export default function AppRoutes() {
         element={
           <AdminLayout>
             <CategoryPage />
+          </AdminLayout>
+        }
+      />
+       {/* FAQs */}
+      <Route
+        path="/admin/faqs"
+        element={
+          <AdminLayout>
+            <FaqsPage />
           </AdminLayout>
         }
       />

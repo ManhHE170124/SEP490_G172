@@ -140,6 +140,33 @@ const Sidebar = () => {
           </svg>
           <span className="sb-label">Quản lý danh mục</span>
         </Link>
+        <Link
+  className={`sb-item ${
+    currentPage.startsWith("admin/faqs") ? "active" : ""
+  }`}
+  to="/admin/faqs"
+>
+  <svg viewBox="0 0 24 24" fill="none">
+    <circle
+      cx="12"
+      cy="12"
+      r="9"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M9.75 9a2.25 2.25 0 0 1 4.5 0c0 1.5-2.25 1.75-2.25 3.25"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="12" cy="16" r="1" fill="currentColor" />
+  </svg>
+  <span className="sb-label">Câu hỏi thường gặp</span>
+</Link>
         
         <div className="sb-section-title">Quản lý phân quyền</div>
         <Link

@@ -53,8 +53,6 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<ProductBadge> ProductBadges { get; set; }
 
-    public virtual DbSet<ProductFaq> ProductFaqs { get; set; }
-
     public virtual DbSet<ProductKey> ProductKeys { get; set; }
 
     public virtual DbSet<ProductReview> ProductReviews { get; set; }
@@ -62,6 +60,7 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<ProductSection> ProductSections { get; set; }
 
     public virtual DbSet<ProductVariant> ProductVariants { get; set; }
+    public virtual DbSet<Faq> Faqs { get; set; }       // <-- thêm
 
     public virtual DbSet<RefundRequest> RefundRequests { get; set; }
 
@@ -528,25 +527,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_ProductBadges_Products");
         });
 
-        modelBuilder.Entity<ProductFaq>(entity =>
-        {
-            entity.HasKey(e => e.FaqId);
-
-            entity.HasIndex(e => new { e.ProductId, e.SortOrder }, "IX_ProductFaqs_Product");
-
-            entity.Property(e => e.FaqId).HasDefaultValueSql("(newsequentialid())");
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-            entity.Property(e => e.Question).HasMaxLength(500);
-            entity.Property(e => e.UpdatedAt).HasPrecision(3);
-
-            entity.HasOne(d => d.Product).WithMany(p => p.ProductFaqs)
-                .HasForeignKey(d => d.ProductId)
-                .HasConstraintName("FK_ProductFaqs_Product");
-        });
-
         modelBuilder.Entity<ProductKey>(entity =>
         {
             entity.HasKey(e => e.KeyId).HasName("PK__ProductK__21F5BE47A954461F");
@@ -620,6 +600,66 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.VariantId)
                 .HasConstraintName("FK_ProductSections_Variant");
         });
+        modelBuilder.Entity<Faq>(entity =>
+        {
+            entity.HasKey(e => e.FaqId).HasName("PK_Faqs");
+
+            entity.Property(e => e.Question)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.Answer)
+                .IsRequired();
+
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3);
+
+            // many-to-many Faq <-> Category
+            entity.HasMany(d => d.Categories).WithMany(p => p.Faqs)
+                .UsingEntity<Dictionary<string, object>>(
+                    "FaqCategory",
+                    r => r.HasOne<Category>().WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("FK_FaqCategories_Categories"),
+                    l => l.HasOne<Faq>().WithMany()
+                        .HasForeignKey("FaqId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("FK_FaqCategories_Faqs"),
+                    j =>
+                    {
+                        j.HasKey("FaqId", "CategoryId").HasName("PK_FaqCategories");
+                        j.ToTable("FaqCategories");
+                    });
+
+            // many-to-many Faq <-> Product
+            entity.HasMany(d => d.Products).WithMany(p => p.Faqs)
+                .UsingEntity<Dictionary<string, object>>(
+                    "FaqProduct",
+                    r => r.HasOne<Product>().WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("FK_FaqProducts_Products"),
+                    l => l.HasOne<Faq>().WithMany()
+                        .HasForeignKey("FaqId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("FK_FaqProducts_Faqs"),
+                    j =>
+                    {
+                        j.HasKey("FaqId", "ProductId").HasName("PK_FaqProducts");
+                        j.ToTable("FaqProducts");
+                    });
+        });
+
 
         modelBuilder.Entity<ProductVariant>(entity =>
         {

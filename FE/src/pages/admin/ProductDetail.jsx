@@ -5,7 +5,6 @@ import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import VariantsPanel from "../admin/VariantsPanel";
-import FaqsPanel from "../admin/FaqsPanel";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
 
@@ -90,12 +89,9 @@ export default function ProductDetail() {
   // để render tổng tồn kho từ variants
   const [variants, setVariants] = React.useState([]);
 
-  // trạng thái để biết có biến thể/FAQ hay chưa
   const [hasVariants, setHasVariants] = React.useState(false);
-  const [hasFaqs, setHasFaqs] = React.useState(false);
-  const lockIdentity = hasVariants || hasFaqs; // có 1 cái là khóa sửa tên + mã
+  const lockIdentity = hasVariants 
 
-  // Ẩn/hiện panel biến thể + FAQ khi user đang sửa form (debounce 3s)
   const [showSubPanels, setShowSubPanels] = React.useState(true);
   const editTimerRef = React.useRef(null);
 
@@ -202,9 +198,7 @@ export default function ProductDetail() {
       setForm(nextForm);
       setVariants(Array.isArray(dto.variants) ? dto.variants : []);
 
-      // kiểm tra xem đã có biến thể / FAQ chưa để khóa sửa tên + mã
       setHasVariants((dto.variants ?? []).length > 0);
-      setHasFaqs((dto.faqs ?? []).length > 0);
 
       setErrors({});
 
@@ -527,7 +521,7 @@ export default function ProductDetail() {
                 disabled={lockIdentity}
                 title={
                   lockIdentity
-                    ? "Không cho phép đổi mã khi sản phẩm đã có biến thể hoặc FAQ"
+                    ? "Không cho phép đổi mã khi sản phẩm đã có biến thể"
                     : "Mã duy nhất cho sản phẩm"
                 }
                 className={
@@ -707,10 +701,6 @@ export default function ProductDetail() {
                 productName={form.productName}
                 productCode={form.productCode}
                 onTotalChange={(total) => setHasVariants(total > 0)}
-              />
-              <FaqsPanel
-                productId={productId}
-                onTotalChange={(total) => setHasFaqs(total > 0)}
               />
             </div>
           )}

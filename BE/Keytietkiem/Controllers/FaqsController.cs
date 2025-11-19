@@ -7,31 +7,27 @@ using Microsoft.EntityFrameworkCore;
 namespace Keytietkiem.Controllers
 {
     [ApiController]
-    [Route("api/products/{productId:guid}/faqs")]
-    public class ProductFaqsController : ControllerBase
+    [Route("api/faqs")]
+    public class FaqsController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
+
         private const int QuestionMinLength = 10;
         private const int QuestionMaxLength = 500;
         private const int AnswerMinLength = 10;
-        public ProductFaqsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
+
+        public FaqsController(
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IClock clock)
         {
             _dbFactory = dbFactory;
             _clock = clock;
         }
 
-        // GET: /api/products/{productId}/faqs
-        // Query:
-        //   - keyword (optional): search Question/Answer
-        //   - active  (optional): true/false
-        //   - sort    (optional): one of [question|sortOrder|active|created|updated], default "sortOrder"
-        //   - direction(optional): asc|desc, default "asc"
-        //   - page    (optional): default 1
-        //   - pageSize(optional): default 10 (1..200)
+        // GET: /api/faqs
         [HttpGet]
         public async Task<IActionResult> List(
-            Guid productId,
             [FromQuery] string? keyword,
             [FromQuery] bool? active,
             [FromQuery] string? sort = "sortOrder",
@@ -41,13 +37,9 @@ namespace Keytietkiem.Controllers
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // Bảo đảm product tồn tại
-            var productExists = await db.Products.AsNoTracking().AnyAsync(p => p.ProductId == productId);
-            if (!productExists) return NotFound(new { message = "Product not found" });
-
-            var q = db.ProductFaqs
+            var q = db.Faqs
                       .AsNoTracking()
-                      .Where(f => f.ProductId == productId);
+                      .AsQueryable();
 
             // Search
             if (!string.IsNullOrWhiteSpace(keyword))
@@ -60,7 +52,9 @@ namespace Keytietkiem.Controllers
 
             // Filter active
             if (active is not null)
+            {
                 q = q.Where(f => f.IsActive == active);
+            }
 
             // Sort
             sort = sort?.Trim().ToLowerInvariant();
@@ -70,13 +64,18 @@ namespace Keytietkiem.Controllers
             {
                 ("question", "asc") => q.OrderBy(f => f.Question),
                 ("question", "desc") => q.OrderByDescending(f => f.Question),
+
                 ("active", "asc") => q.OrderBy(f => f.IsActive).ThenBy(f => f.SortOrder),
                 ("active", "desc") => q.OrderByDescending(f => f.IsActive).ThenBy(f => f.SortOrder),
+
                 ("created", "asc") => q.OrderBy(f => f.CreatedAt),
                 ("created", "desc") => q.OrderByDescending(f => f.CreatedAt),
+
                 ("updated", "asc") => q.OrderBy(f => f.UpdatedAt),
                 ("updated", "desc") => q.OrderByDescending(f => f.UpdatedAt),
+
                 ("sortorder", "desc") => q.OrderByDescending(f => f.SortOrder).ThenBy(f => f.CreatedAt),
+
                 _ => q.OrderBy(f => f.SortOrder).ThenBy(f => f.CreatedAt) // default
             };
 
@@ -88,56 +87,62 @@ namespace Keytietkiem.Controllers
             var total = await q.CountAsync();
 
             var items = await q
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(f => new ProductFaqListItemDto(
-                    f.FaqId,
-                    f.ProductId,
-                    f.Question,
-                    f.Answer ?? string.Empty,
-                    f.SortOrder,
-                    f.IsActive,
-                    f.CreatedAt,
-                    f.UpdatedAt
-                ))
-                .ToListAsync();
+    .Skip((page - 1) * pageSize)
+    .Take(pageSize)
+    .Select(f => new ProductFaqListItemDto(
+        f.FaqId,
+        f.Question,
+        f.Answer ?? string.Empty,
+        f.SortOrder,
+        f.IsActive,
+        f.Categories.Count,   // CategoryCount
+        f.Products.Count,     // ProductCount
+        f.CreatedAt,
+        f.UpdatedAt
+    ))
+    .ToListAsync();
+
 
             return Ok(new { items, total, page, pageSize });
         }
 
-        // GET: /api/products/{productId}/faqs/{faqId}
-        [HttpGet("{faqId:guid}")]
-        public async Task<ActionResult<ProductFaqDetailDto>> GetById(Guid productId, Guid faqId)
+        // GET: /api/faqs/{faqId}
+        [HttpGet("{faqId:int}")]
+        public async Task<ActionResult<ProductFaqDetailDto>> GetById(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            var dto = await db.ProductFaqs
-                .AsNoTracking()
-                .Where(f => f.ProductId == productId && f.FaqId == faqId)
-                .Select(f => new ProductFaqDetailDto(
-                    f.FaqId,
-                    f.ProductId,
-                    f.Question,
-                    f.Answer ?? string.Empty,
-                    f.SortOrder,
-                    f.IsActive,
-                    f.CreatedAt,
-                    f.UpdatedAt
-                ))
-                .FirstOrDefaultAsync();
+            var dto = await db.Faqs
+      .AsNoTracking()
+      .Where(f => f.FaqId == faqId)
+      .Select(f => new ProductFaqDetailDto(
+          f.FaqId,
+          f.Question,
+          f.Answer ?? string.Empty,
+          f.SortOrder,
+          f.IsActive,
+          f.Categories
+              .Select(c => c.CategoryId)
+              .ToList(),
+          f.Products
+              .Select(p => p.ProductId)
+              .ToList(),
+          f.CreatedAt,
+          f.UpdatedAt
+      ))
+      .FirstOrDefaultAsync();
+
 
             return dto is null ? NotFound() : Ok(dto);
         }
 
-        // POST: /api/products/{productId}/faqs
+        // POST: /api/faqs
         [HttpPost]
-        public async Task<ActionResult<ProductFaqDetailDto>> Create(Guid productId, ProductFaqCreateDto dto)
+        public async Task<ActionResult<ProductFaqDetailDto>> Create(ProductFaqCreateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            var productExists = await db.Products.AsNoTracking().AnyAsync(p => p.ProductId == productId);
-            if (!productExists) return NotFound(new { message = "Product not found" });
-
+            // Validate Question & Answer
             var question = (dto.Question ?? string.Empty).Trim();
             var answer = (dto.Answer ?? string.Empty).Trim();
 
@@ -159,40 +164,88 @@ namespace Keytietkiem.Controllers
                     message = $"Answer length must be at least {AnswerMinLength} characters."
                 });
 
-            if (dto.SortOrder < 0)
-                return BadRequest(new { message = "SortOrder must be greater than or equal to 0." });
+            var sortOrder = dto.SortOrder < 0 ? 0 : dto.SortOrder;
 
-            var faq = new ProductFaq
+            var faq = new Faq
             {
-                FaqId = Guid.NewGuid(),
-                ProductId = productId,
                 Question = question,
                 Answer = answer,
-                SortOrder = dto.SortOrder,
+                SortOrder = sortOrder,
                 IsActive = dto.IsActive,
-                CreatedAt = _clock.UtcNow
+                CreatedAt = _clock.UtcNow,
+                UpdatedAt = null
             };
 
-            db.ProductFaqs.Add(faq);
+            // Gắn Category
+            if (dto.CategoryIds is { Count: > 0 })
+            {
+                var catIds = dto.CategoryIds
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList();
+
+                if (catIds.Count > 0)
+                {
+                    var categories = await db.Categories
+                        .Where(c => catIds.Contains(c.CategoryId))
+                        .ToListAsync();
+
+                    foreach (var c in categories)
+                        faq.Categories.Add(c);
+                }
+            }
+
+            // Gắn Product
+            if (dto.ProductIds is { Count: > 0 })
+            {
+                var prodIds = dto.ProductIds
+                    .Where(id => id != Guid.Empty)
+                    .Distinct()
+                    .ToList();
+
+                if (prodIds.Count > 0)
+                {
+                    var products = await db.Products
+                        .Where(p => prodIds.Contains(p.ProductId))
+                        .ToListAsync();
+
+                    foreach (var p in products)
+                        faq.Products.Add(p);
+                }
+            }
+
+            db.Faqs.Add(faq);
             await db.SaveChangesAsync();
 
             var result = new ProductFaqDetailDto(
-                faq.FaqId, faq.ProductId, faq.Question, faq.Answer ?? string.Empty,
-                faq.SortOrder, faq.IsActive, faq.CreatedAt, faq.UpdatedAt);
+                faq.FaqId,
+                faq.Question,
+                faq.Answer ?? string.Empty,
+                faq.SortOrder,
+                faq.IsActive,
+                CategoryIds: faq.Categories.Select(c => c.CategoryId).ToList(),
+                ProductIds: faq.Products.Select(p => p.ProductId).ToList(),
+                faq.CreatedAt,
+                faq.UpdatedAt
+            );
 
-            return CreatedAtAction(nameof(GetById), new { productId, faqId = faq.FaqId }, result);
+            return CreatedAtAction(nameof(GetById), new { faqId = result.FaqId }, result);
         }
 
-
-        // PUT: /api/products/{productId}/faqs/{faqId}
-        [HttpPut("{faqId:guid}")]
-        public async Task<IActionResult> Update(Guid productId, Guid faqId, ProductFaqUpdateDto dto)
+        // PUT: /api/faqs/{faqId}
+        [HttpPut("{faqId:int}")]
+        public async Task<IActionResult> Update(int faqId, ProductFaqUpdateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            var faq = await db.ProductFaqs.FirstOrDefaultAsync(f => f.ProductId == productId && f.FaqId == faqId);
+            var faq = await db.Faqs
+                .Include(f => f.Categories)
+                .Include(f => f.Products)
+                .FirstOrDefaultAsync(f => f.FaqId == faqId);
+
             if (faq is null) return NotFound();
 
+            // Validate Question & Answer
             var question = (dto.Question ?? string.Empty).Trim();
             var answer = (dto.Answer ?? string.Empty).Trim();
 
@@ -217,38 +270,78 @@ namespace Keytietkiem.Controllers
             if (dto.SortOrder < 0)
                 return BadRequest(new { message = "SortOrder must be greater than or equal to 0." });
 
+            // Update main fields
             faq.Question = question;
             faq.Answer = answer;
             faq.SortOrder = dto.SortOrder;
             faq.IsActive = dto.IsActive;
             faq.UpdatedAt = _clock.UtcNow;
 
+            // Replace categories
+            faq.Categories.Clear();
+            if (dto.CategoryIds is { Count: > 0 })
+            {
+                var catIds = dto.CategoryIds
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList();
+
+                if (catIds.Count > 0)
+                {
+                    var categories = await db.Categories
+                        .Where(c => catIds.Contains(c.CategoryId))
+                        .ToListAsync();
+
+                    foreach (var c in categories)
+                        faq.Categories.Add(c);
+                }
+            }
+
+            // Replace products
+            faq.Products.Clear();
+            if (dto.ProductIds is { Count: > 0 })
+            {
+                var prodIds = dto.ProductIds
+                    .Where(id => id != Guid.Empty)
+                    .Distinct()
+                    .ToList();
+
+                if (prodIds.Count > 0)
+                {
+                    var products = await db.Products
+                        .Where(p => prodIds.Contains(p.ProductId))
+                        .ToListAsync();
+
+                    foreach (var p in products)
+                        faq.Products.Add(p);
+                }
+            }
+
             await db.SaveChangesAsync();
             return NoContent();
         }
 
-
-        // DELETE: /api/products/{productId}/faqs/{faqId}
-        [HttpDelete("{faqId:guid}")]
-        public async Task<IActionResult> Delete(Guid productId, Guid faqId)
+        // DELETE: /api/faqs/{faqId}
+        [HttpDelete("{faqId:int}")]
+        public async Task<IActionResult> Delete(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            var faq = await db.ProductFaqs.FirstOrDefaultAsync(f => f.ProductId == productId && f.FaqId == faqId);
+            var faq = await db.Faqs.FirstOrDefaultAsync(f => f.FaqId == faqId);
             if (faq is null) return NotFound();
 
-            db.ProductFaqs.Remove(faq);
+            db.Faqs.Remove(faq);
             await db.SaveChangesAsync();
             return NoContent();
         }
 
-        // PATCH: /api/products/{productId}/faqs/{faqId}/toggle
-        [HttpPatch("{faqId:guid}/toggle")]
-        public async Task<IActionResult> Toggle(Guid productId, Guid faqId)
+        // PATCH: /api/faqs/{faqId}/toggle
+        [HttpPatch("{faqId:int}/toggle")]
+        public async Task<IActionResult> Toggle(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            var faq = await db.ProductFaqs.FirstOrDefaultAsync(f => f.ProductId == productId && f.FaqId == faqId);
+            var faq = await db.Faqs.FirstOrDefaultAsync(f => f.FaqId == faqId);
             if (faq is null) return NotFound();
 
             faq.IsActive = !faq.IsActive;
