@@ -14,6 +14,13 @@ export const ticketsApi = {
     };
     return axiosClient.get("/tickets", { params: p });
   },
+
+  // ===== NEW: create ticket (customer mở ticket) =====
+  create(payload) {
+    // payload dự kiến: { subject, severity, initialMessage, ... }
+    return axiosClient.post("/tickets", payload);
+  },
+
   detail(id) {
     return axiosClient.get(`/tickets/${id}`);
   },

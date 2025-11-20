@@ -57,6 +57,11 @@ import BlogList from "../pages/blog/Bloglist.jsx";
 import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
 import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
 
+// Customer ticket pages
+import CustomerTicketsPage from "../pages/tickets/customer-tickets.jsx";
+import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
+
+
 
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -145,6 +150,23 @@ export default function AppRoutes() {
           </Suspense>
         }
       />
+      {/* Customer tickets */}
+      <Route
+        path="/tickets"
+        element={
+          <ClientLayout>
+            <CustomerTicketsPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/tickets/:id"
+        element={
+          <ClientLayout>
+            <CustomerTicketDetailPage />
+          </ClientLayout>
+        }
+      />
 
       {/* Orders */}
       <Route path="/orders/history" element={<ClientLayout><OrderHistoryPage /></ClientLayout>} />
@@ -165,7 +187,7 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
-       {/* FAQs */}
+      {/* FAQs */}
       <Route
         path="/admin/faqs"
         element={
