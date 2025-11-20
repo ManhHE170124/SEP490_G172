@@ -33,6 +33,9 @@ import FaqsPage from "../pages/admin/FaqsPage.jsx";
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 
+// *** Staff ticket pages ***
+import StaffTicketManagement from "../pages/admin/staff-ticket-management";
+
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage.jsx";
 import SignUpPage from "../pages/auth/SignUpPage.jsx";
@@ -61,16 +64,27 @@ import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
 import CustomerTicketsPage from "../pages/tickets/customer-tickets.jsx";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
 
-
-
+// Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
     default:
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-          ? m.AdminTicketDetail
-          : () => null,
+        ? m.AdminTicketDetail
+        : () => null,
+  }))
+);
+
+// *** Lazy staff ticket detail ***
+const StaffTicketDetail = lazy(() =>
+  import("../pages/admin/staff-ticket-detail.jsx").then((m) => ({
+    default:
+      typeof m.default === "function"
+        ? m.default
+        : typeof m.StaffTicketDetail === "function"
+        ? m.StaffTicketDetail
+        : () => null,
   }))
 );
 
@@ -88,8 +102,7 @@ export default function AppRoutes() {
         path="/login"
         element={
           <ClientLayout>
-            {" "}
-            <LoginPage />{" "}
+            <LoginPage />
           </ClientLayout>
         }
       />
@@ -97,7 +110,6 @@ export default function AppRoutes() {
         path="/register"
         element={
           <ClientLayout>
-            {" "}
             <SignUpPage />
           </ClientLayout>
         }
@@ -106,7 +118,6 @@ export default function AppRoutes() {
         path="/forgot-password"
         element={
           <ClientLayout>
-            {" "}
             <ForgotPasswordPage />
           </ClientLayout>
         }
@@ -115,7 +126,6 @@ export default function AppRoutes() {
         path="/check-reset-email"
         element={
           <ClientLayout>
-            {" "}
             <CheckEmailPage />
           </ClientLayout>
         }
@@ -124,14 +134,13 @@ export default function AppRoutes() {
         path="/reset-password"
         element={
           <ClientLayout>
-            {" "}
             <ResetPasswordPage />
           </ClientLayout>
         }
       />
       <Route path="/admin" element={<div />} />
 
-      {/* Tickets */}
+      {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
         element={
@@ -150,6 +159,27 @@ export default function AppRoutes() {
           </Suspense>
         }
       />
+
+      {/* Staff Tickets */}
+      <Route
+        path="/staff/tickets"
+        element={
+          <AdminLayout>
+            <StaffTicketManagement />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/staff/tickets/:id"
+        element={
+          <Suspense fallback={<div>Đang tải chi tiết...</div>}>
+            <AdminLayout>
+              <StaffTicketDetail />
+            </AdminLayout>
+          </Suspense>
+        }
+      />
+
       {/* Customer tickets */}
       <Route
         path="/tickets"
@@ -169,14 +199,56 @@ export default function AppRoutes() {
       />
 
       {/* Orders */}
-      <Route path="/orders/history" element={<ClientLayout><OrderHistoryPage /></ClientLayout>} />
-      <Route path="/orders/:id" element={<ClientLayout><OrderDetailPage /></ClientLayout>} />
+      <Route
+        path="/orders/history"
+        element={
+          <ClientLayout>
+            <OrderHistoryPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/orders/:id"
+        element={
+          <ClientLayout>
+            <OrderDetailPage />
+          </ClientLayout>
+        }
+      />
 
       {/* Products */}
-      <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
-      <Route path="/admin/products/add" element={<AdminLayout><ProductAdd /></AdminLayout>} />
-      <Route path="/admin/products/:id" element={<AdminLayout><ProductDetail /></AdminLayout>} />
-      <Route path="/admin/products/:id/variants/:variantId" element={<AdminLayout><VariantDetail /></AdminLayout>} />
+      <Route
+        path="/admin/products"
+        element={
+          <AdminLayout>
+            <ProductsPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/products/add"
+        element={
+          <AdminLayout>
+            <ProductAdd />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/products/:id"
+        element={
+          <AdminLayout>
+            <ProductDetail />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/products/:id/variants/:variantId"
+        element={
+          <AdminLayout>
+            <VariantDetail />
+          </AdminLayout>
+        }
+      />
 
       {/* Categories */}
       <Route
@@ -196,15 +268,13 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
-      {/* Client/Public Routes */}
 
       {/* Admin Routes */}
       <Route
         path="/admin-dashboard"
         element={
           <AdminLayout>
-            {" "}
-            <Page404 />{" "}
+            <Page404 />
           </AdminLayout>
         }
       />
@@ -212,8 +282,7 @@ export default function AppRoutes() {
         path="/admin/users"
         element={
           <AdminLayout>
-            {" "}
-            <AdminUserManagement />{" "}
+            <AdminUserManagement />
           </AdminLayout>
         }
       />
@@ -221,8 +290,7 @@ export default function AppRoutes() {
         path="/admin-user-management"
         element={
           <AdminLayout>
-            {" "}
-            <AdminUserManagement />{" "}
+            <AdminUserManagement />
           </AdminLayout>
         }
       />
@@ -230,8 +298,7 @@ export default function AppRoutes() {
         path="/role-manage"
         element={
           <AdminLayout>
-            {" "}
-            <RoleManage />{" "}
+            <RoleManage />
           </AdminLayout>
         }
       />
@@ -239,8 +306,7 @@ export default function AppRoutes() {
         path="/role-assign"
         element={
           <AdminLayout>
-            {" "}
-            <RoleAssign />{" "}
+            <RoleAssign />
           </AdminLayout>
         }
       />
@@ -249,8 +315,7 @@ export default function AppRoutes() {
         path="admin-post-list"
         element={
           <AdminLayout>
-            {" "}
-            <AdminPostList />{" "}
+            <AdminPostList />
           </AdminLayout>
         }
       />
@@ -258,8 +323,7 @@ export default function AppRoutes() {
         path="post-create-edit"
         element={
           <AdminLayout>
-            {" "}
-            <PostCreateEdit />{" "}
+            <PostCreateEdit />
           </AdminLayout>
         }
       />
@@ -267,8 +331,7 @@ export default function AppRoutes() {
         path="post-create-edit/:postId"
         element={
           <AdminLayout>
-            {" "}
-            <PostCreateEdit />{" "}
+            <PostCreateEdit />
           </AdminLayout>
         }
       />
@@ -276,13 +339,14 @@ export default function AppRoutes() {
         path="tag-post-type-manage"
         element={
           <AdminLayout>
-            {" "}
-            <TagPostTypeManage />{" "}
+            <TagPostTypeManage />
           </AdminLayout>
         }
       />
+
       {/* 404 - Default to Client Layout - Fallbacks*/}
       <Route path="*" element={<Page404 />} />
+
       {/* Suppliers */}
       <Route
         path="/suppliers"
@@ -371,7 +435,7 @@ export default function AppRoutes() {
         }
       />
 
-      {/* RBAC & Users */}
+      {/* RBAC & Users (duplicated paths giữ nguyên) */}
       <Route
         path="/admin/users"
         element={
@@ -398,7 +462,14 @@ export default function AppRoutes() {
         }
       />
 
-      <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
+      <Route
+        path="/blogs"
+        element={
+          <ClientLayout>
+            <BlogList />
+          </ClientLayout>
+        }
+      />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />
