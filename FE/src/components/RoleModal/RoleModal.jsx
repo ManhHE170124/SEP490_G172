@@ -75,9 +75,18 @@ const RoleModal = ({
    * @param {*} value - New field value
    */
   const handleInputChange = (name, value) => {
+    // Auto-convert to uppercase for code fields
+    const field = fields.find(f => f.name === name);
+    let processedValue = value;
+    
+    if (field && field.format === 'code' && typeof value === 'string') {
+      // Convert to uppercase and remove invalid characters
+      processedValue = value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
     
     // Clear error when user starts typing
@@ -91,22 +100,59 @@ const RoleModal = ({
     fields.forEach(f => {
       if (f.syncWith === name) {
         const slugName = f.name;
-        const newSlug = toSlug(value);
+        const newSlug = toSlug(processedValue);
         setFormData(prev => ({ ...prev, [slugName]: newSlug }));
       }
     });
   };
 
   /**
-   * @summary: Validate form fields based on required rules.
+   * @summary: Validate form fields based on required rules, length, and format.
    * @returns {boolean} - Whether form is valid
    */
   const validateForm = () => {
     const newErrors = {};
     
     fields.forEach(field => {
-      if (field.required && (!formData[field.name] || formData[field.name].toString().trim() === '')) {
+      const value = formData[field.name];
+      const valueStr = value ? value.toString().trim() : '';
+      
+      // Required validation
+      if (field.required && valueStr === '') {
         newErrors[field.name] = `${field.label} là bắt buộc`;
+        return;
+      }
+      
+      // Skip further validation if field is empty and not required
+      if (valueStr === '') return;
+      
+      // Length validation
+      if (field.minLength && valueStr.length < field.minLength) {
+        newErrors[field.name] = `${field.label} phải có ít nhất ${field.minLength} ký tự`;
+        return;
+      }
+      
+      if (field.maxLength && valueStr.length > field.maxLength) {
+        newErrors[field.name] = `${field.label} không được vượt quá ${field.maxLength} ký tự`;
+        return;
+      }
+      
+      // Format validation (for Code fields - uppercase, numbers, underscore)
+      if (field.format === 'code' && valueStr) {
+        const codeRegex = /^[A-Z0-9_]+$/;
+        if (!codeRegex.test(valueStr)) {
+          newErrors[field.name] = `${field.label} chỉ được chứa chữ in hoa, số và dấu gạch dưới`;
+          return;
+        }
+      }
+      
+      // Format validation (for Slug fields - lowercase, numbers, hyphen)
+      if (field.format === 'slug' && valueStr) {
+        const slugRegex = /^[a-z0-9-]+$/;
+        if (!slugRegex.test(valueStr)) {
+          newErrors[field.name] = `${field.label} chỉ được chứa chữ thường, số và dấu gạch ngang`;
+          return;
+        }
       }
     });
     
@@ -148,46 +194,62 @@ const RoleModal = ({
         </div>
         
         <form onSubmit={handleSubmit} className="modal-body">
-          {fields.map((field) => (
-            <div key={field.name} className="form-group">
-              <label className="form-label">
-                {field.label}
-                {field.required && <span style={{ color: 'red' }}> *</span>}
-              </label>
+          {fields.map((field) => {
+            const fieldValue = formData[field.name] || '';
+            const currentLength = fieldValue.toString().length;
+            const maxLength = field.maxLength;
+            const showCharCount = maxLength && field.type !== 'checkbox';
+            
+            return (
+              <div key={field.name} className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    {field.label}
+                    {field.required && <span style={{ color: 'red' }}> *</span>}
+                  </label>
+                  {showCharCount && (
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      {currentLength}/{maxLength}
+                    </div>
+                  )}
+                </div>
               
-              {field.type === 'textarea' ? (
-                <textarea
-                  className={`form-input form-textarea ${errors[field.name] ? 'error' : ''}`}
-                  value={formData[field.name] || ''}
-                  onChange={(e) => handleInputChange(field.name, e.target.value)}
-                  placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
-                  rows={4}
-                />
-              ) : field.type === 'checkbox' ? (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData[field.name] || false}
-                    onChange={(e) => handleInputChange(field.name, e.target.checked)}
+                {field.type === 'textarea' ? (
+                  <textarea
+                    className={`form-input form-textarea ${errors[field.name] ? 'error' : ''}`}
+                    value={fieldValue}
+                    onChange={(e) => handleInputChange(field.name, e.target.value)}
+                    placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
+                    rows={4}
+                    maxLength={maxLength}
                   />
-                  <span>{field.label}</span>
-                </label>
-              ) : (
-                <input
-                  type={field.type || 'text'}
-                  className={`form-input ${errors[field.name] ? 'error' : ''}`}
-                  value={formData[field.name] || ''}
-                  onChange={(e) => handleInputChange(field.name, e.target.value)}
-                  placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
-                  disabled={field.disabled}
-                />
-              )}
+                ) : field.type === 'checkbox' ? (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData[field.name] || false}
+                      onChange={(e) => handleInputChange(field.name, e.target.checked)}
+                    />
+                    <span>{field.label}</span>
+                  </label>
+                ) : (
+                  <input
+                    type={field.type || 'text'}
+                    className={`form-input ${errors[field.name] ? 'error' : ''}`}
+                    value={fieldValue}
+                    onChange={(e) => handleInputChange(field.name, e.target.value)}
+                    placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
+                    disabled={field.disabled}
+                    maxLength={maxLength}
+                  />
+                )}
               
-              {errors[field.name] && (
-                <div className="error-message">{errors[field.name]}</div>
-              )}
-            </div>
-          ))}
+                {errors[field.name] && (
+                  <div className="error-message">{errors[field.name]}</div>
+                )}
+              </div>
+            );
+          })}
         </form>
         
         <div className="modal-footer">

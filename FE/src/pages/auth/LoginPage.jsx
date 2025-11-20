@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useModal } from "../../components/common/ModalProvider";
-import PublicFooter from "../../components/public/PublicFooter";
-import PublicHeader from "../../components/public/PublicHeader";
 import { AuthService } from "../../services/authService";
 import "./Auth.css";
 

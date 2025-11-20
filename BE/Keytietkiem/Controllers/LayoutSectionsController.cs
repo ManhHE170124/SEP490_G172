@@ -1,110 +1,271 @@
 ﻿/**
  * File: LayoutSectionsController.cs
- * Author: TungNVHE170677
- * Created: 26/10/2025
- * Last Updated: 5/11/2025
- * Purpose: Manage layout sections on the website (CRUD operations).
- *          Each section defines a customizable area of the site layout,
- *          such as header, footer, sidebar, etc.
- * Endpoints:
- *   - GET    /api/layoutsections          : Retrieve all layout sections
- *   - GET    /api/layoutsections/{id}     : Retrieve a layout section by ID
- *   - POST   /api/layoutsections          : Create a new layout section
- *   - PUT    /api/layoutsections/{id}     : Update a layout section
- *   - DELETE /api/layoutsections/{id}     : Delete a layout section
+ * Author: Tungnvhe
+ * Created: 2025-01-20
+ * Last Updated: 2025-01-20
+ * Purpose: Manage layout sections - Simple CRUD without service layer
  */
 
-using Keytietkiem.DTOs;
-using Keytietkiem.Services.Interfaces;
-using Microsoft.AspNetCore.Http;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-namespace Keytietkiem.Controllers
+namespace Keytietkiem.Controllers.Admin
 {
-    [Route("api/[controller]")]
+    [Route("api/admin/layout-sections")]
     [ApiController]
     public class LayoutSectionsController : ControllerBase
     {
-        private readonly ILayoutSectionService _service;
-        public LayoutSectionsController(ILayoutSectionService service)
+        private readonly KeytietkiemDbContext _context;
+
+        public LayoutSectionsController(KeytietkiemDbContext context)
         {
-            _service = service;
-        }
-        /**
-        * Summary: Retrieve all layout sections.
-        * Route: GET /api/layoutsections
-        * Params: none
-        * Returns: 200 OK with a list of all layout sections.
-        */
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<LayoutSectionDto>>> GetAll()
-        {
-            var data = await _service.GetAllAsync();
-            return Ok(data);
+            _context = context;
         }
 
-        /**
-         * Summary: Retrieve a specific layout section by its ID.
-         * Route: GET /api/layoutsections/{id}
-         * Params:
-         *   - id (int): The unique identifier of the layout section.
-         * Returns:
-         *   - 200 OK with layout section data.
-         *   - 404 Not Found if the section does not exist.
-         */
+        /// <summary>
+        /// Get all layout sections
+        /// GET /api/admin/layout-sections
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetAll()
+        {
+            try
+            {
+                var sections = await _context.LayoutSections
+                    .OrderBy(x => x.DisplayOrder ?? 0)
+                    .ThenBy(x => x.SectionName)
+                    .ToListAsync();
+
+                return Ok(sections);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi tải danh sách sections", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Get layout section by ID
+        /// GET /api/admin/layout-sections/{id}
+        /// </summary>
         [HttpGet("{id}")]
-        public async Task<ActionResult<LayoutSectionDto>> Get(int id)
+        public async Task<IActionResult> Get(int id)
         {
-            var result = await _service.GetByIdAsync(id);
-            if (result == null) return NotFound();
-            return Ok(result);
+            try
+            {
+                var section = await _context.LayoutSections.FindAsync(id);
+
+                if (section == null)
+                    return NotFound(new { message = "Không tìm thấy section" });
+
+                return Ok(section);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi tải section", error = ex.Message });
+            }
         }
-        /**
-         * Summary: Create a new layout section.
-         * Route: POST /api/layoutsections
-         * Body: LayoutSectionDto dto
-         * Returns:
-         *   - 201 Created with the created layout section.
-         *   - 400 Bad Request if input is invalid.
-         */
+
+        /// <summary>
+        /// Create new layout section
+        /// POST /api/admin/layout-sections
+        /// Body: { sectionKey, sectionName, displayOrder, isActive }
+        /// </summary>
         [HttpPost]
-        public async Task<ActionResult<LayoutSectionDto>> Create(LayoutSectionDto dto)
+        public async Task<IActionResult> Create([FromBody] CreateSectionRequest request)
         {
-            var created = await _service.CreateAsync(dto);
-            return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+            try
+            {
+                // Validation
+                if (string.IsNullOrWhiteSpace(request.SectionName))
+                    return BadRequest(new { message = "Tên section là bắt buộc" });
+
+                if (string.IsNullOrWhiteSpace(request.SectionKey))
+                    return BadRequest(new { message = "Section key là bắt buộc" });
+
+                // Check duplicate SectionKey
+                var exists = await _context.LayoutSections
+                    .AnyAsync(x => x.SectionKey == request.SectionKey.Trim());
+
+                if (exists)
+                    return Conflict(new { message = $"Section key '{request.SectionKey}' đã tồn tại" });
+
+                // Auto DisplayOrder if not provided
+                int displayOrder = request.DisplayOrder ?? 0;
+                if (displayOrder <= 0)
+                {
+                    var maxOrder = await _context.LayoutSections
+                        .MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
+                    displayOrder = maxOrder + 1;
+                }
+
+                // Create new section
+                var section = new LayoutSection
+                {
+                    SectionKey = request.SectionKey.Trim(),
+                    SectionName = request.SectionName.Trim(),
+                    DisplayOrder = displayOrder,
+                    IsActive = request.IsActive ?? true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.LayoutSections.Add(section);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(Get), new { id = section.Id }, section);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi tạo section", error = ex.Message });
+            }
         }
-        /**
-         * Summary: Update an existing layout section.
-         * Route: PUT /api/layoutsections/{id}
-         * Params:
-         *   - id (int): The ID of the section to update.
-         * Body: LayoutSectionDto dto
-         * Returns:
-         *   - 204 No Content if updated successfully.
-         *   - 404 Not Found if section does not exist.
-         */
+
+        /// <summary>
+        /// Update layout section
+        /// PUT /api/admin/layout-sections/{id}
+        /// Body: { sectionKey, sectionName, displayOrder, isActive }
+        /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, LayoutSectionDto dto)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateSectionRequest request)
         {
-            var updated = await _service.UpdateAsync(id, dto);
-            if (updated == null) return NotFound();
-            return NoContent();
+            try
+            {
+                var section = await _context.LayoutSections.FindAsync(id);
+
+                if (section == null)
+                    return NotFound(new { message = "Không tìm thấy section" });
+
+                // Validation
+                if (string.IsNullOrWhiteSpace(request.SectionName))
+                    return BadRequest(new { message = "Tên section là bắt buộc" });
+
+                if (string.IsNullOrWhiteSpace(request.SectionKey))
+                    return BadRequest(new { message = "Section key là bắt buộc" });
+
+                // Check duplicate SectionKey (excluding current)
+                if (section.SectionKey != request.SectionKey.Trim())
+                {
+                    var keyExists = await _context.LayoutSections
+                        .AnyAsync(x => x.SectionKey == request.SectionKey.Trim() && x.Id != id);
+
+                    if (keyExists)
+                        return Conflict(new { message = $"Section key '{request.SectionKey}' đã tồn tại" });
+                }
+
+                // Update fields
+                section.SectionKey = request.SectionKey.Trim();
+                section.SectionName = request.SectionName.Trim();
+                section.DisplayOrder = request.DisplayOrder ?? section.DisplayOrder ?? 0;
+                section.IsActive = request.IsActive ?? section.IsActive;
+                section.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(section);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi cập nhật section", error = ex.Message });
+            }
         }
-        /**
-        * Summary: Delete a layout section by its ID.
-        * Route: DELETE /api/layoutsections/{id}
-        * Params:
-        *   - id (int): The ID of the section to delete.
-        * Returns:
-        *   - 204 No Content if deleted successfully.
-        *   - 404 Not Found if section does not exist.
-        */
+
+        /// <summary>
+        /// Delete layout section
+        /// DELETE /api/admin/layout-sections/{id}
+        /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var deleted = await _service.DeleteAsync(id);
-            if (!deleted) return NotFound();
-            return NoContent();
+            try
+            {
+                var section = await _context.LayoutSections.FindAsync(id);
+
+                if (section == null)
+                    return NotFound(new { message = "Không tìm thấy section" });
+
+                _context.LayoutSections.Remove(section);
+                await _context.SaveChangesAsync();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi xóa section", error = ex.Message });
+            }
         }
+
+        /// <summary>
+        /// Reorder layout sections
+        /// PATCH /api/admin/layout-sections/reorder
+        /// Body: [{ id: 1, displayOrder: 1 }, { id: 2, displayOrder: 2 }]
+        /// </summary>
+        [HttpPatch("reorder")]
+        public async Task<IActionResult> Reorder([FromBody] List<ReorderItem> items)
+        {
+            try
+            {
+                if (items == null || items.Count == 0)
+                    return BadRequest(new { message = "Dữ liệu reorder là bắt buộc" });
+
+                foreach (var item in items)
+                {
+                    var section = await _context.LayoutSections.FindAsync(item.Id);
+                    if (section != null)
+                    {
+                        section.DisplayOrder = item.DisplayOrder;
+                        section.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi khi sắp xếp lại", error = ex.Message });
+            }
+        }
+    }
+
+    // ============================================
+    // REQUEST MODELS
+    // ============================================
+
+    /// <summary>
+    /// Request model for creating section
+    /// </summary>
+    public class CreateSectionRequest
+    {
+        public string SectionKey { get; set; } = null!;
+        public string SectionName { get; set; } = null!;
+        public int? DisplayOrder { get; set; }
+        public bool? IsActive { get; set; }
+    }
+
+    /// <summary>
+    /// Request model for updating section
+    /// </summary>
+    public class UpdateSectionRequest
+    {
+        public string SectionKey { get; set; } = null!;
+        public string SectionName { get; set; } = null!;
+        public int? DisplayOrder { get; set; }
+        public bool? IsActive { get; set; }
+    }
+
+    /// <summary>
+    /// Model for reorder operation
+    /// </summary>
+    public class ReorderItem
+    {
+        public int Id { get; set; }
+        public int DisplayOrder { get; set; }
     }
 }

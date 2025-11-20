@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import PublicFooter from "../../components/public/PublicFooter";
-import PublicHeader from "../../components/public/PublicHeader";
 import { AuthService } from "../../services/authService";
 import "./Auth.css";
 
@@ -74,7 +72,6 @@ export default function CheckEmailPage() {
 
   return (
     <div className="public-page">
-
       <section className="container section auth-wrap">
         <div className="auth-card" aria-labelledby="checkEmailTitle">
           <h1 id="checkEmailTitle" style={{ margin: "0 0 6px" }}>
@@ -146,7 +143,6 @@ export default function CheckEmailPage() {
           </div>
         </div>
       </section>
-
     </div>
   );
 }

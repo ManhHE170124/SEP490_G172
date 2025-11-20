@@ -6,12 +6,16 @@
  * Version: 1.0.0
  * Purpose: Application routes with layout separation (Client and Admin)
  */
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { Suspense, lazy } from "react";
 // import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
 import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
+import ProtectedRoute from "./ProtectedRoute";
+import { MODULE_CODES } from "../constants/accessControl";
+import HomePage from "../pages/home/HomePage";
+import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
@@ -33,6 +37,7 @@ import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
+import AccessDenied from "../pages/errors/AccessDenied";
 
 // *** Staff ticket pages ***
 import StaffTicketManagement from "../pages/admin/staff-ticket-management";
@@ -57,6 +62,9 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
+import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
+import BlogDetail from '../pages/blog/BlogDetail.jsx';
+
 // Order pages
 import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
 import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
@@ -94,10 +102,23 @@ const StaffTicketDetail = lazy(() =>
  * @returns {JSX.Element} - Routes configuration with ClientLayout and AdminLayout
  */
 export default function AppRoutes() {
+  const renderAdminPage = (moduleCode, component) => (
+    <ProtectedRoute moduleCode={moduleCode}>
+      <AdminLayout>{component}</AdminLayout>
+    </ProtectedRoute>
+  );
+
   return (
     <Routes>
       {/* Default Access Routes */}
-      <Route path="/" element={<ClientLayout> </ClientLayout>} />
+      <Route
+        path="/"
+        element={
+          <ClientLayout>
+            <HomePage />
+          </ClientLayout>
+        }
+      />
 
       <Route
         path="/login"
@@ -139,25 +160,42 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route
+        path="/account/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
+          </ClientLayout>
+        }
+      />
       <Route path="/admin" element={<div />} />
       <Route path="/admin/support-chats" element={<AdminSupportChatPage />} />
       {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
-        element={
-          <AdminLayout>
-            <AdminTicketManagement />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <AdminTicketManagement />
+        )}
       />
       <Route
         path="/admin/tickets/:id"
         element={
-          <Suspense fallback={<div>Đang tải chi tiết...</div>}>
-            <AdminLayout>
-              <AdminTicketDetail />
-            </AdminLayout>
-          </Suspense>
+          <ProtectedRoute moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+            <Suspense fallback={<div>Đang tải chi tiết...</div>}>
+              <AdminLayout>
+                <AdminTicketDetail />
+              </AdminLayout>
+            </Suspense>
+          </ProtectedRoute>
         }
       />
 
@@ -220,45 +258,40 @@ export default function AppRoutes() {
       {/* Products */}
       <Route
         path="/admin/products"
-        element={
-          <AdminLayout>
-            <ProductsPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <ProductsPage />
+        )}
       />
       <Route
         path="/admin/products/add"
-        element={
-          <AdminLayout>
-            <ProductAdd />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <ProductAdd />
+        )}
       />
       <Route
         path="/admin/products/:id"
-        element={
-          <AdminLayout>
-            <ProductDetail />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <ProductDetail />
+        )}
       />
       <Route
         path="/admin/products/:id/variants/:variantId"
-        element={
-          <AdminLayout>
-            <VariantDetail />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <VariantDetail />
+        )}
       />
 
       {/* Categories */}
       <Route
         path="/admin/categories"
-        element={
-          <AdminLayout>
-            <CategoryPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <CategoryPage />
+        )}
       />
       {/* FAQs */}
       <Route
@@ -273,76 +306,64 @@ export default function AppRoutes() {
       {/* Admin Routes */}
       <Route
         path="/admin-dashboard"
-        element={
-          <AdminLayout>
-            <Page404 />
-          </AdminLayout>
-        }
+        element={renderAdminPage(null, <Page404 />)}
       />
       <Route
         path="/admin/users"
-        element={
-          <AdminLayout>
-            <AdminUserManagement />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.USER_MANAGER,
+          <AdminUserManagement />
+        )}
       />
       <Route
         path="/admin-user-management"
-        element={
-          <AdminLayout>
-            <AdminUserManagement />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.USER_MANAGER,
+          <AdminUserManagement />
+        )}
       />
       <Route
         path="/role-manage"
-        element={
-          <AdminLayout>
-            <RoleManage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.ROLE_MANAGER,
+          <RoleManage />
+        )}
       />
       <Route
         path="/role-assign"
-        element={
-          <AdminLayout>
-            <RoleAssign />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.ROLE_MANAGER,
+          <RoleAssign />
+        )}
       />
       {/* Post Routes */}
       <Route
         path="admin-post-list"
-        element={
-          <AdminLayout>
-            <AdminPostList />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.POST_MANAGER,
+          <AdminPostList />
+        )}
       />
       <Route
         path="post-create-edit"
-        element={
-          <AdminLayout>
-            <PostCreateEdit />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.POST_MANAGER,
+          <PostCreateEdit />
+        )}
       />
       <Route
         path="post-create-edit/:postId"
-        element={
-          <AdminLayout>
-            <PostCreateEdit />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.POST_MANAGER,
+          <PostCreateEdit />
+        )}
       />
       <Route
         path="tag-post-type-manage"
-        element={
-          <AdminLayout>
-            <TagPostTypeManage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.POST_MANAGER,
+          <TagPostTypeManage />
+        )}
       />
 
       {/* 404 - Default to Client Layout - Fallbacks*/}
@@ -351,126 +372,99 @@ export default function AppRoutes() {
       {/* Suppliers */}
       <Route
         path="/suppliers"
-        element={
-          <AdminLayout>
-            <SuppliersPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <SuppliersPage />
+        )}
       />
       <Route
         path="/suppliers/add"
-        element={
-          <AdminLayout>
-            <SupplierDetailPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <SupplierDetailPage />
+        )}
       />
       <Route
         path="/suppliers/:id"
-        element={
-          <AdminLayout>
-            <SupplierDetailPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <SupplierDetailPage />
+        )}
       />
 
       {/* Product Keys */}
       <Route
         path="/keys"
-        element={
-          <AdminLayout>
-            <KeyManagementPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <KeyManagementPage />
+        )}
       />
       <Route
         path="/keys/add"
-        element={
-          <AdminLayout>
-            <KeyDetailPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <KeyDetailPage />
+        )}
       />
       <Route
         path="/keys/:id"
-        element={
-          <AdminLayout>
-            <KeyDetailPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <KeyDetailPage />
+        )}
       />
 
       {/* Key Monitor */}
       <Route
         path="/key-monitor"
-        element={
-          <AdminLayout>
-            <KeyMonitorPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <KeyMonitorPage />
+        )}
       />
 
       {/* Product Accounts */}
       <Route
         path="/accounts"
-        element={
-          <AdminLayout>
-            <AccountManagementPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <AccountManagementPage />
+        )}
       />
       <Route
         path="/accounts/add"
-        element={
-          <AdminLayout>
-            <AccountDetailPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <AccountDetailPage />
+        )}
       />
       <Route
         path="/accounts/:id"
-        element={
-          <AdminLayout>
-            <AccountDetailPage />
-          </AdminLayout>
-        }
-      />
-
-      {/* RBAC & Users (duplicated paths giữ nguyên) */}
-      <Route
-        path="/admin/users"
-        element={
-          <AdminLayout>
-            <AdminUserManagement />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/admin-user-management"
-        element={
-          <AdminLayout>
-            <AdminUserManagement />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.WAREHOUSE_MANAGER,
+          <AccountDetailPage />
+        )}
       />
 
       <Route
         path="/admin/website-config"
-        element={
-          <AdminLayout>
-            <WebsiteConfig />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.SETTINGS_MANAGER,
+          <WebsiteConfig />
+        )}
       />
 
+      <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route
-        path="/blogs"
+        path="/access-denied"
         element={
           <ClientLayout>
-            <BlogList />
+            <AccessDenied />
           </ClientLayout>
         }
       />
+      <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />

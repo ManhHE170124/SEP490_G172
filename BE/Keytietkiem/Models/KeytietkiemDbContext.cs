@@ -43,6 +43,8 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Post> Posts { get; set; }
 
+    public virtual DbSet<PostComment> PostComments { get; set; }
+
     public virtual DbSet<PostType> PostTypes { get; set; }
 
     public virtual DbSet<Product> Products { get; set; }
@@ -419,6 +421,36 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(255);
             entity.Property(e => e.PostTypeName).HasMaxLength(100);
             entity.Property(e => e.Slug).HasMaxLength(150);
+        });
+
+        modelBuilder.Entity<PostComment>(entity =>
+        {
+            entity.ToTable("PostComments");
+
+            entity.HasKey(e => e.CommentId).HasName("PK_PostComments");
+
+            entity.Property(e => e.CommentId)
+                .HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.IsApproved)
+                .HasDefaultValue(false);
+
+            entity.HasOne(d => d.Post)
+                .WithMany()
+                .HasForeignKey(d => d.PostId)
+                .HasConstraintName("FK_PostComments_Posts");
+
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_PostComments_Users");
+
+            entity.HasOne(d => d.ParentComment)
+                .WithMany(p => p.Replies)
+                .HasForeignKey(d => d.ParentCommentId)
+                .HasConstraintName("FK_PostComments_ParentComment");
         });
 
         modelBuilder.Entity<Product>(entity =>

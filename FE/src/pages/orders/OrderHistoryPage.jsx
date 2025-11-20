@@ -11,6 +11,7 @@ const initialFilters = {
   amountTo: "",
   fromDate: "",
   toDate: "",
+  
 };
 
 const formatCurrency = (value) =>

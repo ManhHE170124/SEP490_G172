@@ -42,6 +42,9 @@ public class UpdateProductAccountDto
 {
     [Required(ErrorMessage = "ID tài khoản là bắt buộc")]
     public Guid ProductAccountId { get; set; }
+    
+    [Required(ErrorMessage = "ID sản phẩm là bắt buộc")]
+    public Guid ProductId { get; set; }
 
     [EmailAddress(ErrorMessage = "Email không hợp lệ")]
     [StringLength(254, ErrorMessage = "Email không được vượt quá 254 ký tự")]

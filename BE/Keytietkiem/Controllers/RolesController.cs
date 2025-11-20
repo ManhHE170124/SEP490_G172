@@ -124,15 +124,21 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
-            if (createRoleDto == null || string.IsNullOrWhiteSpace(createRoleDto.Name))
+            if (createRoleDto == null)
             {
-                return BadRequest("Role name is required.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existingRole = await _context.Roles
                 .FirstOrDefaultAsync(m => m.Name == createRoleDto.Name);
             if (existingRole != null)
             {
-                return Conflict(new { message = "Role name already exists." });
+                return Conflict(new { message = "Tên vai trò đã tồn tại." });
             }
 
             // Check if Code is unique (if provided)
@@ -142,7 +148,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == createRoleDto.Code);
                 if (existingCode != null)
                 {
-                    return Conflict(new { message = "Role code already exists." });
+                    return Conflict(new { message = "Mã vai trò đã tồn tại." });
                 }
             }
 
@@ -206,7 +212,13 @@ namespace Keytietkiem.Controllers
         {
             if (updateRoleDto == null)
             {
-                return BadRequest("Invalid role data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existingRole = await _context.Roles.FindAsync(id);
             if (existingRole == null)
@@ -220,7 +232,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == updateRoleDto.Code && m.RoleId != id);
                 if (existingCode != null)
                 {
-                    return Conflict(new { message = "Role code already exists." });
+                    return Conflict(new { message = "Mã vai trò đã tồn tại." });
                 }
             }
 
@@ -410,6 +422,65 @@ namespace Keytietkiem.Controllers
             {
                 return StatusCode(500, new { message = "An error occurred while updating role permissions.", error = ex.Message });
             }
+        }
+
+        /**
+         * Summary: Retrieve modules that the provided role codes can access for a specific permission.
+         * Route: POST /api/roles/module-access
+         * Body: ModuleAccessRequestDTO - list of role codes and optional permission code (defaults to ACCESS)
+         * Returns: 200 OK with list of modules the roles can access
+         */
+        [HttpPost("module-access")]
+        public async Task<IActionResult> GetModuleAccessForRoles([FromBody] ModuleAccessRequestDTO request)
+        {
+            if (request == null || request.RoleCodes == null || !request.RoleCodes.Any())
+            {
+                return BadRequest(new { message = "Danh sách vai trò không được để trống." });
+            }
+
+            var normalizedRoleCodes = request.RoleCodes
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim().ToUpper())
+                .Distinct()
+                .ToList();
+
+            if (!normalizedRoleCodes.Any())
+            {
+                return BadRequest(new { message = "Danh sách vai trò không được để trống." });
+            }
+
+            var permissionCode = string.IsNullOrWhiteSpace(request.PermissionCode)
+                ? "ACCESS"
+                : request.PermissionCode.Trim().ToUpper();
+
+            var modules = await _context.RolePermissions
+                .Include(rp => rp.Module)
+                .Include(rp => rp.Permission)
+                .Include(rp => rp.Role)
+                .Where(rp =>
+                    rp.IsActive &&
+                    rp.Module != null &&
+                    rp.Permission != null &&
+                    rp.Role != null &&
+                    !string.IsNullOrWhiteSpace(rp.Role.Code) &&
+                    normalizedRoleCodes.Contains(rp.Role.Code.ToUpper()) &&
+                    !string.IsNullOrWhiteSpace(rp.Permission.Code) &&
+                    rp.Permission.Code.ToUpper() == permissionCode)
+                .GroupBy(rp => new
+                {
+                    rp.ModuleId,
+                    ModuleName = rp.Module!.ModuleName,
+                    ModuleCode = rp.Module.Code
+                })
+                .Select(g => new ModuleAccessDTO
+                {
+                    ModuleId = g.Key.ModuleId,
+                    ModuleName = g.Key.ModuleName,
+                    ModuleCode = g.Key.ModuleCode
+                })
+                .ToListAsync();
+
+            return Ok(modules);
         }
 
         /**

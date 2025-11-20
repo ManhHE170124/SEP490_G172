@@ -289,7 +289,9 @@ export default function AccountDetailPage() {
       newErrors.cogsPrice = "Giá vốn không được âm";
     }
 
-    if (formData.expiryDate) {
+    if (isNew && !formData.expiryDate) {
+      newErrors.expiryDate = "Ngày hết hạn là bắt buộc";
+    } else if (formData.expiryDate) {
       const [y, m, d] = formData.expiryDate
         .split("-")
         .map((x) => parseInt(x, 10));
@@ -334,6 +336,7 @@ export default function AccountDetailPage() {
         navigate("/accounts");
       } else {
         payload.productAccountId = id;
+        payload.productId = formData.productId;
         payload.status = formData.status;
         // Only include password if it was changed
         if (formData.accountPassword.trim()) {
@@ -667,7 +670,9 @@ export default function AccountDetailPage() {
             )}
 
             <div className="form-row">
-              <label>Ngày hết hạn</label>
+              <label>
+                Ngày hết hạn <span style={{ color: "red" }}>*</span>
+              </label>
               <input
                 className="input"
                 type="date"
@@ -675,6 +680,7 @@ export default function AccountDetailPage() {
                 onChange={(e) => handleChange("expiryDate", e.target.value)}
                 min={todayStr}
                 disabled={!isNew}
+                required={isNew}
               />
               {errors.expiryDate && (
                 <small style={{ color: "red" }}>{errors.expiryDate}</small>
@@ -682,7 +688,9 @@ export default function AccountDetailPage() {
             </div>
 
             <div className="form-row">
-              <label>Giá nhập</label>
+              <label>
+                Giá nhập <span style={{ color: "red" }}>*</span>
+              </label>
               <div>
                 <input
                   className="input"
@@ -693,6 +701,7 @@ export default function AccountDetailPage() {
                   onChange={(e) => handleChange("cogsPrice", e.target.value)}
                   placeholder="Nhập giá vốn (COGS)"
                   disabled={!isNew}
+                  required={isNew}
                 />
                 {errors.cogsPrice && (
                   <small style={{ color: "red" }}>{errors.cogsPrice}</small>

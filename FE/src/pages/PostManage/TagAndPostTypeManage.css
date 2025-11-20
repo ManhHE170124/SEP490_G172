@@ -184,7 +184,8 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   border: 1px solid var(--line);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .tag-pt-table {
@@ -220,6 +221,10 @@
   border-bottom: 1px solid var(--line);
   color: var(--ink);
   font-size: 0.9rem;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 320px;
 }
 
 .tag-pt-table tr:last-child td {

@@ -91,15 +91,21 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
-            if (createModuleDto == null || string.IsNullOrWhiteSpace(createModuleDto.ModuleName))
+            if (createModuleDto == null)
             {
-                return BadRequest("Module name is required.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleName == createModuleDto.ModuleName);
             if (existing != null)
             {
-                return Conflict(new { message = "Module name already exists." });
+                return Conflict(new { message = "Tên module đã tồn tại." });
             }
 
             // Check if Code is unique (if provided)
@@ -109,7 +115,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == createModuleDto.Code);
                 if (existingCode != null)
                 {
-                    return Conflict(new { message = "Module code already exists." });
+                    return Conflict(new { message = "Mã module đã tồn tại." });
                 }
             }
 
@@ -171,7 +177,13 @@ namespace Keytietkiem.Controllers
         {
             if (updateModuleDto == null)
             {
-                return BadRequest("Invalid module data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
@@ -186,7 +198,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == updateModuleDto.Code && m.ModuleId != id);
                 if (existingCode != null)
                 {
-                    return Conflict(new { message = "Module code already exists." });
+                    return Conflict(new { message = "Mã module đã tồn tại." });
                 }
             }
 

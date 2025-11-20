@@ -20,6 +20,7 @@
  */
 
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Roles
 {
@@ -35,15 +36,31 @@ namespace Keytietkiem.DTOs.Roles
 
     public class CreatePermissionDTO
     {
+        [Required(ErrorMessage = "Tên quyền không được để trống.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Tên quyền phải có từ 2 đến 100 ký tự.")]
         public string PermissionName { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Mã quyền không được để trống.")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Mã quyền phải có từ 2 đến 50 ký tự.")]
+        [RegularExpression(@"^[A-Z0-9_]+$", ErrorMessage = "Mã quyền chỉ được chứa chữ in hoa, số và dấu gạch dưới.")]
         public string Code { get; set; } = null!;
+        
+        [StringLength(300, ErrorMessage = "Mô tả không được vượt quá 300 ký tự.")]
         public string? Description { get; set; }
     }
 
     public class UpdatePermissionDTO
     {
+        [Required(ErrorMessage = "Tên quyền không được để trống.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Tên quyền phải có từ 2 đến 100 ký tự.")]
         public string PermissionName { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Mã quyền không được để trống.")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Mã quyền phải có từ 2 đến 50 ký tự.")]
+        [RegularExpression(@"^[A-Z0-9_]+$", ErrorMessage = "Mã quyền chỉ được chứa chữ in hoa, số và dấu gạch dưới.")]
         public string Code { get; set; } = null!;
+        
+        [StringLength(300, ErrorMessage = "Mô tả không được vượt quá 300 ký tự.")]
         public string? Description { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

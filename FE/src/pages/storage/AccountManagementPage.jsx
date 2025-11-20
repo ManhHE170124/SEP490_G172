@@ -4,6 +4,7 @@ import { ProductAccountApi } from "../../services/productAccounts";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
 import {
@@ -279,7 +280,12 @@ export default function AccountManagementPage() {
                               to={`/accounts/${account.productAccountId}`}
                               style={{ fontFamily: "monospace" }}
                             >
-                              {account.accountEmail}
+                              <ChunkedText
+                                value={account.accountEmail}
+                                fallback="-"
+                                chunkSize={28}
+                                className="chunk-text--cell chunk-text--block"
+                              />
                             </Link>
                           </td>
                           <td>{account.accountUsername || "—"}</td>

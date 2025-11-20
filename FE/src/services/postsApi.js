@@ -30,7 +30,8 @@ import axiosClient from "../api/axiosClient";
 const END = {
   POSTS: "posts",
   TAGS: "tags",
-  POST_IMAGES: "PostImages"
+  POST_IMAGES: "PostImages",
+  COMMENTS: "comments"
 };
 
 export const postsApi = {
@@ -40,6 +41,9 @@ export const postsApi = {
   createPost: (data) => axiosClient.post(END.POSTS, data),
   updatePost: (id, data) => axiosClient.put(`${END.POSTS}/${id}`, data),
   deletePost: (id) => axiosClient.delete(`${END.POSTS}/${id}`),
+  getPostBySlug: (slug) => axiosClient.get(`${END.POSTS}/slug/${slug}`),
+  getRelatedPosts: (postId, limit = 3) =>
+    axiosClient.get(`${END.POSTS}/${postId}/related?limit=${limit}`),
 
   // Tag CRUD group
   getTags: () => axiosClient.get(END.TAGS),
@@ -64,11 +68,23 @@ export const postsApi = {
   },
 
   deleteImage: (publicId) => {
-  return axiosClient.delete(`${END.POST_IMAGES}/deleteImage`, {
-    data: { publicId }, 
-    headers: { "Content-Type": "application/json" },
-  });
+    return axiosClient.delete(`${END.POST_IMAGES}/deleteImage`, {
+      data: { publicId },
+      headers: { "Content-Type": "application/json" },
+    });
   },
+
+  // Comment CRUD
+  getComments: (postId, page = 1, pageSize = 20) => axiosClient.get(`${END.COMMENTS}/posts/${postId}/comments`, {
+    params: { page, pageSize }
+  }), // GET /api/comments/posts/{postId}/comments?page=1&pageSize=20
+  getCommentById: (id) => axiosClient.get(`${END.COMMENTS}/${id}`),
+  getCommentReplies: (id) => axiosClient.get(`${END.COMMENTS}/${id}/replies`),
+  createComment: (data) => axiosClient.post(END.COMMENTS, data),
+  updateComment: (id, data) => axiosClient.put(`${END.COMMENTS}/${id}`, data),
+  deleteComment: (id) => axiosClient.delete(`${END.COMMENTS}/${id}`),
+  showComment: (id) => axiosClient.patch(`${END.COMMENTS}/${id}/show`),
+  hideComment: (id) => axiosClient.patch(`${END.COMMENTS}/${id}/hide`),
 };
 
 export function extractPublicId(imageUrl) {

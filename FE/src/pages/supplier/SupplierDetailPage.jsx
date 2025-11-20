@@ -7,6 +7,7 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import CsvUploadModal from "../../components/Modal/CsvUploadModal";
 import ViewKeysModal from "../../components/Modal/ViewKeysModal";
+import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
 import formatDate from "../../utils/formatDate";
 import "../admin/admin.css";
@@ -184,6 +185,8 @@ export default function SupplierDetailPage() {
 
   const validateForm = () => {
     const newErrors = {};
+    const email = (formData.contactEmail || "").trim();
+    const phone = (formData.contactPhone || "").trim();
 
     if (!formData.name.trim()) {
       newErrors.name = "Tên nhà cung cấp là bắt buộc";
@@ -191,18 +194,19 @@ export default function SupplierDetailPage() {
       newErrors.name = "Tên không được vượt quá 100 ký tự";
     }
 
-    if (
-      formData.contactEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)
-    ) {
-      newErrors.contactEmail = "Email không hợp lệ";
+    if (!email) {
+      newErrors.contactEmail = "Email liên hệ là bắt buộc";
+    } else {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        newErrors.contactEmail = "Email không hợp lệ";
+      } else if (email.length > 254) {
+        newErrors.contactEmail = "Email không được vượt quá 254 ký tự";
+      }
     }
 
-    if (formData.contactEmail && formData.contactEmail.length > 254) {
-      newErrors.contactEmail = "Email không được vượt quá 254 ký tự";
-    }
-
-    if (formData.contactPhone && formData.contactPhone.length > 32) {
+    if (!phone) {
+      newErrors.contactPhone = "Số điện thoại là bắt buộc";
+    } else if (phone.length > 32) {
       newErrors.contactPhone = "Số điện thoại không được vượt quá 32 ký tự";
     }
 
@@ -506,9 +510,19 @@ export default function SupplierDetailPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>
-            {isNew
-              ? "Thêm nhà cung cấp mới"
-              : `Chi tiết nhà cung cấp — ${formData.name}`}
+            {isNew ? (
+              "Thêm nhà cung cấp mới"
+            ) : (
+              <>
+                Chi tiết nhà cung cấp — {" "}
+                <ChunkedText
+                  value={formData.name}
+                  fallback="(Không có tên)"
+                  chunkSize={32}
+                  className="chunk-text--wide chunk-text--block"
+                />
+              </>
+            )}
           </h1>
           <Link className="btn" to="/suppliers">
             Quay lại
@@ -541,7 +555,9 @@ export default function SupplierDetailPage() {
             </div>
 
             <div className="form-row">
-              <label>Email liên hệ</label>
+              <label>
+                Email liên hệ <span style={{ color: "red" }}>*</span>
+              </label>
               <div>
                 <input
                   className="input"
@@ -549,6 +565,7 @@ export default function SupplierDetailPage() {
                   value={formData.contactEmail}
                   onChange={(e) => handleChange("contactEmail", e.target.value)}
                   placeholder="email@example.com"
+                  required
                 />
                 {errors.contactEmail && (
                   <small style={{ color: "red" }}>{errors.contactEmail}</small>
@@ -557,7 +574,9 @@ export default function SupplierDetailPage() {
             </div>
 
             <div className="form-row">
-              <label>Số điện thoại</label>
+              <label>
+                Số điện thoại <span style={{ color: "red" }}>*</span>
+              </label>
               <div>
                 <input
                   className="input"
@@ -565,6 +584,7 @@ export default function SupplierDetailPage() {
                   value={formData.contactPhone}
                   onChange={(e) => handleChange("contactPhone", e.target.value)}
                   placeholder="0123456789"
+                  required
                 />
                 {errors.contactPhone && (
                   <small style={{ color: "red" }}>{errors.contactPhone}</small>
@@ -620,6 +640,33 @@ export default function SupplierDetailPage() {
                   gap: 12,
                 }}
               >
+                <div>
+                  <small className="muted">Tên hiển thị:</small>
+                  <ChunkedText
+                    value={formData.name}
+                    fallback="(Không có tên)"
+                    chunkSize={32}
+                    className="chunk-text--wide chunk-text--block"
+                  />
+                </div>
+                <div>
+                  <small className="muted">Email liên hệ:</small>
+                  <ChunkedText
+                    value={formData.contactEmail}
+                    fallback="Chưa cập nhật"
+                    chunkSize={32}
+                    className="chunk-text--wide chunk-text--block"
+                  />
+                </div>
+                <div>
+                  <small className="muted">Số điện thoại:</small>
+                  <ChunkedText
+                    value={formData.contactPhone}
+                    fallback="Chưa cập nhật"
+                    chunkSize={24}
+                    className="chunk-text--wide chunk-text--block"
+                  />
+                </div>
                 <div>
                   <small className="muted">Trạng thái:</small>
                   <div>
