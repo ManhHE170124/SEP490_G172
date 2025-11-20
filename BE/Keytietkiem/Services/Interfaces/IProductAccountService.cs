@@ -11,6 +11,8 @@ public interface IProductAccountService
     /// Get paginated list of product accounts with filters
     /// </summary>
     Task<ProductAccountListResponseDto> GetListAsync(ProductAccountFilterDto filterDto, CancellationToken cancellationToken = default);
+    
+    Task<(Guid?, bool)> CheckAccountEmailOrUsernameExists(Guid productId, string email, string? username, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get a single product account by ID with full details

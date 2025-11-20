@@ -6,7 +6,7 @@
  * Version: 1.0.0
  * Purpose: Application routes with layout separation (Client and Admin)
  */
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { Suspense, lazy } from "react";
 // import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
@@ -14,6 +14,8 @@ import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
+import HomePage from "../pages/home/HomePage";
+import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
@@ -109,7 +111,14 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* Default Access Routes */}
-      <Route path="/" element={<ClientLayout> </ClientLayout>} />
+      <Route
+        path="/"
+        element={
+          <ClientLayout>
+            <HomePage />
+          </ClientLayout>
+        }
+      />
 
       <Route
         path="/login"
@@ -148,6 +157,22 @@ export default function AppRoutes() {
         element={
           <ClientLayout>
             <ResetPasswordPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/account/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
           </ClientLayout>
         }
       />
