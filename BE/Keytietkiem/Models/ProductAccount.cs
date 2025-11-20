@@ -1,9 +1,8 @@
+﻿using System;
+using System.Collections.Generic;
+
 namespace Keytietkiem.Models;
 
-/// <summary>
-/// Represents a product account that can be shared among multiple customers
-/// (e.g., Netflix account, Microsoft 365 account, etc.)
-/// </summary>
 public partial class ProductAccount
 {
     public Guid ProductAccountId { get; set; }
@@ -31,10 +30,9 @@ public partial class ProductAccount
     public DateTime UpdatedAt { get; set; }
 
     public Guid? UpdatedBy { get; set; }
-    
-    public decimal CogsPrice { get; set; }
 
-    // Navigation properties
+    public decimal? CogsPrice { get; set; }
+
     public virtual Product Product { get; set; } = null!;
 
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();

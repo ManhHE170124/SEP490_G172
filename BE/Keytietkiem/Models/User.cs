@@ -29,6 +29,8 @@ public partial class User
 
     public DateTime? UpdatedAt { get; set; }
 
+    public int SupportPriorityLevel { get; set; }
+
     public virtual Account? Account { get; set; }
 
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
@@ -38,6 +40,12 @@ public partial class User
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
 
     public virtual ICollection<ProductAccountHistory> ProductAccountHistories { get; set; } = new List<ProductAccountHistory>();
+
+    public virtual ICollection<SupportChatMessage> SupportChatMessages { get; set; } = new List<SupportChatMessage>();
+
+    public virtual ICollection<SupportChatSession> SupportChatSessionAssignedStaffs { get; set; } = new List<SupportChatSession>();
+
+    public virtual ICollection<SupportChatSession> SupportChatSessionCustomers { get; set; } = new List<SupportChatSession>();
 
     public virtual ICollection<Ticket> TicketAssignees { get; set; } = new List<Ticket>();
 

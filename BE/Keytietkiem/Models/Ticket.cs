@@ -27,7 +27,21 @@ public partial class Ticket
 
     public DateTime? UpdatedAt { get; set; }
 
+    public int PriorityLevel { get; set; }
+
+    public int? SlaRuleId { get; set; }
+
+    public DateTime? FirstResponseDueAt { get; set; }
+
+    public DateTime? FirstRespondedAt { get; set; }
+
+    public DateTime? ResolutionDueAt { get; set; }
+
+    public DateTime? ResolvedAt { get; set; }
+
     public virtual User? Assignee { get; set; }
+
+    public virtual SlaRule? SlaRule { get; set; }
 
     public virtual ICollection<TicketReply> TicketReplies { get; set; } = new List<TicketReply>();
 

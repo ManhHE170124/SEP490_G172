@@ -23,7 +23,7 @@ public partial class Category
 
     public Guid? UpdatedBy { get; set; }
 
-    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
     public virtual ICollection<Faq> Faqs { get; set; } = new List<Faq>();
 
+    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 }

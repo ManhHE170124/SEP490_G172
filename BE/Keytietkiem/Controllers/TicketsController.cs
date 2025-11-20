@@ -293,8 +293,19 @@ public class TicketsController : ControllerBase
         if (st != "InProgress")
             return BadRequest(new { message = "Chỉ hoàn thành khi trạng thái Đang xử lý." });
 
+        var now = DateTime.UtcNow;
+
         t.Status = "Completed";
-        t.UpdatedAt = DateTime.UtcNow;
+
+        // SLA: đánh dấu thời điểm giải quyết nếu chưa có
+        if (!t.ResolvedAt.HasValue)
+            t.ResolvedAt = now;
+
+        t.UpdatedAt = now;
+
+        // Cập nhật SlaStatus (OK / Warning / Overdue)
+        TicketSlaHelper.UpdateSlaStatus(t, now);
+
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -311,97 +322,21 @@ public class TicketsController : ControllerBase
         if (st != "New")
             return BadRequest(new { message = "Chỉ đóng khi trạng thái Mới." });
 
+        var now = DateTime.UtcNow;
+
         t.Status = "Closed";
-        t.UpdatedAt = DateTime.UtcNow;
+
+        // SLA: đóng ticket cũng xem như đã giải quyết
+        if (!t.ResolvedAt.HasValue)
+            t.ResolvedAt = now;
+
+        t.UpdatedAt = now;
+
+        TicketSlaHelper.UpdateSlaStatus(t, now);
+
         await _db.SaveChangesAsync();
         return NoContent();
     }
-
-    [HttpPost("{id:guid}/replies")]
-    public async Task<ActionResult<TicketReplyDto>> CreateReply(Guid id, [FromBody] CreateTicketReplyDto dto)
-    {
-        var msg = (dto?.Message ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(msg))
-            return BadRequest(new { message = "Nội dung phản hồi trống." });
-
-        var t = await _db.Tickets
-            .Include(x => x.User)
-            .FirstOrDefaultAsync(x => x.TicketId == id);
-        if (t is null)
-            return NotFound();
-
-        // Lấy id người đang đăng nhập từ Claim
-        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(meStr, out var me))
-            return Unauthorized();
-
-        // Lấy đầy đủ thông tin + roles của người gửi
-        var sender = await _db.Users
-            .Include(u => u.Roles)
-            .FirstOrDefaultAsync(u => u.UserId == me);
-
-        if (sender is null)
-            return Unauthorized();
-
-        // 🔒 Kiểm tra quyền gửi phản hồi:
-        //  - Chủ ticket (UserId)
-        //  - Nhân viên được gán (AssigneeId)
-        //  - Admin (role Name / RoleId = "Admin")
-        var isTicketOwner = t.UserId == sender.UserId;
-        var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == sender.UserId;
-
-        var isAdmin = sender.Roles.Any(r =>
-        {
-            var name = (r.Name ?? string.Empty).Trim().ToLower();
-            var rid = (r.RoleId ?? string.Empty).Trim().ToLower();
-            return name == "admin" || rid == "admin";
-        });
-
-        if (!isTicketOwner && !isAssignee && !isAdmin)
-        {
-            // Trả về 403 + message để FE hiển thị ở chỗ "Bạn cần đăng nhập..."
-            return StatusCode(StatusCodes.Status403Forbidden,
-                new { message = "Người dùng không có quyền hạn để phản hồi." });
-        }
-
-        // Xác định có phải staff không:
-        // Staff = có ít nhất 1 role khác "Customer"
-        var isStaffReply = sender.Roles.Any(r =>
-        {
-            var id = (r.RoleId ?? string.Empty).Trim();
-            return !id.ToLower().Contains("customer");
-        });
-
-        var reply = new TicketReply
-        {
-            TicketId = t.TicketId,
-            SenderId = sender.UserId,
-            IsStaffReply = isStaffReply,
-            Message = msg,
-            SentAt = DateTime.UtcNow
-        };
-
-        _db.TicketReplies.Add(reply);
-        await _db.SaveChangesAsync();
-
-        var dtoOut = new TicketReplyDto
-        {
-            ReplyId = reply.ReplyId,
-            SenderId = sender.UserId,
-            SenderName = sender.FullName ?? sender.Email,
-            IsStaffReply = reply.IsStaffReply,
-            Message = reply.Message,
-            SentAt = reply.SentAt
-        };
-
-        // 🔔 Broadcast realtime đến tất cả client đang xem ticket này (nhóm "ticket:{id}")
-        await _ticketHub.Clients.Group($"ticket:{id}")
-            .SendAsync("ReceiveReply", dtoOut);
-
-        // FE vẫn nhận response trực tiếp để xử lý lạc quan
-        return Ok(dtoOut);
-    }
-
 
     // ============ NEW: staff lookups (Assign / Transfer) ============
     public class StaffMiniDto
