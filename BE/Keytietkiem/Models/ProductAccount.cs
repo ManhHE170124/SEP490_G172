@@ -48,8 +48,6 @@ public partial class ProductAccount : IValidatableObject
     [Range(0, double.MaxValue)]
     public decimal CogsPrice { get; set; }
 
-    public decimal? CogsPrice { get; set; }
-
     public virtual Product Product { get; set; } = null!;
 
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
