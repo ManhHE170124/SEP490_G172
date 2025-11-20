@@ -3,7 +3,7 @@ import '../../styles/WebsiteConfig.css';
 import { settingsApi } from '../../services/settings';
 import { useToast } from '../../contexts/ToastContext';
 import LayoutSectionsManager from './LayoutSectionsManager';
-//import PaymentGatewaysManager from './PaymentGatewaysManager';
+import PaymentGatewaysManager from './PaymentGatewaysManager';
 
 const WebsiteConfig = () => {
     // Toast
@@ -695,8 +695,8 @@ const WebsiteConfig = () => {
                 </div>
             </details>
 
-            {/* Payment Gateways - Component mới */}
-            {/*  <PaymentGatewaysManager /> */}
+
+            <PaymentGatewaysManager />
 
             {/* Save Bar */}
             <div className="savebar">
