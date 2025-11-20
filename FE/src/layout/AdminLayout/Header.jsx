@@ -16,22 +16,38 @@ import "./Header.css";
  * @summary: Header component for admin layout with search, notifications, and user menu.
  * @returns {JSX.Element} - Header with search bar, notification icon, and user dropdown
  */
-const Header = () => {
+const Header = ({ profile }) => {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [user, setUser] = useState(null);
   const dropdownRef = useRef(null);
 
-  // Load user from localStorage
-  useEffect(() => {
+  const loadUser = () => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (error) {
         console.error("Error parsing user data:", error);
+        setUser(null);
       }
+    } else {
+      setUser(null);
     }
+  };
+
+  // Load user and listen for changes
+  useEffect(() => {
+    loadUser();
+    const handleStorage = (event) => {
+      if (event.key === "user" || event.key === "access_token") {
+        loadUser();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   // Close dropdown when clicking outside
@@ -56,6 +72,7 @@ const Header = () => {
    * @summary: Toggle user dropdown menu visibility.
    */
   const handleAvatarClick = () => {
+    loadUser();
     setIsDropdownOpen(!isDropdownOpen);
   };
 
@@ -68,16 +85,7 @@ const Header = () => {
 
     switch (action) {
       case "profile":
-        // Navigate to profile page
-        console.log("Navigate to profile");
-        break;
-      case "change-avatar":
-        // Navigate to change avatar
-        console.log("Navigate to change avatar");
-        break;
-      case "settings":
-        // Navigate to settings
-        console.log("Navigate to settings");
+        navigate("/admin/profile");
         break;
       case "logout":
         handleLogout();
@@ -114,6 +122,27 @@ const Header = () => {
     ).toUpperCase();
   };
 
+  const resolvedUser = profile || user;
+  const displayName =
+    resolvedUser?.fullName ||
+    resolvedUser?.displayName ||
+    resolvedUser?.username ||
+    "Tài khoản";
+  const displayEmail =
+    resolvedUser?.email ||
+    resolvedUser?.emailAddress ||
+    resolvedUser?.mail ||
+    "Chưa có email";
+  const avatarUrl =
+    profile?.avatarUrl ||
+    profile?.avatar ||
+    resolvedUser?.avatarUrl ||
+    resolvedUser?.avatar ||
+    resolvedUser?.avatarURL ||
+    resolvedUser?.avatarUrlProfile ||
+    null;
+  const initials = getInitials(displayName);
+
   return (
     <div className="alh-header" role="banner">
       <div className="alh-search">
@@ -132,19 +161,27 @@ const Header = () => {
         />
       </div>
       <div className="alh-right">
-        <span className="alh-pill" title="Tháng hiện tại" aria-label="Tháng 10/2025">
+        <span
+          className="alh-pill"
+          title="Tháng hiện tại"
+          aria-label="Tháng 10/2025"
+        >
           10/2025
         </span>
         <span className="alh-pill" title="Thông báo" aria-label="Thông báo">
           🔔
         </span>
         <div className="alh-avatar-container" ref={dropdownRef}>
-          <div 
-            className="alh-avatar" 
+          <div
+            className="alh-avatar"
             aria-label="Tài khoản"
             onClick={handleAvatarClick}
           >
-            <span>{getInitials(user?.fullName)}</span>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Ảnh đại diện" />
+            ) : (
+              <span>{initials}</span>
+            )}
           </div>
 
           {isDropdownOpen && (
@@ -152,19 +189,23 @@ const Header = () => {
               <div className="alh-dropdown-header">
                 <div className="alh-user-info">
                   <div className="alh-user-avatar">
-                    <span>R</span>
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Ảnh đại diện" />
+                    ) : (
+                      <span>{initials}</span>
+                    )}
                   </div>
                   <div className="alh-user-details">
-                    <div className="alh-user-name">Admin User</div>
-                    <div className="alh-user-email">admin@keytietkiem.com</div>
+                    <div className="alh-user-name">{displayName}</div>
+                    <div className="alh-user-email">{displayEmail}</div>
                   </div>
                 </div>
               </div>
-              
+
               <div className="alh-dropdown-items">
-                <button 
+                <button
                   className="alh-dropdown-item"
-                  onClick={() => handleMenuAction('profile')}
+                  onClick={() => handleMenuAction("profile")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path
@@ -184,58 +225,12 @@ const Header = () => {
                   </svg>
                   Xem Profile
                 </button>
-                
-                <button 
-                  className="alh-dropdown-item"
-                  onClick={() => handleMenuAction('change-avatar')}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2v11Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <circle
-                      cx="12"
-                      cy="13"
-                      r="4"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                  Thay Avatar
-                </button>
-                
-                <button 
-                  className="alh-dropdown-item"
-                  onClick={() => handleMenuAction('settings')}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="3"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <path
-                      d="M12 1v6m0 6v6m11-7h-6m-6 0H1m15.5-6.5l-4.24 4.24M8.76 8.76 4.52 4.52m14.96 14.96-4.24-4.24M8.76 15.24 4.52 19.48"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Cài đặt
-                </button>
-                
+
                 <div className="alh-dropdown-divider"></div>
-                
-                <button 
+
+                <button
                   className="alh-dropdown-item logout"
-                  onClick={() => handleMenuAction('logout')}
+                  onClick={() => handleMenuAction("logout")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path

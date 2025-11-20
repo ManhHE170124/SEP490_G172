@@ -57,8 +57,55 @@ public class AccountController : ControllerBase
         ChangePasswordDto dto)
     {
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
-        await _accountService.ChangePasswordAsync(accountId, dto);
-        return Ok(new { message = "Đổi mật khẩu thành công" });
+        try
+        {
+            await _accountService.ChangePasswordAsync(accountId, dto);
+            return Ok(new { message = "Đổi mật khẩu thành công" });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize]
+    [HttpGet("profile")]
+    [HttpGet("~/api/admin/account/profile")]
+    [HttpGet("~/api/customer/account/profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+        try
+        {
+            var profile = await _accountService.GetProfileAsync(accountId);
+            return Ok(profile);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [Authorize]
+    [HttpPut("profile")]
+    [HttpPut("~/api/admin/account/profile")]
+    [HttpPut("~/api/customer/account/profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateAccountProfileDto dto)
+    {
+        var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+        try
+        {
+            var profile = await _accountService.UpdateProfileAsync(accountId, dto);
+            return Ok(profile);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [HttpPost("forgot-password")]

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import ImageUploader from "../../components/ImageUploader/ImageUploader";
 import profileService from "../../services/profile";
 import "./UserProfilePage.css";
 
@@ -125,11 +126,17 @@ const UserProfilePage = () => {
   const [profileNotice, setProfileNotice] = useState(null);
   const [passwordNotice, setPasswordNotice] = useState(null);
   const [securityNotice, setSecurityNotice] = useState(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     fullName: storedUser?.fullName ?? storedUser?.displayName ?? "",
     phone: storedUser?.phone ?? "",
     address: storedUser?.address ?? "",
+    avatarUrl:
+      storedUser?.avatarUrl ??
+      storedUser?.avatar ??
+      storedUser?.avatarURL ??
+      "",
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -152,6 +159,12 @@ const UserProfilePage = () => {
         profile.fullName || profile.displayName || profile.username || "",
       phone: profile.phone || profile.phoneNumber || "",
       address: profile.address || "",
+      avatarUrl:
+        profile.avatarUrl ||
+        profile.avatar ||
+        profile.avatarURL ||
+        profile.avatarUrlProfile ||
+        "",
     });
   }, [profile]);
 
@@ -169,6 +182,22 @@ const UserProfilePage = () => {
       setPageError(message);
     } finally {
       setLoadingProfile(false);
+    }
+  }, []);
+
+  const syncProfileCache = useCallback((updatedProfile) => {
+    try {
+      const cached = localStorage.getItem("user");
+      if (!cached) return;
+      const parsed = JSON.parse(cached);
+      const nextProfile = {
+        ...(parsed?.profile || {}),
+        ...updatedProfile,
+      };
+      const nextStored = { ...parsed, ...nextProfile, profile: nextProfile };
+      localStorage.setItem("user", JSON.stringify(nextStored));
+    } catch (error) {
+      console.warn("Không thể đồng bộ cache người dùng", error);
     }
   }, []);
 
@@ -217,9 +246,9 @@ const UserProfilePage = () => {
     []
   );
 
-  // useEffect(() => {
-  //   loadProfile();
-  // }, [loadProfile]);
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   // useEffect(() => {
   //   fetchOrders(INITIAL_ORDER_FILTERS);
@@ -263,6 +292,19 @@ const UserProfilePage = () => {
     setProfileForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleAvatarChange = (url) => {
+    setProfileForm((prev) => ({ ...prev, avatarUrl: url || "" }));
+  };
+
+  const handleAvatarError = (message) => {
+    setProfileNotice({
+      type: "error",
+      message: message || "Không thể tải ảnh đại diện. Vui lòng thử lại.",
+    });
+  };
+
+  const handleAvatarUploading = (state) => setAvatarUploading(state);
+
   const handlePasswordInput = (event) => {
     const { name, value } = event.target;
     setPasswordForm((prev) => ({ ...prev, [name]: value }));
@@ -283,9 +325,23 @@ const UserProfilePage = () => {
     setProfileNotice(null);
     setSavingProfile(true);
     try {
-      const response = await profileService.updateProfile(profileForm);
-      const updated = unwrapData(response) ?? profileForm;
-      setProfile((prev) => ({ ...(prev || {}), ...profileForm, ...updated }));
+      const payload = {
+        fullName: profileForm.fullName?.trim() || "",
+        phone: profileForm.phone?.trim() || null,
+        address: profileForm.address?.trim() || null,
+        avatarUrl: profileForm.avatarUrl || null,
+      };
+
+      const response = await profileService.updateProfile(payload);
+      const updated = unwrapData(response) ?? payload;
+      const mergedProfile = {
+        ...(profile || {}),
+        ...payload,
+        ...updated,
+      };
+      setProfile(mergedProfile);
+      syncProfileCache(mergedProfile);
+      window.dispatchEvent(new Event("profile-updated"));
       setProfileNotice({
         type: "success",
         message: "Cập nhật thông tin cá nhân thành công.",
@@ -406,10 +462,19 @@ const UserProfilePage = () => {
     (transactions?.length || 0);
 
   const profileName =
+    profileForm.fullName ||
     profile?.fullName ||
     profile?.displayName ||
     profile?.username ||
     "Người dùng";
+  const avatarUrl =
+    profileForm.avatarUrl ||
+    profile?.avatarUrl ||
+    profile?.avatar ||
+    profile?.avatarURL ||
+    storedUser?.avatarUrl ||
+    storedUser?.avatar ||
+    "";
   const email =
     profile?.email ||
     profile?.emailAddress ||
@@ -516,7 +581,13 @@ const UserProfilePage = () => {
                   alignItems: "center",
                 }}
               >
-                <div className="profile-avatar">{getInitials(profileName)}</div>
+                <div className="profile-avatar" aria-hidden="true">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Ảnh đại diện" />
+                  ) : (
+                    getInitials(profileName)
+                  )}
+                </div>
                 <div>
                   <div style={{ fontWeight: 700 }}>{profileName}</div>
                   <div className="profile-hint">{maskedEmail}</div>
@@ -575,7 +646,11 @@ const UserProfilePage = () => {
                       className="profile-avatar"
                       style={{ width: 80, height: 80, borderRadius: 10 }}
                     >
-                      {getInitials(profileName)}
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="Ảnh đại diện" />
+                      ) : (
+                        getInitials(profileName)
+                      )}
                     </div>
                     <div>
                       <div
@@ -930,6 +1005,17 @@ const UserProfilePage = () => {
               </div>
 
               <form onSubmit={handleProfileSubmit}>
+                <div style={{ marginBottom: 16 }}>
+                  <ImageUploader
+                    label="Ảnh đại diện"
+                    value={profileForm.avatarUrl}
+                    onChange={handleAvatarChange}
+                    onError={handleAvatarError}
+                    onUploadingChange={handleAvatarUploading}
+                    helperText="Ảnh sẽ hiển thị ở menu và trang hồ sơ của bạn."
+                    height={180}
+                  />
+                </div>
                 <div
                   style={{
                     display: "grid",
@@ -982,9 +1068,13 @@ const UserProfilePage = () => {
                   <button
                     type="submit"
                     className="profile-btn primary"
-                    disabled={savingProfile}
+                    disabled={savingProfile || avatarUploading}
                   >
-                    Lưu thay đổi
+                    {savingProfile
+                      ? "Đang lưu..."
+                      : avatarUploading
+                      ? "Đang tải ảnh..."
+                      : "Lưu thay đổi"}
                   </button>
                 </div>
                 <InlineNotice notice={profileNotice} />

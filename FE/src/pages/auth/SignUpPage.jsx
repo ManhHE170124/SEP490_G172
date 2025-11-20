@@ -286,6 +286,10 @@ export default function SignUpPage() {
       localStorage.setItem("refresh_token", response.refreshToken);
       localStorage.setItem("user", JSON.stringify(response.user));
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("profile-updated"));
+      }
+
       // Show success modal and redirect
       await modal.showSuccess(
         `Chào mừng ${response.user.fullName} đến với Keytietkiem! Tài khoản của bạn đã được tạo thành công.`,

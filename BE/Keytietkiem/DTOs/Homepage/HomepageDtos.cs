@@ -4,12 +4,7 @@ using System.Collections.Generic;
 namespace Keytietkiem.DTOs.Homepage
 {
     public record HomepageResponseDto(
-        IReadOnlyList<HeroBannerDto> HeroBanners,
         IReadOnlyList<FilterChipDto> TopSearches,
-        IReadOnlyList<FilterChipDto> PriceFilters,
-        ProductShelfDto TodaysDeals,
-        ProductShelfDto BestSellers,
-        ProductShelfDto NewArrivals,
         IReadOnlyList<ServiceCardDto> Services
     );
 

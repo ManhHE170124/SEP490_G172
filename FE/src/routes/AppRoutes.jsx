@@ -35,6 +35,7 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
+import AdminProfilePage from "../pages/admin/AdminProfilePage";
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 import AccessDenied from "../pages/errors/AccessDenied";
@@ -178,6 +179,22 @@ export default function AppRoutes() {
       />
       <Route path="/admin" element={<div />} />
       <Route path="/admin/support-chats" element={<AdminSupportChatPage />} />
+      <Route
+        path="/admin/profile"
+        element={
+          <AdminLayout>
+            <AdminProfilePage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/staff/profile"
+        element={
+          <AdminLayout>
+            <AdminProfilePage />
+          </AdminLayout>
+        }
+      />
       {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
