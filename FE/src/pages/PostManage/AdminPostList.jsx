@@ -7,7 +7,7 @@
  * @summary: Admin page for managing posts with full CRUD operations, search, filter, sort, and pagination
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { postsApi } from "../../services/postsApi";
 import useToast from "../../hooks/useToast";
@@ -17,6 +17,13 @@ import "./AdminPostList.css";
 export default function AdminPostList() {
   const navigate = useNavigate();
   const { toasts, showInfo, showSuccess, showError, removeToast, confirmDialog, showConfirm } = useToast();
+  
+  // Global network error handler - only show one toast for network errors
+  const networkErrorShownRef = useRef(false);
+  useEffect(() => {
+    // Reset the flag when component mounts
+    networkErrorShownRef.current = false;
+  }, []);
 
   // Data state
   const [posts, setPosts] = useState([]);
@@ -56,7 +63,15 @@ export default function AdminPostList() {
       setPosttypes(Array.isArray(posttypesData) ? posttypesData : []);
     } catch (err) {
       setError(err.message || "Không thể tải dữ liệu");
-      showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
+      }
     } finally {
       setLoading(false);
     }
@@ -78,6 +93,13 @@ export default function AdminPostList() {
     } catch {
       return "";
     }
+  };
+
+  // Truncate text helper
+  const truncateText = (text, maxLength = 20) => {
+    if (!text) return "";
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + "...";
   };
 
   // Filter & Sort logic
@@ -205,7 +227,15 @@ export default function AdminPostList() {
           showSuccess("Thành công", "Bài viết đã được xóa");
         } catch (err) {
           console.log("Lỗi khi xóa bài viết:", err);
-          showError("Lỗi khi xóa bài viết", err.message || "Không thể xóa bài viết");
+          // Handle network errors globally - only show one toast
+          if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+            if (!networkErrorShownRef.current) {
+              networkErrorShownRef.current = true;
+              showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+            }
+          } else {
+            showError("Lỗi khi xóa bài viết", err.message || "Không thể xóa bài viết");
+          }
         }
       }
     );
@@ -228,7 +258,15 @@ export default function AdminPostList() {
           showSuccess("Thành công", `Đã xóa ${selectedPosts.length} bài viết`);
         } catch (err) {
           console.log("Lỗi khi xóa nhiều bài viết:", err);
-          showError("Lỗi khi xóa nhiều bài viết", err.message || "Không thể xóa bài viết");
+          // Handle network errors globally - only show one toast
+          if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+            if (!networkErrorShownRef.current) {
+              networkErrorShownRef.current = true;
+              showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+            }
+          } else {
+            showError("Lỗi khi xóa nhiều bài viết", err.message || "Không thể xóa bài viết");
+          }
         }
       }
     );
@@ -260,7 +298,15 @@ export default function AdminPostList() {
       showSuccess("Thành công", "Trạng thái đã được cập nhật");
     } catch (err) {
       console.log("Lỗi khi thay đổi trạng thái:", err);
-      showError("Lỗi thay đổi trạng thái", err.message || "Không thể cập nhật trạng thái");
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi thay đổi trạng thái", err.message || "Không thể cập nhật trạng thái");
+      }
     }
   };
 
@@ -296,7 +342,15 @@ export default function AdminPostList() {
       showSuccess("Thành công", "Đã xuất file CSV");
     } catch (err) {
       console.log("Lỗi khi xuất file CSV:", err);
-      showError("Lỗi khi xuất file CSV", err.message || "Không thể xuất file CSV");
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi khi xuất file CSV", err.message || "Không thể xuất file CSV");
+      }
     }
   };
 
@@ -625,9 +679,13 @@ export default function AdminPostList() {
                   </td>
                   <td>
                     <div className="apl-post-title-cell">
-                      <div className="apl-post-title">{post.title || "(Không có tiêu đề)"}</div>
+                      <div className="apl-post-title" title={post.title || "(Không có tiêu đề)"}>
+                        {truncateText(post.title || "(Không có tiêu đề)", 20)}
+                      </div>
                       {post.shortDescription && (
-                        <div className="apl-post-short-desc">{post.shortDescription}</div>
+                        <div className="apl-post-short-desc" title={post.shortDescription}>
+                          {truncateText(post.shortDescription, 20)}
+                        </div>
                       )}
                       {post.tags && post.tags.length > 0 && (
                         <div className="apl-post-tags">
@@ -727,9 +785,13 @@ export default function AdminPostList() {
                   )}
                 </div>
                 <div className="apl-post-card-content">
-                  <div className="apl-post-card-title">{post.title || "(Không có tiêu đề)"}</div>
+                  <div className="apl-post-card-title" title={post.title || "(Không có tiêu đề)"}>
+                    {truncateText(post.title || "(Không có tiêu đề)", 20)}
+                  </div>
                   {post.shortDescription && (
-                    <div className="apl-post-card-desc">Mô tả ngắn: {post.shortDescription}</div>
+                    <div className="apl-post-card-desc" title={post.shortDescription}>
+                      Mô tả ngắn: {truncateText(post.shortDescription, 20)}
+                    </div>
                   )}
                   <div className="apl-post-card-meta">
                     <span>Danh mục: {post.posttypeName || post.postTypeName || post.PosttypeName || "Không có danh mục"}</span>

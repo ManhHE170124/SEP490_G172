@@ -87,14 +87,15 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTag([FromBody] CreateTagDTO createTagDto)
         {
-            if (createTagDto == null || string.IsNullOrWhiteSpace(createTagDto.TagName))
+            if (createTagDto == null)
             {
-                return BadRequest("Tên thẻ không thể để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
             }
 
-            if (string.IsNullOrWhiteSpace(createTagDto.Slug))
+            if (!ModelState.IsValid)
             {
-                return BadRequest("Slug Không thể để trống.");
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             var existingByName = await _context.Tags
@@ -142,17 +143,13 @@ namespace Keytietkiem.Controllers
         {
             if (updateTagDto == null)
             {
-                return BadRequest("Invalid tag data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
             }
 
-            if (string.IsNullOrWhiteSpace(updateTagDto.TagName))
+            if (!ModelState.IsValid)
             {
-                return BadRequest("Tên thẻ không thể để trống.");
-            }
-
-            if (string.IsNullOrWhiteSpace(updateTagDto.Slug))
-            {
-                return BadRequest("Slug không thể để trống.");
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             var existing = await _context.Tags

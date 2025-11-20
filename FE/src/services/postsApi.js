@@ -30,7 +30,8 @@ import axiosClient from "../api/axiosClient";
 const END = {
   POSTS: "posts",
   TAGS: "tags",
-  POST_IMAGES: "PostImages"
+  POST_IMAGES: "PostImages",
+  COMMENTS: "comments"
 };
 
 export const postsApi = {
@@ -69,6 +70,18 @@ export const postsApi = {
     headers: { "Content-Type": "application/json" },
   });
   },
+
+  // Comment CRUD
+  getComments: (postId, page = 1, pageSize = 20) => axiosClient.get(`${END.COMMENTS}/posts/${postId}/comments`, {
+    params: { page, pageSize }
+  }), // GET /api/comments/posts/{postId}/comments?page=1&pageSize=20
+  getCommentById: (id) => axiosClient.get(`${END.COMMENTS}/${id}`),
+  getCommentReplies: (id) => axiosClient.get(`${END.COMMENTS}/${id}/replies`),
+  createComment: (data) => axiosClient.post(END.COMMENTS, data),
+  updateComment: (id, data) => axiosClient.put(`${END.COMMENTS}/${id}`, data),
+  deleteComment: (id) => axiosClient.delete(`${END.COMMENTS}/${id}`),
+  showComment: (id) => axiosClient.patch(`${END.COMMENTS}/${id}/show`),
+  hideComment: (id) => axiosClient.patch(`${END.COMMENTS}/${id}/hide`),
 };
 
 export function extractPublicId(imageUrl) {

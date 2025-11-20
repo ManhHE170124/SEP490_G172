@@ -1,0 +1,78 @@
+.ad-wrapper {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  background: var(--page, #f5f6fa);
+}
+
+.ad-card {
+  max-width: 520px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 40px 32px;
+  text-align: center;
+  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.15);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.ad-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.ad-card h1 {
+  font-size: 28px;
+  margin-bottom: 12px;
+  color: #111827;
+}
+
+.ad-card p {
+  margin: 0 auto 24px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.ad-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.ad-btn--primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.ad-btn--primary:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.ad-btn--ghost {
+  background: transparent;
+  border-color: rgba(37, 99, 235, 0.4);
+  color: #2563eb;
+}
+
+.ad-btn--ghost:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+

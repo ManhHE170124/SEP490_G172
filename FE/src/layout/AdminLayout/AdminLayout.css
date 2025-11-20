@@ -14,6 +14,10 @@
   transition: margin-left 0.2s ease;
 }
 
+body.sb-collapsed .al-admin-content {
+  margin-left: 96px;
+}
+
 .al-admin-main {
   flex: 1;
   padding: 2rem;
@@ -21,9 +25,24 @@
   overflow-y: auto;
 }
 
-/* Khi sidebar thu gọn (Sidebar.jsx có useEffect add class `sidebar-collapsed` vào body) */
-body.sidebar-collapsed .al-admin-content {
-  margin-left: 72px;             /* chỉ còn chừa chỗ cho logo + nút 3 gạch */
+/* Responsive behavior for mobile */
+@media (max-width: 1024px) {
+  .al-admin-content {
+    margin-left: 0; /* Remove sidebar margin on mobile */
+  }
+  
+  body.sb-collapsed .al-admin-content {
+    margin-left: 0;
+  }
+  
+  .al-sb-sidebar {
+    transform: translateX(-100%); /* Hide sidebar on mobile */
+    transition: transform 0.3s ease;
+  }
+  
+  .al-sb-sidebar.open {
+    transform: translateX(0); /* Show sidebar when open */
+  }
 }
 
 /* ========== Responsive / Mobile ========== */
