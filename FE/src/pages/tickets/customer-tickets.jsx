@@ -1,5 +1,5 @@
 // File: src/pages/tickets/customer-tickets.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ticketsApi } from "../../api/ticketsApi";
 
@@ -42,6 +42,46 @@ export default function CustomerTicketsPage() {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Thông tin user hiện tại (để kiểm tra quyền tạo ticket)
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // true nếu user hiện tại có role "customer"
+  const isCustomer = useMemo(() => {
+    if (!currentUser) return false;
+
+    const rawRoles =
+      currentUser.roles ||
+      currentUser.Roles ||
+      currentUser.user?.roles ||
+      currentUser.user?.Roles ||
+      currentUser.userInfo?.roles ||
+      currentUser.userInfo?.Roles ||
+      [];
+
+    const rolesArray = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
+
+    return rolesArray.some((r) =>
+      String(r || "")
+        .trim()
+        .toLowerCase()
+        .includes("customer")
+    );
+  }, [currentUser]);
+
+  // Đọc user từ localStorage (màn login đã lưu)
+  useEffect(() => {
+    try {
+      const rawUser = localStorage.getItem("user");
+      if (rawUser) {
+        setCurrentUser(JSON.parse(rawUser));
+      } else {
+        setCurrentUser(null);
+      }
+    } catch {
+      setCurrentUser(null);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,7 +96,7 @@ export default function CustomerTicketsPage() {
         page,
         pageSize,
         q: keyword?.trim() || undefined,
-        ...paramsOverride,
+        ...(paramsOverride || {}),
       });
 
       // Giả sử backend trả { items, totalItems, totalPages, page, pageSize }
@@ -107,6 +147,15 @@ export default function CustomerTicketsPage() {
   async function handleCreateSubmit(e) {
     e.preventDefault();
     if (!validateCreateForm()) return;
+
+    // ❗ Chỉ cho phép tạo ticket khi đã đăng nhập với role Customer
+    const accessToken = localStorage.getItem("access_token");
+    if (!accessToken || !isCustomer) {
+      setCreateError(
+        "Bạn cần đăng nhập bằng tài khoản khách hàng (Customer) để tạo ticket hỗ trợ."
+      );
+      return;
+    }
 
     setCreating(true);
     setCreateError("");
@@ -210,7 +259,7 @@ export default function CustomerTicketsPage() {
                 className="btn btn-primary"
                 disabled={creating}
               >
-                {creating ? "Đang tạo..." : "Gửi ticket"}
+                {creating ? "Đang tạo." : "Gửi ticket"}
               </button>
             </form>
           </div>
@@ -227,7 +276,7 @@ export default function CustomerTicketsPage() {
           <input
             type="text"
             className="form-control"
-            placeholder="Nhập mã ticket hoặc tiêu đề..."
+            placeholder="Nhập mã ticket hoặc tiêu đề."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -307,24 +356,24 @@ export default function CustomerTicketsPage() {
         {tickets.length > 0 && (
           <div className="card-footer d-flex justify-content-between align-items-center">
             <div>
-              Trang {page} / {totalPages} – Tổng {totalItems} ticket
+              Trang {page} / {totalPages} – Tổng cộng {totalItems} ticket
             </div>
             <div className="btn-group">
               <button
                 type="button"
-                className="btn btn-outline-secondary btn-sm"
-                disabled={!canGoPrev}
-                onClick={() => canGoPrev && setPage((p) => p - 1)}
+                className="btn btn-outline-secondary"
+                disabled={!canGoPrev || loading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                « Trước
+                &laquo; Trước
               </button>
               <button
                 type="button"
-                className="btn btn-outline-secondary btn-sm"
-                disabled={!canGoNext}
-                onClick={() => canGoNext && setPage((p) => p + 1)}
+                className="btn btn-outline-secondary"
+                disabled={!canGoNext || loading}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
-                Sau »
+                Sau &raquo;
               </button>
             </div>
           </div>
