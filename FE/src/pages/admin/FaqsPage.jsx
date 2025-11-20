@@ -1,6 +1,8 @@
 // src/pages/admin/FaqsPage.jsx
 import React from "react";
 import { ProductFaqsApi } from "../../services/productFaqs";
+import { CategoryApi } from "../../services/categories";
+import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "./CategoryPage.css"; // tái dùng CSS card/table hiện có
 
@@ -46,6 +48,8 @@ function FaqModal({
   open,
   mode, // "add" | "edit"
   initial,
+  categories,
+  products,
   onClose,
   onSubmit,
   submitting,
@@ -59,9 +63,15 @@ function FaqModal({
     answer: "",
     sortOrder: 0,
     isActive: true,
+    categoryIds: [],
+    productIds: [],
   });
   const [errors, setErrors] = React.useState({});
   const initialRef = React.useRef(null);
+
+  // Panel danh mục / sản phẩm (đóng mở)
+  const [showCatsPanel, setShowCatsPanel] = React.useState(false);
+  const [showProductsPanel, setShowProductsPanel] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
@@ -72,10 +82,20 @@ function FaqModal({
           typeof initial?.sortOrder === "number" ? initial.sortOrder : 0,
         isActive:
           typeof initial?.isActive === "boolean" ? initial.isActive : true,
+        categoryIds: Array.isArray(initial?.categoryIds)
+          ? initial.categoryIds
+          : [],
+        productIds: Array.isArray(initial?.productIds)
+          ? initial.productIds
+          : [],
       };
       setForm(next);
       setErrors({});
       initialRef.current = next;
+
+      // Khi mở modal, 2 panel danh sách mặc định đóng
+      setShowCatsPanel(false);
+      setShowProductsPanel(false);
     }
   }, [open, initial]);
 
@@ -93,10 +113,7 @@ function FaqModal({
 
     if (!qText) {
       e.question = "Câu hỏi là bắt buộc.";
-    } else if (
-      qText.length < QUESTION_MIN ||
-      qText.length > QUESTION_MAX
-    ) {
+    } else if (qText.length < QUESTION_MIN || qText.length > QUESTION_MAX) {
       e.question = `Câu hỏi phải từ ${QUESTION_MIN}–${QUESTION_MAX} ký tự.`;
     }
 
@@ -126,7 +143,8 @@ function FaqModal({
       answer: form.answer.trim(),
       sortOrder: Number(form.sortOrder || 0) || 0,
       isActive: !!form.isActive,
-      // Có thể thêm CategoryIds/ProductIds sau này
+      categoryIds: form.categoryIds || [],
+      productIds: form.productIds || [],
     });
   };
 
@@ -155,6 +173,22 @@ function FaqModal({
 
   if (!open) return null;
 
+  const catIds = form.categoryIds || [];
+  const prodIds = form.productIds || [];
+
+  const safeCategories = Array.isArray(categories) ? categories : [];
+  const safeProducts = Array.isArray(products) ? products : [];
+
+  // Nếu > 3 thì bật scroll + giới hạn chiều cao ~ 3 item
+  const catScrollable = safeCategories.length > 3;
+  const prodScrollable = safeProducts.length > 3;
+  const catListStyle = catScrollable
+  ? { maxHeight: "210px", overflowY: "auto" } // ~ 3 item
+  : {};
+
+const prodListStyle = prodScrollable
+  ? { maxHeight: "210px", overflowY: "auto" }
+  : {};
   return (
     <div className="cat-modal-backdrop">
       <div className="cat-modal-card">
@@ -183,45 +217,191 @@ function FaqModal({
 
         <form onSubmit={handleSubmit}>
           <div className="cat-modal-body input-group">
-            <div className="group">
-              <span>
-                Câu hỏi <RequiredMark />
-              </span>
-              <input
-                value={form.question}
-                onChange={(e) => set("question", e.target.value)}
-                placeholder="Nhập câu hỏi…"
-              />
-              <FieldError message={errors.question} />
+            {/* ===== Hàng 1: Câu hỏi + Trả lời + Thứ tự ===== */}
+            <div className="faq-fields-grid">
+              {/* Cột trái: Câu hỏi (trên) + Thứ tự (dưới) */}
+              <div className="group faq-q">
+                <span>
+                  Câu hỏi <RequiredMark />
+                </span>
+                <input
+                  value={form.question}
+                  onChange={(e) => set("question", e.target.value)}
+                  placeholder="Nhập câu hỏi…"
+                />
+                <FieldError message={errors.question} />
+              </div>
+
+              <div className="group faq-sort">
+                <span>Thứ tự</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.sortOrder}
+                  onChange={(e) =>
+                    set(
+                      "sortOrder",
+                      Math.max(0, parseInt(e.target.value, 10) || 0)
+                    )
+                  }
+                />
+              </div>
+
+              {/* Cột phải: Trả lời (chiếm 2 hàng) */}
+              <div className="group faq-answer">
+                <span>
+                  Trả lời <RequiredMark />
+                </span>
+                <textarea
+                  rows={6}
+                  value={form.answer}
+                  onChange={(e) => set("answer", e.target.value)}
+                  placeholder="Nhập câu trả lời chi tiết…"
+                />
+                <FieldError message={errors.answer} />
+              </div>
             </div>
 
-            <div className="group">
-              <span>
-                Trả lời <RequiredMark />
-              </span>
-              <textarea
-                rows={4}
-                value={form.answer}
-                onChange={(e) => set("answer", e.target.value)}
-                placeholder="Nhập câu trả lời chi tiết…"
-              />
-              <FieldError message={errors.answer} />
-            </div>
-
-            <div className="group" style={{ maxWidth: 180 }}>
-              <span>Thứ tự</span>
+            {/* ===== Hàng 2: Danh mục + Sản phẩm ===== */}
+            <div className="faq-apply-grid">
+              {/* Danh sách danh mục */}
+              <div className="group">
+                <div className={`panel ${!showCatsPanel ? "collapsed" : ""}`}>
+                  <div
+                    className="panel-header"
+                    onClick={() => setShowCatsPanel((s) => !s)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <h4>
+                      Áp dụng cho danh mục{" "}
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          marginLeft: 8,
+                        }}
+                      >
+                        ({catIds.length}/{safeCategories.length} đã chọn)
+                      </span>
+                    </h4>
+                    <div className="caret">▾</div>
+                  </div>
+                 {showCatsPanel && (
+  <div className="panel-body" style={catListStyle}>
+    {safeCategories.length === 0 && (
+      <div className="muted">Không có danh mục hoạt động nào.</div>
+    )}
+    {safeCategories.map((c) => {
+      const id = c.categoryId ?? c.id;
+      const name = c.categoryName ?? c.name ?? `Danh mục #${id}`;
+      const checked = catIds.includes(id);
+      return (
+        <div key={id} className="list-row">
+          <div className="left">
+            <div>{name}</div>
+          </div>
+          <div>
+            <label className="switch">
               <input
-                type="number"
-                min={0}
-                step={1}
-                value={form.sortOrder}
-                onChange={(e) =>
-                  set(
-                    "sortOrder",
-                    Math.max(0, parseInt(e.target.value, 10) || 0)
-                  )
-                }
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    set(
+                      "categoryIds",
+                      Array.from(new Set([...catIds, id]))
+                    );
+                  } else {
+                    set(
+                      "categoryIds",
+                      catIds.filter((x) => x !== id)
+                    );
+                  }
+                }}
               />
+              <span className="slider" />
+            </label>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+
+                </div>
+              </div>
+
+              {/* Danh sách sản phẩm */}
+              <div className="group">
+                <div
+                  className={`panel ${!showProductsPanel ? "collapsed" : ""}`}
+                >
+                  <div
+                    className="panel-header"
+                    onClick={() => setShowProductsPanel((s) => !s)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <h4>
+                      Áp dụng cho sản phẩm{" "}
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          marginLeft: 8,
+                        }}
+                      >
+                        ({prodIds.length}/{safeProducts.length} đã chọn)
+                      </span>
+                    </h4>
+                    <div className="caret">▾</div>
+                  </div>
+           {showProductsPanel && (
+  <div className="panel-body" style={prodListStyle}>
+    {safeProducts.length === 0 && (
+      <div className="muted">Không có sản phẩm đang hoạt động nào.</div>
+    )}
+    {safeProducts.map((p) => {
+      const id = p.productId ?? p.id;
+      const name = p.productName ?? p.name ?? `Sản phẩm #${id}`;
+      const checked = prodIds.includes(id);
+      return (
+        <div key={id} className="list-row">
+          <div className="left">
+            {/* chỉ hiển thị TÊN sản phẩm */}
+            <div>{name}</div>
+          </div>
+          <div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    set(
+                      "productIds",
+                      Array.from(new Set([...prodIds, id]))
+                    );
+                  } else {
+                    set(
+                      "productIds",
+                      prodIds.filter((x) => x !== id)
+                    );
+                  }
+                }}
+              />
+              <span className="slider" />
+            </label>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+
+
+                </div>
+              </div>
             </div>
           </div>
 
@@ -307,6 +487,59 @@ export default function FaqsPage() {
   });
   const [faqSubmitting, setFaqSubmitting] = React.useState(false);
 
+  // ===== Danh mục & Sản phẩm đang hoạt động =====
+  const [categories, setCategories] = React.useState([]);
+  const [products, setProducts] = React.useState([]);
+
+  React.useEffect(() => {
+    // Danh mục active
+    CategoryApi.list({ active: true })
+      .then((data) => {
+        const arr = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.result)
+          ? data.result
+          : [];
+        setCategories(arr);
+      })
+      .catch((e) => {
+        setCategories([]);
+        addToast(
+          "error",
+          e?.response?.data?.message || e.message,
+          "Lỗi tải danh mục"
+        );
+      });
+
+    // Sản phẩm đang hoạt động
+    // (giả định ProductApi.list hỗ trợ filter status; nếu API khác thì chỉnh lại cho khớp)
+    ProductApi.list({ status: "ACTIVE" })
+      .then((data) => {
+        const arr = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.result)
+          ? data.result
+          : [];
+        setProducts(arr);
+      })
+      .catch((e) => {
+        setProducts([]);
+        addToast(
+          "error",
+          e?.response?.data?.message || e.message,
+          "Lỗi tải sản phẩm"
+        );
+      });
+  }, []); // chỉ load 1 lần
+
   const loadFaqs = React.useCallback(() => {
     setFaqLoading(true);
 
@@ -376,7 +609,10 @@ export default function FaqsPage() {
   const deleteFaq = (f) => {
     openConfirm({
       title: "Xoá FAQ?",
-      message: `Xoá câu hỏi "${(f.question || "").slice(0, 80)}"? Hành động này không thể hoàn tác!`,
+      message: `Xoá câu hỏi "${(f.question || "").slice(
+        0,
+        80
+      )}"? Hành động này không thể hoàn tác!`,
       onConfirm: async () => {
         try {
           await ProductFaqsApi.remove(f.faqId);
@@ -397,8 +633,24 @@ export default function FaqsPage() {
   const openAddFaq = () =>
     setFaqModal({ open: true, mode: "add", data: null });
 
-  const openEditFaq = (f) =>
-    setFaqModal({ open: true, mode: "edit", data: f });
+  const openEditFaq = async (f) => {
+    try {
+      const detail = await ProductFaqsApi.getById(f.faqId);
+      setFaqModal({
+        open: true,
+        mode: "edit",
+        data: detail,
+      });
+    } catch (e) {
+      console.error(e);
+      addToast(
+        "error",
+        e?.response?.data?.message ||
+          "Không tải được chi tiết FAQ để chỉnh sửa.",
+        "Lỗi"
+      );
+    }
+  };
 
   const handleFaqSubmit = async (form) => {
     setFaqSubmitting(true);
@@ -419,7 +671,7 @@ export default function FaqsPage() {
         err?.response?.data?.message || "Lưu FAQ thất bại.",
         "Lỗi"
       );
-      throw err; // để Modal có thể xử lý thêm nếu cần
+      throw err;
     } finally {
       setFaqSubmitting(false);
     }
@@ -427,7 +679,7 @@ export default function FaqsPage() {
 
   const faqTotalPages = Math.max(
     1,
-    Math.ceil(faqTotal / faqPageSize || 1)
+    Math.ceil((faqTotal || 0) / (faqPageSize || 1))
   );
 
   return (
@@ -678,7 +930,9 @@ export default function FaqsPage() {
             </span>
             <button
               disabled={faqPage >= faqTotalPages}
-              onClick={() => setFaqPage((p) => Math.min(faqTotalPages, p + 1))}
+              onClick={() =>
+                setFaqPage((p) => Math.min(faqTotalPages, p + 1))
+              }
             >
               Tiếp
             </button>
@@ -710,6 +964,8 @@ export default function FaqsPage() {
         open={faqModal.open}
         mode={faqModal.mode}
         initial={faqModal.data}
+        categories={categories}
+        products={products}
         onClose={() => setFaqModal((m) => ({ ...m, open: false }))}
         onSubmit={handleFaqSubmit}
         submitting={faqSubmitting}

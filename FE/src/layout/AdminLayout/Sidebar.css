@@ -1,22 +1,37 @@
-/* Sidebar Styles */
+/* ===== Sidebar container ===== */
 .sb-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
   width: 280px;
   background: var(--card);
   border-right: 1px solid var(--line);
-  height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  overflow-y: auto;
   z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;          /* header cố định, chỉ nav cuộn */
+  transition: width 0.2s ease;
 }
 
+/* ===== Header: logo + tên + nút 3 gạch ===== */
+.sb-header {
+  padding: 16px 16px 10px;
+  border-bottom: 1px solid var(--line);
+
+  display: flex;
+  flex-direction: column;    /* logo trên, nút 3 gạch ở dưới */
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;            /* không bị co khi nav cuộn */
+}
+
+/* Logo + tên hệ thống */
 .sb-logo {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1.5rem 1.5rem 2rem;
-  border-bottom: 1px solid var(--line);
 }
 
 .sb-logo i {
@@ -39,10 +54,39 @@
   color: var(--ink);
 }
 
-.sb-nav {
-  padding: 1.5rem 0;
+/* Nút 3 gạch luôn ở dưới logo */
+.sb-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 999px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
 }
 
+.sb-toggle:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.sb-toggle-bar {
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: #111827;
+}
+
+/* ===== Menu nav: chỉ phần này cuộn ===== */
+.sb-nav {
+  flex: 1;
+  padding: 1.25rem 0 1.5rem;
+  overflow-y: auto;
+}
+
+/* (giữ nguyên các style item/section cũ) */
 .sb-section-title {
   font-size: 0.75rem;
   font-weight: 600;
@@ -82,7 +126,7 @@
 }
 
 .sb-item.active::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
@@ -102,76 +146,19 @@
   font-weight: 500;
 }
 
-.sb-menu-group {
-  margin-bottom: 0.5rem;
+/* ===== Trạng thái thu gọn (ẩn menu, còn logo + 3 gạch) ===== */
+.sb-sidebar.collapsed {
+  width: 72px;               /* chỉ còn cột hẹp */
 }
 
-.sb-item.has-sub {
-  cursor: pointer;
+/* Khi collapsed: logo + nút 3 gạch vẫn là 1 khối ở góc trái trên */
+.sb-sidebar.collapsed .sb-header {
+  align-items: center;       /* căn giữa trong cột hẹp */
 }
 
-.sb-chevron {
-  margin-left: auto;
-  transition: transform 0.2s ease;
+/* Chỉ hiện icon @, ẩn chữ Keytietkiem khi thu gọn */
+.sb-sidebar.collapsed .sb-logo span {
+  display: none;
 }
 
-.sb-menu-group.open .sb-chevron {
-  transform: rotate(180deg);
-}
-
-.sb-submenu {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-  background: var(--page);
-}
-
-.sb-menu-group.open .sb-submenu {
-  max-height: 300px;
-}
-
-.sb-subitem {
-  padding-left: 3rem;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.sb-subitem svg {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.sb-subitem:hover {
-  background: rgba(37, 99, 235, 0.1);
-}
-
-.sb-subitem.active {
-  background: var(--primary);
-  color: white;
-}
-
-.sb-subitem.active svg {
-  color: white;
-}
-
-/* App layout adjustment */
-.sb-app {
-  display: flex;
-  min-height: 100vh;
-}
-
-.sb-app > div:last-child {
-  margin-left: 280px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.sb-main {
-  flex: 1;
-  padding: 2rem;
-  background: var(--page);
-}
+/* nav đã không render khi isOpen = false, nên không cần ẩn thêm ở đây */

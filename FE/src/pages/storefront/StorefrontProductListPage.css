@@ -1,0 +1,469 @@
+/* src/pages/storefront/StorefrontProductListPage.css */
+
+.sf-product-page {
+  --sf-ink: #0b1220;
+  --sf-muted: #6b7280;
+  --sf-line: #e5e7eb;
+  --sf-page: #f8fafc;
+  --sf-card: #ffffff;
+  --sf-primary: #2563eb;
+  --sf-primary-ink: #ffffff;
+  --sf-radius: 16px;
+  --sf-shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
+
+  background: var(--sf-page);
+  color: var(--sf-ink);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Arial, sans-serif;
+}
+
+.sf-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.sf-section {
+  padding: 32px 0;
+}
+
+.sf-section-cards {
+  background: #ffffff;
+  border: 1px solid var(--sf-line);
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.sf-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sf-section-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.sf-section-header p {
+  margin: 0;
+  color: var(--sf-muted);
+  font-size: 14px;
+}
+
+/* Buttons */
+
+.sf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--sf-line);
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+  transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.sf-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.sf-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.sf-btn-primary {
+  background: var(--sf-primary);
+  color: var(--sf-primary-ink);
+  border-color: var(--sf-primary);
+}
+
+.sf-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.sf-btn-current {
+  background: #0b1220;
+  color: #ffffff;
+  border-color: #0b1220;
+}
+
+/* Filters box */
+
+.sf-filters {
+  background: #ffffff;
+  border: 1px solid var(--sf-line);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--sf-shadow);
+}
+
+.sf-filters-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.sf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-label {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+
+.sf-select,
+.sf-input {
+  width: 100%;
+  border: 1px solid var(--sf-line);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.55rem 0.7rem;
+  font-size: 14px;
+}
+
+.sf-select:focus-visible,
+.sf-input:focus-visible,
+.sf-btn:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 1px;
+}
+
+/* Filters footer */
+
+.sf-filters-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sf-filters-summary {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+
+.sf-filters-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Responsive filters */
+
+@media (max-width: 1024px) {
+  .sf-filters-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .sf-filters-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Product grid & card */
+
+.sf-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.sf-grid-responsive {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .sf-grid-responsive {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .sf-grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sf-section {
+    padding: 24px 0;
+  }
+}
+
+.sf-card {
+  background: var(--sf-card);
+  border: 1px solid var(--sf-line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.03);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.sf-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+}
+
+.sf-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Media / thumbnail */
+
+.sf-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: #f1f5f9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.sf-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+
+
+.sf-media-placeholder {
+  font-weight: 700;
+  font-size: 22px;
+  color: #1f2937;
+}
+
+/* Badges */
+/* Badges trong body, không dán lên ảnh nữa */
+.sf-body-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+
+.sf-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #111827;
+  background: #fef3c7;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+
+/* Card body */
+
+.sf-body {
+  padding: 12px;
+}
+
+.sf-body h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.sf-category {
+  font-size: 12px;
+  color: var(--sf-muted);
+  margin-bottom: 4px;
+}
+
+/* Meta: rating + sold */
+
+.sf-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--sf-muted);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.sf-dot::before {
+  content: "•";
+  margin: 0 2px;
+}
+
+/* Price */
+
+.sf-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sf-price-now {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* Loading / error */
+
+.sf-loading,
+.sf-error {
+  margin: 12px 0 4px;
+  font-size: 14px;
+}
+
+.sf-error {
+  color: #b91c1c;
+}
+
+/* Pagination */
+
+.sf-pager {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0 4px;
+  flex-wrap: wrap;
+}
+
+.sf-pager .sf-btn {
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+}
+
+.sf-pager-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  color: var(--sf-muted);
+}
+.sf-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.sf-price-now {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.sf-price-old {
+  font-size: 13px;
+  color: var(--sf-muted);
+  text-decoration: line-through;
+}
+
+.sf-price-off {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ef4444;
+  color: #ffffff;
+}
+/* Mặc định tên sản phẩm không gạch chân */
+.sf-body h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  text-decoration: none;          /* <- thêm */
+}
+
+/* Khi hover lên card, chỉ gạch chân tên sản phẩm */
+.sf-card-link:hover .sf-body h3 {
+  text-decoration: underline;
+}
+/* Link của card: luôn không gạch chân */
+.sf-card-link,
+.sf-card-link:visited,
+.sf-card-link:hover,
+.sf-card-link:focus {
+  text-decoration: none !important;
+}
+
+/* Mặc định mọi text bên trong card cũng không gạch chân */
+.sf-card-link * {
+  text-decoration: none;
+}
+
+/* Mặc định tên sản phẩm không gạch chân */
+.sf-body h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+/* Khi hover lên card, CHỈ gạch chân tên sản phẩm */
+.sf-card-link:hover .sf-body h3 {
+  text-decoration: underline;
+}
+/* Khi sản phẩm hết hàng, card sẽ bị làm mờ */
+.sf-card-out {
+  opacity: 0.55; /* Làm mờ card */
+  position: relative; /* Để có thể thêm nội dung "Hết hàng" lên ảnh */
+}
+
+/* Sản phẩm hết hàng khi hover không thể nổi lên quá nhiều */
+.sf-card-out:hover {
+  transform: none;
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.03);
+}
+
+/* Dòng "Hết hàng" */
+.sf-out-of-stock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 10px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+
+/* Cải thiện hiển thị cho "Hết hàng" */
+.sf-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: #f1f5f9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.sf-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sf-media-placeholder {
+  font-weight: 700;
+  font-size: 22px;
+  color: #1f2937;
+}
+
