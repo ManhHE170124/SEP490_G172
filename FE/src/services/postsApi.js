@@ -40,7 +40,6 @@ export const postsApi = {
   createPost: (data) => axiosClient.post(END.POSTS, data),
   updatePost: (id, data) => axiosClient.put(`${END.POSTS}/${id}`, data),
   deletePost: (id) => axiosClient.delete(`${END.POSTS}/${id}`),
-
   getPostBySlug: (slug) => axiosClient.get(`${END.POSTS}/slug/${slug}`),
   getRelatedPosts: (postId, limit = 3) =>
     axiosClient.get(`${END.POSTS}/${postId}/related?limit=${limit}`),
