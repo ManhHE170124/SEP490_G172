@@ -27,29 +27,32 @@ namespace Keytietkiem.Services
         public async Task<IEnumerable<PaymentGatewayDto>> GetAllAsync()
         {
             return await _context.PaymentGateways
+                .OrderBy(x => x.Name) // Sort by name
                 .Select(x => new PaymentGatewayDto
                 {
                     Id = x.Id,
                     Name = x.Name,
                     CallbackUrl = x.CallbackUrl,
-                    IsActive = x.IsActive,
+                    IsActive = x.IsActive ?? false,
                     CreatedAt = x.CreatedAt,
                     UpdatedAt = x.UpdatedAt
-                }).ToListAsync();
+                })
+                .ToListAsync();
         }
 
         public async Task<PaymentGatewayDto> GetByIdAsync(int id)
         {
-            var x = await _context.PaymentGateways.FindAsync(id);
-            if (x == null) return null;
+            var entity = await _context.PaymentGateways.FindAsync(id);
+            if (entity == null) return null;
+
             return new PaymentGatewayDto
             {
-                Id = x.Id,
-                Name = x.Name,
-                CallbackUrl = x.CallbackUrl,
-                IsActive = x.IsActive,
-                CreatedAt = x.CreatedAt,
-                UpdatedAt = x.UpdatedAt
+                Id = entity.Id,
+                Name = entity.Name,
+                CallbackUrl = entity.CallbackUrl,
+                IsActive = entity.IsActive ?? false,
+                CreatedAt = entity.CreatedAt,
+                UpdatedAt = entity.UpdatedAt
             };
         }
 
@@ -57,39 +60,79 @@ namespace Keytietkiem.Services
         {
             var entity = new PaymentGateway
             {
-                Name = dto.Name,
-                CallbackUrl = dto.CallbackUrl,
-                IsActive = dto.IsActive,
-                CreatedAt = System.DateTime.UtcNow,
-                UpdatedAt = System.DateTime.UtcNow
+                Name = dto.Name.Trim(),
+                CallbackUrl = dto.CallbackUrl.Trim(),
+                IsActive = dto.IsActive ?? true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
+
             _context.PaymentGateways.Add(entity);
             await _context.SaveChangesAsync();
-            dto.Id = entity.Id;
-            dto.CreatedAt = entity.CreatedAt;
-            dto.UpdatedAt = entity.UpdatedAt;
-            return dto;
+
+            return new PaymentGatewayDto
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                CallbackUrl = entity.CallbackUrl,
+                IsActive = entity.IsActive,
+                CreatedAt = entity.CreatedAt,
+                UpdatedAt = entity.UpdatedAt
+            };
         }
 
         public async Task<PaymentGatewayDto> UpdateAsync(int id, PaymentGatewayDto dto)
         {
             var entity = await _context.PaymentGateways.FindAsync(id);
             if (entity == null) return null;
-            entity.Name = dto.Name;
-            entity.CallbackUrl = dto.CallbackUrl;
+
+            entity.Name = dto.Name.Trim();
+            entity.CallbackUrl = dto.CallbackUrl.Trim();
             entity.IsActive = dto.IsActive;
-            entity.UpdatedAt = System.DateTime.UtcNow;
+            entity.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
-            return dto;
+
+            return new PaymentGatewayDto
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                CallbackUrl = entity.CallbackUrl,
+                IsActive = entity.IsActive,
+                CreatedAt = entity.CreatedAt,
+                UpdatedAt = entity.UpdatedAt
+            };
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
             var entity = await _context.PaymentGateways.FindAsync(id);
             if (entity == null) return false;
+
             _context.PaymentGateways.Remove(entity);
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<PaymentGatewayDto> ToggleActiveAsync(int id)
+        {
+            var entity = await _context.PaymentGateways.FindAsync(id);
+            if (entity == null) return null;
+
+            entity.IsActive = !(entity.IsActive ?? false);
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new PaymentGatewayDto
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                CallbackUrl = entity.CallbackUrl,
+                IsActive = entity.IsActive,
+                CreatedAt = entity.CreatedAt,
+                UpdatedAt = entity.UpdatedAt
+            };
         }
     }
 }

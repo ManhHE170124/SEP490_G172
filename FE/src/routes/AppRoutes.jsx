@@ -61,6 +61,7 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
+import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 // Order pages
 import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
@@ -438,6 +439,7 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />

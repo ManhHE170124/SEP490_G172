@@ -26,7 +26,7 @@ html, body, #root {
   height: 100%;
 }
 
-body {
+/* body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   color: var(--kt-text);
@@ -41,3 +41,26 @@ a:hover { text-decoration: underline; }
   margin: 0 auto;
   padding: 16px;
 }
+
+:root {
+  --primary: #2563eb;
+  --secondary: #111827;
+  --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+} */
+
+:root{
+  --primary: #2563eb;
+  --secondary: #111827;
+  --secondary-rgb: 17,24,39;
+  --font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* apply font globally */
+body {
+  font-family: var(--font-family);
+}
+
+/* usage examples */
+.btn.primary { background: var(--primary); color: var(--primary-ink, #fff); }
+.muted-text { color: var(--secondary); }
+.section-subtle { background: rgba(var(--secondary-rgb), 0.06); }
