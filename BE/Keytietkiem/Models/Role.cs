@@ -9,8 +9,6 @@ public partial class Role
 
     public string Name { get; set; } = null!;
 
-    public string? Code { get; set; }
-
     public bool IsSystem { get; set; }
 
     public bool IsActive { get; set; }
@@ -18,6 +16,8 @@ public partial class Role
     public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    public string? Code { get; set; }
 
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 

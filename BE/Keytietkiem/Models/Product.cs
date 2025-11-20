@@ -35,11 +35,11 @@ public partial class Product
 
     public virtual ICollection<ProductBadge> ProductBadges { get; set; } = new List<ProductBadge>();
 
-    public virtual ICollection<Faq> Faqs { get; set; } = new List<Faq>();
-
     public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
 
     public virtual ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();
 
     public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
+
+    public virtual ICollection<Faq> Faqs { get; set; } = new List<Faq>();
 }

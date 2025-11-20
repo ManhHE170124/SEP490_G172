@@ -1,4 +1,4 @@
-﻿namespace Keytietkiem.Models
+﻿namespace Keytietkiem.DTOs.Enums
 {
     public enum UserStatus { Active, Locked, Disabled }
 

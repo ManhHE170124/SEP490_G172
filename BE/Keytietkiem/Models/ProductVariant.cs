@@ -15,10 +15,6 @@ public partial class ProductVariant
 
     public int? DurationDays { get; set; }
 
-    public string? Thumbnail { get; set; }          // nvarchar(255)
-    public string? MetaTitle { get; set; }          // nvarchar(255)
-    public string? MetaDescription { get; set; }    // nvarchar(255)
-    public int ViewCount { get; set; }
     public int? WarrantyDays { get; set; }
 
     public string Status { get; set; } = null!;
@@ -28,6 +24,14 @@ public partial class ProductVariant
     public DateTime? UpdatedAt { get; set; }
 
     public int StockQty { get; set; }
+
+    public string? Thumbnail { get; set; }
+
+    public string? MetaTitle { get; set; }
+
+    public string? MetaDescription { get; set; }
+
+    public int ViewCount { get; set; }
 
     public virtual Product Product { get; set; } = null!;
 

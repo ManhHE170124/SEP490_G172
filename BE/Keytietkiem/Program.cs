@@ -166,5 +166,7 @@ app.MapControllers();
 
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
+app.MapHub<SupportChatHub>("/hubs/support-chat");
+
 
 app.Run();

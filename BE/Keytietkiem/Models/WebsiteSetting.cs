@@ -36,6 +36,7 @@ public partial class WebsiteSetting
     public string? SmtpPassword { get; set; }
 
     public bool? UseTls { get; set; }
+
     public bool? UseDns { get; set; }
 
     public int? UploadLimitMb { get; set; }
