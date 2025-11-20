@@ -1,21 +1,4 @@
-﻿/**
- * File: BadgesController.cs
- * Author: ManhLDHE170124
- * Created: 24/10/2025
- * Last Updated: 28/10/2025
- * Version: 1.0.0
- * Purpose: Manage badges (CRUD, toggle/status) and assign badges to products.
- * Endpoints:
- *   - GET    /api/badges                         : List badges (keyword filter, active filter, sort)
- *   - GET    /api/badges/{code}                  : Get a badge by code
- *   - POST   /api/badges                         : Create a new badge
- *   - PUT    /api/badges/{code}                  : Update a badge by code
- *   - DELETE /api/badges/{code}                  : Delete a badge by code
- *   - PATCH  /api/badges/{code}/toggle           : Toggle IsActive
- *   - PATCH  /api/badges/{code}/status           : Set IsActive explicitly
- *   - POST   /api/badges/products/{productId}    : Replace a product's badges by codes
- */
-using Keytietkiem.DTOs.Products;
+﻿using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -29,32 +12,39 @@ public class BadgesController : ControllerBase
 {
     private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
 
+    private const int BadgeCodeMaxLength = 32;
+    private const int BadgeDisplayNameMaxLength = 64;
+    private static bool IsValidHexColor(string? color)
+    {
+        if (string.IsNullOrWhiteSpace(color)) return false;
+        var c = color.Trim();
+        if (c[0] != '#') return false;
+        // #RGB (4) hoặc #RRGGBB (7)
+        if (c.Length != 4 && c.Length != 7) return false;
+        for (int i = 1; i < c.Length; i++)
+        {
+            var ch = c[i];
+            bool isHex = (ch >= '0' && ch <= '9') ||
+                         (ch >= 'a' && ch <= 'f') ||
+                         (ch >= 'A' && ch <= 'F');
+            if (!isHex) return false;
+        }
+        return true;
+    }
+
     public BadgesController(IDbContextFactory<KeytietkiemDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
     }
 
     [HttpGet]
-    /**
-     * Summary: Retrieve badge list with optional keyword/active filters; supports sorting & pagination.
-     * Route: GET /api/badges
-     * Params:
-     *   - keyword   (query, optional): search across BadgeCode, DisplayName, ColorHex, Icon
-     *   - active    (query, optional): filter by IsActive (true/false)
-     *   - sort      (query, optional): one of [code|name|color|active|icon], default "displayName"
-     *   - direction (query, optional): "asc" | "desc", default "asc"
-     *   - page      (query, optional): page index starts from 1, default 1
-     *   - pageSize  (query, optional): page size (1..200), default 20
-     * Returns:
-     *   - 200 OK with { items, total, page, pageSize } where items is IEnumerable<BadgeListItemDto>
-     */
     public async Task<IActionResult> List(
-    [FromQuery] string? keyword,
-    [FromQuery] bool? active,
-    [FromQuery] string? sort = "displayName",
-    [FromQuery] string? direction = "asc",
-    [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 10)
+        [FromQuery] string? keyword,
+        [FromQuery] bool? active,
+        [FromQuery] string? sort = "displayName",
+        [FromQuery] string? direction = "asc",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var q = db.Badges.AsNoTracking().AsQueryable();
@@ -91,7 +81,6 @@ public class BadgesController : ControllerBase
             _ => q.OrderBy(b => b.DisplayName)
         };
 
-        // ===== Pagination =====
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 200) pageSize = 200;
@@ -107,7 +96,6 @@ public class BadgesController : ControllerBase
                 b.ColorHex,
                 b.Icon,
                 b.IsActive,
-                // ProductsCount: count products using this badge
                 db.ProductBadges.Count(pb => pb.Badge == b.BadgeCode)
             ))
             .ToListAsync();
@@ -115,15 +103,7 @@ public class BadgesController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
-
     [HttpGet("{code}")]
-    /**
-     * Summary: Retrieve a single badge by code (includes ProductsCount).
-     * Route: GET /api/badges/{code}
-     * Params:
-     *   - code (route): unique badge code
-     * Returns: 200 OK with BadgeListItemDto, or 404 Not Found
-     */
     public async Task<ActionResult<BadgeListItemDto>> Get(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -144,29 +124,49 @@ public class BadgesController : ControllerBase
         return dto is null ? NotFound() : Ok(dto);
     }
 
-
-
     [HttpPost]
-    /**
-     * Summary: Create a new badge.
-     * Route: POST /api/badges
-     * Body: BadgeCreateDto { BadgeCode, DisplayName, ColorHex?, Icon?, IsActive }
-     * Returns: 201 Created with Location header (Get by code), 409 if BadgeCode exists
-     */
     public async Task<IActionResult> Create(BadgeCreateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var code = dto.BadgeCode.Trim();
+        // ===== Validate BadgeCode =====
+        var rawCode = dto.BadgeCode ?? string.Empty;
+        var code = rawCode.Trim();
+        if (string.IsNullOrWhiteSpace(code))
+            return BadRequest(new { message = "BadgeCode is required" });
+
+        if (code.Contains(' '))
+            return BadRequest(new { message = "BadgeCode cannot contain spaces" });
+
+        if (code.Length > BadgeCodeMaxLength)
+            return BadRequest(new { message = $"BadgeCode cannot exceed {BadgeCodeMaxLength} characters" });
+
         if (await db.Badges.AnyAsync(x => x.BadgeCode == code))
             return Conflict(new { message = "BadgeCode already exists" });
+
+        // ===== Validate DisplayName =====
+        var name = dto.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return BadRequest(new { message = "DisplayName is required" });
+
+        if (name.Length > BadgeDisplayNameMaxLength)
+            return BadRequest(new { message = $"DisplayName cannot exceed {BadgeDisplayNameMaxLength} characters" });
+
+        // ===== Validate ColorHex =====
+        string? color = null;
+        if (!string.IsNullOrWhiteSpace(dto.ColorHex))
+        {
+            color = dto.ColorHex.Trim();
+            if (!IsValidHexColor(color))
+                return BadRequest(new { message = "ColorHex must be a valid hex color, e.g. #1e40af" });
+        }
 
         var e = new Badge
         {
             BadgeCode = code,
-            DisplayName = dto.DisplayName.Trim(),
-            ColorHex = dto.ColorHex,
-            Icon = dto.Icon,
+            DisplayName = name,
+            ColorHex = color,
+            Icon = dto.Icon?.Trim(),
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow
         };
@@ -174,7 +174,6 @@ public class BadgesController : ControllerBase
         db.Badges.Add(e);
         await db.SaveChangesAsync();
 
-        // Trả về body để client có thể dùng ngay; ProductsCount = 0 khi mới tạo
         var body = new BadgeListItemDto(
             e.BadgeCode,
             e.DisplayName,
@@ -188,53 +187,95 @@ public class BadgesController : ControllerBase
     }
 
     [HttpPut("{code}")]
-    /**
-     * Summary: Update an existing badge by code.
-     * Route: PUT /api/badges/{code}
-     * Params:
-     *   - code (route): badge code to update
-     * Body: BadgeUpdateDto { DisplayName, ColorHex?, Icon?, IsActive }
-     * Returns: 204 No Content, 404 Not Found
-     */
     public async Task<IActionResult> Update(string code, BadgeUpdateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Badges.FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (e is null) return NotFound();
-        e.DisplayName = dto.DisplayName.Trim();
-        e.ColorHex = dto.ColorHex;
-        e.Icon = dto.Icon;
+        if (e is null) return NotFound(new { message = "Badge not found" });
+
+        // ===== Validate DisplayName =====
+        var name = dto.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            return BadRequest(new { message = "DisplayName is required" });
+
+        if (name.Length > BadgeDisplayNameMaxLength)
+            return BadRequest(new { message = $"DisplayName cannot exceed {BadgeDisplayNameMaxLength} characters" });
+
+        // ===== Validate BadgeCode (mới) =====
+        var rawCode = dto.BadgeCode ?? string.Empty;
+        var newCode = rawCode.Trim();
+        if (string.IsNullOrWhiteSpace(newCode))
+            return BadRequest(new { message = "BadgeCode is required" });
+
+        if (newCode.Contains(' '))
+            return BadRequest(new { message = "BadgeCode cannot contain spaces" });
+
+        if (newCode.Length > BadgeCodeMaxLength)
+            return BadRequest(new { message = $"BadgeCode cannot exceed {BadgeCodeMaxLength} characters" });
+
+        var codeChanged = !string.Equals(newCode, e.BadgeCode, StringComparison.Ordinal);
+
+        if (codeChanged)
+        {
+            var exists = await db.Badges.AnyAsync(b => b.BadgeCode == newCode && b.BadgeCode != e.BadgeCode);
+            if (exists)
+                return Conflict(new { message = "BadgeCode already exists" });
+        }
+
+        // ===== Validate ColorHex =====
+        string? color = null;
+        if (!string.IsNullOrWhiteSpace(dto.ColorHex))
+        {
+            color = dto.ColorHex.Trim();
+            if (!IsValidHexColor(color))
+                return BadRequest(new { message = "ColorHex must be a valid hex color, e.g. #1e40af" });
+        }
+
+        e.DisplayName = name;
+        e.ColorHex = color;
+        e.Icon = dto.Icon?.Trim();
         e.IsActive = dto.IsActive;
+
+        if (codeChanged)
+        {
+            // Cập nhật ProductBadges liên quan
+            var related = await db.ProductBadges
+                .Where(pb => pb.Badge == e.BadgeCode)
+                .ToListAsync();
+
+            foreach (var pb in related)
+            {
+                pb.Badge = newCode;
+            }
+
+            e.BadgeCode = newCode;
+        }
+
         await db.SaveChangesAsync();
         return NoContent();
     }
 
     [HttpDelete("{code}")]
-    /**
-     * Summary: Delete a badge by code.
-     * Route: DELETE /api/badges/{code}
-     * Params:
-     *   - code (route): badge code to delete
-     * Returns: 204 No Content, 404 Not Found
-     */
     public async Task<IActionResult> Delete(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Badges.FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (e is null) return NotFound();
+        if (e is null) return NotFound(new { message = "Badge not found" });
+
+        // Xóa quan hệ ProductBadges trước (tránh FK error + badge không còn hiển thị ở product)
+        var related = await db.ProductBadges
+            .Where(pb => pb.Badge == code)
+            .ToListAsync();
+
+        if (related.Count > 0)
+            db.ProductBadges.RemoveRange(related);
+
         db.Badges.Remove(e);
         await db.SaveChangesAsync();
         return NoContent();
     }
 
     [HttpPatch("{code}/toggle")]
-    /**
-     * Summary: Toggle the IsActive state of a badge.
-     * Route: PATCH /api/badges/{code}/toggle
-     * Params:
-     *   - code (route): badge code to toggle
-     * Returns: 200 OK with { BadgeCode, IsActive }, 404 Not Found
-     */
     public async Task<IActionResult> Toggle(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -247,14 +288,6 @@ public class BadgesController : ControllerBase
     }
 
     [HttpPatch("{code}/status")]
-    /**
-     * Summary: Set the IsActive state explicitly.
-     * Route: PATCH /api/badges/{code}/status
-     * Params:
-     *   - code (route): badge code
-     * Body: bool active
-     * Returns: 200 OK with { BadgeCode, IsActive }, 404 Not Found
-     */
     public async Task<IActionResult> SetStatus(string code, [FromBody] bool active)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
@@ -267,15 +300,6 @@ public class BadgesController : ControllerBase
     }
 
     [HttpPost("products/{productId:guid}")]
-    /**
-     * Summary: Replace a product's badges with a given set of active badge codes.
-     * Route: POST /api/badges/products/{productId}
-     * Params:
-     *   - productId (route, Guid): target product
-     * Body: IEnumerable<string> codes (badge codes)
-     * Behavior: Removes all existing ProductBadges then inserts provided active codes.
-     * Returns: 204 No Content, 404 if product not found
-     */
     public async Task<IActionResult> SetBadgesForProduct(Guid productId, [FromBody] IEnumerable<string> codes)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();

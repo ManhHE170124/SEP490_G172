@@ -27,6 +27,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 using Keytietkiem.Services;
 using Keytietkiem.DTOs.Post;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Keytietkiem.Controllers
 {
@@ -139,9 +140,15 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePost([FromBody] CreatePostDTO createPostDto)
         {
-            if (createPostDto == null || string.IsNullOrWhiteSpace(createPostDto.Title))
+            if (createPostDto == null)
             {
-                return BadRequest("Tiêu đề không được để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             // Validate PostType exists
@@ -195,7 +202,21 @@ namespace Keytietkiem.Controllers
             };
 
             _context.Posts.Add(newPost);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                // Kiểm tra unique constraint violation trên Slug
+                if (
+                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+                throw; // Re-throw nếu không phải lỗi unique constraint
+            }
 
             // Add Tags
             if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
@@ -204,7 +225,21 @@ namespace Keytietkiem.Controllers
                     .Where(t => createPostDto.TagIds.Contains(t.TagId))
                     .ToListAsync();
                 newPost.Tags = tags;
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Kiểm tra unique constraint violation trên Slug
+                    if (
+                        ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                        ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                    {
+                        return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                    }
+                    throw; // Re-throw nếu không phải lỗi unique constraint
+                }
             }
 
             // Reload post with relations
@@ -258,9 +293,10 @@ namespace Keytietkiem.Controllers
                 return BadRequest("Dữ liệu không hợp lệ.");
             }
 
-            if (string.IsNullOrWhiteSpace(updatePostDto.Title))
+            if (!ModelState.IsValid)
             {
-                return BadRequest("Tiêu đề không được để trống.");
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             var existing = await _context.Posts
@@ -315,7 +351,21 @@ namespace Keytietkiem.Controllers
             }
 
             _context.Posts.Update(existing);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                // Kiểm tra unique constraint violation trên Slug
+                if (
+                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+                throw; // Re-throw nếu không phải lỗi unique constraint
+            }
 
             return NoContent();
         }
@@ -368,9 +418,15 @@ namespace Keytietkiem.Controllers
         [HttpPost("posttypes")]
         public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
-            if (createPostTypeDto == null || string.IsNullOrWhiteSpace(createPostTypeDto.PostTypeName))
+            if (createPostTypeDto == null)
             {
-                return BadRequest("Tên danh mục không được để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var newPostType = new PostType
             {
@@ -394,9 +450,15 @@ namespace Keytietkiem.Controllers
         [HttpPut("posttypes/{id}")]
         public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
-            if (updatePostTypeDto == null || string.IsNullOrWhiteSpace(updatePostTypeDto.PostTypeName))
+            if (updatePostTypeDto == null)
             {
-                return BadRequest("Tên danh mục không được để trống.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.PostTypes
                 .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
@@ -412,9 +474,9 @@ namespace Keytietkiem.Controllers
             return NoContent();
 
         }
-    
 
-    [HttpDelete("posttypes/{id}")]
+
+        [HttpDelete("posttypes/{id}")]
         public async Task<IActionResult> DeletePosttype(Guid id)
         {
             var existing = await _context.PostTypes
@@ -431,6 +493,103 @@ namespace Keytietkiem.Controllers
             _context.PostTypes.Remove(existing);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        /**
+         * Summary: Get post by slug for public viewing
+         * Route: GET /api/posts/slug/{slug}
+         * Params: slug (string) - post URL slug
+         * Returns: 200 OK with post detail, 404 if not found
+         */
+        [HttpGet("slug/{slug}")]
+        [AllowAnonymous] // Public endpoint - không cần auth
+        public async Task<IActionResult> GetPostBySlug(string slug)
+        {
+            var post = await _context.Posts
+                .Include(p => p.Author)
+                .Include(p => p.PostType)
+                .Include(p => p.Tags)
+                .Where(p => p.Slug == slug && p.Status == "Published") 
+                .FirstOrDefaultAsync();
+
+            if (post == null)
+            {
+                return NotFound(new { message = "Không tìm thấy bài viết" });
+            }
+            post.ViewCount = (post.ViewCount ?? 0) + 1;
+            await _context.SaveChangesAsync();
+
+            var postDto = new PostDTO
+            {
+                PostId = post.PostId,
+                Title = post.Title,
+                Slug = post.Slug,
+                ShortDescription = post.ShortDescription,
+                Content = post.Content,
+                Thumbnail = post.Thumbnail,
+                PostTypeId = post.PostTypeId,
+                AuthorId = post.AuthorId,
+                MetaTitle = post.MetaTitle,
+                MetaDescription = post.MetaDescription,
+                Status = post.Status,
+                ViewCount = post.ViewCount,
+                CreatedAt = post.CreatedAt,
+                UpdatedAt = post.UpdatedAt,
+                AuthorName = post.Author != null
+                    ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim())
+                    : null,
+                PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
+                Tags = post.Tags.Select(t => new TagDTO
+                {
+                    TagId = t.TagId,
+                    TagName = t.TagName,
+                    Slug = t.Slug
+                }).ToList()
+            };
+
+            return Ok(postDto);
+        }
+
+        /**
+         * Summary: Get related posts (same postType, exclude current)
+         * Route: GET /api/posts/{id}/related
+         * Params: id (Guid), limit (int, optional, default 3)
+         * Returns: 200 OK with list of related posts
+         */
+        [HttpGet("{id}/related")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRelatedPosts(Guid id, [FromQuery] int limit = 3)
+        {
+            var currentPost = await _context.Posts.FindAsync(id);
+            if (currentPost == null)
+            {
+                return NotFound();
+            }
+
+            var relatedPosts = await _context.Posts
+                .Include(p => p.PostType)
+                .Where(p =>
+                    p.PostId != id &&
+                    p.PostTypeId == currentPost.PostTypeId &&
+                    p.Status == "Published"
+                )
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(limit)
+                .Select(p => new PostListItemDTO
+                {
+                    PostId = p.PostId,
+                    Title = p.Title,
+                    Slug = p.Slug,
+                    ShortDescription = p.ShortDescription,
+                    Thumbnail = p.Thumbnail,
+                    PostTypeId = p.PostTypeId,
+                    ViewCount = p.ViewCount,
+                    CreatedAt = p.CreatedAt,
+                    PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null
+                })
+                .ToListAsync();
+
+            return Ok(relatedPosts);
         }
     }
 }

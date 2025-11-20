@@ -2,26 +2,17 @@
  * File: PaymentGatewaysController.cs
  * Author: TungNVHE170677
  * Created: 26/10/2025
- * Last Updated: 5/11/2025
- * Purpose: Manage payment gateway configurations (CRUD operations).
- *          Handles enabling, updating, and removing available payment methods
- *          for the website’s checkout and donation systems.
- * Endpoints:
- *   - GET    /api/paymentgateways          : Retrieve all payment gateways
- *   - GET    /api/paymentgateways/{id}     : Retrieve a payment gateway by ID
- *   - POST   /api/paymentgateways          : Create a new payment gateway
- *   - PUT    /api/paymentgateways/{id}     : Update an existing payment gateway
- *   - DELETE /api/paymentgateways/{id}     : Delete a payment gateway
+ * Last Updated: 2025-01-20
+ * Purpose: Manage payment gateway configurations - Simple CRUD + Toggle
  */
 
 using Keytietkiem.DTOs;
 using Keytietkiem.Services.Interfaces;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Keytietkiem.Controllers
+namespace Keytietkiem.Controllers.Admin
 {
-    [Route("api/[controller]")]
+    [Route("api/admin/payment-gateways")]
     [ApiController]
     public class PaymentGatewaysController : ControllerBase
     {
@@ -32,12 +23,10 @@ namespace Keytietkiem.Controllers
             _service = service;
         }
 
-        /**
-         * Summary: Retrieve all payment gateways.
-         * Route: GET /api/paymentgateways
-         * Params: none
-         * Returns: 200 OK with a list of all configured payment gateways.
-         */
+        /// <summary>
+        /// Get all payment gateways
+        /// GET /api/admin/payment-gateways
+        /// </summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<PaymentGatewayDto>>> GetAll()
         {
@@ -45,71 +34,102 @@ namespace Keytietkiem.Controllers
             return Ok(data);
         }
 
-        /**
-         * Summary: Retrieve a specific payment gateway by its ID.
-         * Route: GET /api/paymentgateways/{id}
-         * Params:
-         *   - id (int): The unique identifier of the payment gateway.
-         * Returns:
-         *   - 200 OK with payment gateway data.
-         *   - 404 Not Found if the gateway does not exist.
-         */
+        /// <summary>
+        /// Get payment gateway by ID
+        /// GET /api/admin/payment-gateways/{id}
+        /// </summary>
         [HttpGet("{id}")]
         public async Task<ActionResult<PaymentGatewayDto>> Get(int id)
         {
             var result = await _service.GetByIdAsync(id);
-            if (result == null) return NotFound();
+            if (result == null)
+                return NotFound(new { message = "Payment gateway not found" });
             return Ok(result);
         }
 
-        /**
-         * Summary: Create a new payment gateway.
-         * Route: POST /api/paymentgateways
-         * Body: PaymentGatewayDto dto
-         * Returns:
-         *   - 201 Created with created gateway details.
-         *   - 400 Bad Request if input is invalid.
-         */
+        /// <summary>
+        /// Create new payment gateway
+        /// POST /api/admin/payment-gateways
+        /// </summary>
         [HttpPost]
-        public async Task<ActionResult<PaymentGatewayDto>> Create(PaymentGatewayDto dto)
+        public async Task<ActionResult<PaymentGatewayDto>> Create([FromBody] PaymentGatewayDto dto)
         {
-            var created = await _service.CreateAsync(dto);
-            return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+            // Validation
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "Tên cổng thanh toán là bắt buộc" });
+
+            if (string.IsNullOrWhiteSpace(dto.CallbackUrl))
+                return BadRequest(new { message = "Callback URL là bắt buộc" });
+
+            try
+            {
+                var created = await _service.CreateAsync(dto);
+                return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
-        /**
-         * Summary: Update an existing payment gateway.
-         * Route: PUT /api/paymentgateways/{id}
-         * Params:
-         *   - id (int): The ID of the gateway to update.
-         * Body: PaymentGatewayDto dto
-         * Returns:
-         *   - 204 No Content if updated successfully.
-         *   - 404 Not Found if the gateway does not exist.
-         */
+        /// <summary>
+        /// Update payment gateway
+        /// PUT /api/admin/payment-gateways/{id}
+        /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, PaymentGatewayDto dto)
+        public async Task<ActionResult<PaymentGatewayDto>> Update(int id, [FromBody] PaymentGatewayDto dto)
         {
-            var updated = await _service.UpdateAsync(id, dto);
-            if (updated == null) return NotFound();
-            return NoContent();
+            // Validation
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "Tên cổng thanh toán là bắt buộc" });
+
+            if (string.IsNullOrWhiteSpace(dto.CallbackUrl))
+                return BadRequest(new { message = "Callback URL là bắt buộc" });
+
+            try
+            {
+                var updated = await _service.UpdateAsync(id, dto);
+                if (updated == null)
+                    return NotFound(new { message = "Payment gateway not found" });
+                return Ok(updated);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
-        /**
-         * Summary: Delete a payment gateway by its ID.
-         * Route: DELETE /api/paymentgateways/{id}
-         * Params:
-         *   - id (int): The ID of the gateway to delete.
-         * Returns:
-         *   - 204 No Content if deleted successfully.
-         *   - 404 Not Found if the gateway does not exist.
-         */
+        /// <summary>
+        /// Delete payment gateway
+        /// DELETE /api/admin/payment-gateways/{id}
+        /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var deleted = await _service.DeleteAsync(id);
-            if (!deleted) return NotFound();
+            if (!deleted)
+                return NotFound(new { message = "Payment gateway not found" });
             return NoContent();
+        }
+
+        /// <summary>
+        /// Toggle payment gateway active status
+        /// PATCH /api/admin/payment-gateways/{id}/toggle
+        /// </summary>
+        [HttpPatch("{id}/toggle")]
+        public async Task<ActionResult<PaymentGatewayDto>> Toggle(int id)
+        {
+            try
+            {
+                var toggled = await _service.ToggleActiveAsync(id);
+                if (toggled == null)
+                    return NotFound(new { message = "Payment gateway not found" });
+                return Ok(toggled);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

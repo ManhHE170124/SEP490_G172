@@ -34,6 +34,10 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
@@ -43,20 +47,51 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
-
+        private const int MaxProductNameLength = 100; // Đổi đúng với DB
+        private const int MaxProductCodeLength = 50;
         public ProductsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
         {
             _dbFactory = dbFactory;
             _clock = clock;
         }
+        private static string NormalizeProductCode(string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return string.Empty;
+            var s = code.Trim();
+
+            // Bỏ dấu
+            s = s.Normalize(NormalizationForm.FormD);
+            var chars = s.Where(c =>
+                CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark);
+            s = new string(chars.ToArray());
+
+            // Ký tự không phải chữ/số -> "_"
+            s = Regex.Replace(s, "[^A-Za-z0-9]+", "_");
+            s = Regex.Replace(s, "_+", "_").Trim('_');
+
+            return s.ToUpperInvariant();
+        }
 
         private static string ResolveStatusFromTotalStock(int totalStock, string? desired)
         {
-            if (totalStock <= 0) return "OUT_OF_STOCK";
-            if (!string.IsNullOrWhiteSpace(desired) && ProductEnums.Statuses.Contains(desired))
-                return desired.ToUpperInvariant();
+            var d = (desired ?? string.Empty).Trim().ToUpperInvariant();
+
+            if (totalStock <= 0)
+            {
+                // Nếu explicit INACTIVE -> coi là nháp/ẩn, không phải hết hàng
+                if (d == "INACTIVE")
+                    return "INACTIVE";
+
+                // Mặc định hết hàng
+                return "OUT_OF_STOCK";
+            }
+
+            if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d))
+                return d;
+
             return "ACTIVE";
         }
+
 
         private static string ToggleVisibility(string current, int totalStock)
         {
@@ -146,7 +181,6 @@ namespace Keytietkiem.Controllers
                     p.ProductType,
                     (p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0),
                     p.Status,
-                    p.ThumbnailUrl,
                     p.Categories.Select(c => c.CategoryId),
                     p.ProductBadges.Select(b => b.Badge)
                 ))
@@ -164,8 +198,6 @@ namespace Keytietkiem.Controllers
             var p = await db.Products.AsNoTracking()
                 .Include(x => x.Categories)
                 .Include(x => x.ProductBadges)
-                .Include(x => x.ProductImages)
-                .Include(x => x.ProductFaqs)
                 .Include(x => x.ProductVariants)
                 .FirstOrDefaultAsync(x => x.ProductId == id);
 
@@ -176,22 +208,13 @@ namespace Keytietkiem.Controllers
                 p.ProductCode,
                 p.ProductName,
                 p.ProductType,
-                p.AutoDelivery,
                 p.Status,
-                p.ThumbnailUrl,
                 p.Categories.Select(c => c.CategoryId),
                 p.ProductBadges.Select(b => b.Badge),
-                p.ProductImages
-                    .OrderBy(i => i.SortOrder)
-                    .Select(i => new ProductImageDto(i.ImageId, i.Url, i.SortOrder, i.IsPrimary, i.AltText)),
-                p.ProductFaqs
-                    .OrderBy(f => f.SortOrder)
-                    .Select(f => new ProductFaqDto(f.FaqId, f.Question, f.Answer, f.SortOrder, f.IsActive)),
                 p.ProductVariants
-                    .OrderBy(v => v.SortOrder)
                     .Select(v => new ProductVariantMiniDto(
                         v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                        v.OriginalPrice, v.Price, v.StockQty, v.Status, v.SortOrder
+                       v.StockQty, v.Status
                     ))
             );
 
@@ -207,19 +230,31 @@ namespace Keytietkiem.Controllers
 
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            if (await db.Products.AnyAsync(x => x.ProductCode == dto.ProductCode))
+            var normalizedCode = NormalizeProductCode(dto.ProductCode);
+            if (string.IsNullOrWhiteSpace(normalizedCode))
+                return BadRequest(new { message = "ProductCode is required" });
+            if (normalizedCode.Length > MaxProductCodeLength)
+                return BadRequest(new { message = $"ProductCode must not exceed {MaxProductCodeLength} characters." });
+            var name = (dto.ProductName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                return BadRequest(new { message = "ProductName is required" });
+            if (name.Length > MaxProductNameLength)
+                return BadRequest(new { message = $"ProductName must not exceed {MaxProductNameLength} characters." });
+
+            if (await db.Products.AnyAsync(x => x.ProductCode == normalizedCode))
                 return Conflict(new { message = "ProductCode already exists" });
+
+            if (await db.Products.AnyAsync(x => x.ProductName == name))
+                return Conflict(new { message = "ProductName already exists" });
 
             var entity = new Product
             {
                 ProductId = Guid.NewGuid(),
-                ProductCode = dto.ProductCode.Trim(),
-                ProductName = dto.ProductName.Trim(),
+                ProductCode = normalizedCode,
+                ProductName = name,
                 ProductType = dto.ProductType.Trim(),
-                AutoDelivery = dto.AutoDelivery,
-                Status = "INACTIVE", // sẽ set lại theo stock sau, mặc định INACTIVE
-                ThumbnailUrl = dto.ThumbnailUrl,
-                Slug = dto.Slug ?? dto.ProductCode.Trim(),
+                Status = "INACTIVE", // sẽ set lại theo stock sau
+                Slug = dto.Slug ?? normalizedCode,
                 CreatedAt = _clock.UtcNow
             };
 
@@ -241,7 +276,6 @@ namespace Keytietkiem.Controllers
             db.Products.Add(entity);
             await db.SaveChangesAsync();
 
-            // tính total stock (chưa có biến thể -> 0)
             var totalStock = 0;
             entity.Status = ResolveStatusFromTotalStock(totalStock, dto.Status);
             await db.SaveChangesAsync();
@@ -249,7 +283,6 @@ namespace Keytietkiem.Controllers
             return await GetById(entity.ProductId);
         }
 
-        // ===== UPDATE (không giá) =====
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, ProductUpdateDto dto)
         {
@@ -266,10 +299,62 @@ namespace Keytietkiem.Controllers
 
             if (e is null) return NotFound();
 
-            e.ProductName = dto.ProductName.Trim();
+            var newName = dto.ProductName?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(newName))
+                return BadRequest(new { message = "ProductName is required" });
+            if (newName.Length > MaxProductNameLength)
+                return BadRequest(new { message = $"ProductName must not exceed {MaxProductNameLength} characters." });
+
+            var rawCode = dto.ProductCode;
+            var normalizedCode = string.IsNullOrWhiteSpace(rawCode)
+                ? e.ProductCode
+                : NormalizeProductCode(rawCode);
+
+            if (string.IsNullOrWhiteSpace(normalizedCode))
+                return BadRequest(new { message = "ProductCode is required" });
+            if (normalizedCode.Length > MaxProductCodeLength)
+                return BadRequest(new { message = $"ProductCode must not exceed {MaxProductCodeLength} characters." });
+            var hasVariants = e.ProductVariants.Any();
+            var locked = hasVariants;
+
+            if (locked)
+            {
+                // Không cho đổi tên hoặc mã nếu đã có biến thể hoặc FAQ
+                if (!string.Equals(newName, e.ProductName, StringComparison.Ordinal) ||
+                    !string.Equals(normalizedCode, e.ProductCode, StringComparison.Ordinal))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Không thể sửa tên hoặc mã sản phẩm khi đã có biến thể thời gian hoặc FAQ."
+                    });
+                }
+            }
+            else
+            {
+                // Check trùng tên
+                if (!string.Equals(newName, e.ProductName, StringComparison.Ordinal))
+                {
+                    var dupName = await db.Products
+                        .AnyAsync(p => p.ProductId != e.ProductId && p.ProductName == newName);
+                    if (dupName)
+                        return Conflict(new { message = "ProductName already exists" });
+                }
+
+                // Check trùng mã
+                if (!string.Equals(normalizedCode, e.ProductCode, StringComparison.Ordinal))
+                {
+                    var dupCode = await db.Products
+                        .AnyAsync(p => p.ProductId != e.ProductId && p.ProductCode == normalizedCode);
+                    if (dupCode)
+                        return Conflict(new { message = "ProductCode already exists" });
+                }
+
+                e.ProductName = newName;
+                e.ProductCode = normalizedCode;
+            }
+
+            // Phần còn lại giữ nguyên
             e.ProductType = dto.ProductType.Trim();
-            e.AutoDelivery = dto.AutoDelivery;
-            e.ThumbnailUrl = dto.ThumbnailUrl;
             e.Slug = dto.Slug ?? e.Slug;
             e.UpdatedAt = _clock.UtcNow;
 
@@ -317,15 +402,56 @@ namespace Keytietkiem.Controllers
         }
 
         // ===== DELETE (giữ nguyên) =====
+        // ===== DELETE (chặn nếu còn Variant / FAQ / (tuỳ chọn) đơn hàng) =====
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var e = await db.Products.FindAsync(id);
-            if (e is null) return NotFound();
-            db.Products.Remove(e);
+
+            // Load product kèm các collection cần check
+            var p = await db.Products
+                .Include(x => x.ProductVariants)
+                .FirstOrDefaultAsync(x => x.ProductId == id);
+
+            if (p is null) return NotFound();
+
+            // Đếm số Variant / FAQ đang gắn với product này
+            var variantCount = p.ProductVariants.Count;
+
+            // (Tuỳ bạn có bảng OrderItem / OrderLines thì thêm check đơn hàng ở đây)
+            // Ví dụ (đổi tên DbSet và field cho đúng với project):
+            // var orderCount = await db.OrderItems.CountAsync(o => o.ProductId == id);
+
+            var hasVariants = variantCount > 0;
+            var hasOrders = false; // set lại nếu bạn có check đơn hàng
+
+            if (hasVariants|| hasOrders)
+            {
+                var reasons = new List<string>();
+
+                if (hasVariants)
+                    reasons.Add($"{variantCount} biến thể / key");
+                if (hasOrders)
+                    reasons.Add("các đơn hàng đã phát sinh từ sản phẩm này");
+
+                var reasonText = string.Join(", ", reasons);
+
+                return Conflict(new
+                {
+                    message =
+                        $"Không thể xoá sản phẩm \"{p.ProductName}\" vì đã có {reasonText}. " +
+                        "Vui lòng ẩn sản phẩm (tắt hiển thị) hoặc xoá các dữ liệu liên quan trước khi xoá vĩnh viễn.",
+                    variantCount,
+                    hasVariants,
+                    hasOrders
+                });
+            }
+
+            // Không còn gì phụ thuộc -> cho xoá
+            db.Products.Remove(p);
             await db.SaveChangesAsync();
             return NoContent();
         }
+
     }
 }

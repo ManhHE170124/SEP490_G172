@@ -44,9 +44,8 @@ builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
 builder.Services.AddScoped<IProductKeyService, ProductKeyService>();
 builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
 builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
-builder.Services.AddScoped<ILayoutSectionService, LayoutSectionService>();
 builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
-builder.Services.AddScoped<IHomepageService, HomepageService>();
+//builder.Services.AddScoped<IHomepageService, HomepageService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -167,5 +166,7 @@ app.MapControllers();
 
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
+app.MapHub<SupportChatHub>("/hubs/support-chat");
+
 
 app.Run();

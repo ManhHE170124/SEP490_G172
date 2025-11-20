@@ -8,6 +8,7 @@
  */
 import React from "react";
 import AppRoutes from "./routes/AppRoutes";
+import { PermissionProvider } from "./context/PermissionContext";
 import "./App.css";
 
 /**
@@ -15,8 +16,11 @@ import "./App.css";
  * @returns {JSX.Element} - The AppRoutes component wrapped in the application
  */
 const App = () => {
-    return <AppRoutes />;
-  
+  return (
+    <PermissionProvider>
+      <AppRoutes />
+    </PermissionProvider>
+  );
 };
 
 export default App;

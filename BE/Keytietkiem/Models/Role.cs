@@ -17,6 +17,8 @@ public partial class Role
 
     public DateTime? UpdatedAt { get; set; }
 
+    public string? Code { get; set; }
+
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 
     public virtual ICollection<User> Users { get; set; } = new List<User>();

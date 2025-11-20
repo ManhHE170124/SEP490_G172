@@ -7,7 +7,7 @@
  * Purpose: Role management page for Modules, Permissions, and Roles with tabbed navigation.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { roleApi } from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
@@ -23,12 +23,19 @@ const TABS = {
   PERMISSIONS: "permissions",
 };
 
+const HIDDEN_ROLE_CODE = "CUSTOMER";
+
+const filterOutCustomerRoles = (list) =>
+  (Array.isArray(list) ? list : []).filter(
+    (row) => String(row?.code || "").toUpperCase() !== HIDDEN_ROLE_CODE
+  );
+
 /**
  * @summary Custom hook for fetching Role data dynamically based on the active tab.
  * @param {string} activeTab - One of 'modules', 'permissions', or 'roles'.
  * @returns {Object} - { data, loading, error, setData }
  */
-function useFetchData(activeTab) {
+function useFetchData(activeTab, showError, networkErrorShownRef) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -43,9 +50,27 @@ function useFetchData(activeTab) {
         if (activeTab === TABS.MODULES) res = await roleApi.getModules();
         else if (activeTab === TABS.PERMISSIONS) res = await roleApi.getPermissions();
         else if (activeTab === TABS.ROLES) res = await roleApi.getAllRoles();
-        if (isMounted) setData(Array.isArray(res) ? res : []);
+        const normalized = Array.isArray(res) ? res : [];
+        const nextData =
+          activeTab === TABS.ROLES
+            ? filterOutCustomerRoles(normalized)
+            : normalized;
+        if (isMounted) setData(nextData);
       } catch (e) {
-        if (isMounted) setError(e.message || "Không thể tải dữ liệu");
+        if (isMounted) {
+          setError(e.message || "Không thể tải dữ liệu");
+          // Handle network errors globally - only show one toast
+          if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+            if (networkErrorShownRef && !networkErrorShownRef.current) {
+              networkErrorShownRef.current = true;
+              if (showError) {
+                showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+              }
+            }
+          } else if (showError) {
+            showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+          }
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -54,7 +79,7 @@ function useFetchData(activeTab) {
     return () => {
       isMounted = false;
     };
-  }, [activeTab]);
+  }, [activeTab, showError, networkErrorShownRef]);
 
   return { data, loading, error, setData };
 }
@@ -73,14 +98,37 @@ function formatDate(value) {
     return "";
   }
 }
+
+/**
+ * @summary Removes Vietnamese diacritics from a string for search comparison.
+ * @param {string} str - The string to normalize.
+ * @returns {string} - String without diacritics, lowercase.
+ */
+function removeDiacritics(str) {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll("đ", "d")
+    .replaceAll("Đ", "D")
+    .toLowerCase();
+}
 /**
  * @summary Handles the user interface and interaction logic for managing
  * modules, permissions, and roles.
  */
 export default function RoleManagement() {
   const [activeTab, setActiveTab] = useState(TABS.MODULES);
-  const { data, loading, error, setData } = useFetchData(activeTab);
   const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
+  
+  // Global network error handler - only show one toast for network errors
+  const networkErrorShownRef = useRef(false);
+  useEffect(() => {
+    // Reset the flag when component mounts
+    networkErrorShownRef.current = false;
+  }, []);
+  
+  const { data, loading, error, setData } = useFetchData(activeTab, showError, networkErrorShownRef);
 
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("");
@@ -124,6 +172,7 @@ export default function RoleManagement() {
         addButtonText: "Thêm Mô-đun",
         columns: [
           { key: "moduleName", label: "Tên Mô-đun" },
+          { key: "code", label: "Mã" },
           { key: "description", label: "Mô tả" },
           { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
           { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
@@ -135,6 +184,7 @@ export default function RoleManagement() {
         addButtonText: "Thêm Quyền",
         columns: [
           { key: "permissionName", label: "Tên quyền" },
+          { key: "code", label: "Mã" },
           { key: "description", label: "Mô tả" },
           { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
           { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
@@ -145,26 +195,38 @@ export default function RoleManagement() {
       addButtonText: "Thêm Vai trò",
       columns: [
         { key: "name", label: "Tên Vai trò" },
+        { key: "code", label: "Mã" },
         { key: "isSystem", label: "System Role", render: (v) => (v ? "Có" : "Không") },
-        { key: "isActive", label: "Active", render: (v) => (v ? "Có" : "Không") },
+        { key: "isActive", label: "Trạng thái", render: (v) => (v ? "Có" : "Không") },
         { key: "createdAt", label: "Thời điểm tạo", render: formatDate },
         { key: "updatedAt", label: "Thời điểm cập nhật", render: formatDate },
       ],
     };
   }, [activeTab]);
 
-
   const filteredSorted = useMemo(() => {
     const normalized = (v) => (v ?? "").toString().toLowerCase();
     const searchLower = normalized(search);
+    const searchWithoutDiacritics = removeDiacritics(search);
 
-    // Determine name key per tab
+    // Determine name key and code key per tab
     const nameKey = activeTab === TABS.MODULES ? "moduleName" : activeTab === TABS.PERMISSIONS ? "permissionName" : "name";
+    const codeKey = "code";
 
     let rows = data.filter((row) => {
-      // search by name only
+      // search by name and code, with diacritics removal
       if (!searchLower) return true;
-      return normalized(row[nameKey]).includes(searchLower);
+      
+      const nameValue = row[nameKey] ?? "";
+      const codeValue = row[codeKey] ?? "";
+      
+      // Normalize both search term and data for comparison
+      const nameNormalized = removeDiacritics(nameValue);
+      const codeNormalized = removeDiacritics(codeValue);
+      
+      // Check if search term (without diacritics) matches name or code (without diacritics)
+      return nameNormalized.includes(searchWithoutDiacritics) || 
+             codeNormalized.includes(searchWithoutDiacritics);
     });
 
     // roles-only status filter
@@ -235,17 +297,28 @@ export default function RoleManagement() {
       setSubmitting(true);
       const created = await roleApi.createRole({
         name: form.name,
+        code: form.code,
         isSystem: form.isSystem || false
       });
-      setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
+      setData((prev) =>
+        filterOutCustomerRoles(Array.isArray(prev) ? [...prev, created] : [created])
+      );
       setAddRoleOpen(false);
       showSuccess(
         "Tạo Vai trò thành công!",
         `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
-      showError("Tạo Vai trò thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
+        showError("Tạo Vai trò thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -261,6 +334,7 @@ export default function RoleManagement() {
       setSubmitting(true);
       const created = await roleApi.createModule({
         moduleName: form.moduleName,
+        code: form.code,
         description: form.description || ""
       });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
@@ -270,8 +344,16 @@ export default function RoleManagement() {
         `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và quyền.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
-      showError("Tạo Mô-đun thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
+        showError("Tạo Mô-đun thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -287,6 +369,7 @@ export default function RoleManagement() {
       setSubmitting(true);
       const created = await roleApi.createPermission({
         permissionName: form.permissionName,
+        code: form.code,
         description: form.description || ""
       });
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
@@ -296,8 +379,16 @@ export default function RoleManagement() {
         `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
-      showError("Tạo Quyền thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
+        showError("Tạo Quyền thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -319,19 +410,22 @@ export default function RoleManagement() {
     if (activeTab === TABS.MODULES) {
       setEditTitle("Sửa Mô-đun");
       setEditFields([
-        { name: "moduleName", label: "Tên mô-đun", required: true, defaultValue: row.moduleName },
-        { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+        { name: "moduleName", label: "Tên mô-đun", required: true, minLength: 2, maxLength: 80, defaultValue: row.moduleName },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "description", label: "Mô tả", type: "textarea", maxLength: 200, defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
       setEditTitle("Sửa Quyền");
       setEditFields([
-        { name: "permissionName", label: "Tên quyền", required: true, defaultValue: row.permissionName },
-        { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+        { name: "permissionName", label: "Tên quyền", required: true, minLength: 2, maxLength: 100, defaultValue: row.permissionName },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "description", label: "Mô tả", type: "textarea", maxLength: 300, defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
-        { name: "name", label: "Tên vai trò", required: true, defaultValue: row.name },
+        { name: "name", label: "Tên vai trò", required: true, minLength: 2, maxLength: 60, defaultValue: row.name },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
         { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
@@ -361,19 +455,37 @@ export default function RoleManagement() {
           if (activeTab === TABS.MODULES) await roleApi.deleteModule(row.moduleId || row.id);
           else if (activeTab === TABS.PERMISSIONS) await roleApi.deletePermission(row.permissionId || row.id);
           else await roleApi.deleteRole(row.roleId || row.id);
-          setData((prev) => prev.filter((x) => {
-            const key = activeTab === TABS.MODULES ? "moduleId" : activeTab === TABS.PERMISSIONS ? "permissionId" : "roleId";
-            const targetId = row[key] ?? row.id;
-            const currentId = x[key] ?? x.id;
-            return currentId !== targetId;
-          }));
+          setData((prev) => {
+            const filtered = prev.filter((x) => {
+              const key =
+                activeTab === TABS.MODULES
+                  ? "moduleId"
+                  : activeTab === TABS.PERMISSIONS
+                  ? "permissionId"
+                  : "roleId";
+              const targetId = row[key] ?? row.id;
+              const currentId = x[key] ?? x.id;
+              return currentId !== targetId;
+            });
+            return activeTab === TABS.ROLES
+              ? filterOutCustomerRoles(filtered)
+              : filtered;
+          });
           showSuccess(
             `Xóa ${entityType} thành công!`,
             `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
           );
         } catch (e) {
-          const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
-          showError(`Xóa ${entityType} thất bại!`, errorMessage);
+          // Handle network errors globally - only show one toast
+          if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+            if (!networkErrorShownRef.current) {
+              networkErrorShownRef.current = true;
+              showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+            }
+          } else {
+            const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
+            showError(`Xóa ${entityType} thất bại!`, errorMessage);
+          }
         }
       },
       () => {
@@ -396,28 +508,33 @@ export default function RoleManagement() {
       if (activeTab === TABS.MODULES) {
         await roleApi.updateModule(editingRow.moduleId, {
           moduleName: form.moduleName,
+          code: form.code,
           description: form.description || ""
         });
         setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? {
           ...x,
           moduleName: form.moduleName,
+          code: form.code,
           description: form.description,
           updatedAt: new Date().toISOString(),
         } : x));
       } else if (activeTab === TABS.PERMISSIONS) {
         await roleApi.updatePermission(editingRow.permissionId, {
           permissionName: form.permissionName,
+          code: form.code,
           description: form.description || ""
         });
         setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? {
           ...x,
           permissionName: form.permissionName,
+          code: form.code,
           description: form.description,
           updatedAt: new Date().toISOString(),
         } : x));
       } else {
         const payload = {
           name: form.name,
+          code: form.code,
           isActive: form.isActive
         };
         await roleApi.updateRole(editingRow.roleId, payload);
@@ -433,9 +550,17 @@ export default function RoleManagement() {
         `${entityType} "${entityName}" đã được cập nhật thành công.`
       );
     } catch (e) {
-      const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
-      const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
-      showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+      // Handle network errors globally - only show one toast
+      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
+        const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+        showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+      }
     } finally {
       setEditSubmitting(false);
     }
@@ -474,7 +599,7 @@ export default function RoleManagement() {
           <div className="role-search-box">
             <input
               type="text"
-              placeholder={activeTab === TABS.MODULES ? "Tìm tên Mô-đun" : activeTab === TABS.PERMISSIONS ? "Tìm tên Quyền" : "Tìm tên Vai trò"}
+              placeholder={activeTab === TABS.MODULES ? "Tìm tên hoặc code Mô-đun" : activeTab === TABS.PERMISSIONS ? "Tìm tên hoặc code Quyền" : "Tìm tên hoặc code Vai trò"}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -482,22 +607,25 @@ export default function RoleManagement() {
               }}
             />
           </div>
-          {activeTab === TABS.ROLES && (
-            <select
-              aria-label="Lọc trạng thái"
-              value={roleStatus}
-              onChange={(e) => { setRoleStatus(e.target.value); setPage(1); }}
-              className="role-btn-secondary"
-              style={{ padding: "8px 12px" }}
-            >
-              <option value="all">Tất cả</option>
-              <option value="active">Active</option>
-              <option value="inactive">Không active</option>
-            </select>
-          )}
         </div>
         <div className="role-controls-right">
-
+          {activeTab === TABS.ROLES && (
+            <div className="role-status-filter">
+              <label htmlFor="role-status-select" className="role-status-label">Trạng thái:</label>
+              <select
+                id="role-status-select"
+                aria-label="Lọc trạng thái"
+                value={roleStatus}
+                onChange={(e) => { setRoleStatus(e.target.value); setPage(1); }}
+                className="role-btn-secondary"
+                style={{ padding: "8px 12px" }}
+              >
+                <option value="all">Tất cả</option>
+                <option value="active">Có</option>
+                <option value="inactive">Không </option>
+              </select>
+            </div>
+          )}
           <button className="role-add-button" onClick={onClickAdd}>{addButtonText}</button>
         </div>
       </div>
@@ -506,7 +634,8 @@ export default function RoleManagement() {
           isOpen={addRoleOpen}
           title="Thêm Vai trò"
           fields={[
-            { name: "name", label: "Tên Vai trò", required: true },
+            { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
             { name: "isSystem", label: "System Role", type: "checkbox" },
           ]}
           onClose={() => setAddRoleOpen(false)}
@@ -519,8 +648,9 @@ export default function RoleManagement() {
           isOpen={addModuleOpen}
           title="Thêm Mô-đun"
           fields={[
-            { name: "moduleName", label: "Tên Mô-đun", required: true },
-            { name: "description", label: "Mô tả", type: "textarea" },
+            { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+            { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
           ]}
           onClose={() => setAddModuleOpen(false)}
           onSubmit={handleCreateModule}
@@ -532,8 +662,9 @@ export default function RoleManagement() {
           isOpen={addPermissionOpen}
           title="Thêm Quyền"
           fields={[
-            { name: "permissionName", label: "Tên Quyền", required: true },
-            { name: "description", label: "Mô tả", type: "textarea" },
+            { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+            { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
           ]}
           onClose={() => setAddPermissionOpen(false)}
           onSubmit={handleCreatePermission}

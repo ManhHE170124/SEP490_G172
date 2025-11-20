@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./TagAndPostTypeManage.css"
@@ -12,7 +12,7 @@ const TABS = {
     TAGS: "tags",
     POSTTYPES: "postTypes"
 };
-function useFetchData(activeTab) {
+function useFetchData(activeTab, showError, networkErrorShownRef) {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -28,7 +28,20 @@ function useFetchData(activeTab) {
                 else if (activeTab === TABS.POSTTYPES) res = await postsApi.getPosttypes();
                 if (isMounted) setData(Array.isArray(res) ? res : []);
             } catch (e) {
-                if (isMounted) setError(e.message || "Không thể tải dữ liệu");
+                if (isMounted) {
+                    setError(e.message || "Không thể tải dữ liệu");
+                    // Handle network errors globally - only show one toast
+                    if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+                        if (networkErrorShownRef && !networkErrorShownRef.current) {
+                            networkErrorShownRef.current = true;
+                            if (showError) {
+                                showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+                            }
+                        }
+                    } else if (showError) {
+                        showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+                    }
+                }
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -37,15 +50,23 @@ function useFetchData(activeTab) {
         return () => {
             isMounted = false;
         };
-    }, [activeTab]);
+    }, [activeTab, showError, networkErrorShownRef]);
 
     return { data, loading, error, setData };
 }
 
 export default function TagAndPosttypeManage() {
     const [activeTab, setActiveTab] = useState(TABS.TAGS);
-    const { data, loading, error, setData } = useFetchData(activeTab);
     const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
+    
+    // Global network error handler - only show one toast for network errors
+    const networkErrorShownRef = useRef(false);
+    useEffect(() => {
+        // Reset the flag when component mounts
+        networkErrorShownRef.current = false;
+    }, []);
+    
+    const { data, loading, error, setData } = useFetchData(activeTab, showError, networkErrorShownRef);
 
     const [search, setSearch] = useState("");
     const [sortKey, setSortKey] = useState("");
@@ -178,7 +199,8 @@ export default function TagAndPosttypeManage() {
             const created = await postsApi.createTag({
                 tagName: form.tagName,
                 // always generate slug from tag name
-                slug: toSlug(form.tagName)
+                slug: toSlug(form.tagName),
+                // createdAt: new Date().toISOString()
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddTagOpen(false);
@@ -187,8 +209,16 @@ export default function TagAndPosttypeManage() {
                 `Thẻ "${form.tagName}" đã được tạo thành công.`
             );
         } catch (e) {
-            const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Thẻ";
-            showError("Tạo Thẻ thất bại!", errorMessage);
+            // Handle network errors globally - only show one toast
+            if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+                if (!networkErrorShownRef.current) {
+                    networkErrorShownRef.current = true;
+                    showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+                }
+            } else {
+                const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Thẻ";
+                showError("Tạo Thẻ thất bại!", errorMessage);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -200,7 +230,8 @@ export default function TagAndPosttypeManage() {
             const created = await postsApi.createPosttype({
                 postTypeName: form.postTypeName || form.posttypeName,
                 description: form.description || "",
-                slug: toSlug(form.postTypeName || form.posttypeName)
+                slug: toSlug(form.postTypeName || form.posttypeName),
+                createdAt: new Date().toISOString()
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddPosttypeOpen(false);
@@ -209,8 +240,16 @@ export default function TagAndPosttypeManage() {
                 `Danh mục "${form.postTypeName || form.posttypeName}" đã được tạo thành công.`
             );
         } catch (e) {
-            const errorMessage = e.response?.data?.message || e.message || "Không thể tạo danh mục";
-            showError("Tạo Danh mục thất bại!", errorMessage);
+            // Handle network errors globally - only show one toast
+            if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+                if (!networkErrorShownRef.current) {
+                    networkErrorShownRef.current = true;
+                    showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+                }
+            } else {
+                const errorMessage = e.response?.data?.message || e.message || "Không thể tạo danh mục";
+                showError("Tạo Danh mục thất bại!", errorMessage);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -228,17 +267,17 @@ export default function TagAndPosttypeManage() {
         if (activeTab === TABS.TAGS) {
             setEditTitle("Sửa Thẻ");
             setEditFields([
-                { name: "tagName", label: "Tên Thẻ", required: true, defaultValue: row.tagName || row.TagName || '' },
+                { name: "tagName", label: "Tên Thẻ", required: true, minLength: 2, maxLength: 100, defaultValue: row.tagName || row.TagName || '' },
                 // slug is auto-generated and not editable
-                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "tagName" },
+                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "tagName", format: "slug", minLength: 2, maxLength: 100 },
             ]);
         } else {
             setEditTitle("Sửa Danh mục");
             setEditFields([
-                { name: "postTypeName", label: "Tên Danh mục", required: true, defaultValue: row.postTypeName || row.posttypeName || row.PostTypeName || '' },
+                { name: "postTypeName", label: "Tên Danh mục", required: true, minLength: 2, maxLength: 100, defaultValue: row.postTypeName || row.posttypeName || row.PostTypeName || '' },
                 // slug is auto-generated from name and should not be editable here
-                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "postTypeName" },
-                { name: "description", label: "Mô tả", type: "textarea", defaultValue: row.description || "" },
+                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "postTypeName", format: "slug", minLength: 2, maxLength: 100 },
+                { name: "description", label: "Mô tả", type: "textarea", maxLength: 500, defaultValue: row.description || "" },
             ]);
         }
         setEditOpen(true);
@@ -271,8 +310,16 @@ export default function TagAndPosttypeManage() {
                         `${entityType} "${label}" đã được xóa.`
                     );
                 } catch (e) {
-                    const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
-                    showError(`Xóa ${entityType} thất bại!`, errorMessage);
+                    // Handle network errors globally - only show one toast
+                    if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+                        if (!networkErrorShownRef.current) {
+                            networkErrorShownRef.current = true;
+                            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+                        }
+                    } else {
+                        const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
+                        showError(`Xóa ${entityType} thất bại!`, errorMessage);
+                    }
                 }
             },
             () => {
@@ -340,9 +387,17 @@ export default function TagAndPosttypeManage() {
                 `${entityType} "${entityName}" đã được cập nhật thành công.`
             );
         } catch (e) {
-            const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
-            const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
-            showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+            // Handle network errors globally - only show one toast
+            if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+                if (!networkErrorShownRef.current) {
+                    networkErrorShownRef.current = true;
+                    showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+                }
+            } else {
+                const errorMessage = e.response?.data?.message || e.message || "Cập nhật thất bại";
+                const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
+                showError(`Cập nhật ${entityType} thất bại!`, errorMessage);
+            }
         } finally {
             setEditSubmitting(false);
         }
@@ -402,8 +457,8 @@ export default function TagAndPosttypeManage() {
                     isOpen={addTagOpen}
                     title="Thêm Thẻ"
                     fields={[
-                        { name: "tagName", label: "Tên Thẻ", required: true },
-                        { name: "slug", label: "Slug", disabled: true, syncWith: "tagName" },
+                        { name: "tagName", label: "Tên Thẻ", required: true, minLength: 2, maxLength: 100 },
+                        { name: "slug", label: "Slug", disabled: true, syncWith: "tagName", format: "slug", minLength: 2, maxLength: 100 },
                     ]}
                     onClose={() => setAddTagOpen(false)}
                     onSubmit={handleCreateTag}
@@ -415,9 +470,9 @@ export default function TagAndPosttypeManage() {
                     isOpen={addPosttypeOpen}
                     title="Thêm Danh mục"
                     fields={[
-                        { name: "postTypeName", label: "Tên Danh mục", required: true },
-                        { name: "slug", label: "Slug", disabled: true, syncWith: "postTypeName" },
-                        { name: "description", label: "Mô tả", type: "textarea" },
+                        { name: "postTypeName", label: "Tên Danh mục", required: true, minLength: 2, maxLength: 100 },
+                        { name: "slug", label: "Slug", disabled: true, syncWith: "postTypeName", format: "slug", minLength: 2, maxLength: 100 },
+                        { name: "description", label: "Mô tả", type: "textarea", maxLength: 500 },
                     ]}
                     onClose={() => setAddPosttypeOpen(false)}
                     onSubmit={handleCreatePosttype}

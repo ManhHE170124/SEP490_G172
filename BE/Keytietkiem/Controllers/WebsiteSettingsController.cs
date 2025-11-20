@@ -2,17 +2,17 @@
  * File: WebsiteSettingsController.cs
  * Author: TungNVHE170677
  * Created: 26/10/2025
- * Last Updated: 4/11/2025
- * Purpose: Manage global website configuration such as branding, contact, SMTP, media, and social settings.
- * Endpoints:
- *   - GET    /api/admin/settings          : Retrieve website settings (including payments)
- *   - POST   /api/admin/settings          : Update website settings and upload logo
+ * Last Updated: 15/11/2025
+ * Purpose: Manage global website configuration
+ * ✅ FIXED: Always update the FIRST record only
  */
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Models;
 using Keytietkiem.DTOs;
+using Keytietkiem.Services.Interfaces;
+using System.Text.Json;
 
 namespace Keytietkiem.Controllers
 {
@@ -22,60 +22,65 @@ namespace Keytietkiem.Controllers
     {
         private readonly KeytietkiemDbContext _context;
         private readonly IWebHostEnvironment _env;
+        private readonly IWebsiteSettingService _settingService;
 
-        public WebsiteSettingsController(KeytietkiemDbContext context, IWebHostEnvironment env)
+        public WebsiteSettingsController(
+            KeytietkiemDbContext context,
+            IWebHostEnvironment env,
+            IWebsiteSettingService settingService)
         {
             _context = context;
             _env = env;
+            _settingService = settingService;
         }
 
-        /**
-         * Summary: Retrieve website settings and payment gateway configurations.
-         * Route: GET /api/admin/settings
-         * Params: none
-         * Returns: 200 OK with website settings and payment methods.
-         */
+        /// <summary>
+        /// GET /api/admin/settings
+        /// ✅ FIXED: Always get the first record
+        /// </summary>
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            var settings = await _context.WebsiteSettings.FirstOrDefaultAsync();
+            // ✅ Use service to get settings
+            var setting = await _settingService.GetOrCreateAsync();
             var payments = await _context.PaymentGateways.ToListAsync();
+
             return Ok(new
             {
-                name = settings?.SiteName,
-                slogan = settings?.Slogan,
-                logoUrl = settings?.LogoUrl,
-                primaryColor = settings?.PrimaryColor,
-                secondaryColor = settings?.SecondaryColor,
-                font = settings?.FontFamily,
+                name = setting.SiteName,
+                slogan = setting.Slogan,
+                logoUrl = setting.LogoUrl,
+                primaryColor = setting.PrimaryColor,
+                secondaryColor = setting.SecondaryColor,
+                font = setting.FontFamily,
                 contact = new
                 {
-                    address = settings?.CompanyAddress,
-                    phone = settings?.Phone,
-                    email = settings?.Email
+                    address = setting.CompanyAddress,
+                    phone = setting.Phone,
+                    email = setting.Email
                 },
                 smtp = new
                 {
-                    server = settings?.SmtpHost,
-                    port = settings?.SmtpPort,
-                    user = settings?.SmtpUsername,
-                    password = settings?.SmtpPassword,
-                    tls = settings?.UseTls,
-                    dkim = settings?.UseDns
+                    server = setting.SmtpHost,
+                    port = setting.SmtpPort,
+                    user = setting.SmtpUsername,
+                    password = setting.SmtpPassword,
+                    tls = setting.UseTls,
+                    dkim = setting.UseDns
                 },
                 media = new
                 {
-                    uploadLimitMB = settings?.UploadLimitMb,
-                    formats = (settings?.AllowedExtensions ?? "jpg,png,webp")
+                    uploadLimitMB = setting.UploadLimitMb,
+                    formats = (setting.AllowedExtensions ?? "jpg,png,webp")
                                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                                 .Select(f => f.Trim()).ToArray()
                 },
                 social = new
                 {
-                    facebook = settings?.Facebook,
-                    instagram = settings?.Instagram,
-                    zalo = settings?.Zalo,
-                    tiktok = settings?.TikTok
+                    facebook = setting.Facebook,
+                    instagram = setting.Instagram,
+                    zalo = setting.Zalo,
+                    tiktok = setting.TikTok
                 },
                 payments = payments.Select(p => new
                 {
@@ -86,20 +91,10 @@ namespace Keytietkiem.Controllers
             });
         }
 
-        /**
-         * Summary: Save or update website settings, optionally upload logo.
-         * Route: POST /api/admin/settings
-         * Content-Type:
-         *   - application/json: for updating text-based settings
-         *   - multipart/form-data: for uploading a logo image + payload JSON
-         * Request Body:
-         *   - WebsiteSettingsRequestDto (in payload)
-         *   - Optional file: "logo"
-         * Returns: 200 OK with confirmation and logo URL
-         * Errors:
-         *   - 400 BadRequest for malformed payload
-         *   - 500 InternalServerError for unexpected exceptions
-         */
+        /// <summary>
+        /// POST /api/admin/settings
+        /// ✅ FIXED: Always update the FIRST record only
+        /// </summary>
         [HttpPost]
         [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> Save()
@@ -109,81 +104,81 @@ namespace Keytietkiem.Controllers
                 WebsiteSettingsRequestDto? data = null;
                 string? logoUrl = null;
 
-                if (Request.HasFormContentType) // multipart/form-data (FE upload logo)
+                var jsonOptions = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+
+                if (Request.HasFormContentType)
                 {
                     var form = await Request.ReadFormAsync();
+
                     // Handle logo upload
                     var logo = form.Files.GetFile("logo");
                     if (logo != null)
                     {
                         var uploadsFolder = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads");
                         Directory.CreateDirectory(uploadsFolder);
-                        var fileName = $"logo_{DateTime.UtcNow:yyyyMMddHHmmss}.png";
+                        var fileName = $"logo_{DateTime.UtcNow:yyyyMMddHHmmss}{Path.GetExtension(logo.FileName)}";
                         var filePath = Path.Combine(uploadsFolder, fileName);
+
                         using (var stream = System.IO.File.Create(filePath))
                         {
                             await logo.CopyToAsync(stream);
                         }
                         logoUrl = "/uploads/" + fileName;
                     }
-                    // Deserialize payload (JSON string in form-data)
-                    var payload = form["payload"];
+
+                    var payload = form["payload"].ToString();
                     if (string.IsNullOrEmpty(payload))
-                        return BadRequest("Thiếu trường 'payload' trong form-data.");
-                    data = System.Text.Json.JsonSerializer.Deserialize<WebsiteSettingsRequestDto>(payload!);
-                }
-                else // JSON (FE không upload logo)
-                {
-                    using (var reader = new StreamReader(Request.Body))
                     {
-                        var body = await reader.ReadToEndAsync();
-                        if (string.IsNullOrWhiteSpace(body))
-                            return BadRequest("Request body rỗng.");
-                        data = System.Text.Json.JsonSerializer.Deserialize<WebsiteSettingsRequestDto>(body);
+                        return BadRequest(new { message = "Thiếu trường 'payload' trong form-data." });
                     }
+
+                    data = JsonSerializer.Deserialize<WebsiteSettingsRequestDto>(payload, jsonOptions);
+                }
+                else
+                {
+                    using var reader = new StreamReader(Request.Body, encoding: System.Text.Encoding.UTF8);
+                    var body = await reader.ReadToEndAsync();
+
+                    if (string.IsNullOrWhiteSpace(body))
+                    {
+                        return BadRequest(new { message = "Request body rỗng." });
+                    }
+
+                    data = JsonSerializer.Deserialize<WebsiteSettingsRequestDto>(body, jsonOptions);
                 }
 
                 if (data == null)
-                    return BadRequest("Payload empty or malformed");
-
-                var setting = await _context.WebsiteSettings.FirstOrDefaultAsync();
-                if (setting == null)
                 {
-                    setting = new WebsiteSetting();
-                    _context.WebsiteSettings.Add(setting);
+                    return BadRequest(new { message = "Không thể parse dữ liệu từ request." });
                 }
 
-                setting.SiteName = data.Name;
-                setting.Slogan = data.Slogan;
-                setting.LogoUrl = logoUrl ?? (data.LogoUrl ?? setting.LogoUrl);
-                setting.PrimaryColor = data.PrimaryColor;
-                setting.SecondaryColor = data.SecondaryColor;
-                setting.FontFamily = data.Font;
-                setting.CompanyAddress = data.Contact?.Address;
-                setting.Phone = data.Contact?.Phone;
-                setting.Email = data.Contact?.Email;
-                setting.SmtpHost = data.Smtp?.Server;
-                setting.SmtpPort = data.Smtp?.Port;
-                setting.SmtpUsername = data.Smtp?.User;
-                setting.SmtpPassword = data.Smtp?.Password;
-                setting.UseTls = data.Smtp?.Tls;
-                setting.UseDns = data.Smtp?.Dkim;
-                setting.UploadLimitMb = data.Media?.UploadLimitMB ?? 10;
-                setting.AllowedExtensions = (data.Media?.Formats != null) ? string.Join(",", data.Media.Formats) : "jpg,png,webp";
-                setting.Facebook = data.Social?.Facebook;
-                setting.Zalo = data.Social?.Zalo;
-                setting.Instagram = data.Social?.Instagram;
-                setting.TikTok = data.Social?.Tiktok;
-                setting.UpdatedAt = DateTime.UtcNow;
+                // ✅ FIXED: Use service to save (always updates first record)
+                var updatedSetting = await _settingService.SaveFromRequestAsync(data, logoUrl);
 
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "Saved", logoUrl = setting.LogoUrl });
+                return Ok(new
+                {
+                    message = "Cập nhật thành công",
+                    logoUrl = updatedSetting.LogoUrl
+                });
+            }
+            catch (JsonException ex)
+            {
+                return BadRequest(new
+                {
+                    message = "Lỗi parse JSON",
+                    error = ex.Message
+                });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new
                 {
-                    message = "Có lỗi hệ thống: " + ex.Message,
+                    message = "Có lỗi hệ thống",
+                    error = ex.Message,
                     inner = ex.InnerException?.Message
                 });
             }

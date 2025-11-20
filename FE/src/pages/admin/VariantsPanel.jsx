@@ -1,18 +1,25 @@
 // src/pages/admin/VariantsPanel.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ProductVariantsApi } from "../../services/productVariants";
+import ProductVariantsApi from "../../services/productVariants";
+import ToastContainer from "../../components/Toast/ToastContainer";
+import "./admin.css";
 
-const fmtMoney = (n) =>
-  typeof n === "number"
-    ? n.toLocaleString("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 })
-    : "-";
+const TITLE_MAX = 60;
+const CODE_MAX = 50;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
-export default function VariantsPanel({ productId, productName, productCode }) {
-  // Router
+export default function VariantsPanel({
+  productId,
+  productName,
+  productCode,
+  onTotalChange, // optional
+}) {
   const nav = useNavigate();
-const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`;
- const goDetail = (v) => nav(detailPath(v));
+  const detailPath = (v) =>
+    `/admin/products/${productId}/variants/${v.variantId}`;
+  const goDetail = (v) => nav(detailPath(v));
 
   // Data + paging
   const [items, setItems] = React.useState([]);
@@ -20,120 +27,495 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
   const [totalPages, setTotalPages] = React.useState(1);
   const [loading, setLoading] = React.useState(false);
 
-  // Query states (đẩy xuống server)
+  // Query states
   const [q, setQ] = React.useState("");
-  const [status, setStatus] = React.useState("");       // "", ACTIVE, INACTIVE, OUT_OF_STOCK
-  const [dur, setDur] = React.useState("");             // "", "<=30", "31-180", ">180"
-  const [sort, setSort] = React.useState("created");    // created|title|duration|price|stock|status
-  const [dir, setDir] = React.useState("desc");         // asc|desc
+  const [status, setStatus] = React.useState(""); // "", ACTIVE, INACTIVE, OUT_OF_STOCK
+  const [dur, setDur] = React.useState(""); // "", "<=30", "31-180", ">180"
+  const [sort, setSort] = React.useState("created"); // created|title|duration|stock|status|views
+  const [dir, setDir] = React.useState("desc"); // asc|desc
   const [page, setPage] = React.useState(1);
   const [size, setSize] = React.useState(10);
 
-  // Modal
+  // Modal + form errors
   const [showModal, setShowModal] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
+  const [modalErrors, setModalErrors] = React.useState({});
+  const fileInputRef = React.useRef(null);
 
-  // Badge & label
-  const statusBadgeClass = (s) =>
-    String(s).toUpperCase() === "ACTIVE"
-      ? "badge green"
-      : String(s).toUpperCase() === "OUT_OF_STOCK"
-      ? "badge status-oo-stock"
-      : "badge status-inactive";
+  // Upload preview/state
+  const [thumbPreview, setThumbPreview] = React.useState(null);
+  const [thumbUrl, setThumbUrl] = React.useState(null);
 
-  const statusLabel = (s) =>
-    ({
-      ACTIVE: "Hoạt động",
-      INACTIVE: "Ẩn",
-      OUT_OF_STOCK: "Hết hàng",
-    }[String(s || "").toUpperCase()] || s);
+  // Status trong modal (giống Detail: switch + badge)
+  const [modalStatus, setModalStatus] = React.useState("ACTIVE");
 
-  // Load từ server
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await ProductVariantsApi.list(productId, { q, status, dur, sort, dir, page, pageSize: size });
-      setItems(res.items || []);
-      setTotal(res.totalItems || 0);
-      setTotalPages(res.totalPages || 1);   // <-- dùng totalPages từ BE
-    } finally {
-      setLoading(false);
-    }
-  }, [productId, q, status, dur, sort, dir, page, size]);
+  // Toast + Confirm (local)
+  const [toasts, setToasts] = React.useState([]);
+  const [confirmDialog, setConfirmDialog] = React.useState(null);
 
-  React.useEffect(() => { load(); }, [load]);
+  const removeToast = React.useCallback(
+    (id) => setToasts((ts) => ts.filter((t) => t.id !== id)),
+    []
+  );
+
+  const addToast = React.useCallback(
+    (type, title, message) => {
+      const id = `${Date.now()}-${Math.random()}`;
+      setToasts((ts) => [...ts, { id, type, title, message }]);
+      setTimeout(() => removeToast(id), 5000); // auto hide 5s
+    },
+    [removeToast]
+  );
+
+  const askConfirm = React.useCallback((title, message) => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        title,
+        message,
+        onConfirm: () => {
+          setConfirmDialog(null);
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmDialog(null);
+          resolve(false);
+        },
+      });
+    });
+  }, []);
+
+  // Status mapping giống product
+  const statusBadgeClass = (s, stockQty) => {
+    const upper = String(s || "").toUpperCase();
+    if (upper === "OUT_OF_STOCK" || (stockQty ?? 0) <= 0) return "badge warning";
+    if (upper === "ACTIVE") return "badge green";
+    return "badge gray";
+  };
+
+  const statusLabel = (s, stockQty) => {
+    const upper = String(s || "").toUpperCase();
+    if (upper === "OUT_OF_STOCK" || (stockQty ?? 0) <= 0) return "Hết hàng";
+    if (upper === "ACTIVE") return "Hiển thị";
+    return "Ẩn";
+  };
+
+  const sanitizeThumbnail = (url, max = 255) => {
+    if (!url) return null;
+    const noQuery = url.split("?")[0];
+    return noQuery.length > max ? noQuery.slice(0, max) : noQuery;
+  };
+
+  // ===== Load từ server =====
+  const load = React.useCallback(
+    async () => {
+      setLoading(true);
+      try {
+        const res = await ProductVariantsApi.list(productId, {
+          q,
+          status,
+          dur,
+          sort,
+          dir,
+          page,
+          pageSize: size,
+        });
+        const list = res.items || [];
+        setItems(list);
+        setTotal(res.totalItems || 0);
+        setTotalPages(res.totalPages || 1);
+
+        // nếu BE trả kèm tổng tồn kho, có thể onTotalChange ở đây
+        if (typeof onTotalChange === "function" && Array.isArray(list)) {
+          const sum = list.reduce(
+            (acc, v) => acc + (Number(v.stockQty) || 0),
+            0
+          );
+          onTotalChange(sum);
+        }
+      } catch (e) {
+        console.error(e);
+        addToast(
+          "error",
+          "Lỗi tải biến thể",
+          e?.response?.data?.message || e.message
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [productId, q, status, dur, sort, dir, page, size, onTotalChange, addToast]
+  );
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // Reset về trang 1 khi đổi điều kiện
-  React.useEffect(() => { setPage(1); }, [q, status, dur, sort, dir]);
+  React.useEffect(() => {
+    setPage(1);
+  }, [q, status, dur, sort, dir]);
 
-  const openCreate = () => { setEditing(null); setShowModal(true); };
-  // “Sửa nhanh” đổi thành đi tới trang chi tiết
+  // Nút Đặt lại
+  const resetFilters = () => {
+    setQ("");
+    setStatus("");
+    setDur("");
+    setSort("created");
+    setDir("desc");
+    setPage(1);
+    setSize(10);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setThumbPreview(null);
+    setThumbUrl(null);
+    setModalErrors({});
+    setModalStatus("ACTIVE");
+    setShowModal(true);
+  };
+
   const openEdit = (v) => goDetail(v);
 
+  // == Upload helpers ==
+  const urlToFile = async (url) => {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new File(
+      [blob],
+      "image." + (blob.type.split("/")[1] || "png"),
+      { type: blob.type }
+    );
+  };
+
+  const handleLocalPreview = (file) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => setThumbPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const validateImageFile = (file) => {
+    if (!file) return false;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      addToast(
+        "warning",
+        "Định dạng ảnh không hỗ trợ",
+        "Vui lòng chọn ảnh JPG, PNG, GIF hoặc WEBP."
+      );
+      return false;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      addToast(
+        "warning",
+        "Ảnh quá lớn",
+        "Dung lượng tối đa cho ảnh thumbnail là 2MB."
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const uploadThumbnailFile = async (file) => {
+    if (!validateImageFile(file)) return;
+
+    handleLocalPreview(file);
+    try {
+      const up = await ProductVariantsApi.uploadImage(file);
+      const imageUrl =
+        up?.path ||
+        up?.Path ||
+        up?.url ||
+        up?.Url ||
+        (typeof up === "string" ? up : null);
+      if (!imageUrl) throw new Error("Không lấy được URL ảnh sau khi upload.");
+      setThumbUrl(imageUrl);
+      addToast(
+        "success",
+        "Upload ảnh thành công",
+        "Ảnh thumbnail đã được tải lên."
+      );
+    } catch (err) {
+      console.error(err);
+      setThumbPreview(null);
+      setThumbUrl(null);
+      addToast(
+        "error",
+        "Upload ảnh thất bại",
+        err?.response?.data?.message || err.message
+      );
+    }
+  };
+
+  const onPickThumb = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadThumbnailFile(file);
+    e.target.value = "";
+  };
+
+  const onDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dt = e.dataTransfer;
+    if (!dt) return;
+
+    if (dt.files && dt.files[0]) {
+      await uploadThumbnailFile(dt.files[0]);
+      return;
+    }
+
+    const text = dt.getData("text/uri-list") || dt.getData("text/plain");
+    if (text && /^https?:\/\//i.test(text)) {
+      try {
+        const f = await urlToFile(text);
+        await uploadThumbnailFile(f);
+      } catch {
+        addToast("error", "Không thể tải ảnh từ URL này");
+      }
+    }
+  };
+
+  const onPaste = async (e) => {
+    const itemsClip = Array.from(e.clipboardData?.items || []);
+    for (const it of itemsClip) {
+      if (it.kind === "file" && it.type.startsWith("image/")) {
+        const f = it.getAsFile();
+        if (f) {
+          await uploadThumbnailFile(f);
+          break;
+        }
+      } else if (it.kind === "string" && it.type === "text/plain") {
+        it.getAsString(async (text) => {
+          if (/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(text)) {
+            try {
+              const f = await urlToFile(text);
+              await uploadThumbnailFile(f);
+            } catch {
+              addToast("error", "Không thể tải ảnh từ URL này");
+            }
+          }
+        });
+      }
+    }
+  };
+
+  const clearThumb = () => {
+    setThumbPreview(null);
+    setThumbUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const parseIntOrNull = (v) => {
+    if (v === "" || v == null) return null;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? null : n;
+  };
+
+  // ===== Validate & Submit modal =====
   const onSubmit = async (e) => {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const dto = {
-      variantCode:   form.get("variantCode")?.trim() || undefined,
-      title:         form.get("title")?.trim(),
-      durationDays:  Number(form.get("durationDays") || 0) || 0,
-      originalPrice: form.get("originalPrice") ? Number(form.get("originalPrice")) : null,
-      price:         Number(form.get("price") || 0) || 0,
-      warrantyDays:  form.get("warrantyDays") ? Number(form.get("warrantyDays")) : 0,
-      status:        document.getElementById("variantStatusSwitch").checked ? "ACTIVE" : "INACTIVE",
-    };
-    if (!dto.title) return;
+    const fd = new FormData(e.currentTarget);
 
-    if (editing?.variantId) {
-      await ProductVariantsApi.update(productId, editing.variantId, dto);
-    } else {
-      await ProductVariantsApi.create(productId, dto);
+    const title = (fd.get("title") || "").trim();
+    const variantCode = (fd.get("variantCode") || "").trim();
+    const durationRaw = fd.get("durationDays");
+    const warrantyRaw = fd.get("warrantyDays");
+
+    const durationDays = parseIntOrNull(durationRaw);
+    const warrantyDays = parseIntOrNull(warrantyRaw);
+
+    const errors = {};
+
+    // Tên biến thể
+    if (!title) {
+      errors.title = "Tên biến thể là bắt buộc.";
+    } else if (title.length > TITLE_MAX) {
+      errors.title = `Tên biến thể không được vượt quá ${TITLE_MAX} ký tự.`;
     }
-    setShowModal(false);
-    setPage(1);
-    await load();
+
+    // Mã biến thể
+    if (!variantCode) {
+      errors.variantCode = "Mã biến thể là bắt buộc.";
+    } else if (variantCode.length > CODE_MAX) {
+      errors.variantCode = `Mã biến thể không được vượt quá ${CODE_MAX} ký tự.`;
+    }
+
+    // Không trùng trong cùng sản phẩm (so với list hiện tại)
+    const lowerTitle = title.toLowerCase();
+    const lowerCode = variantCode.toLowerCase();
+
+    items.forEach((v) => {
+      if (editing && v.variantId === editing.variantId) return;
+      if ((v.title || "").trim().toLowerCase() === lowerTitle) {
+        errors.title = "Tên biến thể đã tồn tại trong sản phẩm này.";
+      }
+      if ((v.variantCode || "").trim().toLowerCase() === lowerCode) {
+        errors.variantCode = "Mã biến thể đã tồn tại trong sản phẩm này.";
+      }
+    });
+
+    // Thời lượng / Bảo hành: số nguyên >= 0
+    if (durationDays != null && durationDays < 0) {
+      errors.durationDays = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0.";
+    }
+    if (warrantyDays != null && warrantyDays < 0) {
+      errors.warrantyDays = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0.";
+    }
+    if (
+      durationDays != null &&
+      warrantyDays != null &&
+      durationDays <= warrantyDays
+    ) {
+      errors.durationDays =
+        "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setModalErrors(errors);
+      addToast(
+        "warning",
+        "Dữ liệu chưa hợp lệ",
+        "Vui lòng kiểm tra các trường được đánh dấu."
+      );
+      return;
+    }
+
+    setModalErrors({});
+
+    try {
+      const dto = {
+        variantCode,
+        title,
+        durationDays,
+        warrantyDays,
+        status: modalStatus, // dùng state, không dùng document.getElementById
+        thumbnail: sanitizeThumbnail(thumbUrl) || null,
+      };
+
+      if (editing?.variantId) {
+        await ProductVariantsApi.update(productId, editing.variantId, dto);
+        addToast(
+          "success",
+          "Cập nhật biến thể",
+          "Biến thể đã được cập nhật thành công."
+        );
+      } else {
+        await ProductVariantsApi.create(productId, dto);
+        addToast(
+          "success",
+          "Thêm biến thể",
+          "Biến thể mới đã được tạo thành công."
+        );
+      }
+
+      setShowModal(false);
+      setPage(1);
+      await load();
+    } catch (err) {
+      console.error(err);
+      addToast(
+        "error",
+        "Lưu biến thể thất bại",
+        err?.response?.data?.message || err.message
+      );
+    }
   };
 
   const onDelete = async (id) => {
-    if (!window.confirm("Xóa biến thể này?")) return;
-    await ProductVariantsApi.remove(productId, id);
-    await load();
+    const ok = await askConfirm(
+      "Xoá biến thể",
+      "Bạn có chắc chắn muốn xoá biến thể này?"
+    );
+    if (!ok) return;
+
+    try {
+      await ProductVariantsApi.remove(productId, id);
+      addToast("success", "Đã xoá biến thể", "Biến thể đã được xoá.");
+      await load();
+    } catch (err) {
+      console.error(err);
+
+      const status = err?.response?.status;
+      const data = err?.response?.data || {};
+      const code = data.code;
+      const msg = data.message || err.message;
+
+      if (status === 409) {
+        let detail = msg;
+        if (!detail) {
+          if (code === "VARIANT_IN_USE_SECTION") {
+            detail =
+              "Biến thể này đang được sử dụng trong các section, vui lòng chỉnh sửa hoặc xoá section trước.";
+          } else {
+            detail =
+              "Biến thể này đang được sử dụng bởi dữ liệu khác nên không thể xoá.";
+          }
+        }
+
+        addToast("warning", "Không thể xoá biến thể", detail);
+      } else {
+        addToast(
+          "error",
+          "Xoá biến thể thất bại",
+          msg || "Đã xảy ra lỗi khi xoá biến thể."
+        );
+      }
+    }
   };
 
-  // === SORT: bấm tiêu đề cột để đổi (asc/desc) ===
+  // ===== SORT header =====
   const headerSort = (key) => {
     setSort((cur) => {
       if (cur === key) {
         setDir((d) => (d === "asc" ? "desc" : "asc"));
         return cur;
       }
-      setDir("asc"); // đổi cột -> mặc định asc
+      setDir("asc");
       return key;
     });
   };
 
-  // helper hiển thị mũi tên sort
-  const sortMark = (key) => (sort === key ? (dir === "asc" ? " ▲" : " ▼") : "");
+  const sortMark = (key) =>
+    sort === key ? (dir === "asc" ? " ▲" : " ▼") : "";
 
-  // === Toggle status dùng PATCH /toggle ===
   const toggleVariantStatus = async (v) => {
+    // Nếu tồn kho = 0 ⇒ không cho đổi trạng thái, show toast cảnh báo giống product
+    if ((v.stockQty ?? 0) <= 0) {
+      addToast(
+        "warning",
+        "Không thể đổi trạng thái",
+        "Biến thể này đang hết hàng (tồn kho = 0). Vui lòng nhập thêm tồn kho trước khi bật hiển thị."
+      );
+      return;
+    }
+
     try {
-      if ((v.stockQty ?? 0) <= 0) return; // vẫn bảo vệ trường hợp hết hàng
-
       const payload = await ProductVariantsApi.toggle(productId, v.variantId);
-      const nextStatusRaw = payload?.Status ?? payload?.status;
-      const nextStatus = typeof nextStatusRaw === "string"
-        ? nextStatusRaw.toUpperCase()
-        : (v.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
-
-      setItems(prev =>
-        prev.map(it =>
-          it.variantId === v.variantId ? { ...it, status: nextStatus } : it
+      const next = (payload?.Status || payload?.status || "").toUpperCase();
+      setItems((prev) =>
+        prev.map((x) =>
+          x.variantId === v.variantId ? { ...x, status: next || x.status } : x
         )
+      );
+      addToast(
+        "success",
+        "Cập nhật trạng thái",
+        `Biến thể hiện đang ở trạng thái "${statusLabel(
+          next || v.status,
+          v.stockQty
+        )}".`
       );
     } catch (e) {
       console.error(e);
-      await load(); // đồng bộ lại nếu có lỗi
+      addToast(
+        "error",
+        "Đổi trạng thái thất bại",
+        e?.response?.data?.message || e.message
+      );
+      await load();
     }
   };
 
@@ -141,24 +523,23 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
 
   const makePageList = React.useMemo(() => {
     const pages = [];
-    const win = 2; // window hai bên trang hiện tại
+    const win = 2;
     const from = Math.max(1, page - win);
-    const to   = Math.min(totalPages, page + win);
-
+    const to = Math.min(totalPages, page + win);
     if (from > 1) {
       pages.push(1);
-      if (from > 2) pages.push("ellipsis-left");
+      if (from > 2) pages.push("…l");
     }
     for (let i = from; i <= to; i++) pages.push(i);
     if (to < totalPages) {
-      if (to < totalPages - 1) pages.push("ellipsis-right");
+      if (to < totalPages - 1) pages.push("…r");
       pages.push(totalPages);
     }
     return pages;
   }, [page, totalPages]);
 
   const startIdx = total === 0 ? 0 : (page - 1) * size + 1;
-  const endIdx   = Math.min(total, page * size);
+  const endIdx = Math.min(total, page * size);
 
   return (
     <div className="group" style={{ gridColumn: "1 / 3" }}>
@@ -166,12 +547,18 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
         <div className="panel-header" style={{ alignItems: "center" }}>
           <h4>
             Biến thể thời gian{" "}
-            <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                marginLeft: 8,
+              }}
+            >
               ({total})
             </span>
           </h4>
 
-          {/* Toolbar: đẩy điều kiện xuống server */}
+          {/* Toolbar */}
           <div className="variants-toolbar">
             <input
               className="ctl"
@@ -179,19 +566,32 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-            <select className="ctl" value={status} onChange={(e)=>setStatus(e.target.value)}>
+            <select
+              className="ctl"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
               <option value="">Tất cả trạng thái</option>
-              <option value="ACTIVE">Hoạt động</option>
+              <option value="ACTIVE">Hiển thị</option>
               <option value="INACTIVE">Ẩn</option>
               <option value="OUT_OF_STOCK">Hết hàng</option>
             </select>
-            <select className="ctl" value={dur} onChange={(e)=>setDur(e.target.value)}>
+            <select
+              className="ctl"
+              value={dur}
+              onChange={(e) => setDur(e.target.value)}
+            >
               <option value="">Thời lượng</option>
               <option value="<=30">≤ 30 ngày</option>
               <option value="31-180">31–180 ngày</option>
               <option value=">180">&gt; 180 ngày</option>
             </select>
-            <button className="btn primary" onClick={openCreate}>+ Thêm biến thể</button>
+            <button className="btn" onClick={resetFilters}>
+              Đặt lại
+            </button>
+            <button className="btn primary" onClick={openCreate}>
+              + Thêm biến thể
+            </button>
           </div>
         </div>
 
@@ -203,9 +603,9 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
               <div className="variants-scroller">
                 <table className="variants-table">
                   <colgroup>
-                    <col style={{ width: "28%" }} />
+                    <col style={{ width: "30%" }} />
                     <col style={{ width: "12%" }} />
-                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "12%" }} />
                     <col style={{ width: "12%" }} />
                     <col style={{ width: "12%" }} />
                     <col style={{ width: "10%" }} />
@@ -213,23 +613,36 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
                   </colgroup>
                   <thead>
                     <tr>
-                      <th onClick={() => headerSort("title")} style={{ cursor: "pointer" }}>
-                       Tên biến thể{sortMark("title")}
-                     </th>
-                      <th onClick={() => headerSort("duration")} style={{ cursor: "pointer" }}>
+                      <th
+                        onClick={() => headerSort("title")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Tên biến thể{sortMark("title")}
+                      </th>
+                      <th>Ảnh</th>
+                      <th
+                        onClick={() => headerSort("duration")}
+                        style={{ cursor: "pointer" }}
+                      >
                         Thời lượng{sortMark("duration")}
                       </th>
-                      <th onClick={() => headerSort("price")} style={{ cursor: "pointer" }}>
-                        Giá bán{sortMark("price")}
-                      </th>
-                      <th onClick={() => headerSort("originalPrice")} style={{ cursor: "pointer" }}>
-                        Giá gốc{sortMark("originalPrice")}
-                      </th>
-                      <th onClick={() => headerSort("stock")} style={{ cursor: "pointer" }}>
+                      <th
+                        onClick={() => headerSort("stock")}
+                        style={{ cursor: "pointer" }}
+                      >
                         Tồn kho{sortMark("stock")}
                       </th>
-                      <th onClick={() => headerSort("status")} style={{ cursor: "pointer" }}>
-                        Trạng thái{sortMark("status")}
+                      <th
+                        onClick={() => headerSort("status")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Loại trạng thái{sortMark("status")}
+                      </th>
+                      <th
+                        onClick={() => headerSort("views")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Lượt xem{sortMark("views")}
                       </th>
                       <th>Thao tác</th>
                     </tr>
@@ -240,46 +653,92 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
                       <tr key={v.variantId}>
                         <td>
                           <div style={{ fontWeight: 600 }}>
-                           {v.title || "—"}
-                         </div>
+                            {v.title || "—"}
+                          </div>
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {v.variantCode || ""}
+                          </div>
                         </td>
 
-                        <td>{(v.durationDays ?? 0)} ngày</td>
-                        <td>{fmtMoney(v.price)}</td>
-                        <td>{v.originalPrice != null ? fmtMoney(v.originalPrice) : "—"}</td>
+                        <td>
+                          {v.thumbnail ? (
+                            <img
+                              src={v.thumbnail}
+                              alt=""
+                              style={{
+                                width: 64,
+                                height: 44,
+                                objectFit: "cover",
+                                borderRadius: 6,
+                                border: "1px solid var(--line)",
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+
+                        <td>{v.durationDays ?? 0} ngày</td>
                         <td>{v.stockQty ?? 0}</td>
+
                         <td className="col-status">
-                          <span className={statusBadgeClass(v.status)} style={{ textTransform: "none" }}>
-                            {statusLabel(v.status)}
+                          <span
+                            className={statusBadgeClass(
+                              v.status,
+                              v.stockQty
+                            )}
+                            style={{ textTransform: "none" }}
+                          >
+                            {statusLabel(v.status, v.stockQty)}
                           </span>
                         </td>
 
+                        <td className="mono">{v.viewCount ?? 0}</td>
+
                         <td className="td-actions td-left">
                           <div className="row" style={{ gap: 8 }}>
-                            {/* Nút bút chì → cũng dẫn sang chi tiết */}
-                             <button className="action-btn edit-btn" title="Xem chi tiết" onClick={() => goDetail(v)}>
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-      <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-    </svg>
- </button>
+                            <button
+                              className="action-btn edit-btn"
+                              title="Xem chi tiết"
+                              onClick={() => goDetail(v)}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                                <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                              </svg>
+                            </button>
 
-                            {/* Xoá */}
-                            <button className="action-btn delete-btn" title="Xoá" onClick={() => onDelete(v.variantId)}>
-                              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <button
+                              className="action-btn delete-btn"
+                              title="Xoá"
+                              onClick={() => onDelete(v.variantId)}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
                                 <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
                               </svg>
                             </button>
 
-                            {/* Toggle */}
                             <label
                               className="switch"
-                              title={(v.stockQty ?? 0) <= 0 ? "Hết hàng – không thể bật" : "Bật/Tắt hiển thị"}
+                              title={
+                                (v.stockQty ?? 0) <= 0
+                                  ? "Hết hàng – không thể bật"
+                                  : "Bật/Tắt hiển thị"
+                              }
                             >
                               <input
                                 type="checkbox"
-                                disabled={(v.stockQty ?? 0) <= 0}
-                                checked={String(v.status).toUpperCase() === "ACTIVE"}
+                                checked={
+                                  String(v.status).toUpperCase() === "ACTIVE"
+                                }
                                 onChange={() => toggleVariantStatus(v)}
                               />
                               <span className="slider" />
@@ -290,7 +749,14 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 18 }}>
+                        <td
+                          colSpan={7}
+                          style={{
+                            textAlign: "center",
+                            color: "var(--muted)",
+                            padding: 18,
+                          }}
+                        >
                           Chưa có biến thể nào.
                         </td>
                       </tr>
@@ -299,20 +765,39 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
                 </table>
               </div>
 
-              {/* Footer phân trang giống trang sản phẩm */}
-              <div className="variants-footer" style={{ gap: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+              {/* Footer phân trang */}
+              <div
+                className="variants-footer"
+                style={{
+                  gap: 12,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 <div className="muted">
                   Hiển thị {startIdx}-{endIdx} / {total}
                 </div>
 
-                <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  {/* Page size */}
-                  <div className="row" style={{ gap: 6, alignItems: "center" }}>
-                    <span className="muted" style={{ fontSize: 12 }}>Dòng/trang</span>
+                <div
+                  className="row"
+                  style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}
+                >
+                  <div
+                    className="row"
+                    style={{ gap: 6, alignItems: "center" }}
+                  >
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      Dòng/trang
+                    </span>
                     <select
                       className="ctl"
                       value={size}
-                      onChange={(e) => { setSize(Number(e.target.value)); setPage(1); }}
+                      onChange={(e) => {
+                        setSize(Number(e.target.value));
+                        setPage(1);
+                      }}
                     >
                       <option value={5}>5</option>
                       <option value={10}>10</option>
@@ -321,16 +806,31 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
                     </select>
                   </div>
 
-                  {/* Nav buttons */}
                   <div className="row" style={{ gap: 6 }}>
-                    <button className="btn" disabled={page <= 1} onClick={() => goto(1)} title="Trang đầu">«</button>
-                    <button className="btn" disabled={page <= 1} onClick={() => goto(page - 1)} title="Trang trước">←</button>
+                    <button
+                      className="btn"
+                      disabled={page <= 1}
+                      onClick={() => goto(1)}
+                      title="Trang đầu"
+                    >
+                      «
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={page <= 1}
+                      onClick={() => goto(page - 1)}
+                      title="Trang trước"
+                    >
+                      ←
+                    </button>
 
-                    {/* Page numbers với ellipsis */}
                     {makePageList.map((pKey, idx) => {
-                      if (typeof pKey !== "number") {
-                        return <span key={pKey + idx} className="muted">…</span>;
-                      }
+                      if (typeof pKey !== "number")
+                        return (
+                          <span key={pKey + idx} className="muted">
+                            …
+                          </span>
+                        );
                       const active = pKey === page;
                       return (
                         <button
@@ -346,8 +846,22 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
                       );
                     })}
 
-                    <button className="btn" disabled={page >= totalPages} onClick={() => goto(page + 1)} title="Trang sau">→</button>
-                    <button className="btn" disabled={page >= totalPages} onClick={() => goto(totalPages)} title="Trang cuối">»</button>
+                    <button
+                      className="btn"
+                      disabled={page >= totalPages}
+                      onClick={() => goto(page + 1)}
+                      title="Trang sau"
+                    >
+                      →
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={page >= totalPages}
+                      onClick={() => goto(totalPages)}
+                      title="Trang cuối"
+                    >
+                      »
+                    </button>
                   </div>
                 </div>
               </div>
@@ -356,71 +870,204 @@ const detailPath = (v) => `/admin/products/${productId}/variants/${v.variantId}`
         </div>
       </div>
 
-      {/* ===== MODAL CREATE/EDIT ===== */}
+      {/* ===== MODAL CREATE / EDIT ===== */}
       {showModal && (
         <div className="modal-backdrop">
-          <div className="modal">
-            {/* Topbar: Tiêu đề + công tắc trạng thái ở góc trên phải */}
+          <div
+            className="modal"
+            onPaste={onPaste}
+            onDrop={onDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
             <div className="modal-topbar">
-              <h3 style={{ margin: 0 }}>{editing ? "Sửa biến thể" : "Thêm biến thể"}</h3>
+              <h3 style={{ margin: 0 }}>
+                {editing ? "Sửa biến thể" : "Thêm biến thể"}
+              </h3>
               <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>Trạng thái</span>
                 <label className="switch" title="Bật/Tắt hiển thị">
                   <input
                     type="checkbox"
-                    id="variantStatusSwitch"
-                    defaultChecked={String(editing?.status || "ACTIVE").toUpperCase() === "ACTIVE"}
+                    checked={modalStatus === "ACTIVE"}
+                    onChange={(e) =>
+                      setModalStatus(e.target.checked ? "ACTIVE" : "INACTIVE")
+                    }
                   />
                   <span className="slider" />
                 </label>
+                <span
+                  className={
+                    modalStatus === "ACTIVE" ? "badge green" : "badge gray"
+                  }
+                  style={{ textTransform: "none", fontSize: 12 }}
+                >
+                  {modalStatus === "ACTIVE" ? "Đang hiển thị" : "Đang ẩn"}
+                </span>
               </div>
             </div>
 
-            <form onSubmit={onSubmit} className="input-group" style={{ marginTop: 12 }}>
-              {/* Hàng 1: Tên + Mã */}
+            <form
+              onSubmit={onSubmit}
+              className="input-group"
+              style={{ marginTop: 12 }}
+            >
               <div className="grid cols-2">
                 <div className="group">
-                  <span>Tên biến thể *</span>
-                  <input name="title" defaultValue={editing?.title ?? productName ?? ""} required />
+                  <span>
+                    Tên biến thể <span style={{ color: "#dc2626" }}>*</span>
+                  </span>
+                  <input
+                    name="title"
+                    defaultValue={editing?.title ?? productName ?? ""}
+                    maxLength={TITLE_MAX}
+                    className={modalErrors.title ? "input-error" : ""}
+                  />
+                  {modalErrors.title && (
+                    <div className="field-error">{modalErrors.title}</div>
+                  )}
                 </div>
                 <div className="group">
-                  <span>Mã biến thể</span>
-                  <input name="variantCode" defaultValue={editing?.variantCode ?? productCode ?? ""} />
+                  <span>
+                    Mã biến thể <span style={{ color: "#dc2626" }}>*</span>
+                  </span>
+                  <input
+                    name="variantCode"
+                    defaultValue={editing?.variantCode ?? productCode ?? ""}
+                    maxLength={CODE_MAX}
+                    className={modalErrors.variantCode ? "input-error" : ""}
+                  />
+                  {modalErrors.variantCode && (
+                    <div className="field-error">
+                      {modalErrors.variantCode}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Hàng 2: Thời lượng + Bảo hành */}
               <div className="grid cols-2" style={{ marginTop: 8 }}>
                 <div className="group">
-                  <span>Thời lượng (ngày)</span>
-                  <input type="number" min={0} step={1} name="durationDays" defaultValue={editing?.durationDays ?? 0} />
+                  <span>Thời lượng (ngày)<span style={{ color: "#dc2626" }}>*</span></span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    name="durationDays"
+                    defaultValue={editing?.durationDays ?? 0}
+                    className={modalErrors.durationDays ? "input-error" : ""}
+                  />
+                  {modalErrors.durationDays && (
+                    <div className="field-error">
+                      {modalErrors.durationDays}
+                    </div>
+                  )}
                 </div>
                 <div className="group">
                   <span>Bảo hành (ngày)</span>
-                  <input type="number" min={0} step={1} name="warrantyDays" defaultValue={editing?.warrantyDays ?? 0} />
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    name="warrantyDays"
+                    defaultValue={editing?.warrantyDays ?? 0}
+                    className={modalErrors.warrantyDays ? "input-error" : ""}
+                  />
+                  {modalErrors.warrantyDays && (
+                    <div className="field-error">
+                      {modalErrors.warrantyDays}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Hàng 3: Giá bán + Giá gốc */}
-              <div className="grid cols-2" style={{ marginTop: 8 }}>
-                <div className="group">
-                  <span>Giá bán *</span>
-                  <input type="number" min={0} step="1000" name="price" defaultValue={editing?.price ?? 0} required />
+              {/* Upload thumbnail */}
+              <div className="group" style={{ marginTop: 8 }}>
+                <span>Ảnh biến thể (thumbnail)</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={onPickThumb}
+                />
+
+                <div
+                  className={`cep-featured-image-upload ${
+                    thumbPreview ? "has-image" : ""
+                  }`}
+                  onClick={() => fileInputRef.current?.click()}
+                  tabIndex={0}
+                  role="button"
+                  style={{
+                    outline: "none",
+                    border: "1px dashed var(--line)",
+                    borderRadius: 10,
+                    padding: 12,
+                    textAlign: "center",
+                    background: "#fafafa",
+                  }}
+                >
+                  {thumbPreview ? (
+                    <img
+                      src={thumbPreview}
+                      alt="thumbnail"
+                      style={{
+                        width: "100%",
+                        maxHeight: 220,
+                        objectFit: "contain",
+                        borderRadius: 8,
+                      }}
+                    />
+                  ) : (
+                    <div>
+                      <div>Kéo thả ảnh vào đây</div>
+                      <div>hoặc</div>
+                      <div>Click để chọn ảnh</div>
+                      <div>hoặc</div>
+                      <div>Dán URL ảnh (Ctrl+V)</div>
+                    </div>
+                  )}
                 </div>
-                <div className="group">
-                  <span>Giá gốc</span>
-                  <input type="number" min={0} step="1000" name="originalPrice" defaultValue={editing?.originalPrice ?? ""} />
-                </div>
+
+                {thumbPreview && (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ marginTop: 8 }}
+                    onClick={clearThumb}
+                  >
+                    Xoá ảnh
+                  </button>
+                )}
               </div>
 
-              <div className="row" style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}>
-                <button type="button" className="btn" onClick={() => setShowModal(false)}>Hủy</button>
-                <button type="submit" className="btn primary">{editing ? "Lưu" : "Thêm"}</button>
+              <div
+                className="row"
+                style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}
+              >
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowModal(false)}
+                >
+                  Hủy
+                </button>
+                <button type="submit" className="btn primary">
+                  {editing ? "Lưu" : "Thêm"}
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Toast + Confirm cho panel này */}
+      <ToastContainer
+        toasts={toasts}
+        onRemove={removeToast}
+        confirmDialog={confirmDialog}
+      />
     </div>
   );
 }

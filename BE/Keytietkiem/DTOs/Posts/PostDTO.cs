@@ -61,14 +61,27 @@ namespace Keytietkiem.DTOs.Post
 
     public class CreatePostDTO
     {
+        [Required(ErrorMessage = "Tiêu đề không được để trống.")]
+        [StringLength(250, MinimumLength = 10, ErrorMessage = "Tiêu đề phải có từ 10 đến 250 ký tự.")]
         public string Title { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Slug không được để trống.")]
+        [StringLength(250, MinimumLength = 10, ErrorMessage = "Slug phải có từ 10 đến 250 ký tự.")]
+        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Slug chỉ được chứa chữ thường, số và dấu gạch ngang.")]
         public string Slug { get; set; } = null!;
+        
+        [StringLength(255, ErrorMessage = "Mô tả ngắn không được vượt quá 255 ký tự.")]
         public string? ShortDescription { get; set; }
+        
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
         public Guid? PostTypeId { get; set; }
         public Guid? AuthorId { get; set; }
+        
+        [StringLength(60, ErrorMessage = "Meta title không được vượt quá 60 ký tự.")]
         public string? MetaTitle { get; set; }
+        
+        [StringLength(160, ErrorMessage = "Meta description không được vượt quá 160 ký tự.")]
         public string? MetaDescription { get; set; }
         public string? Status { get; set; }
         public List<Guid> TagIds { get; set; } = new List<Guid>();
@@ -76,13 +89,26 @@ namespace Keytietkiem.DTOs.Post
 
     public class UpdatePostDTO
     {
+        [Required(ErrorMessage = "Tiêu đề không được để trống.")]
+        [StringLength(250, MinimumLength = 10, ErrorMessage = "Tiêu đề phải có từ 10 đến 250 ký tự.")]
         public string Title { get; set; } = null!;
+        
+        [Required(ErrorMessage = "Slug không được để trống.")]
+        [StringLength(250, MinimumLength = 10, ErrorMessage = "Slug phải có từ 10 đến 250 ký tự.")]
+        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Slug chỉ được chứa chữ thường, số và dấu gạch ngang.")]
         public string Slug { get; set; } = null!;
+        
+        [StringLength(255, ErrorMessage = "Mô tả ngắn không được vượt quá 255 ký tự.")]
         public string? ShortDescription { get; set; }
+        
         public string? Content { get; set; }
         public string? Thumbnail { get; set; }
         public Guid? PostTypeId { get; set; }
+        
+        [StringLength(60, ErrorMessage = "Meta title không được vượt quá 60 ký tự.")]
         public string? MetaTitle { get; set; }
+        
+        [StringLength(160, ErrorMessage = "Meta description không được vượt quá 160 ký tự.")]
         public string? MetaDescription { get; set; }
         public string? Status { get; set; }
         public List<Guid> TagIds { get; set; } = new List<Guid>();
@@ -107,9 +133,16 @@ namespace Keytietkiem.DTOs.Post
 
     public class CreatePostTypeDTO
     {
+        [Required(ErrorMessage = "Tên danh mục không được để trống.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Tên danh mục phải có từ 2 đến 100 ký tự.")]
         public string PostTypeName { get; set; }
 
+        [StringLength(500, ErrorMessage = "Mô tả không được vượt quá 500 ký tự.")]
         public string Description { get; set; }
+        
+        [Required(ErrorMessage = "Slug không được để trống.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Slug phải có từ 2 đến 100 ký tự.")]
+        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Slug chỉ được chứa chữ thường, số và dấu gạch ngang.")]
         public string Slug { get; set; }
         public DateTime CreatedAt { get; set; }
 
@@ -117,9 +150,16 @@ namespace Keytietkiem.DTOs.Post
 
     public class UpdatePostTypeDTO
     {
+        [Required(ErrorMessage = "Tên danh mục không được để trống.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Tên danh mục phải có từ 2 đến 100 ký tự.")]
         public string PostTypeName { get; set; }
 
+        [StringLength(500, ErrorMessage = "Mô tả không được vượt quá 500 ký tự.")]
         public string Description { get; set; }
+        
+        [Required(ErrorMessage = "Slug không được để trống.")]
+        [StringLength(100, MinimumLength = 2, ErrorMessage = "Slug phải có từ 2 đến 100 ký tự.")]
+        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Slug chỉ được chứa chữ thường, số và dấu gạch ngang.")]
         public string Slug { get; set; }
 
     }

@@ -7,17 +7,15 @@ public partial class ProductImage
 {
     public int ImageId { get; set; }
 
-    public Guid ProductId { get; set; }
+    public Guid ProductVariantId { get; set; }
 
-    public string Url { get; set; } = null!;
+    public string ImageUrl { get; set; } = null!;
 
-    public int SortOrder { get; set; }
+    public string? Caption { get; set; }
 
-    public bool IsPrimary { get; set; }
+    public int? DisplayOrder { get; set; }
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
-    public string? AltText { get; set; }
-
-    public virtual Product Product { get; set; } = null!;
+    public virtual ProductVariant ProductVariant { get; set; } = null!;
 }

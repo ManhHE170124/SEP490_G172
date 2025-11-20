@@ -2,13 +2,11 @@
  * File: WebsiteSettingsRequestDto.cs
  * Author: TungNVHE170677
  * Created: 26/10/2025
- * Last Updated: 
+ * Last Updated: 15/11/2025
  * Version: 1.0.0
- * Purpose:
- *   Data Transfer Object (DTO) used for creating or updating website configuration settings.
- *   This request model encapsulates nested configuration groups such as contact info,
- *   SMTP setup, media upload policies, and social links.
+ * Purpose: Request DTO for updating website settings
  */
+
 namespace Keytietkiem.DTOs
 {
     public class WebsiteSettingsRequestDto
@@ -19,20 +17,21 @@ namespace Keytietkiem.DTOs
         public string? PrimaryColor { get; set; }
         public string? SecondaryColor { get; set; }
         public string? Font { get; set; }
-        public ContactInfo? Contact { get; set; }
-        public SmtpInfo? Smtp { get; set; }
-        public MediaInfo? Media { get; set; }
-        public SocialInfo? Social { get; set; }
+
+        public ContactDto? Contact { get; set; }
+        public SmtpDto? Smtp { get; set; }
+        public MediaDto? Media { get; set; }
+        public SocialDto? Social { get; set; }
     }
 
-    public class ContactInfo
+    public class ContactDto
     {
         public string? Address { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
     }
 
-    public class SmtpInfo
+    public class SmtpDto
     {
         public string? Server { get; set; }
         public int? Port { get; set; }
@@ -42,13 +41,13 @@ namespace Keytietkiem.DTOs
         public bool? Dkim { get; set; }
     }
 
-    public class MediaInfo
+    public class MediaDto
     {
         public int? UploadLimitMB { get; set; }
-        public IEnumerable<string>? Formats { get; set; }
+        public List<string>? Formats { get; set; }
     }
 
-    public class SocialInfo
+    public class SocialDto
     {
         public string? Facebook { get; set; }
         public string? Instagram { get; set; }

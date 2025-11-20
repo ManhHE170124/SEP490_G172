@@ -89,7 +89,7 @@ public class ProductAccountService : IProductAccountService
                 MaxUsers = pa.MaxUsers,
                 CurrentUsers = pa.ProductAccountCustomers.Count(pac => pac.IsActive),
                 Status = pa.Status,
-                CogsPrice = pa.CogsPrice,
+                CogsPrice = (decimal)pa.CogsPrice,
                 ExpiryDate = pa.ExpiryDate,
                 CreatedAt = pa.CreatedAt
             })
@@ -148,7 +148,7 @@ public class ProductAccountService : IProductAccountService
             MaxUsers = account.MaxUsers,
             CurrentUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive),
             Status = account.Status,
-            CogsPrice = account.CogsPrice,
+            CogsPrice = (decimal)account.CogsPrice,
             ExpiryDate = account.ExpiryDate,
             Notes = account.Notes,
             CreatedAt = account.CreatedAt,
@@ -488,7 +488,7 @@ public class ProductAccountService : IProductAccountService
             {
                 HistoryId = pah.HistoryId,
                 ProductAccountId = pah.ProductAccountId,
-                UserId = pah.UserId,
+                UserId = (Guid)pah.UserId,
                 UserEmail = pah.User.Email,
                 UserFullName = pah.User.FullName,
                 Action = pah.Action,

@@ -1,65 +1,80 @@
-﻿// File: DTOs/Products/ProductVariantDtos.cs
+﻿// DTOs/Products/ProductVariantDtos.cs
 using System;
 
 namespace Keytietkiem.DTOs.Products
 {
+    using Microsoft.AspNetCore.Http;
+
     public record ProductVariantListQuery(
-       string? Q,            // tìm theo Title / VariantCode
-       string? Status,      // ACTIVE | INACTIVE | OUT_OF_STOCK
-       string? Dur,         // "<=30" | "31-180" | ">180"
-       string? Sort = "created",  // created|title|duration|price|stock|status
-       string? Dir = "desc",     // asc|desc
-       int Page = 1,
-       int PageSize = 10
-   );
+        string? Q,
+        string? Status,          // ACTIVE | INACTIVE | OUT_OF_STOCK
+        string? Dur,             // "<=30" | "31-180" | ">180"
+        string? Sort = "created",// created|title|duration|stock|status|views
+        string? Dir = "desc",
+        int Page = 1,
+        int PageSize = 10
+    );
+
+    // List: hiển thị nhanh + thumbnail + viewcount
     public record ProductVariantListItemDto(
         Guid VariantId,
         string VariantCode,
         string Title,
         int? DurationDays,
-        decimal? OriginalPrice,
-        decimal Price,
         int StockQty,
         string Status,
-        int SortOrder
+        string? Thumbnail,
+        int ViewCount
     );
 
+    // Detail: đầy đủ SEO field
     public record ProductVariantDetailDto(
         Guid VariantId,
         Guid ProductId,
         string VariantCode,
         string Title,
         int? DurationDays,
-        decimal? OriginalPrice,
-        decimal Price,
         int StockQty,
         int? WarrantyDays,
-        string Status,
-        int SortOrder
+        string? Thumbnail,
+        string? MetaTitle,
+        string? MetaDescription,
+        int ViewCount,
+        string Status
     );
 
+    // Create/Update: giống Post (không có ViewCount vì server tự set)
     public record ProductVariantCreateDto(
         string VariantCode,
         string Title,
         int? DurationDays,
-        decimal? OriginalPrice,
-        decimal Price,
         int StockQty,
         int? WarrantyDays,
-        string? Status,
-        int? SortOrder
+        string? Thumbnail,
+        string? MetaTitle,
+        string? MetaDescription,
+        string? Status
     );
 
     public record ProductVariantUpdateDto(
         string Title,
+        string? VariantCode,
         int? DurationDays,
-        decimal? OriginalPrice,
-        decimal Price,
         int StockQty,
         int? WarrantyDays,
-        string? Status,
-        int? SortOrder
+        string? Thumbnail,
+        string? MetaTitle,
+        string? MetaDescription,
+        string? Status
     );
+    public class VariantImageUploadRequest
+    {
+        public IFormFile File { get; set; } = default!;
+    }
 
+    public class VariantImageDeleteRequest
+    {
+        public string PublicId { get; set; } = default!;
+    }
     public record VariantReorderDto(Guid[] VariantIdsInOrder);
 }

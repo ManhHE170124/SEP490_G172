@@ -1,22 +1,41 @@
-/* Sidebar Styles */
+﻿/* Sidebar Styles */
 .sb-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
   width: 280px;
   background: var(--card);
   border-right: 1px solid var(--line);
-  height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  overflow-y: auto;
   z-index: 1000;
+  transition: width 0.25s ease, box-shadow 0.25s ease;
 }
 
+.sb-sidebar.collapsed {
+  width: 96px;
+  box-shadow: 6px 0 25px rgba(15, 23, 42, 0.08);
+}
+
+/* ===== Header: logo + tên + nút 3 gạch ===== */
+.sb-header {
+  padding: 16px 16px 10px;
+  border-bottom: 1px solid var(--line);
+
+  display: flex;
+  flex-direction: column;    /* logo trên, nút 3 gạch ở dưới */
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;            /* không bị co khi nav cuộn */
+}
+
+/* Logo + tên hệ thống */
 .sb-logo {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 1.5rem 1.5rem 2rem;
   border-bottom: 1px solid var(--line);
+  transition: padding 0.25s ease;
 }
 
 .sb-logo i {
@@ -31,18 +50,56 @@
   font-style: normal;
   font-weight: 600;
   font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
 .sb-logo span {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--ink);
+  transition: opacity 0.2s ease;
+}
+
+.sb-sidebar.collapsed .sb-logo {
+  justify-content: center;
+  gap: 0;
+  padding: 1.25rem 0 1.5rem;
+}
+
+.sb-sidebar.collapsed .sb-logo span {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 .sb-nav {
   padding: 1.5rem 0;
+  transition: padding 0.25s ease;
 }
 
+.sb-sidebar.collapsed .sb-nav {
+  padding: 1.25rem 0.5rem;
+}
+
+.sb-toggle:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.sb-toggle-bar {
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: #111827;
+}
+
+/* ===== Menu nav: chỉ phần này cuộn ===== */
+.sb-nav {
+  flex: 1;
+  padding: 1.25rem 0 1.5rem;
+  overflow-y: auto;
+}
+
+/* (giữ nguyên các style item/section cũ) */
 .sb-section-title {
   font-size: 0.75rem;
   font-weight: 600;
@@ -55,6 +112,10 @@
 
 .sb-section-title:first-child {
   margin-top: 0;
+}
+
+.sb-sidebar.collapsed .sb-section-title {
+  display: none;
 }
 
 .sb-item {
@@ -82,7 +143,7 @@
 }
 
 .sb-item.active::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
@@ -100,19 +161,36 @@
 .sb-label {
   font-size: 0.9rem;
   font-weight: 500;
+  transition: opacity 0.2s ease;
 }
 
-.sb-menu-group {
-  margin-bottom: 0.5rem;
+.sb-sidebar.collapsed .sb-item {
+  justify-content: center;
+  gap: 0;
+  padding: 0.85rem 0;
 }
 
-.sb-item.has-sub {
-  cursor: pointer;
+.sb-sidebar.collapsed .sb-label {
+  display: none;
 }
 
-.sb-chevron {
-  margin-left: auto;
-  transition: transform 0.2s ease;
+.sb-sidebar.collapsed .sb-item svg {
+  margin: 0;
+}
+
+/* ===== Trạng thái thu gọn (ẩn menu, còn logo + 3 gạch) ===== */
+.sb-sidebar.collapsed {
+  width: 72px;               /* chỉ còn cột hẹp */
+}
+
+/* Khi collapsed: logo + nút 3 gạch vẫn là 1 khối ở góc trái trên */
+.sb-sidebar.collapsed .sb-header {
+  align-items: center;       /* căn giữa trong cột hẹp */
+}
+
+/* Chỉ hiện icon @, ẩn chữ Keytietkiem khi thu gọn */
+.sb-sidebar.collapsed .sb-logo span {
+  display: none;
 }
 
 .sb-menu-group.open .sb-chevron {
@@ -175,3 +253,4 @@
   padding: 2rem;
   background: var(--page);
 }
+

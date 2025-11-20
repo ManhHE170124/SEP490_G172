@@ -125,7 +125,7 @@ const getNavHref = (item) => {
   return "#";
 };
 
-const PublicHeader = () => {
+const PublicHeader = ({ settings, loading }) => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [customer, setCustomer] = useState(() => readCustomerFromStorage());
@@ -299,6 +299,8 @@ const PublicHeader = () => {
     }
   };
 
+  const siteName = settings?.name || "Keytietkiem";
+
   return (
     <div
       className="topbar"
@@ -311,8 +313,16 @@ const PublicHeader = () => {
           href="/"
           onClick={(event) => handleNavigation(event, "/")}
         >
-          <div className="mark">K</div>
-          Keytietkiem
+          {settings?.logoUrl ? (
+            <img
+              src={settings.logoUrl}
+              alt={siteName}
+              style={{ height: "36px", width: "auto", objectFit: "contain" }}
+            />
+          ) : (
+            <div className="mark">K</div>
+          )}
+          <span>{loading ? "Keytietkiem" : siteName}</span>
         </a>
 
         <form className="searchbar" onSubmit={handleSearch} role="search">

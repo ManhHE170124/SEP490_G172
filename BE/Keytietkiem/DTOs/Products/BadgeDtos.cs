@@ -45,6 +45,7 @@ public record BadgeCreateDto(
 );
 
 public record BadgeUpdateDto(
+    string BadgeCode,
     string DisplayName,
     string? ColorHex,
     string? Icon,

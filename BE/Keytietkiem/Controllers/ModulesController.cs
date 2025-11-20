@@ -44,6 +44,7 @@ namespace Keytietkiem.Controllers
                 {
                     ModuleId = m.ModuleId,
                     ModuleName = m.ModuleName,
+                    Code = m.Code,
                     Description = m.Description,
                     CreatedAt = m.CreatedAt,
                     UpdatedAt = m.UpdatedAt
@@ -72,6 +73,7 @@ namespace Keytietkiem.Controllers
             {
                 ModuleId = module.ModuleId,
                 ModuleName = module.ModuleName,
+                Code = module.Code,
                 Description = module.Description,
                 CreatedAt = module.CreatedAt,
                 UpdatedAt = module.UpdatedAt
@@ -89,20 +91,38 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
-            if (createModuleDto == null || string.IsNullOrWhiteSpace(createModuleDto.ModuleName))
+            if (createModuleDto == null)
             {
-                return BadRequest("Module name is required.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleName == createModuleDto.ModuleName);
             if (existing != null)
             {
-                return Conflict(new { message = "Module name already exists." });
+                return Conflict(new { message = "Tên module đã tồn tại." });
+            }
+
+            // Check if Code is unique (if provided)
+            if (!string.IsNullOrWhiteSpace(createModuleDto.Code))
+            {
+                var existingCode = await _context.Modules
+                    .FirstOrDefaultAsync(m => m.Code == createModuleDto.Code);
+                if (existingCode != null)
+                {
+                    return Conflict(new { message = "Mã module đã tồn tại." });
+                }
             }
 
             var newModule = new Module
             {
                 ModuleName = createModuleDto.ModuleName,
+                Code = createModuleDto.Code,
                 Description = createModuleDto.Description,
                 CreatedAt = DateTime.Now
             };
@@ -136,6 +156,7 @@ namespace Keytietkiem.Controllers
             {
                 ModuleId = newModule.ModuleId,
                 ModuleName = newModule.ModuleName,
+                Code = newModule.Code,
                 Description = newModule.Description,
                 CreatedAt = newModule.CreatedAt,
                 UpdatedAt = newModule.UpdatedAt
@@ -156,7 +177,13 @@ namespace Keytietkiem.Controllers
         {
             if (updateModuleDto == null)
             {
-                return BadRequest("Invalid module data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
@@ -164,7 +191,19 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
+            // Check if Code is unique (if provided and changed)
+            if (!string.IsNullOrWhiteSpace(updateModuleDto.Code) && existing.Code != updateModuleDto.Code)
+            {
+                var existingCode = await _context.Modules
+                    .FirstOrDefaultAsync(m => m.Code == updateModuleDto.Code && m.ModuleId != id);
+                if (existingCode != null)
+                {
+                    return Conflict(new { message = "Mã module đã tồn tại." });
+                }
+            }
+
             existing.ModuleName = updateModuleDto.ModuleName;
+            existing.Code = updateModuleDto.Code;
             existing.Description = updateModuleDto.Description;
             existing.UpdatedAt = DateTime.Now;
             _context.Modules.Update(existing);

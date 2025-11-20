@@ -44,6 +44,7 @@ namespace Keytietkiem.Controllers
                 {
                     PermissionId = p.PermissionId,
                     PermissionName = p.PermissionName,
+                    Code = p.Code,
                     Description = p.Description,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
@@ -72,6 +73,7 @@ namespace Keytietkiem.Controllers
             {
                 PermissionId = permission.PermissionId,
                 PermissionName = permission.PermissionName,
+                Code = permission.Code,
                 Description = permission.Description,
                 CreatedAt = permission.CreatedAt,
                 UpdatedAt = permission.UpdatedAt
@@ -89,20 +91,38 @@ namespace Keytietkiem.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePermission([FromBody] CreatePermissionDTO createPermissionDto)
         {
-            if (createPermissionDto == null || string.IsNullOrWhiteSpace(createPermissionDto.PermissionName))
+            if (createPermissionDto == null)
             {
-                return BadRequest("Permission name is required.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionName == createPermissionDto.PermissionName);
             if (existing != null)
             {
-                return Conflict(new { message = "Permission name already exists." });
+                return Conflict(new { message = "Tên quyền đã tồn tại." });
+            }
+
+            // Check if Code is unique (if provided)
+            if (!string.IsNullOrWhiteSpace(createPermissionDto.Code))
+            {
+                var existingCode = await _context.Permissions
+                    .FirstOrDefaultAsync(m => m.Code == createPermissionDto.Code);
+                if (existingCode != null)
+                {
+                    return Conflict(new { message = "Mã quyền đã tồn tại." });
+                }
             }
 
             var newPermission = new Permission
             {
                 PermissionName = createPermissionDto.PermissionName,
+                Code = createPermissionDto.Code,
                 Description = createPermissionDto.Description,
                 CreatedAt = DateTime.Now
             };
@@ -136,6 +156,7 @@ namespace Keytietkiem.Controllers
             {
                 PermissionId = newPermission.PermissionId,
                 PermissionName = newPermission.PermissionName,
+                Code = newPermission.Code,
                 Description = newPermission.Description,
                 CreatedAt = newPermission.CreatedAt,
                 UpdatedAt = newPermission.UpdatedAt
@@ -156,7 +177,13 @@ namespace Keytietkiem.Controllers
         {
             if (updatePermissionDto == null)
             {
-                return BadRequest("Invalid permission data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionId == id);
@@ -164,7 +191,19 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
+            // Check if Code is unique (if provided and changed)
+            if (!string.IsNullOrWhiteSpace(updatePermissionDto.Code) && existing.Code != updatePermissionDto.Code)
+            {
+                var existingCode = await _context.Permissions
+                    .FirstOrDefaultAsync(m => m.Code == updatePermissionDto.Code && m.PermissionId != id);
+                if (existingCode != null)
+                {
+                    return Conflict(new { message = "Mã quyền đã tồn tại." });
+                }
+            }
+
             existing.PermissionName = updatePermissionDto.PermissionName;
+            existing.Code = updatePermissionDto.Code;
             existing.Description = updatePermissionDto.Description;
             existing.UpdatedAt = DateTime.Now;
             _context.Permissions.Update(existing);

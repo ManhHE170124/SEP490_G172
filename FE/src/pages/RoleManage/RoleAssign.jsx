@@ -6,19 +6,34 @@
  * Version: 1.0.0
  * Purpose: Role permission assignment page for managing role-permission relationships.
  */
-import React, { useEffect, useState, useCallback } from "react";
-import {roleApi} from "../../services/roleApi";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { roleApi } from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./RoleAssign.css";
+
+const ADMIN_ROLE_CODE = "ADMIN";
+const HIDDEN_ROLE_CODE = "CUSTOMER";
+
+const filterOutCustomerRoles = (roles) =>
+  (Array.isArray(roles) ? roles : []).filter(
+    (role) => String(role?.code || "").toUpperCase() !== HIDDEN_ROLE_CODE
+  );
 
 /**
  * @summary: Role permission assignment page component.
  * @returns {JSX.Element} - Role assignment interface with permission matrix
  */
 export default function RoleAssign() {
-  const { toasts, showSuccess, showError, showWarning, removeToast, confirmDialog } = useToast();
+  const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
+  
+  // Global network error handler - only show one toast for network errors
+  const networkErrorShownRef = useRef(false);
+  useEffect(() => {
+    // Reset the flag when component mounts
+    networkErrorShownRef.current = false;
+  }, []);
   
   // State for data
   const [roles, setRoles] = useState([]);
@@ -36,6 +51,32 @@ export default function RoleAssign() {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [addModuleOpen, setAddModuleOpen] = useState(false);
   const [addPermissionOpen, setAddPermissionOpen] = useState(false);
+  const filteredRoles = roles;
+  const isAdminRoleSelected =
+    selectedRole?.code?.toUpperCase() === ADMIN_ROLE_CODE;
+
+  const totalPermissionSlots = modules.length * permissions.length;
+
+  const activePermissionCount = useMemo(() => {
+    if (!selectedRole) return 0;
+    if (!Array.isArray(rolePermissions) || rolePermissions.length === 0) return 0;
+
+    return rolePermissions.reduce(
+      (sum, rp) => (rp.isActive ? sum + 1 : sum),
+      0
+    );
+  }, [rolePermissions, selectedRole]);
+
+  const activePermissionPercent =
+    totalPermissionSlots > 0
+      ? Math.round((activePermissionCount / totalPermissionSlots) * 100)
+      : 0;
+
+  const filteredRoleCount = filteredRoles.length;
+  const isInitialLoading =
+    loading && roles.length === 0 && modules.length === 0 && permissions.length === 0;
+  const hasMatrixData =
+    Boolean(selectedRole) && modules.length > 0 && permissions.length > 0;
   
   /**
    * @summary: Load role-permission matrix for a given role.
@@ -47,7 +88,15 @@ export default function RoleAssign() {
       const response = await roleApi.getRolePermissions(roleId);
       setRolePermissions(response.rolePermissions || []);
     } catch (error) {
-      showError("Lỗi tải quyền", error.message || "Không thể tải quyền của Vai trò");
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi tải quyền", error.message || "Không thể tải quyền của Vai trò");
+      }
     }
   }, [showError]);
   
@@ -63,12 +112,31 @@ export default function RoleAssign() {
         roleApi.getModules(),
         roleApi.getPermissions()
       ]);
-      
-      setRoles(rolesData || []);
+
+      const sanitizedRoles = filterOutCustomerRoles(rolesData);
+      setRoles(sanitizedRoles);
       setModules(modulesData || []);
       setPermissions(permissionsData || []);
+
+      setSelectedRole((previous) => {
+        if (!previous) {
+          return sanitizedRoles?.[0] ?? null;
+        }
+        const stillExists = sanitizedRoles.find(
+          (role) => role.roleId === previous.roleId
+        );
+        return stillExists ?? sanitizedRoles?.[0] ?? null;
+      });
     } catch (error) {
-      showError("Lỗi tải dữ liệu", error.message || "Không thể tải dữ liệu");
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi tải dữ liệu", error.message || "Không thể tải dữ liệu");
+      }
     } finally {
       setLoading(false);
     }
@@ -93,17 +161,30 @@ export default function RoleAssign() {
       setSubmitting(true);
       const created = await roleApi.createRole({ 
         name: form.name, 
+        code: form.code,
         isSystem: form.isSystem || false 
       });
-      setRoles(prev => [...prev, created]);
+      setRoles((prev) => filterOutCustomerRoles([...(prev || []), created]));
+      if (String(created?.code || "").toUpperCase() !== HIDDEN_ROLE_CODE) {
+        setSelectedRole(created);
+      }
+      setHasUnsavedChanges(false);
       setAddRoleOpen(false);
       showSuccess(
         "Tạo Vai trò thành công!",
         `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Vai trò";
-      showError("Tạo Vai trò thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Vai trò";
+        showError("Tạo Vai trò thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -119,6 +200,7 @@ export default function RoleAssign() {
       setSubmitting(true);
       const created = await roleApi.createModule({ 
         moduleName: form.moduleName,
+        code: form.code,
         description: form.description || ""
       });
       setModules(prev => [...prev, created]);
@@ -128,8 +210,16 @@ export default function RoleAssign() {
         `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Quyền.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Mô-đun";
-      showError("Tạo Mô-đun thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Mô-đun";
+        showError("Tạo Mô-đun thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -145,6 +235,7 @@ export default function RoleAssign() {
       setSubmitting(true);
       const created = await roleApi.createPermission({ 
         permissionName: form.permissionName, 
+        code: form.code,
         description: form.description || ""
       });
       setPermissions(prev => [...prev, created]);
@@ -154,8 +245,16 @@ export default function RoleAssign() {
         `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Quyền";
-      showError("Tạo Quyền thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể tạo Quyền";
+        showError("Tạo Quyền thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -167,14 +266,20 @@ export default function RoleAssign() {
    * @returns {void}
    */
   const handleRoleSelect = (role) => {
+    const isSameRole = selectedRole?.roleId === role.roleId;
+    if (isSameRole) return;
+
     if (hasUnsavedChanges) {
-      const confirmSwitch = window.confirm(
-        "Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển sang vai trò khác? Thay đổi sẽ bị mất."
+      showConfirm(
+        "Chưa lưu thay đổi",
+        `Bạn có chắc muốn chuyển sang vai trò "${role.name}"? Những thay đổi hiện tại sẽ bị mất.`,
+        () => {
+          setSelectedRole(role);
+        }
       );
-      if (!confirmSwitch) {
-        return;
-      }
+      return;
     }
+
     setSelectedRole(role);
   };
   
@@ -183,7 +288,7 @@ export default function RoleAssign() {
    * @returns {Promise<void>}
    */
   const handleCancel = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isAdminRoleSelected) return;
     
     try {
       await loadRolePermissions(selectedRole.roleId);
@@ -191,7 +296,15 @@ export default function RoleAssign() {
       showSuccess("Đã hủy thay đổi", "Ma trận Quyền đã được reset về trạng thái ban đầu");
     } catch (error) {
       console.error("Lôi khi hủy thay đổi:", error);
-      showError("Lỗi khi hủy", "Không thể reset ma trận Quyền");
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        showError("Lỗi khi hủy", "Không thể reset ma trận Quyền");
+      }
       throw error;
     }
   };
@@ -202,8 +315,8 @@ export default function RoleAssign() {
    * @param {number} permissionId - Permission identifier
    * @returns {void}
    */ 
-   const handlePermissionToggle = (moduleId, permissionId) => {
-    if (!selectedRole) return;
+  const handlePermissionToggle = (moduleId, permissionId) => {
+    if (!selectedRole || isAdminRoleSelected) return;
     
     setRolePermissions(prev => {
       // Find existing permission for this module-permission combination
@@ -255,6 +368,10 @@ export default function RoleAssign() {
       showWarning("Chưa chọn Vai trò", "Vui lòng chọn một Vai trò để lưu thay đổi");
       return;
     }
+    if (isAdminRoleSelected) {
+      showWarning("Quản trị viên", "Quản trị viên đã có toàn quyền hệ thống.");
+      return;
+    }
     
     try {
       setSubmitting(true);
@@ -294,9 +411,18 @@ export default function RoleAssign() {
         "Lưu thay đổi thành công!",
         `Đã cập nhật tất cả quyền cho Vai trò "${selectedRole.name}"`
       );
+      window.dispatchEvent(new Event("role-permissions-updated"));
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
-      showError("Lưu thay đổi thất bại!", errorMessage);
+      // Handle network errors globally - only show one toast
+      if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
+        showError("Lưu thay đổi thất bại!", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -307,7 +433,7 @@ export default function RoleAssign() {
    * @returns {void}
    */
   const handleTickAll = () => {
-    if (!selectedRole) return;
+    if (!selectedRole || isAdminRoleSelected) return;
     
     const allActive = permissions.every(permission => 
       modules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
@@ -342,172 +468,235 @@ export default function RoleAssign() {
     modules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
   );
   
-  if (loading) {
+  if (isInitialLoading) {
     return (
-      <div className="ra-container">
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-          <div>Đang tải dữ liệu...</div>
-        </div>
+      <div className="ra-page ra-page--loading">
+        <output className="ra-loading-card" aria-live="polite">
+          <div className="ra-spinner" aria-hidden="true" />
+          <p>Đang tải dữ liệu...</p>
+        </output>
       </div>
     );
   }
   
-  return (
-    <div className="ra-container">
-      {/* Left Sidebar - Roles Panel */}
-      <div className="ra-roles-panel">
-        <h2 className="ra-roles-title">Quản lý Vai trò</h2>
-        
-        {/* Action Buttons */}
-        <div className="ra-sidebar-buttons">
-          <button 
-            className="ra-add-role-btn"
-            onClick={() => setAddRoleOpen(true)}
-          >
-            Thêm Vai trò
-          </button>
-          <button 
-            className="ra-add-module-btn"
-            onClick={() => setAddModuleOpen(true)}
-          >
-            Thêm Mô-đun
-          </button>
-          <button 
-            className="ra-add-permission-btn"
-            onClick={() => setAddPermissionOpen(true)}
-          >
-            Thêm Quyền
-          </button>
-        </div>
-        
-        {/* Role List */}
-        <div className="ra-role-list">
-          {loading ? (
-            <div className="ra-loading-state">
-              <div className="ra-loading-spinner" />
-              <div>Đang tải dữ liệu...</div>
-            </div>
-          ) : roles.length === 0 ? (
-            <div className="ra-empty-state">
-              <div>Không có dữ liệu</div>
-            </div>
-          ) : (
-            roles.map((role) => (
-              <button
-                key={role.roleId}
-                className={`ra-role-item ${selectedRole?.roleId === role.roleId ? 'selected' : ''}`}
-                onClick={() => handleRoleSelect(role)}
-                type="button"
+  let permissionContent;
+  if (hasMatrixData) {
+    permissionContent = (
+      <table className="ra-permissions-table">
+        <thead>
+          <tr>
+            <th scope="col">Mô-đun\Quyền</th>
+            {permissions.map((permission) => (
+              <th
+                key={permission.permissionId}
+                scope="col"
+                className="ra-permission-name"
               >
-                {role.name}
-              </button>
-            ))
-          )}
-        </div>
+                {permission.permissionName}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {modules.map((module) => (
+            <tr key={module.moduleId}>
+              <th scope="row" className="ra-module-name">
+                {module.moduleName}
+              </th>
+              {permissions.map((permission) => (
+                <td key={`${permission.permissionId}-${module.moduleId}`}>
+                  <input
+                    type="checkbox"
+                    className="ra-permission-checkbox"
+                    checked={isPermissionActive(
+                      module.moduleId,
+                      permission.permissionId
+                    )}
+                    disabled={isAdminRoleSelected}
+                    onChange={() =>
+                      handlePermissionToggle(
+                        module.moduleId,
+                        permission.permissionId
+                      )
+                    }
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  } else if (selectedRole) {
+    permissionContent = (
+      <div className="ra-empty ra-empty--center">
+        <h3>Chưa có dữ liệu phân quyền</h3>
+        <p>Hãy tạo thêm mô-đun hoặc quyền để cấu hình cho vai trò này.</p>
       </div>
-      
-      {/* Right Panel - Permissions Matrix */}
-      <div className="ra-permissions-panel">
-         <div className="ra-permissions-header">
-           <h2 className="ra-permissions-title">
-             {selectedRole ? `Quyền của Vai trò: ${selectedRole.name}` : 'Chọn một Vai trò để xem quyền'}
-             {hasUnsavedChanges && selectedRole && (
-               <span style={{ 
-                 color: '#ffc107', 
-                 fontSize: '14px', 
-                 marginLeft: '10px',
-                 fontWeight: 'normal'
-               }}>
-                 (Có thay đổi chưa lưu)
-               </span>
-             )}
-           </h2>
-          <div className="ra-action-buttons">
-             <button 
-               className="ra-btn ra-btn-cancel"
-               onClick={handleCancel}
-               disabled={!selectedRole}
-             >
-               Hủy
-             </button>
-            <button 
-              className="ra-btn ra-btn-tick-all"
-              onClick={handleTickAll}
-              disabled={!selectedRole}
-            >
-              {isAllTicked ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-            </button>
-             <button 
-               className="ra-btn ra-btn-save"
-               onClick={handleSaveChanges}
-               disabled={!selectedRole || submitting || !hasUnsavedChanges}
-               style={{
-                 opacity: (!selectedRole || submitting || !hasUnsavedChanges) ? 0.6 : 1
-               }}
-             >
-               {submitting ? 'Đang lưu...' : 'Lưu thay đổi'}
-             </button>
-          </div>
+    );
+  } else {
+    permissionContent = (
+      <div className="ra-empty ra-empty--center">
+        <h3>Chưa chọn vai trò</h3>
+        <p>Chọn một vai trò ở danh sách bên trái để hiển thị ma trận quyền.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ra-page">
+      <header className="ra-page-header">
+        <div className="ra-page-heading">
+          <h1>Phân công vai trò</h1>
+          <p>Quản lý quyền truy cập theo mô-đun cho từng vai trò trong hệ thống.</p>
         </div>
-        
-        {/* Permissions Matrix */}
-        {selectedRole && (
-          <div className="ra-permissions-table-container">
-            <table className="ra-permissions-table">
-              <thead>
-                <tr>
-                  <th>Mô-đun\Quyền</th>
-                  {permissions.map((permission) => (
-                    <th key={permission.permissionId}  className="ra-permission-name">
-                      {permission.permissionName}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modules.map((module) => (
-                  <tr key={module.moduleId}>
-                    <td className="ra-module-name">{module.moduleName}</td>
-                    {permissions.map((permission) => (
-                      <td key={`${permission.permissionId}-${module.moduleId}`}>
-                        <input
-                          type="checkbox"
-                          className="ra-permission-checkbox"
-                          checked={isPermissionActive(module.moduleId, permission.permissionId)}
-                          onChange={() => handlePermissionToggle(module.moduleId, permission.permissionId)}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        
-        {!selectedRole && (
-          <output 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center', 
-              height: '300px',
-              color: '#6c757d',
-              fontSize: '16px'
-            }}
-            aria-live="polite"
+        <div className="ra-header-actions">
+          <button
+            className="ra-btn ra-btn--primary"
+            onClick={() => setAddRoleOpen(true)}
+            type="button"
           >
-            Vui lòng chọn một Vai trò để xem và chỉnh sửa quyền
-          </output>
-        )}
+            + Thêm Vai trò
+          </button>
+          <button
+            className="ra-btn ra-btn--primary"
+            onClick={() => setAddModuleOpen(true)}
+            type="button"
+          >
+            + Thêm Mô-đun
+          </button>
+          <button
+            className="ra-btn ra-btn--primary"
+            onClick={() => setAddPermissionOpen(true)}
+            type="button"
+          >
+            + Thêm Quyền
+          </button>
+        </div>
+      </header>
+
+      <div className="ra-layout">
+        <aside className="ra-card ra-role-card">
+        <div className="ra-card-header">
+          <div>
+            <h2>Danh sách vai trò</h2>
+            <p>Chọn một vai trò để xem hoặc cập nhật quyền.</p>
+          </div>
+          <span className="ra-chip" aria-label={`Có ${filteredRoleCount} vai trò`}>
+            {filteredRoleCount}
+          </span>
+        </div>
+
+          <div className="ra-card-body ra-role-list">
+            {filteredRoleCount === 0 ? (
+              <div className="ra-empty ra-empty--compact">
+                <h3>Chưa có vai trò nào</h3>
+                <p>Hãy thêm vai trò mới để bắt đầu phân quyền.</p>
+              </div>
+            ) : (
+              filteredRoles.map((role) => {
+                const isActiveRole = selectedRole?.roleId === role.roleId;
+                return (
+                  <button
+                    key={role.roleId}
+                    className={`ra-role-item${isActiveRole ? " is-active" : ""}`}
+                    onClick={() => handleRoleSelect(role)}
+                    type="button"
+                    aria-pressed={isActiveRole}
+                  >
+                    <div className="ra-role-item__info">
+                      <span className="ra-role-item__name">{role.name}</span>
+                    </div>
+                      <span className="ra-role-code">#{role.code}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        <section className="ra-card ra-permission-card">
+          <div className="ra-card-header ra-card-header--between">
+            <div className="ra-card-title-group">
+              <div className="ra-card-title">
+                {selectedRole ? selectedRole.name : "Chưa chọn vai trò"}
+                {hasUnsavedChanges && selectedRole && (
+                  <span className="ra-tag ra-tag--warning">Chưa lưu</span>
+                )}
+              </div>
+              <p>
+                {selectedRole
+                  ? "Bật/tắt quyền truy cập cho từng mô-đun bên dưới."
+                  : "Chọn một vai trò ở bảng bên trái để bắt đầu phân quyền."}
+              </p>
+            </div>
+
+            {selectedRole && (
+              <div className="ra-permission-stats" aria-live="polite">
+                <span className="ra-permission-count">
+                  {activePermissionCount}/{totalPermissionSlots}({activePermissionPercent}%) Quyền
+                </span>
+                <progress
+                  className="ra-progress"
+                  max={100}
+                  value={activePermissionPercent}
+                >
+                  {activePermissionPercent}%
+                </progress>
+              </div>
+            )}
+          </div>
+
+          {isAdminRoleSelected && (
+            <div className="ra-alert ra-alert--info" role="status">
+              Quản trị viên được toàn quyền hệ thống và không thể chỉnh sửa quyền.
+            </div>
+          )}
+
+          <div className="ra-card-toolbar">
+            <button
+              className="ra-btn ra-btn--ghost"
+              onClick={handleCancel}
+              type="button"
+              disabled={!selectedRole || isAdminRoleSelected}
+            >
+              Hủy
+            </button>
+            <button
+              className="ra-btn ra-btn--outline"
+              onClick={handleTickAll}
+              type="button"
+              disabled={!selectedRole || isAdminRoleSelected}
+            >
+              {isAllTicked ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+            </button>
+            <button
+              className="ra-btn ra-btn--primary"
+              onClick={handleSaveChanges}
+              type="button"
+              disabled={
+                !selectedRole ||
+                submitting ||
+                !hasUnsavedChanges ||
+                isAdminRoleSelected
+              }
+            >
+              {submitting ? "Đang lưu..." : "Lưu thay đổi"}
+            </button>
+          </div>
+
+          <div className="ra-permission-scroll">{permissionContent}</div>
+        </section>
       </div>
-      
+
       {/* Modals */}
       <RoleModal
         isOpen={addRoleOpen}
         title="Thêm Vai trò"
         fields={[
-          { name: "name", label: "Tên Vai trò", required: true },
+          { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
+          { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+          { name: "isSystem", label: "Vai trò hệ thống", type: "checkbox" },
         ]}
         onClose={() => setAddRoleOpen(false)}
         onSubmit={handleCreateRole}
@@ -518,8 +707,9 @@ export default function RoleAssign() {
         isOpen={addModuleOpen}
         title="Thêm Mô-đun"
         fields={[
-          { name: "moduleName", label: "Tên Mô-đun", required: true },
-          { name: "description", label: "Mô tả", type: "textarea" },
+          { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
+          { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+          { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
         ]}
         onClose={() => setAddModuleOpen(false)}
         onSubmit={handleCreateModule}
@@ -530,8 +720,9 @@ export default function RoleAssign() {
         isOpen={addPermissionOpen}
         title="Thêm Quyền"
         fields={[
-          { name: "permissionName", label: "Tên Quyền", required: true },
-          { name: "description", label: "Mô tả", type: "textarea" },
+          { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
+          { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
+          { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
         ]}
         onClose={() => setAddPermissionOpen(false)}
         onSubmit={handleCreatePermission}

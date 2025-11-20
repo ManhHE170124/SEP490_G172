@@ -1,0 +1,73 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace Keytietkiem.DTOs.Products
+{
+
+    public record StorefrontBadgeMiniDto(
+        string BadgeCode,
+        string DisplayName,
+        string? ColorHex,
+        string? Icon
+    );
+
+
+    public record StorefrontCategoryMiniDto(
+        int CategoryId,
+        string CategoryCode,
+        string CategoryName
+    );
+
+
+    public record StorefrontVariantListItemDto(
+      Guid VariantId,
+      Guid ProductId,
+      string ProductCode,
+      string ProductName,
+      string ProductType,
+      string VariantTitle,
+      string? Thumbnail,
+      string Status,
+      IReadOnlyCollection<StorefrontBadgeMiniDto> Badges
+  );
+
+
+    public class StorefrontVariantListQuery
+    {
+       
+        public string? Q { get; set; }
+
+      
+        public int? CategoryId { get; set; }
+
+        public string? ProductType { get; set; }
+
+       
+        public decimal? MinPrice { get; set; }
+
+       
+        public decimal? MaxPrice { get; set; }
+
+       
+        public string? Sort { get; set; }
+
+      
+        public int Page { get; set; } = 1;
+
+       
+        public int PageSize { get; set; } = 8;
+    }
+
+
+    public record StorefrontCategoryFilterItemDto(
+        int CategoryId,
+        string CategoryCode,
+        string CategoryName
+    );
+
+   
+    public record StorefrontFiltersDto(
+        IReadOnlyCollection<StorefrontCategoryFilterItemDto> Categories,
+        IReadOnlyCollection<string> ProductTypes
+    );
+}

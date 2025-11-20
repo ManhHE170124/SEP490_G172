@@ -1,5 +1,4 @@
-﻿using Keytietkiem.DTOs.Enums;
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
@@ -20,7 +19,7 @@ public partial class ProductKey
 
     public int SupplierId { get; set; }
 
-    public string Type { get; set; } 
+    public string Type { get; set; } = null!;
 
     public DateTime? ExpiryDate { get; set; }
 

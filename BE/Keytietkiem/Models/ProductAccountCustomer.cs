@@ -1,9 +1,8 @@
+﻿using System;
+using System.Collections.Generic;
+
 namespace Keytietkiem.Models;
 
-/// <summary>
-/// Junction table managing the many-to-many relationship between ProductAccounts and Users/Customers
-/// Tracks which customers have access to which product accounts
-/// </summary>
 public partial class ProductAccountCustomer
 {
     public long ProductAccountCustomerId { get; set; }
@@ -24,7 +23,6 @@ public partial class ProductAccountCustomer
 
     public string? Notes { get; set; }
 
-    // Navigation properties
     public virtual ProductAccount ProductAccount { get; set; } = null!;
 
     public virtual User User { get; set; } = null!;

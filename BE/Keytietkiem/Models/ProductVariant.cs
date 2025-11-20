@@ -15,21 +15,23 @@ public partial class ProductVariant
 
     public int? DurationDays { get; set; }
 
-    public decimal Price { get; set; }
-
-    public decimal? OriginalPrice { get; set; }
-
     public int? WarrantyDays { get; set; }
 
     public string Status { get; set; } = null!;
-
-    public int SortOrder { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
 
     public int StockQty { get; set; }
+
+    public string? Thumbnail { get; set; }
+
+    public string? MetaTitle { get; set; }
+
+    public string? MetaDescription { get; set; }
+
+    public int ViewCount { get; set; }
 
     public virtual Product Product { get; set; } = null!;
 
