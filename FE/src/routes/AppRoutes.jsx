@@ -30,6 +30,7 @@ import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
+import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 
@@ -71,8 +72,8 @@ const AdminTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-        ? m.AdminTicketDetail
-        : () => null,
+          ? m.AdminTicketDetail
+          : () => null,
   }))
 );
 
@@ -83,8 +84,8 @@ const StaffTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.StaffTicketDetail === "function"
-        ? m.StaffTicketDetail
-        : () => null,
+          ? m.StaffTicketDetail
+          : () => null,
   }))
 );
 
@@ -139,7 +140,7 @@ export default function AppRoutes() {
         }
       />
       <Route path="/admin" element={<div />} />
-
+      <Route path="/admin/support-chats" element={<AdminSupportChatPage />} />
       {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
