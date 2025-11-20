@@ -235,7 +235,7 @@ public class TicketsController : ControllerBase
             .AnyAsync(u =>
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
-                u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
+                u.Roles.Any(r => (r.Code ?? "").ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
@@ -269,7 +269,7 @@ public class TicketsController : ControllerBase
             .AnyAsync(u =>
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
-                u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
+                u.Roles.Any(r => (r.Code ?? "").ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg != "Technical") t.AssignmentState = "Technical";
@@ -353,7 +353,7 @@ public class TicketsController : ControllerBase
             .Include(u => u.Roles)
             .Where(u =>
                 ((u.Status ?? "Active") == "Active") &&
-                u.Roles.Any(r => (r.Name ?? "").Trim().ToLower() == "customer care staff"));
+                u.Roles.Any(r => (r.Code ?? "").ToLower().Contains("care")));
         return users;
     }
 
