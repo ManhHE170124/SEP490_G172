@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { usePermissions } from "../context/PermissionContext";
 
 const ProtectedRoute = ({ moduleCode, children }) => {
+  
   const { allowedModuleCodes, loading } = usePermissions();
 
   if (!moduleCode) {
