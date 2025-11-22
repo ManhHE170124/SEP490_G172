@@ -144,6 +144,7 @@ export default function AdminTicketDetail() {
     setErr("");
     try {
       const res = await ticketsApi.detail(id);
+      // GIỮ NGUYÊN: API detail trả về object, không phải { data: ... }
       setData(res);
 
       const draft = localStorage.getItem(draftKey);
@@ -393,6 +394,12 @@ export default function AdminTicketDetail() {
             Mã: <strong>{data.ticketCode}</strong>
           </div>
           <h3 className="subject">{data.subject}</h3>
+
+          {/* THÊM: hiển thị Description dưới title nếu có */}
+          {data.description && (
+            <div className="ticket-desc">{data.description}</div>
+          )}
+
           <div className="meta">
             <span className="chip">
               {MAP_STATUS[data.status] || data.status}
@@ -629,6 +636,48 @@ export default function AdminTicketDetail() {
             <div className="kv">
               <span className="k">Điện thoại</span>
               <span className="v">{data.customerPhone || "-"}</span>
+            </div>
+            {/* THÊM: PriorityLevel */}
+            <div className="kv">
+              <span className="k">Mức ưu tiên</span>
+              <span className="v">
+                {data.priorityLevel != null ? data.priorityLevel : "-"}
+              </span>
+            </div>
+          </div>
+
+          {/* THÊM: Thông tin SLA */}
+          <div className="card">
+            <div className="card-title">Thông tin SLA</div>
+            <div className="kv">
+              <span className="k">Hạn phản hồi đầu tiên</span>
+              <span className="v">
+                {data.firstResponseDueAt
+                  ? fmtDateTime(data.firstResponseDueAt)
+                  : "-"}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="k">Phản hồi đầu tiên lúc</span>
+              <span className="v">
+                {data.firstRespondedAt
+                  ? fmtDateTime(data.firstRespondedAt)
+                  : "-"}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="k">Hạn xử lý hoàn tất</span>
+              <span className="v">
+                {data.resolutionDueAt
+                  ? fmtDateTime(data.resolutionDueAt)
+                  : "-"}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="k">Hoàn tất lúc</span>
+              <span className="v">
+                {data.resolvedAt ? fmtDateTime(data.resolvedAt) : "-"}
+              </span>
             </div>
           </div>
 
