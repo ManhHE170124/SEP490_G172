@@ -192,6 +192,14 @@
   color: var(--ink);
 }
 
+/* Textarea mô tả chi tiết: không cho resize ngang, không tràn khung */
+.ctc-card textarea {
+  width: 100%;
+  max-width: 100%;
+  resize: vertical; /* chỉ cho kéo dọc, không cho kéo ngang */
+  box-sizing: border-box;
+}
+
 /* Focus input/select */
 .ctc-card .form-control:focus,
 .ctc-card .form-select:focus {
