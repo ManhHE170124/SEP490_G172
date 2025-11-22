@@ -248,23 +248,23 @@ public class TicketsController : ControllerBase
     /// </summary>
     /// <remarks>
     /// POST /api/Tickets/create
-    /// Body: { "subject": "...", "description": "..." }
+    /// Body: { "templateCode": "...", "description": "..." }
     /// </remarks>
     [HttpPost("create")]
     public async Task<ActionResult<CustomerTicketCreatedDto>> CreateCustomerTicket([FromBody] CustomerCreateTicketDto dto)
     {
-        var subject = (dto?.Subject ?? string.Empty).Trim();
+        var templateCode = (dto?.TemplateCode ?? string.Empty).Trim();
         var descriptionRaw = dto?.Description ?? string.Empty;
         var description = descriptionRaw.Trim();
 
-        if (string.IsNullOrWhiteSpace(subject))
+        if (string.IsNullOrWhiteSpace(templateCode))
         {
-            return BadRequest(new { message = "Tiêu đề ticket không được để trống." });
+            return BadRequest(new { message = "Vui lòng chọn loại vấn đề (tiêu đề ticket)." });
         }
 
-        if (subject.Length > 120)
+        if (templateCode.Length > 50)
         {
-            return BadRequest(new { message = "Tiêu đề ticket tối đa 120 ký tự." });
+            return BadRequest(new { message = "Mã template không hợp lệ." });
         }
 
         if (description.Length > 1000)
@@ -298,6 +298,19 @@ public class TicketsController : ControllerBase
                 new { message = "Chỉ khách hàng mới được phép tạo ticket." });
         }
 
+        // Lấy template tiêu đề + severity tương ứng
+        var template = await _db.TicketSubjectTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TemplateCode == templateCode && t.IsActive);
+
+        if (template == null)
+        {
+            return BadRequest(new
+            {
+                message = "Loại vấn đề bạn chọn không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng tải lại trang và thử lại."
+            });
+        }
+
         var now = DateTime.UtcNow;
 
         // Sinh TicketCode mới kiểu TCK-0001, TCK-0002...
@@ -307,13 +320,13 @@ public class TicketsController : ControllerBase
         {
             TicketId = Guid.NewGuid(),
             UserId = sender.UserId,
-            Subject = subject,
+            Subject = template.Title,
             Description = string.IsNullOrWhiteSpace(description) ? null : description,
             Status = "New",
             AssigneeId = null,
             TicketCode = ticketCode,
             // SLA fields
-            Severity = null,        // sẽ được gán trong ApplyOnCreate
+            Severity = null,        // sẽ được gán chính xác trong ApplyOnCreate
             SlaStatus = SlaState.OK.ToString(),
             AssignmentState = "Unassigned",
             CreatedAt = now,
@@ -321,12 +334,12 @@ public class TicketsController : ControllerBase
         };
 
         // Áp dụng logic SLA chung:
-        // - Severity = Medium (mặc định)
+        // - Severity lấy theo template (Low/Medium/High/Critical)
         // - PriorityLevel = sender.SupportPriorityLevel
         TicketSlaHelper.ApplyOnCreate(
             _db,
             ticket,
-            TicketSeverity.Medium.ToString(),
+            template.Severity,
             sender.SupportPriorityLevel,
             now
         );
@@ -348,6 +361,35 @@ public class TicketsController : ControllerBase
 
         return Ok(result);
     }
+
+    // ============ SUBJECT TEMPLATES (Customer create) =============
+    [HttpGet("subject-templates")]
+    public async Task<ActionResult<List<TicketSubjectTemplateDto>>> GetSubjectTemplates([FromQuery] bool activeOnly = true)
+    {
+        var query = _db.TicketSubjectTemplates.AsNoTracking();
+
+        if (activeOnly)
+        {
+            query = query.Where(t => t.IsActive);
+        }
+
+        var list = await query
+            .OrderBy(t => t.Category ?? "General")
+            .ThenBy(t => t.Title)
+            .Select(t => new TicketSubjectTemplateDto
+            {
+                TemplateCode = t.TemplateCode,
+                Title = t.Title,
+                Severity = t.Severity,
+                Category = t.Category,
+                IsActive = t.IsActive
+            })
+            .ToListAsync();
+
+        return Ok(list);
+    }
+
+
 
     // ============ ASSIGN / TRANSFER / COMPLETE / CLOSE ============
     public class AssignTicketDto { public Guid AssigneeId { get; set; } }

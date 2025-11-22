@@ -92,13 +92,20 @@ namespace Keytietkiem.DTOs.Tickets
 
     public class CustomerCreateTicketDto
     {
+        /// <summary>
+        /// Mã template tiêu đề ticket (TicketSubjectTemplates.TemplateCode)
+        /// </summary>
         [Required]
-        [StringLength(120)]
-        public string Subject { get; set; } = "";
+        [StringLength(50)]
+        public string TemplateCode { get; set; } = "";
 
+        /// <summary>
+        /// Mô tả chi tiết do khách hàng nhập (optional)
+        /// </summary>
         [StringLength(1000)]
         public string? Description { get; set; }
     }
+
 
     public class CustomerTicketCreatedDto
     {
@@ -111,6 +118,25 @@ namespace Keytietkiem.DTOs.Tickets
         public SlaState SlaStatus { get; set; } = SlaState.OK;
         public DateTime CreatedAt { get; set; }
     }
+    public class TicketSubjectTemplateDto
+    {
+        public string TemplateCode { get; set; } = "";
+        public string Title { get; set; } = "";
+
+        /// <summary>
+        /// Low / Medium / High / Critical
+        /// </summary>
+        public string Severity { get; set; } = TicketSeverity.Medium.ToString();
+
+        /// <summary>
+        /// Payment, Key, Account, Refund, Support, Security, General...
+        /// (FE sẽ dịch sang tiếng Việt)
+        /// </summary>
+        public string? Category { get; set; }
+
+        public bool IsActive { get; set; }
+    }
+
 
     public class CreateTicketReplyDto
     {

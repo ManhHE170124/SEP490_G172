@@ -5,14 +5,6 @@ import { ticketsApi } from "../../api/ticketsApi";
 import axiosClient from "../../api/axiosClient";
 import "../../styles/customer-ticket-create.css";
 
-// Map severity -> tiếng Việt
-const SEVERITY_LABELS = {
-  Low: "Thấp",
-  Medium: "Trung bình",
-  High: "Cao",
-  Critical: "Nghiêm trọng",
-};
-
 // Map Category (trong DB) -> tiếng Việt
 const TEMPLATE_CATEGORY_LABELS = {
   Payment: "Thanh toán",
@@ -39,24 +31,22 @@ export default function CustomerTicketCreatePage() {
   const navigate = useNavigate();
 
   // Form tạo ticket
-  const [createSubject, setCreateSubject] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const SUBJECT_MAX = 120;
   const DESCRIPTION_MAX = 1000;
 
-  // Template tiêu đề từ BE
+  // Templates từ backend
   const [templates, setTemplates] = useState([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState("");
 
-  // Lựa chọn trên UI
+  // Lựa chọn của user
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTemplateCode, setSelectedTemplateCode] = useState("");
 
-  // Tải TicketSubjectTemplates từ BE
+  // Tải TicketSubjectTemplates từ backend
   useEffect(() => {
     let cancelled = false;
 
@@ -64,19 +54,19 @@ export default function CustomerTicketCreatePage() {
       setTemplatesLoading(true);
       setTemplatesError("");
       try {
-        // BE gợi ý: GET /api/Tickets/subject-templates?activeOnly=true
+        // BE: GET /api/Tickets/subject-templates?activeOnly=true
         const res = await axiosClient.get("/tickets/subject-templates", {
           params: { activeOnly: true },
         });
         if (cancelled) return;
 
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const list = Array.isArray(res) ? res : [];
         setTemplates(list);
       } catch (err) {
         console.error("Failed to load ticket subject templates", err);
         if (!cancelled) {
           setTemplatesError(
-            "Không tải được danh sách tiêu đề mẫu. Bạn vẫn có thể tự nhập tiêu đề."
+            "Không tải được danh sách tiêu đề mẫu. Vui lòng thử lại sau."
           );
         }
       } finally {
@@ -94,13 +84,18 @@ export default function CustomerTicketCreatePage() {
 
   // Danh sách Category thực tế có template
   const categories = CATEGORY_ORDER.filter((cat) =>
-    templates.some((t) => (t.category || "General") === cat && t.isActive !== false)
+    templates.some(
+      (t) =>
+        (t.category || "General") === cat &&
+        (t.isActive === undefined || t.isActive)
+    )
   );
 
-  // Lọc template theo Category đã chọn
+  // Templates theo Category được chọn
   const filteredTemplates = templates.filter((t) => {
-    if (t.isActive === false) return false;
     const cat = t.category || "General";
+    const active = t.isActive === undefined || t.isActive;
+    if (!active) return false;
     if (!selectedCategory) return false;
     return cat === selectedCategory;
   });
@@ -111,26 +106,25 @@ export default function CustomerTicketCreatePage() {
     null;
 
   function validateCreateForm() {
-    const subjectTrimmed = createSubject.trim();
-    const descriptionTrimmed = createDescription.trim();
+    const descTrimmed = createDescription.trim();
 
-    if (!subjectTrimmed) {
-      setCreateError("Vui lòng nhập tiêu đề ticket.");
+    if (!selectedCategory) {
+      setCreateError("Vui lòng chọn nhóm vấn đề.");
       return false;
     }
 
-    if (!descriptionTrimmed) {
-      setCreateError("Vui lòng mô tả vấn đề của bạn.");
+    if (!selectedTemplateCode) {
+      setCreateError("Vui lòng chọn tiêu đề phù hợp với vấn đề của bạn.");
       return false;
     }
 
-    if (subjectTrimmed.length > SUBJECT_MAX) {
-      setCreateError(`Tiêu đề ticket tối đa ${SUBJECT_MAX} ký tự.`);
+    if (!descTrimmed) {
+      setCreateError("Vui lòng mô tả chi tiết vấn đề của bạn.");
       return false;
     }
 
-    if (descriptionTrimmed.length > DESCRIPTION_MAX) {
-      setCreateError(`Mô tả ticket tối đa ${DESCRIPTION_MAX} ký tự.`);
+    if (descTrimmed.length > DESCRIPTION_MAX) {
+      setCreateError(`Mô tả tối đa ${DESCRIPTION_MAX} ký tự.`);
       return false;
     }
 
@@ -146,23 +140,17 @@ export default function CustomerTicketCreatePage() {
     setCreateError("");
 
     try {
-      const subjectTrimmed = createSubject.trim();
-      const descriptionTrimmed = createDescription.trim();
+      const descTrimmed = createDescription.trim();
 
       const payload = {
-        // BE: CustomerCreateTicketDto { subject, description }
-        subject: subjectTrimmed,
-        description: descriptionTrimmed,
-        // Mở rộng sẵn cho tương lai: BE có thể nhận thêm 2 field này
-        templateCode: selectedTemplate?.templateCode || null,
-        severity: selectedTemplate?.severity || null,
+        // BE mới: chỉ cần templateCode, description
+        templateCode: selectedTemplate?.templateCode || selectedTemplateCode,
+        description: descTrimmed || null,
       };
 
-      const res = await ticketsApi.create(payload);
-      const created = res?.data;
+      const created = await ticketsApi.create(payload);
 
       // Reset form
-      setCreateSubject("");
       setCreateDescription("");
       setSelectedCategory("");
       setSelectedTemplateCode("");
@@ -253,10 +241,10 @@ export default function CustomerTicketCreatePage() {
                   </div>
                 </div>
 
-                {/* Tiêu đề mẫu theo Category */}
+                {/* Tiêu đề (template) theo Category */}
                 <div className="mb-3">
                   <label className="form-label fw-semibold">
-                    Tiêu đề mẫu (gợi ý)
+                    Tiêu đề ticket <span className="text-danger">*</span>
                   </label>
                   <div className="ctc-template-row">
                     <select
@@ -269,12 +257,6 @@ export default function CustomerTicketCreatePage() {
                         const code = e.target.value;
                         setSelectedTemplateCode(code);
                         setCreateError("");
-                        const tmpl = templates.find(
-                          (t) => t.templateCode === code
-                        );
-                        if (tmpl) {
-                          setCreateSubject(tmpl.title || "");
-                        }
                       }}
                     >
                       <option value="">
@@ -282,31 +264,16 @@ export default function CustomerTicketCreatePage() {
                           ? "-- Vui lòng chọn nhóm vấn đề trước --"
                           : filteredTemplates.length === 0
                           ? "-- Chưa có tiêu đề mẫu cho nhóm này --"
-                          : "-- Chọn tiêu đề gần với vấn đề của bạn --"}
+                          : "-- Chọn tiêu đề phù hợp với vấn đề của bạn --"}
                       </option>
                       {filteredTemplates.map((t) => (
                         <option key={t.templateCode} value={t.templateCode}>
-                          [{SEVERITY_LABELS[t.severity] || t.severity}]{" "}
                           {t.title}
                         </option>
                       ))}
                     </select>
-
-                    {selectedTemplate && selectedTemplate.severity && (
-                      <span
-                        className={
-                          "ctc-severity-pill " +
-                          `ctc-severity-${String(
-                            selectedTemplate.severity
-                          ).toLowerCase()}`
-                        }
-                      >
-                        Mức độ:{" "}
-                        {SEVERITY_LABELS[selectedTemplate.severity] ||
-                          selectedTemplate.severity}
-                      </span>
-                    )}
                   </div>
+
                   <div className="ctc-field-footer">
                     {templatesLoading && (
                       <small className="text-muted">
@@ -318,36 +285,10 @@ export default function CustomerTicketCreatePage() {
                     )}
                     {!templatesLoading && !templatesError && (
                       <small className="text-muted">
-                        Sau khi chọn, tiêu đề bên dưới sẽ tự được điền sẵn. Bạn
-                        vẫn có thể chỉnh sửa lại cho đúng.
+                        Tiêu đề được cố định theo mẫu, bạn chỉ cần chọn đúng
+                        nhóm và nội dung phù hợp.
                       </small>
                     )}
-                  </div>
-                </div>
-
-                {/* Tiêu đề (cho phép chỉnh sửa) */}
-                <div className="mb-3">
-                  <label className="form-label fw-semibold">
-                    Tiêu đề <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={createSubject}
-                    maxLength={SUBJECT_MAX}
-                    onChange={(e) => {
-                      setCreateSubject(e.target.value);
-                      if (createError) setCreateError("");
-                    }}
-                    placeholder="Ví dụ: Không nhận được key sau khi thanh toán"
-                  />
-                  <div className="ctc-field-footer">
-                    <small className="text-muted">
-                      Ghi ngắn gọn, đúng nội dung chính của vấn đề.
-                    </small>
-                    <small className="text-muted">
-                      {createSubject.length}/{SUBJECT_MAX}
-                    </small>
                   </div>
                 </div>
 
@@ -387,8 +328,9 @@ export default function CustomerTicketCreatePage() {
               </form>
 
               <div className="ctc-footer-note">
-                Sau khi gửi, bạn sẽ được chuyển đến trang chi tiết ticket để
-                theo dõi trạng thái xử lý và trao đổi với nhân viên hỗ trợ.
+                Sau khi gửi, hệ thống sẽ tạo ticket với tiêu đề và mức độ ưu
+                tiên tương ứng với mẫu bạn đã chọn. Bạn có thể theo dõi trạng
+                thái xử lý trong mục “Ticket của tôi”.
               </div>
             </div>
           </div>
@@ -400,25 +342,27 @@ export default function CustomerTicketCreatePage() {
             <div className="ctc-card-title">Gợi ý để xử lý nhanh hơn</div>
             <ul className="ctc-tips-list">
               <li>
-                Đính kèm <strong>mã đơn hàng</strong> hoặc <strong>email</strong>{" "}
-                đã dùng để mua.
+                Đính kèm <strong>mã đơn hàng</strong> hoặc{" "}
+                <strong>email</strong> đã dùng để mua.
               </li>
               <li>
                 Ghi rõ <strong>thời gian thanh toán</strong> và{" "}
                 <strong>phương thức thanh toán</strong>.
               </li>
               <li>
-                Nếu liên quan đến tài khoản dịch vụ, vui lòng ghi rõ{" "}
-                <strong>tên tài khoản</strong>.
+                Nếu liên quan đến tài khoản dịch vụ, vui lòng cung cấp{" "}
+                <strong>tài khoản đăng nhập</strong> hoặc{" "}
+                <strong>email</strong> dùng để sử dụng dịch vụ.
               </li>
               <li>
-                Không gửi thông tin nhạy cảm như mật khẩu thanh toán, mã OTP...
+                Mô tả các bước thao tác trước khi gặp lỗi (nếu có) để đội ngũ
+                hỗ trợ dễ tái hiện vấn đề.
               </li>
             </ul>
             <div className="ctc-sla-note">
-              Ticket sẽ được xếp hàng và xử lý theo{" "}
-              <strong>mức độ ưu tiên</strong> của tài khoản cùng{" "}
-              <strong>quy tắc SLA</strong> của hệ thống.
+              Ticket sẽ được xếp hàng xử lý theo mức độ ưu tiên tương ứng với
+              loại vấn đề mà bạn chọn. Bạn có thể tiếp tục trao đổi trong luồng
+              ticket sau khi gửi.
             </div>
           </div>
         </div>
