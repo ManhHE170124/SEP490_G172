@@ -232,11 +232,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "File CSV là bắt buộc" });
             }
 
-            if (dto.CogsPrice < 0)
-            {
-                return BadRequest(new { message = "Giá vốn phải lớn hơn hoặc bằng 0" });
-            }
-
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -246,13 +241,13 @@ namespace Keytietkiem.Controllers
                     : dto.KeyType;
 
                 var result = await _licensePackageService.CreatePackageAndUploadCsvAsync(
-                    dto.ProductId,
+                    dto.VariantId,
                     dto.SupplierId,
-                    dto.CogsPrice,
                     dto.File,
                     actorId,
                     actorEmail,
                     keyType,
+                    dto.CogsPrice,
                     dto.ExpiryDate,
                     cancellationToken);
 

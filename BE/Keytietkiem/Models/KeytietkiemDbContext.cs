@@ -503,7 +503,7 @@ public partial class KeytietkiemDbContext : DbContext
         {
             entity.HasKey(e => e.ProductAccountId).HasName("PK__ProductA__DC9454DBDB326C82");
 
-            entity.HasIndex(e => e.ProductId, "IX_ProductAccounts_Product");
+            entity.HasIndex(e => e.VariantId, "IX_ProductAccounts_Variant");
 
             entity.HasIndex(e => e.Status, "IX_ProductAccounts_Status");
 
@@ -511,7 +511,6 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.AccountEmail).HasMaxLength(254);
             entity.Property(e => e.AccountPassword).HasMaxLength(512);
             entity.Property(e => e.AccountUsername).HasMaxLength(100);
-            entity.Property(e => e.CogsPrice).HasColumnType("decimal(18, 0)");
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
@@ -524,10 +523,10 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasDefaultValue("Active");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
-            entity.HasOne(d => d.Product).WithMany(p => p.ProductAccounts)
-                .HasForeignKey(d => d.ProductId)
+            entity.HasOne(d => d.Variant).WithMany(p => p.ProductAccounts)
+                .HasForeignKey(d => d.VariantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_ProductAccounts_Product");
+                .HasConstraintName("FK_ProductAccounts_Variant");
         });
 
         modelBuilder.Entity<ProductAccountCustomer>(entity =>
@@ -609,6 +608,8 @@ public partial class KeytietkiemDbContext : DbContext
         {
             entity.HasKey(e => e.KeyId).HasName("PK__ProductK__21F5BE47DD83664D");
 
+            entity.HasIndex(e => e.VariantId, "IX_ProductKeys_Variant");
+
             entity.HasIndex(e => e.SupplierId, "IX_ProductKeys_Supplier");
 
             entity.HasIndex(e => e.KeyString, "UQ__ProductK__BE7B08A9C6F44C87").IsUnique();
@@ -630,10 +631,10 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasDefaultValue("Individual");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
-            entity.HasOne(d => d.Product).WithMany(p => p.ProductKeys)
-                .HasForeignKey(d => d.ProductId)
+            entity.HasOne(d => d.Variant).WithMany(p => p.ProductKeys)
+                .HasForeignKey(d => d.VariantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_ProductKeys_Product");
+                .HasConstraintName("FK_ProductKeys_Variant");
 
             entity.HasOne(d => d.Supplier).WithMany(p => p.ProductKeys)
                 .HasForeignKey(d => d.SupplierId)
@@ -706,7 +707,10 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.VariantCode)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
+            entity.Property(e => e.CogsPrice).HasColumnType("decimal(18, 0)");
+            entity.Property(e => e.SellPrice).HasColumnType("decimal(18, 0)");
+            entity.Property(e => e.CogsPrice).HasDefaultValue(0);
+            entity.Property(e => e.SellPrice).HasDefaultValue(0);
             entity.HasOne(d => d.Product).WithMany(p => p.ProductVariants)
                 .HasForeignKey(d => d.ProductId)
                 .HasConstraintName("FK_ProductVariants_Product");

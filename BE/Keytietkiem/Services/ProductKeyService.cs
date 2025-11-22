@@ -29,7 +29,8 @@ public class ProductKeyService : IProductKeyService
         CancellationToken cancellationToken = default)
     {
         var query = _productKeyRepository.Query()
-            .Include(pk => pk.Product)
+            .Include(pk => pk.Variant)
+                .ThenInclude(v => v.Product)
             .Include(pk => pk.Supplier)
             .AsQueryable();
 
@@ -38,12 +39,15 @@ public class ProductKeyService : IProductKeyService
         {
             var searchLower = filter.SearchTerm.ToLower();
             query = query.Where(pk =>
-                pk.Product.ProductName.ToLower().Contains(searchLower) ||
-                pk.Product.ProductCode.ToLower().Contains(searchLower) ||
+                pk.Variant.Product.ProductName.ToLower().Contains(searchLower) ||
+                pk.Variant.Product.ProductCode.ToLower().Contains(searchLower) ||
+                pk.Variant.Title.ToLower().Contains(searchLower) ||
                 pk.KeyString.ToLower().Contains(searchLower));
         }
 
-        if (filter.ProductId.HasValue) query = query.Where(pk => pk.ProductId == filter.ProductId.Value);
+        if (filter.VariantId.HasValue) query = query.Where(pk => pk.VariantId == filter.VariantId.Value);
+
+        if (filter.ProductId.HasValue) query = query.Where(pk => pk.Variant.ProductId == filter.ProductId.Value);
 
         if (filter.SupplierId.HasValue) query = query.Where(pk => pk.SupplierId == filter.SupplierId.Value);
 
@@ -62,13 +66,12 @@ public class ProductKeyService : IProductKeyService
             .Select(pk => new ProductKeyListDto
             {
                 KeyId = pk.KeyId,
-                ProductName = pk.Product.ProductName,
-                ProductSku = pk.Product.ProductCode,
+                ProductName = pk.Variant.Product.ProductName,
+                ProductSku = pk.Variant.Product.ProductCode,
                 KeyString = pk.KeyString,
                 Status = pk.Status,
                 Type = pk.Type,
                 UpdatedAt = pk.UpdatedAt,
-
                 ImportedAt = pk.ImportedAt
             })
             .ToListAsync(cancellationToken);
@@ -87,7 +90,8 @@ public class ProductKeyService : IProductKeyService
         CancellationToken cancellationToken = default)
     {
         var key = await _productKeyRepository.Query()
-            .Include(pk => pk.Product)
+            .Include(pk => pk.Variant)
+                .ThenInclude(v => v.Product)
             .Include(pk => pk.Supplier)
             .FirstOrDefaultAsync(pk => pk.KeyId == keyId, cancellationToken);
 
@@ -103,9 +107,12 @@ public class ProductKeyService : IProductKeyService
         return new ProductKeyDetailDto
         {
             KeyId = key.KeyId,
-            ProductId = key.ProductId,
-            ProductName = key.Product.ProductName,
-            ProductCode = key.Product.ProductCode,
+            VariantId = key.VariantId,
+            VariantTitle = key.Variant.Title,
+            ProductName = key.Variant.Product.ProductName,
+            ProductCode = key.Variant.Product.ProductCode,
+            CogsPrice = key.Variant.CogsPrice,
+            SellPrice = key.Variant.SellPrice,
             SupplierId = key.SupplierId,
             SupplierName = key.Supplier.Name,
             KeyString = key.KeyString,
@@ -126,11 +133,12 @@ public class ProductKeyService : IProductKeyService
         Guid actorId,
         CancellationToken cancellationToken = default)
     {
-        // Validate product exists
-        var product = await _context.Products
-            .FirstOrDefaultAsync(p => p.ProductId == dto.ProductId, cancellationToken);
+        // Validate variant exists
+        var variant = await _context.ProductVariants
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.VariantId == dto.VariantId, cancellationToken);
 
-        if (product == null) throw new InvalidOperationException("Sản phẩm không tồn tại");
+        if (variant == null) throw new InvalidOperationException("Biến thể sản phẩm không tồn tại");
 
         // Validate supplier exists
         var supplier = await _context.Suppliers
@@ -145,14 +153,19 @@ public class ProductKeyService : IProductKeyService
 
         if (existingKey != null) throw new InvalidOperationException("License key đã tồn tại trong hệ thống");
 
-        if (dto.CogsPrice < 0) throw new InvalidOperationException("Giá vốn không được âm");
-
         if (dto.ExpiryDate.HasValue && dto.ExpiryDate.Value.Date < DateTime.UtcNow.Date)
             throw new InvalidOperationException("Ngày hết hạn không được trong quá khứ");
+
+        // Update variant's CogsPrice if provided
+        if (dto.CogsPrice.HasValue)
+        {
+            variant.CogsPrice = dto.CogsPrice.Value;
+        }
+
         var productKey = new ProductKey
         {
             KeyId = Guid.NewGuid(),
-            ProductId = dto.ProductId,
+            VariantId = dto.VariantId,
             SupplierId = dto.SupplierId,
             KeyString = dto.KeyString,
             Type = dto.Type,
@@ -166,9 +179,9 @@ public class ProductKeyService : IProductKeyService
         var licensePackage = new LicensePackage
         {
             SupplierId = dto.SupplierId,
-            ProductId = dto.ProductId,
+            ProductId = variant.ProductId,
             Quantity = 1,
-            PricePerUnit = dto.CogsPrice,
+            PricePerUnit = variant.CogsPrice,
             ImportedToStock = 1,
             CreatedAt = DateTime.UtcNow,
             Notes = "Auto-generated for manual key import"
@@ -176,10 +189,10 @@ public class ProductKeyService : IProductKeyService
         _context.LicensePackages.Add(licensePackage);
         await _productKeyRepository.AddAsync(productKey, cancellationToken);
 
-        // Update Product stock quantity
-        product.StockQty += 1;
-        product.UpdatedAt = DateTime.UtcNow;
-        _context.Products.Update(product);
+        // Update Variant stock quantity
+        variant.StockQty += 1;
+        variant.UpdatedAt = DateTime.UtcNow;
+        _context.ProductVariants.Update(variant);
 
         // Create audit log
         var auditLog = new AuditLog
@@ -187,7 +200,7 @@ public class ProductKeyService : IProductKeyService
             Action = "CREATE_PRODUCT_KEY",
             Resource = "ProductKey",
             EntityId = productKey.KeyId.ToString(),
-            DetailJson = $"Tạo product key mới cho sản phẩm {product.ProductName}",
+            DetailJson = $"Tạo product key mới cho biến thể {variant.Title} của sản phẩm {variant.Product.ProductName}",
             ActorId = actorId,
             OccurredAt = DateTime.UtcNow
         };
@@ -384,7 +397,8 @@ public class ProductKeyService : IProductKeyService
         CancellationToken cancellationToken = default)
     {
         var query = _productKeyRepository.Query()
-            .Include(pk => pk.Product)
+            .Include(pk => pk.Variant)
+                .ThenInclude(v => v.Product)
             .Include(pk => pk.Supplier)
             .AsQueryable();
 
@@ -393,12 +407,15 @@ public class ProductKeyService : IProductKeyService
         {
             var searchLower = filter.SearchTerm.ToLower();
             query = query.Where(pk =>
-                pk.Product.ProductName.ToLower().Contains(searchLower) ||
-                pk.Product.ProductCode.ToLower().Contains(searchLower) ||
+                pk.Variant.Product.ProductName.ToLower().Contains(searchLower) ||
+                pk.Variant.Product.ProductCode.ToLower().Contains(searchLower) ||
+                pk.Variant.Title.ToLower().Contains(searchLower) ||
                 pk.KeyString.ToLower().Contains(searchLower));
         }
 
-        if (filter.ProductId.HasValue) query = query.Where(pk => pk.ProductId == filter.ProductId.Value);
+        if (filter.VariantId.HasValue) query = query.Where(pk => pk.VariantId == filter.VariantId.Value);
+
+        if (filter.ProductId.HasValue) query = query.Where(pk => pk.Variant.ProductId == filter.ProductId.Value);
 
         if (filter.SupplierId.HasValue) query = query.Where(pk => pk.SupplierId == filter.SupplierId.Value);
 
@@ -422,7 +439,7 @@ public class ProductKeyService : IProductKeyService
             var type = key.Type;
 
             csv.AppendLine(
-                $"\"{key.Product.ProductCode}\",\"{key.Product.ProductName}\",\"{key.KeyString}\",\"{type}\",\"{key.Status}\",\"{expiryDate}\",\"{importedAt}\",\"{notes}\"");
+                $"\"{key.Variant.Product.ProductCode}\",\"{key.Variant.Product.ProductName}\",\"{key.KeyString}\",\"{type}\",\"{key.Status}\",\"{expiryDate}\",\"{importedAt}\",\"{notes}\"");
         }
 
         return Encoding.UTF8.GetBytes(csv.ToString());
