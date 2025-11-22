@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
+import { ProductVariantsApi } from "../../services/productVariants";
 import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
@@ -22,9 +23,12 @@ export default function KeyDetailPage() {
   const [saving, setSaving] = useState(false);
   const [keyInfo, setKeyInfo] = useState(null);
   const [products, setProducts] = useState([]);
+  const [variants, setVariants] = useState([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [formData, setFormData] = useState({
     productId: "",
+    variantId: "",
     supplierId: "",
     keyString: "",
     type: "Individual",
@@ -56,6 +60,7 @@ export default function KeyDetailPage() {
       setKeyInfo(data);
       setFormData({
         productId: data.productId,
+        variantId: data.variantId || "",
         supplierId: data.supplierId,
         keyString: data.keyString,
         type: data.type,
@@ -108,6 +113,26 @@ export default function KeyDetailPage() {
     }
   }, []);
 
+  const loadVariantsForProduct = useCallback(async (productId) => {
+    if (!productId) {
+      setVariants([]);
+      return;
+    }
+    setLoadingVariants(true);
+    try {
+      const data = await ProductVariantsApi.list(productId, {
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setVariants(data.items || []);
+    } catch (err) {
+      console.error("Failed to load variants:", err);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadProducts();
     loadSuppliers();
@@ -116,11 +141,22 @@ export default function KeyDetailPage() {
     }
   }, [isNew, loadProductKey, loadProducts, loadSuppliers]);
 
+  // Load variants when product changes
+  useEffect(() => {
+    if (formData.productId) {
+      loadVariantsForProduct(formData.productId);
+    }
+  }, [formData.productId, loadVariantsForProduct]);
+
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.productId) {
       newErrors.productId = "Sản phẩm là bắt buộc";
+    }
+
+    if (!formData.variantId) {
+      newErrors.variantId = "Biến thể sản phẩm là bắt buộc";
     }
 
     if (!formData.supplierId) {
@@ -228,7 +264,13 @@ export default function KeyDetailPage() {
   };
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      // Reset variant when product changes
+      if (field === "productId" && value !== prev.productId) {
+        return { ...prev, [field]: value, variantId: "" };
+      }
+      return { ...prev, [field]: value };
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -322,6 +364,36 @@ export default function KeyDetailPage() {
                 </select>
                 {errors.productId && (
                   <small style={{ color: "red" }}>{errors.productId}</small>
+                )}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label>
+                Biến thể <span style={{ color: "red" }}>*</span>
+              </label>
+              <div>
+                <select
+                  className="input"
+                  value={formData.variantId}
+                  onChange={(e) => handleChange("variantId", e.target.value)}
+                  disabled={!isNew || !formData.productId || loadingVariants}
+                >
+                  <option value="">
+                    {loadingVariants
+                      ? "Đang tải..."
+                      : !formData.productId
+                      ? "Chọn sản phẩm trước"
+                      : "Chọn biến thể"}
+                  </option>
+                  {variants.map((variant) => (
+                    <option key={variant.variantId} value={variant.variantId}>
+                      {variant.title}
+                    </option>
+                  ))}
+                </select>
+                {errors.variantId && (
+                  <small style={{ color: "red" }}>{errors.variantId}</small>
                 )}
               </div>
             </div>

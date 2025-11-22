@@ -107,6 +107,7 @@ public class ProductKeyService : IProductKeyService
         return new ProductKeyDetailDto
         {
             KeyId = key.KeyId,
+            ProductId = key.Variant.ProductId,
             VariantId = key.VariantId,
             VariantTitle = key.Variant.Title,
             ProductName = key.Variant.Product.ProductName,
@@ -179,9 +180,8 @@ public class ProductKeyService : IProductKeyService
         var licensePackage = new LicensePackage
         {
             SupplierId = dto.SupplierId,
-            ProductId = variant.ProductId,
+            VariantId = variant.VariantId,
             Quantity = 1,
-            PricePerUnit = variant.CogsPrice,
             ImportedToStock = 1,
             CreatedAt = DateTime.UtcNow,
             Notes = "Auto-generated for manual key import"

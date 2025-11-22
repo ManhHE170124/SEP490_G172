@@ -9,11 +9,9 @@ public partial class LicensePackage
 
     public int SupplierId { get; set; }
 
-    public Guid ProductId { get; set; }
+    public Guid VariantId { get; set; }
 
     public int Quantity { get; set; }
-
-    public decimal PricePerUnit { get; set; }
 
     public int ImportedToStock { get; set; }
 
@@ -21,7 +19,7 @@ public partial class LicensePackage
 
     public string? Notes { get; set; }
 
-    public virtual Product Product { get; set; } = null!;
+    public virtual ProductVariant ProductVariant { get; set; } = null!;
 
     public virtual Supplier Supplier { get; set; } = null!;
 }

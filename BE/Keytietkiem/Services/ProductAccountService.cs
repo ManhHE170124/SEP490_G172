@@ -143,6 +143,7 @@ public class ProductAccountService : IProductAccountService
         return new ProductAccountResponseDto
         {
             ProductAccountId = account.ProductAccountId,
+            ProductId = account.Variant.ProductId,
             VariantId = account.VariantId,
             VariantTitle = account.Variant.Title,
             ProductName = account.Variant.Product.ProductName,

@@ -57,6 +57,7 @@ namespace Keytietkiem.DTOs
     public class ProductKeyDetailDto
     {
         public Guid KeyId { get; set; }
+        public Guid ProductId { get; set; }
         public Guid VariantId { get; set; }
         public string VariantTitle { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;

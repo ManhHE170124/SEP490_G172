@@ -74,6 +74,7 @@ public class UpdateProductAccountDto
 public class ProductAccountResponseDto
 {
     public Guid ProductAccountId { get; set; }
+    public Guid ProductId { get; set; }
     public Guid VariantId { get; set; }
     public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
