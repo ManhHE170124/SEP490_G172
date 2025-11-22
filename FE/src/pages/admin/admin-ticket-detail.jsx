@@ -63,10 +63,10 @@ function StatusBadge({ value }) {
     v === "New"
       ? "st st-new"
       : v === "InProgress"
-      ? "st st-processing"
-      : v === "Completed"
-      ? "st st-completed"
-      : "st st-closed";
+        ? "st st-processing"
+        : v === "Completed"
+          ? "st st-completed"
+          : "st st-closed";
   return <span className={cls}>{MAP_STATUS[v] || v}</span>;
 }
 
@@ -76,10 +76,10 @@ function SeverityTag({ value }) {
     v === "Low"
       ? "tag tag-low"
       : v === "Medium"
-      ? "tag tag-medium"
-      : v === "High"
-      ? "tag tag-high"
-      : "tag tag-critical";
+        ? "tag tag-medium"
+        : v === "High"
+          ? "tag tag-high"
+          : "tag tag-critical";
   return <span className={cls}>{MAP_SEV[v] || v}</span>;
 }
 
@@ -89,8 +89,8 @@ function SlaPill({ value }) {
     v === "OK"
       ? "sla sla-ok"
       : v === "Overdue"
-      ? "sla sla-breached"
-      : "sla sla-warning";
+        ? "sla sla-breached"
+        : "sla sla-warning";
   return <span className={cls}>{MAP_SLA[v] || v}</span>;
 }
 
@@ -101,8 +101,8 @@ function fmtPriority(level) {
     typeof level === "number"
       ? level
       : typeof level === "string" && level.trim() !== ""
-      ? Number(level)
-      : NaN;
+        ? Number(level)
+        : NaN;
   if (!Number.isFinite(num)) return "-";
   return MAP_PRIORITY[num] || "-";
 }
@@ -244,10 +244,10 @@ export default function AdminTicketDetail() {
     return () => {
       connection
         .invoke("LeaveTicketGroup", id)
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           connection.off("ReceiveReply", handleReceiveReply);
-          connection.stop().catch(() => {});
+          connection.stop().catch(() => { });
         });
     };
   }, [id]);
@@ -285,14 +285,15 @@ export default function AdminTicketDetail() {
 
   const actions = useMemo(() => {
     const s = normalizeStatus(data?.status);
+    const asn = data?.assignmentState || "Unassigned";
+
     return {
-      canAssign: s === "New",
+      canAssign: s === "New" || (s === "InProgress" && asn === "Unassigned"),
       canClose: s === "New",
+
       canComplete: s === "InProgress",
       canTransfer:
-        s === "InProgress" &&
-        (data?.assignmentState === "Assigned" ||
-          data?.assignmentState === "Technical"),
+        s === "InProgress" && (asn === "Assigned" || asn === "Technical"),
     };
   }, [data]);
 
@@ -376,8 +377,8 @@ export default function AdminTicketDetail() {
     } catch (e) {
       setReplyError(
         e?.response?.data?.message ||
-          e.message ||
-          "Gửi phản hồi thất bại. Vui lòng thử lại."
+        e.message ||
+        "Gửi phản hồi thất bại. Vui lòng thử lại."
       );
     } finally {
       setSending(false);

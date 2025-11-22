@@ -254,20 +254,22 @@ export default function AdminTicketManagement() {
 
   const actionsFor = (row) => {
     const st = normalizeStatus(row.status);
+    const asn = row.assignmentState || "Unassigned";
     const list = {
       canAssign: false,
       canTransfer: false,
       canComplete: false,
       canClose: false,
     };
-    if (st === "New") {
+    if (st === "New" || (st === "InProgress" && asn === "Unassigned")) {
       list.canAssign = true;
+    }
+    if (st === "New") {
       list.canClose = true;
-    } else if (st === "InProgress") {
+    }
+    if (st === "InProgress") {
       list.canComplete = true;
-      list.canTransfer =
-        row.assignmentState === "Assigned" ||
-        row.assignmentState === "Technical";
+      list.canTransfer = asn === "Assigned" || asn === "Technical";
     }
     return list;
   };

@@ -70,8 +70,8 @@ function fmtPriority(level) {
     typeof level === "number"
       ? level
       : typeof level === "string" && level.trim() !== ""
-      ? Number(level)
-      : NaN;
+        ? Number(level)
+        : NaN;
   if (!Number.isFinite(num)) return "-";
   return MAP_PRIORITY[num] || "-";
 }
@@ -83,10 +83,10 @@ function StatusPill({ value }) {
     v === "New"
       ? "new"
       : v === "InProgress"
-      ? "processing"
-      : v === "Completed"
-      ? "completed"
-      : "closed";
+        ? "processing"
+        : v === "Completed"
+          ? "completed"
+          : "closed";
   return <span className={`ctd-pill ctd-pill-status-${key}`}>{text}</span>;
 }
 
@@ -134,7 +134,7 @@ export default function CustomerTicketDetailPage() {
         if (!cancelled) {
           setLoadError(
             err?.response?.data?.message ||
-              "Không tải được thông tin ticket. Vui lòng thử lại."
+            "Không tải được thông tin ticket. Vui lòng thử lại."
           );
         }
       } finally {
@@ -213,10 +213,10 @@ export default function CustomerTicketDetailPage() {
     return () => {
       connection
         .invoke("LeaveTicketGroup", id)
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           connection.off("ReceiveReply", handleReceiveReply);
-          connection.stop().catch(() => {});
+          connection.stop().catch(() => { });
         });
     };
   }, [id]);
@@ -304,7 +304,7 @@ export default function CustomerTicketDetailPage() {
       console.error("Failed to send reply", err);
       setSendError(
         err?.response?.data?.message ||
-          "Không gửi được phản hồi. Vui lòng thử lại."
+        "Không gửi được phản hồi. Vui lòng thử lại."
       );
     } finally {
       setSending(false);
@@ -424,30 +424,32 @@ export default function CustomerTicketDetailPage() {
                   false;
                 const isMe = !isStaff;
 
-                const senderName =
+                const rawSenderName =
                   reply?.senderName ||
-                  reply?.authorName ||
-                  (isStaff ? "Nhân viên hỗ trợ" : "Bạn");
+                  reply?.senderFullName ||
+                  reply?.customerName ||
+                  "";
+
+                // 👇 Logic theo yêu cầu:
+                // - Nếu là nhân viên → luôn hiển thị "Nhân viên hỗ trợ"
+                // - Ngược lại → dùng tên thật (hoặc fallback "Bạn")
+                const senderName = isStaff ? "Nhân viên hỗ trợ" : rawSenderName || "Bạn";
 
                 const timeValue = reply?.sentAt || reply?.createdAt;
 
-                const firstChar = (senderName || "?").charAt(0).toUpperCase();
+                const firstChar = (rawSenderName || "?").charAt(0).toUpperCase();
 
                 return (
                   <div
                     key={reply.replyId || reply.id}
-                    className={`ctd-msg ${
-                      isMe ? "ctd-msg-me" : "ctd-msg-other"
-                    }`}
+                    className={`ctd-msg ${isMe ? "ctd-msg-me" : "ctd-msg-other"
+                      }`}
                   >
                     <div className="ctd-msg-avatar">{firstChar}</div>
                     <div className="ctd-msg-bubble">
                       <div className="ctd-msg-head">
                         <span className="ctd-msg-name">
                           {senderName}
-                          {isStaff && (
-                            <span className="ctd-msg-staff-tag">Staff</span>
-                          )}
                         </span>
                         <span className="ctd-msg-time">
                           {fmtDateTime(timeValue)}
