@@ -90,6 +90,28 @@ namespace Keytietkiem.DTOs.Tickets
         public LatestOrderMiniDto? LatestOrder { get; set; }
     }
 
+    public class CustomerCreateTicketDto
+    {
+        [Required]
+        [StringLength(120)]
+        public string Subject { get; set; } = "";
+
+        [StringLength(1000)]
+        public string? Description { get; set; }
+    }
+
+    public class CustomerTicketCreatedDto
+    {
+        public Guid TicketId { get; set; }
+        public string TicketCode { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string? Description { get; set; }
+        public string Status { get; set; } = "New";
+        public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
+        public SlaState SlaStatus { get; set; } = SlaState.OK;
+        public DateTime CreatedAt { get; set; }
+    }
+
     public class CreateTicketReplyDto
     {
         [Required, MinLength(1)]

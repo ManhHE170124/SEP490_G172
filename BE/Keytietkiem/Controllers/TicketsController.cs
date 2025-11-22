@@ -47,6 +47,35 @@ public class TicketsController : ControllerBase
         .Include(t => t.User)
         .Include(t => t.Assignee);
 
+    /// <summary>
+    /// Sinh TicketCode mới dạng TCK-0001 dựa trên TicketCode lớn nhất hiện có.
+    /// Dùng string order vì phần số luôn cố định 4 chữ số.
+    /// </summary>
+    private async Task<string> GenerateNextTicketCodeAsync()
+    {
+        const string prefix = "TCK-";
+
+        var lastCode = await _db.Tickets.AsNoTracking()
+            .Where(t => t.TicketCode.StartsWith(prefix))
+            .OrderByDescending(t => t.TicketCode)
+            .Select(t => t.TicketCode)
+            .FirstOrDefaultAsync();
+
+        var lastNumber = 0;
+
+        if (!string.IsNullOrEmpty(lastCode) && lastCode.Length > prefix.Length)
+        {
+            var numericPart = lastCode.Substring(prefix.Length);
+            if (int.TryParse(numericPart, out var n) && n >= 0)
+            {
+                lastNumber = n;
+            }
+        }
+
+        var nextNumber = lastNumber + 1;
+        return $"{prefix}{nextNumber:D4}";
+    }
+
     // ============ LIST ============
     [HttpGet]
     public async Task<ActionResult<PagedResult<TicketListItemDto>>> List(
@@ -92,7 +121,7 @@ public class TicketsController : ControllerBase
 
         var total = await query.CountAsync();
 
-        // ✅ Sắp xếp theo TicketCode (giảm dần) thay vì CreatedAt
+        // Sắp xếp theo TicketCode (giảm dần)
         var raw = await query
             .OrderByDescending(t => t.TicketCode)
             .Skip((page - 1) * pageSize)
@@ -208,10 +237,116 @@ public class TicketsController : ControllerBase
         return Ok(dto);
     }
 
-    private Guid? GetCurrentUserIdOrNull()
+    // ============ CUSTOMER CREATE ============
+    /// <summary>
+    /// Customer tạo ticket mới từ màn hình customer-ticket.
+    /// - Chỉ cho phép user đang đăng nhập có role "Customer".
+    /// - Severity mặc định = Medium (không cho customer chọn).
+    /// - PriorityLevel lấy từ SupportPriorityLevel của user.
+    /// - Tự sinh TicketCode dạng "TCK-0001" dựa trên mã lớn nhất hiện có.
+    /// - Tự áp dụng SLA (SlaRuleId, FirstResponseDueAt, ResolutionDueAt, SlaStatus).
+    /// </summary>
+    /// <remarks>
+    /// POST /api/Tickets/create
+    /// Body: { "subject": "...", "description": "..." }
+    /// </remarks>
+    [HttpPost("create")]
+    public async Task<ActionResult<CustomerTicketCreatedDto>> CreateCustomerTicket([FromBody] CustomerCreateTicketDto dto)
     {
-        var str = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(str, out var id) ? id : null;
+        var subject = (dto?.Subject ?? string.Empty).Trim();
+        var descriptionRaw = dto?.Description ?? string.Empty;
+        var description = descriptionRaw.Trim();
+
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            return BadRequest(new { message = "Tiêu đề ticket không được để trống." });
+        }
+
+        if (subject.Length > 120)
+        {
+            return BadRequest(new { message = "Tiêu đề ticket tối đa 120 ký tự." });
+        }
+
+        if (description.Length > 1000)
+        {
+            return BadRequest(new { message = "Mô tả ticket tối đa 1000 ký tự." });
+        }
+
+        // Lấy id người đang đăng nhập từ Claim
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var me))
+            return Unauthorized();
+
+        // Lấy đầy đủ thông tin + roles của người gửi
+        var sender = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me);
+
+        if (sender is null)
+            return Unauthorized();
+
+        // Chỉ cho phép khách hàng tạo ticket (lọc theo Role.Code chứa "customer")
+        var isCustomer = sender.Roles.Any(r =>
+        {
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return code.Contains("customer");
+        });
+
+        if (!isCustomer)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ khách hàng mới được phép tạo ticket." });
+        }
+
+        var now = DateTime.UtcNow;
+
+        // Sinh TicketCode mới kiểu TCK-0001, TCK-0002...
+        var ticketCode = await GenerateNextTicketCodeAsync();
+
+        var ticket = new Ticket
+        {
+            TicketId = Guid.NewGuid(),
+            UserId = sender.UserId,
+            Subject = subject,
+            Description = string.IsNullOrWhiteSpace(description) ? null : description,
+            Status = "New",
+            AssigneeId = null,
+            TicketCode = ticketCode,
+            // SLA fields
+            Severity = null,        // sẽ được gán trong ApplyOnCreate
+            SlaStatus = SlaState.OK.ToString(),
+            AssignmentState = "Unassigned",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        // Áp dụng logic SLA chung:
+        // - Severity = Medium (mặc định)
+        // - PriorityLevel = sender.SupportPriorityLevel
+        TicketSlaHelper.ApplyOnCreate(
+            _db,
+            ticket,
+            TicketSeverity.Medium.ToString(),
+            sender.SupportPriorityLevel,
+            now
+        );
+
+        _db.Tickets.Add(ticket);
+        await _db.SaveChangesAsync();
+
+        var result = new CustomerTicketCreatedDto
+        {
+            TicketId = ticket.TicketId,
+            TicketCode = ticket.TicketCode,
+            Subject = ticket.Subject,
+            Description = ticket.Description,
+            Status = ticket.Status,
+            Severity = ParseSeverity(ticket.Severity),
+            SlaStatus = ParseSla(ticket.SlaStatus),
+            CreatedAt = ticket.CreatedAt
+        };
+
+        return Ok(result);
     }
 
     // ============ ASSIGN / TRANSFER / COMPLETE / CLOSE ============
@@ -229,13 +364,13 @@ public class TicketsController : ControllerBase
         if (st is "Closed" or "Completed")
             return BadRequest(new { message = "Ticket đã khoá." });
 
-        // Validate staff
+        // Validate staff: Active + Role.Code chứa "care"
         var userOk = await _db.Users
             .Include(u => u.Roles)
             .AnyAsync(u =>
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
-                u.Roles.Any(r => (r.Code ?? "").ToLower().Contains("care")));
+                u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
@@ -264,12 +399,13 @@ public class TicketsController : ControllerBase
         if (t.AssigneeId == dto.AssigneeId)
             return BadRequest(new { message = "Vui lòng chọn nhân viên khác với người đang phụ trách." });
 
+        // Validate staff: Active + Role.Code chứa "care"
         var userOk = await _db.Users
             .Include(u => u.Roles)
             .AnyAsync(u =>
                 u.UserId == dto.AssigneeId &&
                 ((u.Status ?? "Active") == "Active") &&
-                u.Roles.Any(r => (r.Code ?? "").ToLower().Contains("care")));
+                u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
         if (asg != "Technical") t.AssignmentState = "Technical";
@@ -346,14 +482,14 @@ public class TicketsController : ControllerBase
         public string Email { get; set; } = "";
     }
 
-    // Chỉ lấy nhân viên Active + có role "Customer Care Staff"
+    // Chỉ lấy nhân viên Active + role Code chứa "care"
     private IQueryable<User> StaffBaseQuery()
     {
         var users = _db.Users.AsNoTracking()
             .Include(u => u.Roles)
             .Where(u =>
                 ((u.Status ?? "Active") == "Active") &&
-                u.Roles.Any(r => (r.Code ?? "").ToLower().Contains("care")));
+                u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         return users;
     }
 

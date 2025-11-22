@@ -85,6 +85,8 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<TicketReply> TicketReplies { get; set; }
 
+    public virtual DbSet<TicketSubjectTemplate> TicketSubjectTemplates { get; set; }
+
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<WarrantyClaim> WarrantyClaims { get; set; }
@@ -928,6 +930,29 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.TicketId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_TicketReplies_Ticket");
+        });
+
+        modelBuilder.Entity<TicketSubjectTemplate>(entity =>
+        {
+            entity.HasKey(e => e.TemplateCode)
+                .HasName("PK_TicketSubjectTemplates");
+
+            entity.Property(e => e.TemplateCode)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Title)
+                .HasMaxLength(200);
+
+            entity.Property(e => e.Severity)
+                .HasMaxLength(10)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Category)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
         });
 
         modelBuilder.Entity<User>(entity =>

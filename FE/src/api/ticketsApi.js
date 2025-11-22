@@ -15,32 +15,38 @@ export const ticketsApi = {
     return axiosClient.get("/tickets", { params: p });
   },
 
-  // ===== NEW: create ticket (customer mở ticket) =====
+  // ===== CREATE: customer mở ticket qua /api/Tickets/create =====
   create(payload) {
-    // payload dự kiến: { subject, severity, initialMessage, ... }
-    return axiosClient.post("/tickets", payload);
+    // BE: POST /api/Tickets/create (CustomerCreateTicketDto)
+    // payload tối thiểu: { subject }
+    return axiosClient.post("/tickets/create", payload);
   },
 
   detail(id) {
     return axiosClient.get(`/tickets/${id}`);
   },
+
   assign(id, assigneeId) {
     return axiosClient.post(`/tickets/${id}/assign`, { assigneeId });
   },
+
   transferTech(id, assigneeId) {
     return axiosClient.post(`/tickets/${id}/transfer-tech`, { assigneeId });
   },
+
   complete(id) {
     return axiosClient.post(`/tickets/${id}/complete`, {});
   },
+
   close(id) {
     return axiosClient.post(`/tickets/${id}/close`, {});
   },
+
   reply(id, payload) {
     return axiosClient.post(`/tickets/${id}/replies`, payload);
   },
 
-  // ===== NEW: staff lookup APIs =====
+  // ===== staff lookup APIs =====
   getAssignees(params = {}) {
     const p = {
       q: params.q || "",
@@ -49,6 +55,7 @@ export const ticketsApi = {
     };
     return axiosClient.get("/tickets/assignees", { params: p });
   },
+
   getTransferAssignees(params = {}) {
     const p = {
       q: params.q || "",

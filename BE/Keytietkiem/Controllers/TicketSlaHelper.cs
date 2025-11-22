@@ -15,7 +15,7 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// Áp dụng SLA khi tạo mới ticket:
         /// - Gán Severity chuẩn hoá.
-        /// - Tính PriorityLevel từ customerPriorityLevel (1..3).
+        /// - Tính PriorityLevel từ customerPriorityLevel (giữ nguyên giá trị từ user).
         /// - Chọn SlaRule tương ứng (severity + priority).
         /// - Tính FirstResponseDueAt, ResolutionDueAt.
         /// - Reset FirstRespondedAt, ResolvedAt và cập nhật SlaStatus.
@@ -40,11 +40,9 @@ namespace Keytietkiem.Controllers
             var severity = severityEnum.ToString();
             ticket.Severity = severity;
 
-            // 2. Priority level: lấy theo user, clamp 1..3, default = 1
-            var priority = customerPriorityLevel.GetValueOrDefault(1);
-            if (priority < 1) priority = 1;
-            if (priority > 3) priority = 3;
-
+            // 2. Priority level: lấy 100% theo user, không clamp
+            //    (chỉ fallback = 0 nếu null để tránh null reference)
+            var priority = customerPriorityLevel ?? 0;
             ticket.PriorityLevel = priority;
 
             // 3. Chọn rule phù hợp
