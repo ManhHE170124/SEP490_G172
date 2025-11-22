@@ -316,7 +316,6 @@ const StorefrontProductListPage = () => {
    <div className="sf-grid sf-grid-responsive">
   {items.map((item) => {
     const variantTitle = item.variantTitle || item.title || item.productName;
-
     const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
     const displayTitle = typeLabel
       ? `${variantTitle} - ${typeLabel}`
@@ -331,14 +330,13 @@ const StorefrontProductListPage = () => {
     const priceNowText = formatCurrency(samplePriceNow);
     const priceOldText = formatCurrency(samplePriceOld);
 
-    // Kiểm tra trạng thái sản phẩm hết hàng
     const isOutOfStock =
       item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
 
     return (
       <article
         key={item.variantId}
-        className={`sf-card ${isOutOfStock ? "sf-card-out" : ""}`}  // Thêm class nếu hết hàng
+        className={`sf-card ${isOutOfStock ? "sf-card-out" : ""}`}
       >
         <Link
           className="sf-card-link"
@@ -347,28 +345,16 @@ const StorefrontProductListPage = () => {
           {/* Ảnh sản phẩm */}
           <div className="sf-media">
             {item.thumbnail ? (
-              <img
-                src={item.thumbnail}
-                alt={displayTitle}
-              />
+              <img src={item.thumbnail} alt={displayTitle} />
             ) : (
               <div className="sf-media-placeholder">
                 {displayTitle?.[0] || "K"}
               </div>
             )}
 
-            {/* Dòng "Hết hàng" */}
-            {isOutOfStock && (
-              <div className="sf-out-of-stock">Hết hàng</div>
-            )}
-          </div>
-
-          <div className="sf-body">
-            <h3>{displayTitle}</h3>
-
-            {/* Nhãn sản phẩm */}
+            {/* Nhãn sản phẩm (badge) đưa lên góc ảnh */}
             {item.badges && item.badges.length > 0 && (
-              <div className="sf-body-badges">
+              <div className="sf-media-badges">
                 {item.badges.map((b) => (
                   <span
                     key={b.badgeCode}
@@ -384,6 +370,15 @@ const StorefrontProductListPage = () => {
                 ))}
               </div>
             )}
+
+            {/* Dòng "Hết hàng" to ở giữa ảnh */}
+            {isOutOfStock && (
+              <div className="sf-out-of-stock">Hết hàng</div>
+            )}
+          </div>
+
+          <div className="sf-body">
+            <h3>{displayTitle}</h3>
 
             {/* Giá sản phẩm */}
             <div className="sf-price">

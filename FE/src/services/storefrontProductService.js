@@ -48,14 +48,11 @@ const normalizeBadgeMini = (b = {}) => ({
   icon:        b.icon        ?? b.Icon ?? null,
 });
 
-// src/services/storefrontProductService.js
-
+// ==== Chuẩn hoá item biến thể (dùng cho list & related) ====
 const normalizeVariantItem = (v = {}) => {
   const variantTitle =
-    v.variantTitle ??
-    v.VariantTitle ??
-    v.title ??
-    v.Title ??
+    v.variantTitle ?? v.VariantTitle ??
+    v.title        ?? v.Title        ??
     "";
 
   const rawStatus = (v.status ?? v.Status ?? "INACTIVE")
@@ -74,13 +71,69 @@ const normalizeVariantItem = (v = {}) => {
 
     thumbnail: v.thumbnail ?? v.Thumbnail ?? null,
     status: rawStatus,
-    isOutOfStock: rawStatus === "OUT_OF_STOCK",   // <== thêm
+    isOutOfStock: rawStatus === "OUT_OF_STOCK",
 
     badges: (v.badges ?? v.Badges ?? []).map(normalizeBadgeMini),
   };
 };
 
+// ==== Chuẩn hoá sibling variant trong detail ====
+const normalizeSiblingVariant = (v = {}) => {
+  const title =
+    v.variantTitle ?? v.VariantTitle ??
+    v.title        ?? v.Title        ??
+    "";
 
+  const rawStatus = (v.status ?? v.Status ?? "INACTIVE")
+    .toString()
+    .toUpperCase();
+
+  return {
+    variantId: v.variantId ?? v.VariantId,
+    title,
+    status: rawStatus,
+    isOutOfStock: rawStatus === "OUT_OF_STOCK",
+  };
+};
+
+// ==== Chuẩn hoá section trong detail ====
+const normalizeSection = (s = {}) => ({
+  sectionId:   s.sectionId   ?? s.SectionId,
+  sectionType: s.sectionType ?? s.SectionType,
+  title:       s.title       ?? s.Title,
+  content:     s.content     ?? s.Content ?? "",
+});
+
+// ==== Chuẩn hoá FAQ trong detail ====
+const normalizeFaq = (f = {}) => ({
+  faqId:    f.faqId    ?? f.FaqId,
+  question: f.question ?? f.Question,
+  answer:   f.answer   ?? f.Answer,
+  source:   f.source   ?? f.Source,   // "CATEGORY" | "PRODUCT"
+});
+
+// ==== Chuẩn hoá detail variant ====
+const normalizeVariantDetail = (res = {}) => {
+  const main = normalizeVariantItem(res);
+  const stockQty = res.stockQty ?? res.StockQty ?? 0;
+
+  return {
+    ...main,
+    stockQty,
+
+    categories: (res.categories ?? res.Categories ?? []).map(
+      normalizeCategoryMini
+    ),
+
+    siblingVariants: (res.siblingVariants ?? res.SiblingVariants ?? []).map(
+      normalizeSiblingVariant
+    ),
+
+    sections: (res.sections ?? res.Sections ?? []).map(normalizeSection),
+
+    faqs: (res.faqs ?? res.Faqs ?? []).map(normalizeFaq),
+  };
+};
 
 // ==== Chuẩn hoá filters (StorefrontFiltersDto) ====
 const normalizeFilters = (res = {}) => ({
@@ -89,7 +142,7 @@ const normalizeFilters = (res = {}) => ({
     categoryCode: c.categoryCode ?? c.CategoryCode,
     categoryName: c.categoryName ?? c.CategoryName,
   })),
-  // productTypes bên BE chỉ là array string, FE có thể map sang label bằng PRODUCT_TYPES + typeLabelOf
+  // productTypes bên BE chỉ là array string, FE có thể map sang label
   productTypes: res.productTypes ?? res.ProductTypes ?? [],
 });
 
@@ -134,6 +187,30 @@ export const StorefrontProductApi = {
       ...paged,
       items: (paged.items || []).map(normalizeVariantItem),
     };
+  },
+
+  // ===== VARIANT DETAIL (GET /api/storefront/products/{productId}/variants/{variantId}/detail) =====
+  variantDetail: async (productId, variantId) => {
+    const axiosRes = await axiosClient.get(
+      `${ROOT}/${productId}/variants/${variantId}/detail`
+    );
+    const res = axiosRes?.data ?? axiosRes;
+    return normalizeVariantDetail(res);
+  },
+
+  // ===== RELATED VARIANTS (GET /api/storefront/products/{productId}/variants/{variantId}/related) =====
+  relatedVariants: async (productId, variantId) => {
+    const axiosRes = await axiosClient.get(
+      `${ROOT}/${productId}/variants/${variantId}/related`
+    );
+    const res = axiosRes?.data ?? axiosRes;
+
+    // BE trả về mảng StorefrontVariantListItemDto
+    const items = Array.isArray(res)
+      ? res
+      : res?.items ?? res?.Items ?? [];
+
+    return items.map(normalizeVariantItem);
   },
 
   // Re-export mapping loại sản phẩm dùng chung với admin

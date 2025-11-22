@@ -63,6 +63,8 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
+import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
+
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 // Order pages
@@ -456,6 +458,9 @@ export default function AppRoutes() {
       />
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
+      <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
+      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
+
       <Route
         path="/access-denied"
         element={

@@ -238,9 +238,321 @@ namespace Keytietkiem.Controllers
             var result = new PagedResult<StorefrontVariantListItemDto>(items, total, page, pageSize);
             return Ok(result);
         }
+        [HttpGet("{productId:guid}/variants/{variantId:guid}/detail")]
+        public async Task<ActionResult<StorefrontVariantDetailDto>> GetVariantDetail(
+           Guid productId,
+           Guid variantId)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            // ===== Load biến thể + product + categories =====
+            var v = await db.ProductVariants
+                .AsNoTracking()
+                .Include(x => x.Product)
+                    .ThenInclude(p => p.Categories)
+                .FirstOrDefaultAsync(x =>
+                    x.ProductId == productId &&
+                    x.VariantId == variantId &&
+                    x.Product.Status != null &&
+                    (x.Product.Status == "ACTIVE" || x.Product.Status == "OUT_OF_STOCK") &&
+                    x.Status != null &&
+                    (x.Status == "ACTIVE" || x.Status == "OUT_OF_STOCK"));
+
+            if (v is null) return NotFound();
+
+            var p = v.Product;
+
+            // ===== Danh mục của sản phẩm =====
+            var categories = p.Categories
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.CategoryName)
+                .Select(c => new StorefrontCategoryMiniDto(
+                    c.CategoryId,
+                    c.CategoryCode,
+                    c.CategoryName
+                ))
+                .ToList();
+
+            // ===== Các biến thể khác cùng sản phẩm (sort theo ViewCount) =====
+            var siblingVariants = await db.ProductVariants
+                .AsNoTracking()
+                .Where(x =>
+                    x.ProductId == productId &&
+                    x.Status != null &&
+                    (x.Status == "ACTIVE" || x.Status == "OUT_OF_STOCK"))
+                .OrderByDescending(x => x.ViewCount)
+                .ThenBy(x => x.Title)
+                .Select(x => new StorefrontSiblingVariantDto(
+                    x.VariantId,
+                    x.Title,
+                    x.Status ?? "INACTIVE"
+                ))
+                .ToListAsync();
+
+            // ===== Sections của biến thể (đang active), sort theo SortOrder =====
+            var sections = await db.ProductSections
+                .AsNoTracking()
+                .Where(s => s.VariantId == variantId && s.IsActive)
+                .OrderBy(s => s.SortOrder)
+                .ThenBy(s => s.CreatedAt)
+                .Select(s => new StorefrontSectionDto(
+                    s.SectionId,
+                    s.SectionType,
+                    s.Title,
+                    s.Content ?? string.Empty
+                ))
+                .ToListAsync();
+
+            // ===== FAQ: theo Category trước, rồi trực tiếp Product =====
+            var categoryIds = categories.Select(c => c.CategoryId).ToList();
+
+            var categoryFaqs = await db.Faqs
+                .AsNoTracking()
+                .Where(f =>
+                    f.IsActive &&
+                    f.Categories.Any(c => categoryIds.Contains(c.CategoryId)))
+                .OrderBy(f => f.SortOrder)
+                .ThenBy(f => f.FaqId)
+                .Select(f => new StorefrontFaqItemDto(
+                    f.FaqId,
+                    f.Question,
+                    f.Answer ?? string.Empty,
+                    "CATEGORY"
+                ))
+                .ToListAsync();
+
+            var productFaqs = await db.Faqs
+                .AsNoTracking()
+                .Where(f =>
+                    f.IsActive &&
+                    f.Products.Any(pr => pr.ProductId == productId))
+                .OrderBy(f => f.SortOrder)
+                .ThenBy(f => f.FaqId)
+                .Select(f => new StorefrontFaqItemDto(
+                    f.FaqId,
+                    f.Question,
+                    f.Answer ?? string.Empty,
+                    "PRODUCT"
+                ))
+                .ToListAsync();
+
+            // Gộp: Category FAQ trước, rồi Product FAQ, tránh trùng FaqId
+            var faqs = categoryFaqs
+                .Concat(productFaqs)
+                .GroupBy(x => x.FaqId)
+                .Select(g => g.First())
+                .ToList();
 
 
-private sealed record VariantRawItem(
+
+            var dto = new StorefrontVariantDetailDto(
+       VariantId: v.VariantId,
+       ProductId: p.ProductId,
+       ProductCode: p.ProductCode,
+       ProductName: p.ProductName,
+       ProductType: p.ProductType,
+       VariantTitle: v.Title,
+       Status: v.Status ?? "INACTIVE",
+       StockQty: v.StockQty,
+       Thumbnail: v.Thumbnail,
+       Categories: categories,
+       SiblingVariants: siblingVariants,
+       Sections: sections,
+       Faqs: faqs
+   );
+
+            return Ok(dto);
+        }
+        [HttpGet("{productId:guid}/variants/{variantId:guid}/related")]
+        public async Task<ActionResult<IReadOnlyCollection<StorefrontVariantListItemDto>>> GetRelatedVariants(
+    Guid productId,
+    Guid variantId)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            // 1) Load variant gốc + Product + Categories + Badges
+            var baseVariant = await db.ProductVariants
+                .AsNoTracking()
+                .Include(v => v.Product)
+                    .ThenInclude(p => p.Categories)
+                .Include(v => v.Product)
+                    .ThenInclude(p => p.ProductBadges)
+                .FirstOrDefaultAsync(v =>
+                    v.ProductId == productId &&
+                    v.VariantId == variantId &&
+                    v.Product.Status != null &&
+                    (v.Product.Status == "ACTIVE" || v.Product.Status == "OUT_OF_STOCK") &&
+                    v.Status != null &&
+                    (v.Status == "ACTIVE" || v.Status == "OUT_OF_STOCK"));
+
+            if (baseVariant is null) return NotFound();
+
+            var baseProduct = baseVariant.Product;
+
+            var baseCategoryIds = baseProduct.Categories
+                .Where(c => c.IsActive)
+                .Select(c => c.CategoryId)
+                .ToList();
+
+            var baseBadgeCodes = baseProduct.ProductBadges
+                .Select(pb => pb.Badge)
+                .Where(b => !string.IsNullOrWhiteSpace(b))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var baseType = baseProduct.ProductType;
+
+            // Nếu không có category/badge vẫn cho chạy, chỉ ưu tiên theo type + view
+            var baseCategorySet = new HashSet<int>(baseCategoryIds);
+            var baseBadgeSet = new HashSet<string>(baseBadgeCodes, StringComparer.OrdinalIgnoreCase);
+
+            // 2) Lấy các biến thể ứng viên của sản phẩm khác, có ít nhất 1 điểm tương đồng
+            var candidates = await db.ProductVariants
+                .AsNoTracking()
+                .Include(v => v.Product)
+                    .ThenInclude(p => p.Categories)
+                .Include(v => v.Product)
+                    .ThenInclude(p => p.ProductBadges)
+                .Where(v =>
+                    v.ProductId != productId &&                                       // loại sản phẩm hiện tại
+                    v.Product.Status != null &&
+                    (v.Product.Status == "ACTIVE" || v.Product.Status == "OUT_OF_STOCK") &&
+                    v.Status != null &&
+                    (v.Status == "ACTIVE" || v.Status == "OUT_OF_STOCK") &&
+
+                    // có ít nhất 1 trong 3: cùng danh mục / cùng badge / cùng loại
+                    (
+                        (baseCategoryIds.Count == 0
+                            ? false
+                            : v.Product.Categories.Any(c => baseCategoryIds.Contains(c.CategoryId)))
+                        ||
+                        (baseBadgeCodes.Count == 0
+                            ? false
+                            : v.Product.ProductBadges.Any(pb => baseBadgeCodes.Contains(pb.Badge)))
+                        ||
+                        v.Product.ProductType == baseType
+                    )
+                )
+                .Select(v => new RelatedVariantRawItem(
+                    v.VariantId,
+                    v.ProductId,
+                    v.Product.ProductCode,
+                    v.Product.ProductName,
+                    v.Product.ProductType,
+                    v.Title,
+                    v.Thumbnail,
+                    v.Status ?? "INACTIVE",
+                    v.ViewCount,
+                    v.CreatedAt,
+                    v.Product.Categories
+                        .Select(c => c.CategoryId)
+                        .ToList(),
+                    v.Product.ProductBadges
+                        .Select(pb => pb.Badge)
+                        .ToList()
+                ))
+                .ToListAsync();
+
+            if (candidates.Count == 0)
+                return Ok(Array.Empty<StorefrontVariantListItemDto>());
+
+            // 3) Mỗi product chỉ giữ lại 1 biến thể (view cao nhất)
+            var bestPerProduct = candidates
+                .GroupBy(x => x.ProductId)
+                .Select(g => g
+                    .OrderByDescending(v => v.ViewCount)
+                    .ThenByDescending(v => v.CreatedAt)
+                    .First())
+                .ToList();
+
+            // 4) Tính độ tương đồng & sort:
+            //    - Cùng danh mục (nhiều category trùng hơn xếp trước)
+            //    - Cùng badge (nhiều badge trùng hơn xếp trước)
+            //    - Cùng loại (ProductType)
+            //    - ViewCount giảm dần
+            var ranked = bestPerProduct
+                .Select(item =>
+                {
+                    var catMatches = item.CategoryIds.Count(id => baseCategorySet.Contains(id));
+                    var badgeMatches = item.BadgeCodes.Count(code => baseBadgeSet.Contains(code));
+                    var typeMatch = string.Equals(item.ProductType, baseType, StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+                    return new
+                    {
+                        Item = item,
+                        CatMatches = catMatches,
+                        BadgeMatches = badgeMatches,
+                        TypeMatch = typeMatch
+                    };
+                })
+                .OrderByDescending(x => x.CatMatches)
+                .ThenByDescending(x => x.BadgeMatches)
+                .ThenByDescending(x => x.TypeMatch)
+                .ThenByDescending(x => x.Item.ViewCount)
+                .Take(8) // chỉ cần tối đa 8 sản phẩm liên quan
+                .ToList();
+
+            var relatedRawItems = ranked.Select(x => x.Item).ToList();
+
+            // 5) Lấy badge meta (displayName, color, icon) cho những badge đang dùng
+            var relatedBadgeCodes = relatedRawItems
+                .SelectMany(i => i.BadgeCodes)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var badgeLookup = relatedBadgeCodes.Count == 0
+                ? new Dictionary<string, Badge>(StringComparer.OrdinalIgnoreCase)
+                : await db.Badges.AsNoTracking()
+                    .Where(b => relatedBadgeCodes.Contains(b.BadgeCode))
+                    .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
+
+            // 6) Map sang StorefrontVariantListItemDto (giống list variants)
+            var items = relatedRawItems
+                .Select(i =>
+                {
+                    var badges = i.BadgeCodes
+                        .Where(code => !string.IsNullOrWhiteSpace(code))
+                        .Select(code =>
+                        {
+                            if (badgeLookup.TryGetValue(code, out var b))
+                            {
+                                return new StorefrontBadgeMiniDto(
+                                    b.BadgeCode,
+                                    b.DisplayName,
+                                    b.ColorHex,
+                                    b.Icon
+                                );
+                            }
+
+                            return new StorefrontBadgeMiniDto(
+                                code,
+                                code,
+                                null,
+                                null
+                            );
+                        })
+                        .ToList();
+
+                    return new StorefrontVariantListItemDto(
+                        i.VariantId,
+                        i.ProductId,
+                        i.ProductCode,
+                        i.ProductName,
+                        i.ProductType,
+                        i.Title,
+                        i.Thumbnail,
+                        i.Status,
+                        badges
+                    );
+                })
+                .ToList();
+
+            return Ok(items);
+        }
+
+
+        private sealed record VariantRawItem(
     Guid VariantId,
     Guid ProductId,
     string ProductCode,
@@ -252,6 +564,20 @@ private sealed record VariantRawItem(
     int ViewCount,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
+    List<string> BadgeCodes
+);
+        private sealed record RelatedVariantRawItem(
+    Guid VariantId,
+    Guid ProductId,
+    string ProductCode,
+    string ProductName,
+    string ProductType,
+    string Title,
+    string? Thumbnail,
+    string Status,
+    int ViewCount,
+    DateTime CreatedAt,
+    List<int> CategoryIds,
     List<string> BadgeCodes
 );
     }
