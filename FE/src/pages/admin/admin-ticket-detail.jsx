@@ -26,6 +26,13 @@ const MAP_ASN = {
   Technical: "Đã chuyển",
 };
 
+// ⭐ Mapping PriorityLevel → tiếng Việt
+const MAP_PRIORITY = {
+  0: "Tiêu chuẩn",
+  1: "Ưu tiên",
+  2: "VIP",
+};
+
 function fmtDateTime(v) {
   try {
     const d = typeof v === "string" || typeof v === "number" ? new Date(v) : v;
@@ -87,6 +94,19 @@ function SlaPill({ value }) {
   return <span className={cls}>{MAP_SLA[v] || v}</span>;
 }
 
+// ⭐ Format PriorityLevel (0/1/2) → text tiếng Việt
+function fmtPriority(level) {
+  if (level === null || level === undefined) return "-";
+  let num =
+    typeof level === "number"
+      ? level
+      : typeof level === "string" && level.trim() !== ""
+      ? Number(level)
+      : NaN;
+  if (!Number.isFinite(num)) return "-";
+  return MAP_PRIORITY[num] || "-";
+}
+
 export default function AdminTicketDetail() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -144,7 +164,7 @@ export default function AdminTicketDetail() {
     setErr("");
     try {
       const res = await ticketsApi.detail(id);
-      // GIỮ NGUYÊN: API detail trả về object, không phải { data: ... }
+      // GIỮ NGUYÊN: ticketsApi.detail trả về object trực tiếp
       setData(res);
 
       const draft = localStorage.getItem(draftKey);
@@ -395,7 +415,7 @@ export default function AdminTicketDetail() {
           </div>
           <h3 className="subject">{data.subject}</h3>
 
-          {/* THÊM: hiển thị Description dưới title nếu có */}
+          {/* Mô tả (Description) dưới title */}
           {data.description && (
             <div className="ticket-desc">{data.description}</div>
           )}
@@ -637,16 +657,14 @@ export default function AdminTicketDetail() {
               <span className="k">Điện thoại</span>
               <span className="v">{data.customerPhone || "-"}</span>
             </div>
-            {/* THÊM: PriorityLevel */}
+            {/* Mức ưu tiên – dùng fmtPriority */}
             <div className="kv">
               <span className="k">Mức ưu tiên</span>
-              <span className="v">
-                {data.priorityLevel != null ? data.priorityLevel : "-"}
-              </span>
+              <span className="v">{fmtPriority(data.priorityLevel)}</span>
             </div>
           </div>
 
-          {/* THÊM: Thông tin SLA */}
+          {/* Thông tin SLA */}
           <div className="card">
             <div className="card-title">Thông tin SLA</div>
             <div className="kv">

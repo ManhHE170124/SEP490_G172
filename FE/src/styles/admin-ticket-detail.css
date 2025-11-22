@@ -26,12 +26,44 @@
   justify-content:space-between;
   gap:16px;
 }
+
+/* ⭐ Giới hạn chiều ngang phần tiêu đề + description */
+.ticket-header .left{
+  flex:1 1 auto;
+  min-width:0;
+  /* chừa ~260px cho cột nút bên phải */
+  max-width:calc(100% - 260px);
+}
+
+/* ⭐ Cột nút hành động luôn đủ rộng, giữ 1 hàng ngang */
+.ticket-header .right{
+  flex:0 0 260px;          /* chiều rộng cố định cho nhóm nút */
+  display:flex;
+  justify-content:flex-end;
+  align-items:flex-start;
+  gap:8px;
+  flex-wrap:nowrap;
+  flex-shrink:0;
+}
+.ticket-header .right .btn{
+  white-space:nowrap;      /* text trên nút không xuống dòng */
+}
+
 .ticket-header .code{color:var(--muted)}
 .ticket-header .subject{
   margin:6px 0 10px;
   font-size:20px;
   color:var(--ink);
 }
+
+/* ⭐ Style mô tả ngay dưới tiêu đề */
+.ticket-header .ticket-desc{
+  margin:4px 0 10px;
+  font-size:14px;
+  line-height:1.5;
+  color:var(--ink);
+}
+
 .ticket-header .meta{
   display:flex;
   gap:8px;
@@ -362,6 +394,19 @@
 @media (max-width:1024px){
   .ticket-content{grid-template-columns:1fr}
   .ticket-header{flex-direction:column}
+
+  /* Khi xuống mobile, bỏ giới hạn ngang để header full width */
+  .ticket-header .left,
+  .ticket-header .right{
+    max-width:100%;
+    width:100%;
+    flex:1 1 auto;
+  }
+
+  .ticket-header .right{
+    justify-content:flex-start;
+    flex-wrap:wrap;
+  }
 }
 
 /* ===== Modal chọn nhân viên (gán / chuyển hỗ trợ) ===== */
