@@ -158,6 +158,63 @@ public class TicketsController : ControllerBase
         });
     }
 
+    // ============ LIST: Ticket của chính khách hàng đang đăng nhập ============
+    [HttpGet("customer")]
+    public async Task<ActionResult<PagedResult<CustomerTicketListItemDto>>> MyTickets(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        // Lấy UserId từ claim
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized(new { message = "Bạn cần đăng nhập để xem ticket của mình." });
+        }
+
+        // Chỉ lấy ticket của chính user đang đăng nhập
+        var query = BaseQuery(_db).Where(t => t.UserId == userId);
+
+        // ❌ Không còn filter q/status/severity/sla ở đây nữa
+
+        var total = await query.CountAsync();
+
+        // Phân trang tương tự các list khác (order theo TicketCode giảm dần)
+        var raw = await query
+            .OrderByDescending(t => t.TicketCode)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = raw.Select(t => new CustomerTicketListItemDto
+        {
+            TicketId = t.TicketId,
+            TicketCode = t.TicketCode ?? "",
+            Subject = t.Subject ?? "",
+            Status = NormStatus(t.Status),
+            Severity = ParseSeverity(t.Severity),
+            SlaStatus = ParseSla(t.SlaStatus),
+
+            AssigneeName = t.Assignee != null ? (t.Assignee.FullName ?? t.Assignee.Email) : null,
+            AssigneeEmail = t.Assignee?.Email,
+
+            CreatedAt = t.CreatedAt,
+            UpdatedAt = t.UpdatedAt
+        }).ToList();
+
+        return Ok(new PagedResult<CustomerTicketListItemDto>
+        {
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = total,
+            Items = items
+        });
+    }
+
+
+
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<TicketDetailDto>> Detail(Guid id)

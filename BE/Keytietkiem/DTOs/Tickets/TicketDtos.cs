@@ -62,6 +62,24 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime CreatedAt { get; set; }
     }
 
+    // ======= NEW: DTO list ticket dành cho khách hàng =======
+    public class CustomerTicketListItemDto
+    {
+        public Guid TicketId { get; set; }
+        public string TicketCode { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string Status { get; set; } = "New";
+        public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
+        public SlaState SlaStatus { get; set; } = SlaState.OK;
+
+        // Chỉ cho khách thấy người đang xử lý (nếu có)
+        public string? AssigneeName { get; set; }
+        public string? AssigneeEmail { get; set; }
+
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
     public class TicketDetailDto
     {
         public Guid TicketId { get; set; }

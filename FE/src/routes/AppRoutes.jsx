@@ -72,6 +72,7 @@ import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
 // Customer ticket pages
 import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
+import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-management.jsx";
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -224,7 +225,7 @@ export default function AppRoutes() {
         path="/tickets/create"
         element={
           <ClientLayout>
-            <CustomerTicketCreatePage  />
+            <CustomerTicketCreatePage />
           </ClientLayout>
         }
       />
@@ -236,7 +237,14 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
-
+      <Route
+        path="/tickets"
+        element={
+          <ClientLayout>
+            <CustomerTicketManagementPage />
+          </ClientLayout>
+        }
+      />
       {/* Orders */}
       <Route
         path="/orders/history"

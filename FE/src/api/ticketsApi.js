@@ -65,4 +65,14 @@ export const ticketsApi = {
     };
     return axiosClient.get("/tickets/assignees/transfer", { params: p });
   },
+
+  // NEW: List ticket của chính customer đang đăng nhập
+  // BE mới: chỉ nhận page & pageSize, không còn filter/search.
+  customerTicketList(params = {}) {
+    const p = {
+      page: params.page || 1,
+      pageSize: params.pageSize || 10,
+    };
+    return axiosClient.get("/tickets/customer", { params: p });
+  },
 };
