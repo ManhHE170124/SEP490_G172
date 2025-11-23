@@ -77,8 +77,17 @@ public class TicketsController : ControllerBase
     }
 
     // ============ LIST ============
+    /// <summary>
+    /// Danh sách ticket chung (dùng cho Admin & Staff list).
+    /// Hỗ trợ:
+    /// - q: search
+    /// - status: New / InProgress / Completed / Closed
+    /// - severity: Low/Medium/High/Critical
+    /// - sla: OK/Warning/Overdue
+    /// - assignmentState: Unassigned/Assigned/Technical hoặc "Mine" (AssigneeId = user hiện tại)
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<PagedResult<TicketListItemDto>>> List(
+    public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
         [FromQuery] string? q,
         [FromQuery] string? status,
         [FromQuery] string? severity,
@@ -92,6 +101,7 @@ public class TicketsController : ControllerBase
 
         var query = BaseQuery(_db);
 
+        // search
         if (!string.IsNullOrWhiteSpace(q))
         {
             var kw = q.Trim();
@@ -102,22 +112,50 @@ public class TicketsController : ControllerBase
                 (t.User.Email ?? "").Contains(kw));
         }
 
+        // filter trạng thái
         if (!string.IsNullOrWhiteSpace(status))
         {
+            status = status.Trim();
             if (status == "New")
+            {
                 query = query.Where(t => (t.Status ?? "New") == "New" || t.Status == "Open");
+            }
             else
+            {
                 query = query.Where(t => (t.Status ?? "New") == status);
+            }
         }
 
+        // filter mức độ
         if (!string.IsNullOrWhiteSpace(severity))
+        {
             query = query.Where(t => (t.Severity ?? "") == severity);
+        }
 
+        // filter SLA
         if (!string.IsNullOrWhiteSpace(sla))
+        {
             query = query.Where(t => (t.SlaStatus ?? "") == sla);
+        }
 
+        // filter trạng thái gán
         if (!string.IsNullOrWhiteSpace(assignmentState))
-            query = query.Where(t => (t.AssignmentState ?? "Unassigned") == assignmentState);
+        {
+            if (string.Equals(assignmentState, "Mine", StringComparison.OrdinalIgnoreCase))
+            {
+                var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!Guid.TryParse(userIdStr, out var userId))
+                {
+                    return Unauthorized(new { message = "Bạn cần đăng nhập để xem ticket của mình." });
+                }
+
+                query = query.Where(t => t.AssigneeId == userId);
+            }
+            else
+            {
+                query = query.Where(t => (t.AssignmentState ?? "Unassigned") == assignmentState);
+            }
+        }
 
         var total = await query.CountAsync();
 
@@ -128,7 +166,7 @@ public class TicketsController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        var items = raw.Select(t => new TicketListItemDto
+        var items = raw.Select(t => new TicketListItemWithSlaDto
         {
             TicketId = t.TicketId,
             TicketCode = t.TicketCode ?? "",
@@ -145,11 +183,15 @@ public class TicketsController : ControllerBase
             AssigneeName = t.Assignee != null ? (t.Assignee.FullName ?? t.Assignee.Email) : null,
             AssigneeEmail = t.Assignee?.Email,
 
+            PriorityLevel = t.PriorityLevel,
+            FirstResponseDueAt = t.FirstResponseDueAt,
+            ResolutionDueAt = t.ResolutionDueAt,
+
             CreatedAt = t.CreatedAt,
             UpdatedAt = t.UpdatedAt
         }).ToList();
 
-        return Ok(new PagedResult<TicketListItemDto>
+        return Ok(new PagedResult<TicketListItemWithSlaDto>
         {
             Page = page,
             PageSize = pageSize,
@@ -176,8 +218,6 @@ public class TicketsController : ControllerBase
 
         // Chỉ lấy ticket của chính user đang đăng nhập
         var query = BaseQuery(_db).Where(t => t.UserId == userId);
-
-        // ❌ Không còn filter q/status/severity/sla ở đây nữa
 
         var total = await query.CountAsync();
 
@@ -212,8 +252,6 @@ public class TicketsController : ControllerBase
             Items = items
         });
     }
-
-
 
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
@@ -427,7 +465,7 @@ public class TicketsController : ControllerBase
         return Ok(result);
     }
 
-    // ============ SUBJECT TEMPLATES (Customer create) =============
+    // ============ SUBJECT TEMPLATES (Customer create) ============
     [HttpGet("subject-templates")]
     public async Task<ActionResult<List<TicketSubjectTemplateDto>>> GetSubjectTemplates([FromQuery] bool activeOnly = true)
     {
@@ -453,8 +491,6 @@ public class TicketsController : ControllerBase
 
         return Ok(list);
     }
-
-
 
     // ============ ASSIGN / TRANSFER / COMPLETE / CLOSE ============
     public class AssignTicketDto { public Guid AssigneeId { get; set; } }
@@ -486,6 +522,63 @@ public class TicketsController : ControllerBase
         t.AssigneeId = dto.AssigneeId;
         t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Staff tự nhận ticket về mình (dùng cho hàng đợi Unassigned bên màn Staff).
+    /// POST /api/tickets/{id}/assign-me
+    /// </summary>
+    [HttpPost("{id:guid}/assign-me")]
+    public async Task<IActionResult> AssignToMe(Guid id)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var currentUserId))
+        {
+            return Unauthorized(new { message = "Không xác định được người dùng hiện tại." });
+        }
+
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
+        if (ticket == null) return NotFound();
+
+        var st = NormStatus(ticket.Status);
+        var asg = NormAssign(ticket.AssignmentState);
+
+        if (st is "Closed" or "Completed")
+        {
+            return BadRequest(new { message = "Ticket đã khoá, không thể nhận thêm." });
+        }
+
+        // Validate staff: Active + Role.Code chứa "care"
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u =>
+                u.UserId == currentUserId &&
+                ((u.Status ?? "Active") == "Active") &&
+                u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
+
+        if (me == null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền nhận ticket này." });
+        }
+
+        ticket.AssigneeId = currentUserId;
+
+        if (asg == "Unassigned")
+        {
+            ticket.AssignmentState = "Assigned";
+        }
+
+        if (st == "New")
+        {
+            ticket.Status = "InProgress";
+        }
+
+        ticket.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
         return NoContent();
     }
 

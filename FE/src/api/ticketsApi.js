@@ -18,7 +18,7 @@ export const ticketsApi = {
   // ===== CREATE: customer mở ticket qua /api/Tickets/create =====
   create(payload) {
     // BE: POST /api/Tickets/create (CustomerCreateTicketDto)
-    // payload tối thiểu: { subject }
+    // payload hiện tại: { templateCode, description? }
     return axiosClient.post("/tickets/create", payload);
   },
 
@@ -28,6 +28,11 @@ export const ticketsApi = {
 
   assign(id, assigneeId) {
     return axiosClient.post(`/tickets/${id}/assign`, { assigneeId });
+  },
+
+  // NEW: staff tự nhận ticket (assign cho chính mình)
+  assignToMe(id) {
+    return axiosClient.post(`/tickets/${id}/assign-me`, {});
   },
 
   transferTech(id, assigneeId) {
@@ -67,7 +72,7 @@ export const ticketsApi = {
   },
 
   // NEW: List ticket của chính customer đang đăng nhập
-  // BE mới: chỉ nhận page & pageSize, không còn filter/search.
+  // BE: GET /api/tickets/customer?page=&pageSize=
   customerTicketList(params = {}) {
     const p = {
       page: params.page || 1,

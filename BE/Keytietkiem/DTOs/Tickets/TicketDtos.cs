@@ -9,6 +9,9 @@ namespace Keytietkiem.DTOs.Tickets
     public enum SlaState { OK, Warning, Overdue }
     public enum AssignmentState { Unassigned, Assigned, Technical }
 
+    /// <summary>
+    /// DTO list cơ bản (dùng chung cho nhiều màn, không chứa SLA deadline).
+    /// </summary>
     public class TicketListItemDto
     {
         public Guid TicketId { get; set; }
@@ -29,6 +32,28 @@ namespace Keytietkiem.DTOs.Tickets
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// DTO list mở rộng cho màn Admin/Staff – thêm PriorityLevel + deadline SLA.
+    /// Giữ nguyên TicketListItemDto để không phá vỡ chỗ khác.
+    /// </summary>
+    public class TicketListItemWithSlaDto : TicketListItemDto
+    {
+        /// <summary>
+        /// Cấp ưu tiên (1 = cao nhất).
+        /// </summary>
+        public int PriorityLevel { get; set; }
+
+        /// <summary>
+        /// Hạn phản hồi đầu tiên (dùng cho bảng Unassigned).
+        /// </summary>
+        public DateTime? FirstResponseDueAt { get; set; }
+
+        /// <summary>
+        /// Hạn giải quyết (dùng cho bảng Ticket của tôi).
+        /// </summary>
+        public DateTime? ResolutionDueAt { get; set; }
     }
 
     public class TicketReplyDto
@@ -62,7 +87,7 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime CreatedAt { get; set; }
     }
 
-    // ======= NEW: DTO list ticket dành cho khách hàng =======
+    // ======= DTO list ticket dành cho khách hàng =======
     public class CustomerTicketListItemDto
     {
         public Guid TicketId { get; set; }
@@ -88,7 +113,7 @@ namespace Keytietkiem.DTOs.Tickets
         public string? Description { get; set; }
         public string Status { get; set; } = "New";
         public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
-        public int PriorityLevel { get; set; } 
+        public int PriorityLevel { get; set; }
         public SlaState SlaStatus { get; set; } = SlaState.OK;
         public AssignmentState AssignmentState { get; set; } = AssignmentState.Unassigned;
 
