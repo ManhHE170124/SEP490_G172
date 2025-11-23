@@ -85,6 +85,13 @@ public class TicketsController : ControllerBase
     /// - severity: Low/Medium/High/Critical
     /// - sla: OK/Warning/Overdue
     /// - assignmentState: Unassigned/Assigned/Technical hoặc "Mine" (AssigneeId = user hiện tại)
+    /// 
+    /// Sắp xếp ưu tiên:
+    /// 1) SLA: Overdue -> Warning -> OK -> khác
+    /// 2) Ticket chưa gán (Unassigned) trước, ticket đã gán sau
+    /// 3) Với ticket chưa gán: Hạn phản hồi (FirstResponseDueAt) tăng dần
+    ///    Với ticket đã gán: Hạn giải quyết (ResolutionDueAt) tăng dần
+    /// 4) Cuối cùng theo TicketCode giảm dần (để ổn định thứ tự)
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
@@ -159,9 +166,25 @@ public class TicketsController : ControllerBase
 
         var total = await query.CountAsync();
 
-        // Sắp xếp theo TicketCode (giảm dần)
+        // Sắp xếp theo SLA nghiêm trọng -> OK,
+        // sau đó Unassigned trước, rồi đến hạn phản hồi / hạn giải quyết.
+        query = query
+            // 1) Mức SLA: Overdue -> Warning -> OK -> khác
+            .OrderBy(t =>
+                t.SlaStatus == SlaState.Overdue.ToString() ? 0 :
+                t.SlaStatus == SlaState.Warning.ToString() ? 1 :
+                t.SlaStatus == SlaState.OK.ToString() ? 2 : 3)
+            // 2) Ticket chưa gán (Unassigned) trước, đã gán (Assigned/Technical/...) sau
+            .ThenBy(t => (t.AssignmentState ?? "Unassigned") == "Unassigned" ? 0 : 1)
+            // 3) Với Unassigned: dùng FirstResponseDueAt, với ticket đã gán: dùng ResolutionDueAt
+            .ThenBy(t =>
+                ((t.AssignmentState ?? "Unassigned") == "Unassigned"
+                    ? t.FirstResponseDueAt
+                    : t.ResolutionDueAt) ?? DateTime.MaxValue)
+            // 4) Fallback để ổn định phân trang
+            .ThenByDescending(t => t.TicketCode);
+
         var raw = await query
-            .OrderByDescending(t => t.TicketCode)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

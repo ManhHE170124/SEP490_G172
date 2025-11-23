@@ -653,11 +653,11 @@ export default function StaffTicketManagement() {
             <table className="tk-table tk-table-mini">
               <colgroup>
                 <col /> {/* Tiêu đề */}
-                <col style={{ width: 110 }} /> {/* SLA */}
-                <col style={{ width: 110 }} /> {/* Mức độ */}
-                <col style={{ width: 120 }} /> {/* Cấp ưu tiên */}
-                <col style={{ width: 160 }} /> {/* Hạn phản hồi */}
-                <col style={{ width: 110 }} /> {/* Thao tác */}
+                <col style={{ width: 130 }} /> {/* SLA */}
+                <col style={{ width: 100 }} /> {/* Mức độ */}
+                <col style={{ width: 100 }} /> {/* Cấp ưu tiên */}
+                <col style={{ width: 120 }} /> {/* Hạn phản hồi */}
+                <col style={{ width: 90 }} /> {/* Thao tác */}
               </colgroup>
               <thead>
                 <tr>

@@ -453,20 +453,6 @@ export default function AdminTicketDetail() {
               Gán
             </button>
           )}
-          {actions.canTransfer && (
-            <button
-              className="btn warning"
-              onClick={() =>
-                setModal({
-                  open: true,
-                  mode: "transfer",
-                  excludeUserId: data.assigneeId,
-                })
-              }
-            >
-              Chuyển hỗ trợ
-            </button>
-          )}
           {actions.canComplete && (
             <button className="btn success" onClick={doComplete}>
               Hoàn thành
@@ -697,111 +683,6 @@ export default function AdminTicketDetail() {
               <span className="v">
                 {data.resolvedAt ? fmtDateTime(data.resolvedAt) : "-"}
               </span>
-            </div>
-          </div>
-
-          {/* Nhân viên */}
-          <div className="card">
-            <div className="card-title">Thông tin nhân viên</div>
-            {data.assigneeName || data.assigneeEmail ? (
-              <>
-                <div className="kv">
-                  <span className="k">Trạng thái</span>
-                  <span className="v">
-                    {MAP_ASN[data.assignmentState] || data.assignmentState}
-                  </span>
-                </div>
-                <div className="kv">
-                  <span className="k">Nhân viên</span>
-                  <span className="v">{data.assigneeName || "-"}</span>
-                </div>
-                <div className="kv">
-                  <span className="k">Email</span>
-                  <span className="v">{data.assigneeEmail || "-"}</span>
-                </div>
-              </>
-            ) : (
-              <div className="empty small">Chưa được gán.</div>
-            )}
-          </div>
-
-          {/* Đơn hàng gần nhất */}
-          <div className="card">
-            <div className="card-title">Đơn hàng gần nhất</div>
-            {!latestOrder && (
-              <div className="empty small">Khách hàng chưa có đơn hàng.</div>
-            )}
-            {latestOrder && (
-              <>
-                <div className="kv">
-                  <span className="k">Mã đơn</span>
-                  <span className="v mono">{latestOrder.orderId}</span>
-                </div>
-                <div className="kv">
-                  <span className="k">Ngày tạo</span>
-                  <span className="v">
-                    {fmtDateTime(latestOrder.createdAt)}
-                  </span>
-                </div>
-                <div className="kv">
-                  <span className="k">Trạng thái</span>
-                  <span className="v">{latestOrder.status}</span>
-                </div>
-                <div className="kv">
-                  <span className="k">Tổng tiền</span>
-                  <span className="v">
-                    {latestOrder.finalAmount?.toLocaleString("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                    }) ||
-                      latestOrder.totalAmount?.toLocaleString("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      })}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Ticket liên quan */}
-          <div className="panel related">
-            <div className="panel-title">Ticket liên quan</div>
-            {(relatedTickets || []).length === 0 && (
-              <div className="empty small">
-                Không có ticket nào khác của khách hàng này.
-              </div>
-            )}
-            <div className="related-list">
-              {(relatedTickets || []).map((t) => (
-                <div key={t.ticketId} className="related-item">
-                  <div className="ri-main">
-                    <div className="ri-line1">
-                      <span className="ri-code">#{t.ticketCode}</span>
-                      <span className="ri-dot">•</span>
-                      <span className="ri-time">
-                        {fmtDateTime(t.createdAt)}
-                      </span>
-                    </div>
-                    <div className="ri-subject" title={t.subject}>
-                      {t.subject}
-                    </div>
-                    <div className="ri-meta">
-                      <StatusBadge value={t.status} />
-                      <SeverityTag value={t.severity} />
-                      <SlaPill value={t.slaStatus} />
-                    </div>
-                  </div>
-                  <div className="ri-actions">
-                    <button
-                      className="btn xs ghost"
-                      onClick={() => nav(`/admin/tickets/${t.ticketId}`)}
-                    >
-                      Chi tiết
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
