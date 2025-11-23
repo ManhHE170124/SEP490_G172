@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
- 
     [ApiController]
     [Route("api/storefront/products")]
     public class StorefrontProductsController : ControllerBase
@@ -35,7 +34,6 @@ namespace Keytietkiem.Controllers
                 ))
                 .ToListAsync();
 
-          
             var productTypes = ProductEnums.Types.ToArray();
 
             var dto = new StorefrontFiltersDto(categories, productTypes);
@@ -44,7 +42,7 @@ namespace Keytietkiem.Controllers
 
         [HttpGet("variants")]
         public async Task<ActionResult<PagedResult<StorefrontVariantListItemDto>>> ListVariants(
-       [FromQuery] StorefrontVariantListQuery query)
+            [FromQuery] StorefrontVariantListQuery query)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -125,12 +123,11 @@ namespace Keytietkiem.Controllers
             // ===== Logic ưu tiên: rank trong từng product =====
             if (sortKey is "default" or "sold" or "bestseller")
             {
-                // 1. Gán Rank = 1,2,3,... trong từng ProductId theo ViewCount giảm dần
                 var ranked = rawItems
                     .GroupBy(i => i.ProductId)
                     .SelectMany(g =>
                         g.OrderByDescending(x => x.ViewCount)
-                         .ThenByDescending(x => x.VariantId)    // tie-break
+                         .ThenByDescending(x => x.VariantId)
                          .Select((item, index) => new
                          {
                              Item = item,
@@ -139,7 +136,6 @@ namespace Keytietkiem.Controllers
                     )
                     .ToList();
 
-                // 2. Toàn bộ list: Rank ↑, rồi ViewCount ↓
                 orderedItems = ranked
                     .OrderBy(x => x.Rank)
                     .ThenByDescending(x => x.Item.ViewCount)
@@ -148,13 +144,11 @@ namespace Keytietkiem.Controllers
             }
             else
             {
-                // Các sort khác giữ behaviour cũ
                 orderedItems = sortKey switch
                 {
                     "updated" => rawItems
                         .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt),
 
-                    // tạm dùng ViewCount làm proxy cho giá, sau này có Price thì đổi
                     "price-asc" => rawItems
                         .OrderBy(i => i.ViewCount)
                         .ThenByDescending(i => i.CreatedAt),
@@ -211,7 +205,6 @@ namespace Keytietkiem.Controllers
                                 );
                             }
 
-                            // Badge code còn trên product nhưng badge đã xoá
                             return new StorefrontBadgeMiniDto(
                                 code,
                                 code,
@@ -227,7 +220,7 @@ namespace Keytietkiem.Controllers
                         i.ProductCode,
                         i.ProductName,
                         i.ProductType,
-                        i.Title,          // VariantTitle
+                        i.Title,
                         i.Thumbnail,
                         i.Status,
                         badges
@@ -238,16 +231,16 @@ namespace Keytietkiem.Controllers
             var result = new PagedResult<StorefrontVariantListItemDto>(items, total, page, pageSize);
             return Ok(result);
         }
+
         [HttpGet("{productId:guid}/variants/{variantId:guid}/detail")]
         public async Task<ActionResult<StorefrontVariantDetailDto>> GetVariantDetail(
-           Guid productId,
-           Guid variantId)
+            Guid productId,
+            Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // ===== Load biến thể + product + categories =====
+            // ===== Load biến thể + product + categories (CÓ TRACKING để tăng ViewCount) =====
             var v = await db.ProductVariants
-                .AsNoTracking()
                 .Include(x => x.Product)
                     .ThenInclude(p => p.Categories)
                 .FirstOrDefaultAsync(x =>
@@ -259,6 +252,10 @@ namespace Keytietkiem.Controllers
                     (x.Status == "ACTIVE" || x.Status == "OUT_OF_STOCK"));
 
             if (v is null) return NotFound();
+
+            // ===== Tăng ViewCount mỗi lần vào trang chi tiết =====
+            v.ViewCount += 1;
+            await db.SaveChangesAsync();
 
             var p = v.Product;
 
@@ -289,7 +286,7 @@ namespace Keytietkiem.Controllers
                 ))
                 .ToListAsync();
 
-            // ===== Sections của biến thể (đang active), sort theo SortOrder =====
+            // ===== Sections của biến thể (đang active) =====
             var sections = await db.ProductSections
                 .AsNoTracking()
                 .Where(s => s.VariantId == variantId && s.IsActive)
@@ -336,37 +333,35 @@ namespace Keytietkiem.Controllers
                 ))
                 .ToListAsync();
 
-            // Gộp: Category FAQ trước, rồi Product FAQ, tránh trùng FaqId
             var faqs = categoryFaqs
                 .Concat(productFaqs)
                 .GroupBy(x => x.FaqId)
                 .Select(g => g.First())
                 .ToList();
 
-
-
             var dto = new StorefrontVariantDetailDto(
-       VariantId: v.VariantId,
-       ProductId: p.ProductId,
-       ProductCode: p.ProductCode,
-       ProductName: p.ProductName,
-       ProductType: p.ProductType,
-       VariantTitle: v.Title,
-       Status: v.Status ?? "INACTIVE",
-       StockQty: v.StockQty,
-       Thumbnail: v.Thumbnail,
-       Categories: categories,
-       SiblingVariants: siblingVariants,
-       Sections: sections,
-       Faqs: faqs
-   );
+                VariantId: v.VariantId,
+                ProductId: p.ProductId,
+                ProductCode: p.ProductCode,
+                ProductName: p.ProductName,
+                ProductType: p.ProductType,
+                VariantTitle: v.Title,
+                Status: v.Status ?? "INACTIVE",
+                StockQty: v.StockQty,
+                Thumbnail: v.Thumbnail,
+                Categories: categories,
+                SiblingVariants: siblingVariants,
+                Sections: sections,
+                Faqs: faqs
+            );
 
             return Ok(dto);
         }
+
         [HttpGet("{productId:guid}/variants/{variantId:guid}/related")]
         public async Task<ActionResult<IReadOnlyCollection<StorefrontVariantListItemDto>>> GetRelatedVariants(
-    Guid productId,
-    Guid variantId)
+            Guid productId,
+            Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -402,11 +397,10 @@ namespace Keytietkiem.Controllers
 
             var baseType = baseProduct.ProductType;
 
-            // Nếu không có category/badge vẫn cho chạy, chỉ ưu tiên theo type + view
             var baseCategorySet = new HashSet<int>(baseCategoryIds);
             var baseBadgeSet = new HashSet<string>(baseBadgeCodes, StringComparer.OrdinalIgnoreCase);
 
-            // 2) Lấy các biến thể ứng viên của sản phẩm khác, có ít nhất 1 điểm tương đồng
+            // 2) Lấy các biến thể ứng viên
             var candidates = await db.ProductVariants
                 .AsNoTracking()
                 .Include(v => v.Product)
@@ -414,13 +408,12 @@ namespace Keytietkiem.Controllers
                 .Include(v => v.Product)
                     .ThenInclude(p => p.ProductBadges)
                 .Where(v =>
-                    v.ProductId != productId &&                                       // loại sản phẩm hiện tại
+                    v.ProductId != productId &&
                     v.Product.Status != null &&
                     (v.Product.Status == "ACTIVE" || v.Product.Status == "OUT_OF_STOCK") &&
                     v.Status != null &&
                     (v.Status == "ACTIVE" || v.Status == "OUT_OF_STOCK") &&
 
-                    // có ít nhất 1 trong 3: cùng danh mục / cùng badge / cùng loại
                     (
                         (baseCategoryIds.Count == 0
                             ? false
@@ -465,11 +458,7 @@ namespace Keytietkiem.Controllers
                     .First())
                 .ToList();
 
-            // 4) Tính độ tương đồng & sort:
-            //    - Cùng danh mục (nhiều category trùng hơn xếp trước)
-            //    - Cùng badge (nhiều badge trùng hơn xếp trước)
-            //    - Cùng loại (ProductType)
-            //    - ViewCount giảm dần
+            // 4) Tính độ tương đồng & sort
             var ranked = bestPerProduct
                 .Select(item =>
                 {
@@ -489,12 +478,12 @@ namespace Keytietkiem.Controllers
                 .ThenByDescending(x => x.BadgeMatches)
                 .ThenByDescending(x => x.TypeMatch)
                 .ThenByDescending(x => x.Item.ViewCount)
-                .Take(8) // chỉ cần tối đa 8 sản phẩm liên quan
+                .Take(8)
                 .ToList();
 
             var relatedRawItems = ranked.Select(x => x.Item).ToList();
 
-            // 5) Lấy badge meta (displayName, color, icon) cho những badge đang dùng
+            // 5) Badge meta
             var relatedBadgeCodes = relatedRawItems
                 .SelectMany(i => i.BadgeCodes)
                 .Where(code => !string.IsNullOrWhiteSpace(code))
@@ -507,7 +496,7 @@ namespace Keytietkiem.Controllers
                     .Where(b => relatedBadgeCodes.Contains(b.BadgeCode))
                     .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
 
-            // 6) Map sang StorefrontVariantListItemDto (giống list variants)
+            // 6) Map DTO
             var items = relatedRawItems
                 .Select(i =>
                 {
@@ -551,34 +540,34 @@ namespace Keytietkiem.Controllers
             return Ok(items);
         }
 
-
         private sealed record VariantRawItem(
-    Guid VariantId,
-    Guid ProductId,
-    string ProductCode,
-    string ProductName,
-    string ProductType,
-    string Title,
-    string? Thumbnail,
-    string Status,
-    int ViewCount,
-    DateTime CreatedAt,
-    DateTime? UpdatedAt,
-    List<string> BadgeCodes
-);
+            Guid VariantId,
+            Guid ProductId,
+            string ProductCode,
+            string ProductName,
+            string ProductType,
+            string Title,
+            string? Thumbnail,
+            string Status,
+            int ViewCount,
+            DateTime CreatedAt,
+            DateTime? UpdatedAt,
+            List<string> BadgeCodes
+        );
+
         private sealed record RelatedVariantRawItem(
-    Guid VariantId,
-    Guid ProductId,
-    string ProductCode,
-    string ProductName,
-    string ProductType,
-    string Title,
-    string? Thumbnail,
-    string Status,
-    int ViewCount,
-    DateTime CreatedAt,
-    List<int> CategoryIds,
-    List<string> BadgeCodes
-);
+            Guid VariantId,
+            Guid ProductId,
+            string ProductCode,
+            string ProductName,
+            string ProductType,
+            string Title,
+            string? Thumbnail,
+            string Status,
+            int ViewCount,
+            DateTime CreatedAt,
+            List<int> CategoryIds,
+            List<string> BadgeCodes
+        );
     }
 }

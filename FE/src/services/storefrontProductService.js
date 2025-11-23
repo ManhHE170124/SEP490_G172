@@ -1,10 +1,8 @@
 // src/services/storefrontProductService.js
-// Service gọi API sản phẩm phía người dùng (storefront)
-
 import axiosClient from "../api/axiosClient";
 import {
-  PRODUCT_TYPES,   // 4 loại sản phẩm dùng chung với admin
-  typeLabelOf,     // helper map code -> nhãn tiếng Việt
+  PRODUCT_TYPES,
+  typeLabelOf,
 } from "./products";
 
 const ROOT = "storefront/products";
@@ -109,7 +107,7 @@ const normalizeFaq = (f = {}) => ({
   faqId:    f.faqId    ?? f.FaqId,
   question: f.question ?? f.Question,
   answer:   f.answer   ?? f.Answer,
-  source:   f.source   ?? f.Source,   // "CATEGORY" | "PRODUCT"
+  source:   f.source   ?? f.Source,
 });
 
 // ==== Chuẩn hoá detail variant ====
@@ -142,20 +140,16 @@ const normalizeFilters = (res = {}) => ({
     categoryCode: c.categoryCode ?? c.CategoryCode,
     categoryName: c.categoryName ?? c.CategoryName,
   })),
-  // productTypes bên BE chỉ là array string, FE có thể map sang label
   productTypes: res.productTypes ?? res.ProductTypes ?? [],
 });
 
 export const StorefrontProductApi = {
-  // ===== FILTERS (GET /api/storefront/products/filters) =====
   filters: async () => {
     const axiosRes = await axiosClient.get(`${ROOT}/filters`);
     const res = axiosRes?.data ?? axiosRes;
     return normalizeFilters(res);
   },
 
-  // ===== LIST VARIANTS (GET /api/storefront/products/variants) =====
-  // params: { q, categoryId, productType, minPrice, maxPrice, sort, page, pageSize }
   listVariants: async (params = {}) => {
     const {
       q,
@@ -189,7 +183,6 @@ export const StorefrontProductApi = {
     };
   },
 
-  // ===== VARIANT DETAIL (GET /api/storefront/products/{productId}/variants/{variantId}/detail) =====
   variantDetail: async (productId, variantId) => {
     const axiosRes = await axiosClient.get(
       `${ROOT}/${productId}/variants/${variantId}/detail`
@@ -198,14 +191,12 @@ export const StorefrontProductApi = {
     return normalizeVariantDetail(res);
   },
 
-  // ===== RELATED VARIANTS (GET /api/storefront/products/{productId}/variants/{variantId}/related) =====
   relatedVariants: async (productId, variantId) => {
     const axiosRes = await axiosClient.get(
       `${ROOT}/${productId}/variants/${variantId}/related`
     );
     const res = axiosRes?.data ?? axiosRes;
 
-    // BE trả về mảng StorefrontVariantListItemDto
     const items = Array.isArray(res)
       ? res
       : res?.items ?? res?.Items ?? [];
@@ -213,7 +204,6 @@ export const StorefrontProductApi = {
     return items.map(normalizeVariantItem);
   },
 
-  // Re-export mapping loại sản phẩm dùng chung với admin
   types: PRODUCT_TYPES,
   typeLabelOf,
 };

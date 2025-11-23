@@ -783,3 +783,34 @@
   font-size: 13px;
   color: #374151;
 }
+.sf-quantity-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-btn-sm {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.sf-quantity {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.sf-btn-outline {
+  border: 1px solid #e5e7eb;
+}
+
+.sf-btn-primary {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+}
+
+.sf-btn-primary:disabled {
+  background-color: #d1d5db;
+  color: #9ca3af;
+}

@@ -4,7 +4,6 @@ import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import StorefrontProductApi from "../../services/storefrontProductService";
 import "./StorefrontProductDetailPage.css";
 
-// Format VND
 const formatCurrency = (value) => {
   if (value == null) return "Đang cập nhật";
   try {
@@ -18,13 +17,11 @@ const formatCurrency = (value) => {
   }
 };
 
-// Parse query string
 const useQueryParams = () => {
   const { search } = useLocation();
   return useMemo(() => new URLSearchParams(search), [search]);
 };
 
-// Map sectionType -> nhãn tiếng Việt
 const getSectionTypeLabel = (sectionType) => {
   const key = (sectionType || "").toString().toUpperCase();
 
@@ -50,20 +47,24 @@ const StorefrontProductDetailPage = () => {
   const queryParams = useQueryParams();
   const navigate = useNavigate();
 
-  const initialVariantId = queryParams.get("variant") || "";
-  const [currentVariantId, setCurrentVariantId] = useState(initialVariantId);
+  const currentVariantId = queryParams.get("variant") || "";
 
   const [detail, setDetail] = useState(null);
   const [relatedItems, setRelatedItems] = useState([]);
-
+  const [quantity, setQuantity] = useState(1);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const v = queryParams.get("variant") || "";
-    setCurrentVariantId(v);
-  }, [queryParams]);
+  const handleIncreaseQuantity = () => {
+    setQuantity((prevQuantity) => prevQuantity + 1);
+  };
+
+  const handleDecreaseQuantity = () => {
+    if (quantity > 1) {
+      setQuantity((prevQuantity) => prevQuantity - 1);
+    }
+  };
 
   const loadDetail = useCallback(async (pid, vid) => {
     if (!pid || !vid) return;
@@ -123,7 +124,6 @@ const StorefrontProductDetailPage = () => {
       ? detail.categories[0]
       : null;
 
-  // Giá tạm thời (demo)
   const priceNow = 295000;
   const priceOld = 1500000;
   const discountPercent = Math.round(100 - (priceNow / priceOld) * 100);
@@ -131,7 +131,6 @@ const StorefrontProductDetailPage = () => {
   const handleChangeVariant = (variantId) => {
     if (!variantId || variantId === currentVariantId) return;
     navigate(`/products/${productId}?variant=${variantId}`, { replace: false });
-    setCurrentVariantId(variantId);
   };
 
   const handleBuyNow = () => {
@@ -145,28 +144,24 @@ const StorefrontProductDetailPage = () => {
           <nav className="sf-breadcrumb">
             <Link to="/">Trang chủ</Link>
             <span>/</span>
-            {/* Link về trang danh sách sản phẩm */}
             <Link to="/products">Sản phẩm</Link>
 
-            {/* Link danh mục: về list filter theo categoryId */}
             {primaryCategory && (
               <>
                 <span>/</span>
                 <span className="sf-breadcrumb-current">
                   {primaryCategory.categoryName}
-                  </span>
+                </span>
               </>
             )}
 
             <span>/</span>
-            {/* Tên sản phẩm hiện tại (không cần link) */}
             <span className="sf-breadcrumb-current">
               {detail.productName || "Chi tiết"}
             </span>
           </nav>
         )}
 
-        {/* HERO: ảnh + info */}
         <section className="sf-detail-hero">
           <div className="sf-detail-hero-left">
             <div
@@ -182,7 +177,6 @@ const StorefrontProductDetailPage = () => {
                 </div>
               )}
 
-              {/* Nhãn sản phẩm ở góc trái ảnh (giống list) */}
               {detail?.badges && detail.badges.length > 0 && (
                 <div className="sf-media-badges">
                   {detail.badges.map((b) => (
@@ -201,7 +195,6 @@ const StorefrontProductDetailPage = () => {
                 </div>
               )}
 
-              {/* HẾT HÀNG to ở giữa hình */}
               {isOutOfStock && (
                 <div className="sf-detail-out-of-stock">Hết hàng</div>
               )}
@@ -223,7 +216,6 @@ const StorefrontProductDetailPage = () => {
                   <h1 className="sf-detail-title">{displayTitle}</h1>
                 </header>
 
-                {/* Tình trạng + kho còn (label đậm giống meta khác) */}
                 <div className="sf-detail-meta-row">
                   <div className="sf-detail-status">
                     <span className="sf-detail-meta-label">Tình trạng:</span>{" "}
@@ -243,7 +235,6 @@ const StorefrontProductDetailPage = () => {
                   )}
                 </div>
 
-                {/* Danh mục, loại sản phẩm */}
                 <div className="sf-detail-meta-list">
                   {categoryNames && (
                     <div className="sf-detail-meta-item">
@@ -266,7 +257,6 @@ const StorefrontProductDetailPage = () => {
                   </div>
                 </div>
 
-                {/* Giá */}
                 <div className="sf-detail-price-block">
                   <div className="sf-detail-price-main">
                     <div className="sf-detail-price-now">
@@ -281,7 +271,6 @@ const StorefrontProductDetailPage = () => {
                   </div>
                 </div>
 
-                {/* Tuỳ chọn gói */}
                 {detail.siblingVariants && detail.siblingVariants.length > 1 && (
                   <div className="sf-detail-variants">
                     <div className="sf-detail-variants-label">
@@ -316,7 +305,25 @@ const StorefrontProductDetailPage = () => {
                   </div>
                 )}
 
-                {/* Nút mua */}
+                <div className="sf-quantity-control">
+                  <span className="sf-detail-meta-label">Số lượng:</span>
+                  <button
+                    type="button"
+                    className="sf-btn sf-btn-outline sf-btn-lg"
+                    onClick={handleDecreaseQuantity}
+                  >
+                    -
+                  </button>
+                  <span className="sf-quantity">{quantity}</span>
+                  <button
+                    type="button"
+                    className="sf-btn sf-btn-outline sf-btn-lg"
+                    onClick={handleIncreaseQuantity}
+                  >
+                    +
+                  </button>
+                </div>
+
                 <div className="sf-detail-actions">
                   <button
                     type="button"
@@ -342,7 +349,6 @@ const StorefrontProductDetailPage = () => {
           </div>
         </section>
 
-        {/* SECTIONS + FAQ */}
         <section className="sf-detail-body">
           <div className="sf-detail-main">
             {detail?.sections && detail.sections.length > 0 && (
@@ -369,33 +375,32 @@ const StorefrontProductDetailPage = () => {
               </div>
             )}
 
-           {detail?.faqs && detail.faqs.length > 0 && (
-  <div className="sf-detail-block">
-    <div className="sf-detail-section-row sf-detail-faq-row">
-      {/* Cột trái: tiêu đề khối */}
-      <div className="sf-detail-section-type">
-        Câu hỏi thường gặp (FAQ)
-      </div>
+            {detail?.faqs && detail.faqs.length > 0 && (
+              <div className="sf-detail-block">
+                <div className="sf-detail-section-row sf-detail-faq-row">
+                  <div className="sf-detail-section-type">
+                    Câu hỏi thường gặp (FAQ)
+                  </div>
 
-      {/* Cột phải: danh sách câu hỏi & trả lời */}
-      <div className="sf-detail-faq-list">
-        {detail.faqs.map((f) => (
-          <div key={f.faqId} className="sf-detail-faq-item">
-            <div className="sf-detail-faq-question">{f.question}</div>
-            <div
-              className="sf-detail-faq-answer"
-              dangerouslySetInnerHTML={{ __html: f.answer }}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-)}
+                  <div className="sf-detail-faq-list">
+                    {detail.faqs.map((f) => (
+                      <div key={f.faqId} className="sf-detail-faq-item">
+                        <div className="sf-detail-faq-question">
+                          {f.question}
+                        </div>
+                        <div
+                          className="sf-detail-faq-answer"
+                          dangerouslySetInnerHTML={{ __html: f.answer }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* Sản phẩm liên quan */}
         <section className="sf-detail-related">
           <div className="sf-section-header">
             <h2>Sản phẩm liên quan</h2>
@@ -447,7 +452,6 @@ const StorefrontProductDetailPage = () => {
                           </div>
                         )}
 
-                        {/* Badge biến thể ở góc ảnh */}
                         {item.badges && item.badges.length > 0 && (
                           <div className="sf-media-badges">
                             {item.badges.map((b) => (
@@ -469,7 +473,6 @@ const StorefrontProductDetailPage = () => {
                           </div>
                         )}
 
-                        {/* HẾT HÀNG ở giữa hình */}
                         {isCardOut && (
                           <div className="sf-out-of-stock">Hết hàng</div>
                         )}

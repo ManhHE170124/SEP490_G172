@@ -63,6 +63,7 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
+import StorefrontHomepagePage from "../pages/storefront/StorefrontHomepagePage.jsx";
 import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
 
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
@@ -110,14 +111,15 @@ export default function AppRoutes() {
     </ProtectedRoute>
   );
 
-  return (
+ return (
     <Routes>
       {/* Default Access Routes */}
       <Route
         path="/"
         element={
           <ClientLayout>
-            <HomePage />
+            {/* dùng homepage storefront mới làm trang mặc định */}
+            <StorefrontHomepagePage />
           </ClientLayout>
         }
       />
@@ -460,7 +462,14 @@ export default function AppRoutes() {
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
-
+  <Route
+        path="/homepage"
+        element={
+          <ClientLayout>
+            <StorefrontHomepagePage />
+          </ClientLayout>
+        }
+      />
       <Route
         path="/access-denied"
         element={
