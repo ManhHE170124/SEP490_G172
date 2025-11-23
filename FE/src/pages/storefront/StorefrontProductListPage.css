@@ -17,10 +17,11 @@
     Roboto, Arial, sans-serif;
 }
 
+/* body rộng hơn, padding mỏng giống Divine */
 .sf-container {
-  max-width: 1200px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 8px;
 }
 
 .sf-section {
@@ -31,7 +32,7 @@
   background: #ffffff;
   border: 1px solid var(--sf-line);
   border-radius: 20px;
-  padding: 20px;
+  padding: 18px;
 }
 
 .sf-section-header {
@@ -175,26 +176,28 @@
   }
 }
 
-/* Product grid & card */
+/* Grid & card */
 
-.sf-grid {
+.sf-product-page .sf-grid {
   display: grid;
-  gap: 16px;
+  column-gap: 18px;
+  row-gap: 18px;
 }
 
-.sf-grid-responsive {
-  grid-template-columns: repeat(4, 1fr);
+/* Tối đa 4 card / hàng */
+.sf-product-page .sf-grid-responsive {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 1024px) {
-  .sf-grid-responsive {
-    grid-template-columns: repeat(3, 1fr);
+  .sf-product-page .sf-grid-responsive {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
-  .sf-grid-responsive {
-    grid-template-columns: repeat(2, 1fr);
+  .sf-product-page .sf-grid-responsive {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sf-section {
@@ -211,24 +214,35 @@
   display: flex;
   flex-direction: column;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;              /* <= thêm: cho thấy là click được */
+  pointer-events: auto;         /* <= đảm bảo không bị rule cũ chặn */
 }
 
+/* Hover – áp dụng cho MỌI card, kể cả sf-card-out */
 .sf-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
 }
 
-.sf-card-link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
+/* Card hết hàng vẫn là card bình thường, chỉ thêm overlay */
+.sf-card-out {
+  position: relative;
+  pointer-events: auto;         /* <= chắc chắn vẫn nhận hover/click */
 }
 
-/* Media / thumbnail */
+/* Link của card – luôn KHÔNG gạch chân, kể cả hover */
+.sf-card-link,
+.sf-card-link:hover {
+  text-decoration: none !important;
+    color: inherit;
+}
 
+
+/* Media / thumbnail */
+/* tỷ lệ giống Divine, nhưng không cắt ảnh (object-fit: contain) */
 .sf-media {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 920 / 430;  /* <= sửa lại chỗ này */
   background: #f1f5f9;
   display: grid;
   place-items: center;
@@ -238,10 +252,8 @@
 .sf-media img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* không cắt mất ảnh */
 }
-
-
 
 .sf-media-placeholder {
   font-weight: 700;
@@ -249,8 +261,18 @@
   color: #1f2937;
 }
 
-/* Badges */
-/* Badges trong body, không dán lên ảnh nữa */
+/* Badge trên góc ảnh (dùng chung cho list + related) */
+.sf-media-badges {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  z-index: 2;
+}
+
+/* Nhãn (tag) nếu dùng ở chỗ khác */
 .sf-body-badges {
   display: flex;
   flex-wrap: wrap;
@@ -258,7 +280,6 @@
   margin-top: 4px;
   margin-bottom: 6px;
 }
-
 
 .sf-tag {
   font-size: 10px;
@@ -271,7 +292,6 @@
   letter-spacing: 0.02em;
 }
 
-
 /* Card body */
 
 .sf-body {
@@ -282,29 +302,46 @@
   margin: 0 0 6px;
   font-size: 14px;
   line-height: 1.4;
+    color: #0b1220;
 }
 
-.sf-category {
-  font-size: 12px;
-  color: var(--sf-muted);
-  margin-bottom: 4px;
+/* Hết hàng – overlay nhẹ, không dạng nhãn góc */
+
+/* lớp mờ phủ lên ảnh */
+.sf-card-out .sf-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 23, 42, 0.25),
+    rgba(15, 23, 42, 0.65)
+  );
+  pointer-events: none;       
 }
 
-/* Meta: rating + sold */
-
-.sf-meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  color: var(--sf-muted);
-  font-size: 12px;
-  flex-wrap: wrap;
+/* ảnh mờ nhẹ */
+.sf-card-out .sf-media img {
+  filter: grayscale(0.15);
+  opacity: 0.6;
 }
 
-.sf-dot::before {
-  content: "•";
-  margin: 0 2px;
+/* chữ “HẾT HÀNG” hòa với nền */
+.sf-out-of-stock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  z-index: 3;
+  pointer-events: none;    
 }
+
 
 /* Price */
 
@@ -313,11 +350,31 @@
   align-items: baseline;
   gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 .sf-price-now {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
+   color: #dc2626;
+}
+
+.sf-price-old {
+  font-size: 13px;
+  color: var(--sf-muted);
+  text-decoration-line: line-through !important;
+  text-decoration-thickness: 1.2px;
+}
+
+/* % giảm giá: pill giống trang chi tiết */
+.sf-price-off {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
 }
 
 /* Loading / error */
@@ -332,7 +389,7 @@
   color: #b91c1c;
 }
 
-/* Pagination */
+/* Pagination – căn giữa */
 
 .sf-pager {
   display: flex;
@@ -340,6 +397,7 @@
   gap: 8px;
   margin: 18px 0 4px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 .sf-pager .sf-btn {
@@ -354,116 +412,3 @@
   padding: 0 2px;
   color: var(--sf-muted);
 }
-.sf-price {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
-.sf-price-now {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.sf-price-old {
-  font-size: 13px;
-  color: var(--sf-muted);
-  text-decoration: line-through;
-}
-
-.sf-price-off {
-  font-size: 12px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ef4444;
-  color: #ffffff;
-}
-/* Mặc định tên sản phẩm không gạch chân */
-.sf-body h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-  line-height: 1.4;
-  text-decoration: none;          /* <- thêm */
-}
-
-/* Khi hover lên card, chỉ gạch chân tên sản phẩm */
-.sf-card-link:hover .sf-body h3 {
-  text-decoration: underline;
-}
-/* Link của card: luôn không gạch chân */
-.sf-card-link,
-.sf-card-link:visited,
-.sf-card-link:hover,
-.sf-card-link:focus {
-  text-decoration: none !important;
-}
-
-/* Mặc định mọi text bên trong card cũng không gạch chân */
-.sf-card-link * {
-  text-decoration: none;
-}
-
-/* Mặc định tên sản phẩm không gạch chân */
-.sf-body h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-  line-height: 1.4;
-  text-decoration: none;
-}
-
-/* Khi hover lên card, CHỈ gạch chân tên sản phẩm */
-.sf-card-link:hover .sf-body h3 {
-  text-decoration: underline;
-}
-/* Khi sản phẩm hết hàng, card sẽ bị làm mờ */
-.sf-card-out {
-  opacity: 0.55; /* Làm mờ card */
-  position: relative; /* Để có thể thêm nội dung "Hết hàng" lên ảnh */
-}
-
-/* Sản phẩm hết hàng khi hover không thể nổi lên quá nhiều */
-.sf-card-out:hover {
-  transform: none;
-  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.03);
-}
-
-/* Dòng "Hết hàng" */
-.sf-out-of-stock {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
-  font-weight: 700;
-  color: #ffffff;
-  background-color: rgba(0, 0, 0, 0.7);
-  padding: 10px;
-  border-radius: 8px;
-  text-transform: uppercase;
-}
-
-/* Cải thiện hiển thị cho "Hết hàng" */
-.sf-media {
-  position: relative;
-  aspect-ratio: 16 / 10;
-  background: #f1f5f9;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-
-.sf-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.sf-media-placeholder {
-  font-weight: 700;
-  font-size: 22px;
-  color: #1f2937;
-}
-

@@ -70,4 +70,46 @@ namespace Keytietkiem.DTOs.Products
         IReadOnlyCollection<StorefrontCategoryFilterItemDto> Categories,
         IReadOnlyCollection<string> ProductTypes
     );
+ 
+    public record StorefrontSiblingVariantDto(
+        Guid VariantId,
+        string VariantTitle,
+        string Status
+    );
+
+   
+    public record StorefrontSectionDto(
+        Guid SectionId,
+        string SectionType,
+        string Title,
+        string Content
+    );
+
+
+    public record StorefrontFaqItemDto(
+        int FaqId,
+        string Question,
+        string Answer,
+        string Source
+    );
+
+
+    public record StorefrontVariantDetailDto(
+        Guid VariantId,
+        Guid ProductId,
+        string ProductCode,
+        string ProductName,
+        string ProductType,
+        string VariantTitle,
+        string Status,
+        int StockQty,
+        string? Thumbnail,
+        IReadOnlyCollection<StorefrontCategoryMiniDto> Categories,
+        IReadOnlyCollection<StorefrontSiblingVariantDto> SiblingVariants,
+
+        // KHÔNG còn PriceNow / PriceOld ở đây nữa
+
+        IReadOnlyCollection<StorefrontSectionDto> Sections,
+        IReadOnlyCollection<StorefrontFaqItemDto> Faqs
+    );
 }
