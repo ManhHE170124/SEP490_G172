@@ -1,5 +1,4 @@
-﻿/* Sidebar Styles */
-.sb-sidebar {
+﻿.sb-sidebar {
   position: fixed;
   top: 0;
   left: 0;
@@ -9,7 +8,12 @@
   border-right: 1px solid var(--line);
   z-index: 1000;
   transition: width 0.25s ease, box-shadow 0.25s ease;
+
+  /* THÊM 2 DÒNG NÀY */
+  display: flex;
+  flex-direction: column;
 }
+
 
 .sb-sidebar.collapsed {
   width: 96px;
