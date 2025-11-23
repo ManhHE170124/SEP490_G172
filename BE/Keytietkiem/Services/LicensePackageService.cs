@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +18,9 @@ namespace Keytietkiem.Services;
 
 public class LicensePackageService : ILicensePackageService
 {
+    private const string LicensePackageResource = "LicensePackage";
+    private const string PackageNotFoundMessage = "Gói license không tồn tại";
+
     private readonly KeytietkiemDbContext _context;
     private readonly IGenericRepository<LicensePackage> _packageRepository;
     private readonly IGenericRepository<AuditLog> _auditRepository;
@@ -49,18 +53,18 @@ public class LicensePackageService : ILicensePackageService
         if (!supplierExists)
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
-        // Validate product exists
-        var productExists = await _context.Products
-            .AnyAsync(p => p.ProductId == createDto.ProductId, cancellationToken);
-        if (!productExists)
-            throw new InvalidOperationException("Sản phẩm không tồn tại");
+        // Validate variant exists (createDto.ProductId represents the variant ID)
+        var variant = await _context.ProductVariants
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.VariantId == createDto.ProductId, cancellationToken);
+        if (variant == null)
+            throw new InvalidOperationException("Biến thể sản phẩm không tồn tại");
 
         var package = new LicensePackage
         {
             SupplierId = createDto.SupplierId,
-            ProductId = createDto.ProductId,
+            VariantId = variant.VariantId,
             Quantity = createDto.Quantity,
-            PricePerUnit = createDto.PricePerUnit,
             ImportedToStock = 0,
             CreatedAt = _clock.UtcNow,
             Notes = createDto.Notes
@@ -70,6 +74,14 @@ public class LicensePackageService : ILicensePackageService
         try
         {
             await _packageRepository.AddAsync(package, cancellationToken);
+
+            if (variant.CogsPrice != createDto.PricePerUnit)
+            {
+                variant.CogsPrice = createDto.PricePerUnit;
+                variant.UpdatedAt = _clock.UtcNow;
+                _context.ProductVariants.Update(variant);
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
 
             // Create audit log
@@ -77,14 +89,15 @@ public class LicensePackageService : ILicensePackageService
                 actorId,
                 actorEmail,
                 "CREATE",
-                "LicensePackage",
+                LicensePackageResource,
                 package.PackageId.ToString(),
                 new
                 {
                     package.SupplierId,
-                    package.ProductId,
+                    package.VariantId,
+                    ProductId = variant.ProductId,
                     package.Quantity,
-                    package.PricePerUnit,
+                    CogsPrice = variant.CogsPrice,
                     package.Notes
                 },
                 cancellationToken);
@@ -113,12 +126,15 @@ public class LicensePackageService : ILicensePackageService
     {
         var package = await _packageRepository.GetByIdAsync(updateDto.PackageId, cancellationToken);
         if (package == null)
-            throw new InvalidOperationException("Gói license không tồn tại");
+            throw new InvalidOperationException(PackageNotFoundMessage);
+
+        await _context.Entry(package).Reference(p => p.ProductVariant).LoadAsync(cancellationToken);
+        await _context.Entry(package.ProductVariant).Reference(v => v.Product).LoadAsync(cancellationToken);
 
         var oldValues = new
         {
             package.Quantity,
-            package.PricePerUnit,
+            PricePerUnit = package.ProductVariant.CogsPrice,
             package.Notes
         };
 
@@ -130,8 +146,13 @@ public class LicensePackageService : ILicensePackageService
             package.Quantity = updateDto.Quantity.Value;
         }
 
-        if (updateDto.PricePerUnit.HasValue)
-            package.PricePerUnit = updateDto.PricePerUnit.Value;
+        if (updateDto.PricePerUnit is decimal newPrice &&
+            package.ProductVariant.CogsPrice != newPrice)
+        {
+            package.ProductVariant.CogsPrice = newPrice;
+            package.ProductVariant.UpdatedAt = _clock.UtcNow;
+            _context.ProductVariants.Update(package.ProductVariant);
+        }
 
         
 
@@ -149,7 +170,7 @@ public class LicensePackageService : ILicensePackageService
                 actorId,
                 actorEmail,
                 "UPDATE",
-                "LicensePackage",
+                LicensePackageResource,
                 package.PackageId.ToString(),
                 new
                 {
@@ -157,7 +178,7 @@ public class LicensePackageService : ILicensePackageService
                     NewValues = new
                     {
                         package.Quantity,
-                        package.PricePerUnit,
+                        PricePerUnit = package.ProductVariant.CogsPrice,
                         package.Notes
                     }
                 },
@@ -185,21 +206,23 @@ public class LicensePackageService : ILicensePackageService
     {
         var package = await _context.LicensePackages
             .Include(lp => lp.Supplier)
-            .Include(lp => lp.Product)
+            .Include(lp => lp.ProductVariant)
+                .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(lp => lp.PackageId == packageId, cancellationToken);
 
         if (package == null)
-            throw new InvalidOperationException("Gói license không tồn tại");
+            throw new InvalidOperationException(PackageNotFoundMessage);
 
         return new LicensePackageResponseDto
         {
             PackageId = package.PackageId,
             SupplierId = package.SupplierId,
             SupplierName = package.Supplier.Name,
-            ProductId = package.ProductId,
-            ProductName = package.Product.ProductName,
+            VariantId = package.ProductVariant.VariantId,
+            ProductId = package.ProductVariant.ProductId,
+            ProductName = package.ProductVariant.Product.ProductName,
             Quantity = package.Quantity,
-            PricePerUnit = package.PricePerUnit,
+            PricePerUnit = package.ProductVariant.CogsPrice,
             ImportedToStock = package.ImportedToStock,
             RemainingQuantity = package.Quantity - package.ImportedToStock,
             CreatedAt = package.CreatedAt,
@@ -216,7 +239,8 @@ public class LicensePackageService : ILicensePackageService
     {
         var query = _context.LicensePackages
             .Include(lp => lp.Supplier)
-            .Include(lp => lp.Product)
+            .Include(lp => lp.ProductVariant)
+                .ThenInclude(v => v.Product)
             .AsQueryable();
 
         // Apply filters
@@ -224,7 +248,7 @@ public class LicensePackageService : ILicensePackageService
             query = query.Where(lp => lp.SupplierId == supplierId.Value);
 
         if (productId.HasValue)
-            query = query.Where(lp => lp.ProductId == productId.Value);
+            query = query.Where(lp => lp.ProductVariant.ProductId == productId.Value);
 
         var total = await query.CountAsync(cancellationToken);
 
@@ -236,9 +260,10 @@ public class LicensePackageService : ILicensePackageService
             {
                 PackageId = lp.PackageId,
                 SupplierName = lp.Supplier.Name,
-                ProductName = lp.Product.ProductName,
+                VariantId = lp.ProductVariant.VariantId,
+                ProductName = lp.ProductVariant.Product.ProductName,
                 Quantity = lp.Quantity,
-                PricePerUnit = lp.PricePerUnit,
+                PricePerUnit = lp.ProductVariant.CogsPrice,
                 ImportedToStock = lp.ImportedToStock,
                 RemainingQuantity = lp.Quantity - lp.ImportedToStock
             })
@@ -257,7 +282,7 @@ public class LicensePackageService : ILicensePackageService
             .FirstOrDefaultAsync(lp => lp.PackageId == importDto.PackageId, cancellationToken);
 
         if (package == null)
-            throw new InvalidOperationException("Gói license không tồn tại");
+            throw new InvalidOperationException(PackageNotFoundMessage);
 
         var remainingQuantity = package.Quantity - package.ImportedToStock;
         if (importDto.QuantityToImport > remainingQuantity)
@@ -276,7 +301,7 @@ public class LicensePackageService : ILicensePackageService
                 actorId,
                 actorEmail,
                 "IMPORT_TO_STOCK",
-                "LicensePackage",
+                LicensePackageResource,
                 package.PackageId.ToString(),
                 new
                 {
@@ -311,7 +336,10 @@ public class LicensePackageService : ILicensePackageService
     {
         var package = await _packageRepository.GetByIdAsync(packageId, cancellationToken);
         if (package == null)
-            throw new InvalidOperationException("Gói license không tồn tại");
+            throw new InvalidOperationException(PackageNotFoundMessage);
+
+        await _context.Entry(package).Reference(p => p.ProductVariant).LoadAsync(cancellationToken);
+        var variant = package.ProductVariant;
 
         if (package.ImportedToStock > 0)
             throw new InvalidOperationException(
@@ -327,14 +355,14 @@ public class LicensePackageService : ILicensePackageService
                 actorId,
                 actorEmail,
                 "DELETE",
-                "LicensePackage",
+                LicensePackageResource,
                 package.PackageId.ToString(),
                 new
                 {
                     package.SupplierId,
-                    package.ProductId,
+                    package.VariantId,
                     package.Quantity,
-                    package.PricePerUnit
+                    CogsPrice = variant?.CogsPrice
                 },
                 cancellationToken);
 
@@ -355,6 +383,7 @@ public class LicensePackageService : ILicensePackageService
 
     public async Task<CsvUploadResultDto> UploadLicenseCsvAsync(
         Guid packageId,
+        Guid variantId,
         int supplierId,
         IFormFile file,
         Guid actorId,
@@ -366,58 +395,69 @@ public class LicensePackageService : ILicensePackageService
         ValidateExpiryDate(expiryDate);
 
         var package = await _context.LicensePackages
-            .Include(p => p.Product)
+            .Include(p => p.ProductVariant)
+                .ThenInclude(v => v.Product)
             .Include(p => p.Supplier)
             .FirstOrDefaultAsync(p => p.PackageId == packageId, cancellationToken);
 
         if (package == null)
-            throw new InvalidOperationException("Gói license không tồn tại");
+            throw new InvalidOperationException(PackageNotFoundMessage);
 
         if (package.SupplierId != supplierId)
             throw new InvalidOperationException("Gói license không thuộc về nhà cung cấp này");
+
+        if (package.VariantId != variantId)
+            throw new InvalidOperationException("Biến thể sản phẩm không khớp với gói này");
 
         var parseResult = await ParseLicenseKeysFromCsvAsync(file, cancellationToken);
 
         return await PersistLicenseKeysAsync(
             package,
+            variantId,
             parseResult,
             actorId,
             actorEmail,
             keyType,
             expiryDate,
-            package.Product.ProductName,
+            package.ProductVariant.Product.ProductName,
             package.Supplier.Name,
             false,
             cancellationToken);
     }
 
     public async Task<CsvUploadResultDto> CreatePackageAndUploadCsvAsync(
-        Guid productId,
+        Guid variantId,
         int supplierId,
-        decimal pricePerUnit,
         IFormFile file,
         Guid actorId,
         string actorEmail,
         string keyType,
+        decimal? cogsPrice = null,
         DateTime? expiryDate = null,
         CancellationToken cancellationToken = default)
     {
-        if (pricePerUnit < 0)
-            throw new InvalidOperationException("Giá vốn phải lớn hơn hoặc bằng 0");
-
         ValidateExpiryDate(expiryDate);
 
-        var product = await _context.Products
-            .FirstOrDefaultAsync(p => p.ProductId == productId, cancellationToken);
+        var variant = await _context.ProductVariants
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.VariantId == variantId, cancellationToken);
 
-        if (product == null)
-            throw new InvalidOperationException("Sản phẩm không tồn tại");
+        if (variant == null)
+            throw new InvalidOperationException("Biến thể sản phẩm không tồn tại");
 
         var supplier = await _context.Suppliers
             .FirstOrDefaultAsync(s => s.SupplierId == supplierId, cancellationToken);
 
         if (supplier == null)
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
+
+        // Update variant's CogsPrice if provided
+        if (cogsPrice.HasValue)
+        {
+            variant.CogsPrice = cogsPrice.Value;
+            variant.UpdatedAt = _clock.UtcNow;
+            _context.ProductVariants.Update(variant);
+        }
 
         var parseResult = await ParseLicenseKeysFromCsvAsync(file, cancellationToken);
 
@@ -427,21 +467,21 @@ public class LicensePackageService : ILicensePackageService
         var package = new LicensePackage
         {
             SupplierId = supplierId,
-            ProductId = productId,
+            VariantId = variant.VariantId,
             Quantity = parseResult.LicenseKeys.Count,
-            PricePerUnit = pricePerUnit,
             ImportedToStock = 0,
             CreatedAt = _clock.UtcNow
         };
 
         return await PersistLicenseKeysAsync(
             package,
+            variantId,
             parseResult,
             actorId,
             actorEmail,
             keyType,
             expiryDate,
-            product.ProductName,
+            variant.Product.ProductName,
             supplier.Name,
             true,
             cancellationToken);
@@ -508,8 +548,10 @@ public class LicensePackageService : ILicensePackageService
         return result;
     }
 
+    [SuppressMessage("Minor Code Smell", "S107:Methods should not have too many parameters", Justification = "Legacy worker method; refactor planned")]
     private async Task<CsvUploadResultDto> PersistLicenseKeysAsync(
         LicensePackage package,
+        Guid variantId,
         LicenseKeyCsvParseResult parseResult,
         Guid actorId,
         string actorEmail,
@@ -564,7 +606,7 @@ public class LicensePackageService : ILicensePackageService
 
                 var productKey = new ProductKey
                 {
-                    ProductId = package.ProductId,
+                    VariantId = variantId,
                     KeyString = key,
                     Type = keyType,
                     Status = nameof(ProductKeyStatus.Available),
@@ -585,15 +627,14 @@ public class LicensePackageService : ILicensePackageService
                 _context.LicensePackages.Update(package);
             }
 
-            var product = await _context.Products
-                .FirstOrDefaultAsync(p => p.ProductId == package.ProductId, cancellationToken);
+            var variant = await _context.ProductVariants
+                .FirstOrDefaultAsync(v => v.VariantId == variantId, cancellationToken);
 
-            if (product != null)
+            if (variant != null)
             {
-                product.StockQty += successCount;
-                product.UpdatedAt = DateTime.UtcNow;
-                product.Status = "ACTIVE";
-                _context.Products.Update(product);
+                variant.StockQty += successCount;
+                variant.UpdatedAt = DateTime.UtcNow;
+                _context.ProductVariants.Update(variant);
             }
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -619,7 +660,7 @@ public class LicensePackageService : ILicensePackageService
                 actorId,
                 actorEmail,
                 isNewPackage ? "UPLOAD_CSV_NEW_PACKAGE" : "UPLOAD_CSV",
-                "LicensePackage",
+                LicensePackageResource,
                 package.PackageId.ToString(),
                 new
                 {
@@ -675,19 +716,21 @@ public class LicensePackageService : ILicensePackageService
     {
         // Validate package exists and belongs to the supplier
         var package = await _context.LicensePackages
-            .Include(p => p.Product)
+            .Include(p => p.ProductVariant)
+                .ThenInclude(v => v.Product)
             .Include(p => p.Supplier)
             .FirstOrDefaultAsync(p => p.PackageId == packageId, cancellationToken);
 
         if (package == null)
-            throw new InvalidOperationException("Gói license không tồn tại");
+            throw new InvalidOperationException(PackageNotFoundMessage);
 
         if (package.SupplierId != supplierId)
             throw new InvalidOperationException("Gói license không thuộc về nhà cung cấp này");
 
         // Get all keys imported for this package's product and supplier
         var keys = await _context.ProductKeys
-            .Where(pk => pk.ProductId == package.ProductId && pk.SupplierId == supplierId)
+            .Include(pk => pk.Variant)
+            .Where(pk => pk.VariantId == package.VariantId && pk.SupplierId == supplierId)
             .OrderByDescending(pk => pk.ImportedAt)
             .Select(pk => new LicenseKeyDetailDto
             {
@@ -707,7 +750,7 @@ public class LicensePackageService : ILicensePackageService
         return new LicenseKeysListResponseDto
         {
             PackageId = package.PackageId,
-            ProductName = package.Product.ProductName,
+            ProductName = package.ProductVariant.Product.ProductName,
             SupplierName = package.Supplier.Name,
             TotalKeys = keys.Count,
             Keys = keys

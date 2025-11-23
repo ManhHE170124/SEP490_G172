@@ -57,7 +57,8 @@ const readCustomerFromStorage = () => {
     if (!token || !storedUser) {
       return null;
     }
-    return JSON.parse(storedUser);
+    const parsed = JSON.parse(storedUser);
+    return parsed?.profile ?? parsed;
   } catch (error) {
     console.error("Failed to parse stored user", error);
     return null;
@@ -125,10 +126,12 @@ const getNavHref = (item) => {
   return "#";
 };
 
-const PublicHeader = ({ settings, loading }) => {
+const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [customer, setCustomer] = useState(() => readCustomerFromStorage());
+  const [customer, setCustomer] = useState(() =>
+    profile ? profile : readCustomerFromStorage()
+  );
   const [categories, setCategories] = useState([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [categoriesError, setCategoriesError] = useState("");
@@ -136,9 +139,13 @@ const PublicHeader = ({ settings, loading }) => {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
   const isCustomerMode = Boolean(customer);
-  const customerInitials = getInitials(
-    customer?.fullName || customer?.username || ""
-  );
+  const displayName =
+    customer?.fullName || customer?.username || customer?.displayName || "";
+  const displayEmail =
+    customer?.email || customer?.emailAddress || customer?.mail || "";
+  const avatarUrl =
+    customer?.avatarUrl || customer?.avatar || customer?.avatarURL || "";
+  const customerInitials = getInitials(displayName);
 
   useEffect(() => {
     let isMounted = true;
@@ -177,6 +184,7 @@ const PublicHeader = ({ settings, loading }) => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
     const syncCustomer = () => {
       setCustomer(readCustomerFromStorage());
     };
@@ -184,6 +192,14 @@ const PublicHeader = ({ settings, loading }) => {
     window.addEventListener("storage", syncCustomer);
     return () => window.removeEventListener("storage", syncCustomer);
   }, []);
+
+  useEffect(() => {
+    if (profile) {
+      setCustomer((prev) => ({ ...(prev || {}), ...profile }));
+    } else if (!profileLoading) {
+      setCustomer(readCustomerFromStorage());
+    }
+  }, [profile, profileLoading]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -388,10 +404,15 @@ const PublicHeader = ({ settings, loading }) => {
               aria-expanded={isAccountMenuOpen}
             >
               <div className="avatar" aria-hidden="true">
-                {customerInitials}
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Ảnh đại diện" />
+                ) : (
+                  customerInitials
+                )}
               </div>
               <div className="account-labels">
-                <span>{customer?.fullName || customer?.username}</span>
+                <span>{displayName || "Tài khoản"}</span>
+                {displayEmail && <small>{displayEmail}</small>}
               </div>
               <svg
                 width="16"

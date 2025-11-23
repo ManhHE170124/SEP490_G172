@@ -27,15 +27,9 @@ public partial class Product
 
     public string Slug { get; set; } = null!;
 
-    public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
-
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
-    public virtual ICollection<ProductAccount> ProductAccounts { get; set; } = new List<ProductAccount>();
-
     public virtual ICollection<ProductBadge> ProductBadges { get; set; } = new List<ProductBadge>();
-
-    public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
 
     public virtual ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();
 

@@ -3,6 +3,7 @@ import { ProductApi } from "../../services/products";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductAccountApi } from "../../services/productAccounts";
 import { SupplierApi } from "../../services/suppliers";
+import { ProductVariantsApi } from "../../services/productVariants";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
@@ -26,6 +27,9 @@ export default function KeyMonitorPage() {
   const [expiryDate, setExpiryDate] = useState("");
   const [suppliers, setSuppliers] = useState([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [variants, setVariants] = useState([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
   const [cogsPrice, setCogsPrice] = useState("");
   const [uploading, setUploading] = useState(false);
   const minExpiryDate = useMemo(
@@ -36,6 +40,10 @@ export default function KeyMonitorPage() {
     const parsed = parseFloat(cogsPrice);
     return Number.isFinite(parsed) && parsed > 0;
   }, [cogsPrice]);
+  const selectedVariant = useMemo(
+    () => variants.find((v) => v.variantId === selectedVariantId) || null,
+    [variants, selectedVariantId]
+  );
   // Mock: customer reported issues list
   const customerIssues = useMemo(
     () => [
@@ -158,7 +166,9 @@ export default function KeyMonitorPage() {
     setKeyType("Individual");
     setExpiryDate("");
     setSelectedSupplierId("");
+    setSelectedVariantId("");
     setCogsPrice("");
+    setVariants([]);
     // Load suppliers for selection
     try {
       const response = await SupplierApi.listByProduct(product.productId);
@@ -177,6 +187,28 @@ export default function KeyMonitorPage() {
       showError("Lỗi tải nhà cung cấp", "Không thể tải danh sách nhà cung cấp");
       setSuppliers([]);
     }
+    // Load variants for the selected product
+    try {
+      setLoadingVariants(true);
+      const response = await ProductVariantsApi.list(product.productId, {
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      const mappedVariants = response?.items || response?.data || [];
+      setVariants(mappedVariants);
+      if (!mappedVariants.length) {
+        showError(
+          "Chưa có biến thể",
+          "Sản phẩm này chưa có biến thể nào để nhập key"
+        );
+      }
+    } catch (e) {
+      console.error("Failed to load variants for product:", e);
+      showError("Lỗi tải biến thể", "Không thể tải danh sách biến thể");
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
+    }
     setShowImportModal(true);
   };
   const closeImportModal = () => {
@@ -185,7 +217,10 @@ export default function KeyMonitorPage() {
     setCsvFile(null);
     setExpiryDate("");
     setSelectedSupplierId("");
+    setSelectedVariantId("");
     setCogsPrice("");
+    setVariants([]);
+    setLoadingVariants(false);
   };
   const handleCsvChange = (e) => {
     const f = e.target.files?.[0];
@@ -199,6 +234,10 @@ export default function KeyMonitorPage() {
   const handleUploadCsv = async () => {
     if (!csvFile || !importProduct || !selectedSupplierId) {
       showError("Thiếu dữ liệu", "Chọn nhà cung cấp và file CSV");
+      return;
+    }
+    if (!selectedVariantId) {
+      showError("Thiếu dữ liệu", "Vui lòng chọn biến thể cần nhập key");
       return;
     }
     const parsedCogs = parseFloat(cogsPrice);
@@ -223,6 +262,7 @@ export default function KeyMonitorPage() {
       const form = new FormData();
       form.append("file", csvFile);
       form.append("productId", importProduct.productId);
+      form.append("variantId", selectedVariantId);
       form.append("supplierId", selectedSupplierId);
       form.append("keyType", keyType);
       form.append("cogsPrice", parsedCogs);
@@ -464,6 +504,36 @@ export default function KeyMonitorPage() {
                   <div className="label-chip" style={{ background: "#1e40af" }}>
                     {importProduct?.productName}
                   </div>
+                  {selectedVariant && (
+                    <div
+                      className="label-chip"
+                      style={{ background: "#0f766e", marginTop: 6 }}
+                    >
+                      {selectedVariant.title}
+                    </div>
+                  )}
+                </div>
+                <div className="form-row">
+                  <label>Biến thể</label>
+                  <select
+                    className="input"
+                    value={selectedVariantId}
+                    onChange={(e) => setSelectedVariantId(e.target.value)}
+                    disabled={loadingVariants || variants.length === 0}
+                  >
+                    <option value="">
+                      {loadingVariants
+                        ? "Đang tải biến thể..."
+                        : variants.length === 0
+                        ? "Không có biến thể khả dụng"
+                        : "Chọn biến thể"}
+                    </option>
+                    {variants.map((variant) => (
+                      <option key={variant.variantId} value={variant.variantId}>
+                        {variant.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-row">
                   <label>Nhà cung cấp</label>
@@ -540,6 +610,7 @@ export default function KeyMonitorPage() {
                   uploading ||
                   !csvFile ||
                   !selectedSupplierId ||
+                  !selectedVariantId ||
                   !isCogsPriceValid
                 }
               >

@@ -57,6 +57,10 @@ export default function LoginPage() {
       localStorage.setItem("refresh_token", response.refreshToken);
       localStorage.setItem("user", JSON.stringify(response.user));
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("profile-updated"));
+      }
+
       // Store username if remember me is checked
       if (formData.rememberMe) {
         localStorage.setItem("remembered_username", formData.username);

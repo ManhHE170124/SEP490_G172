@@ -12,7 +12,7 @@ public partial class ProductAccount : IValidatableObject
 {
     public Guid ProductAccountId { get; set; }
 
-    public Guid ProductId { get; set; }
+    public Guid VariantId { get; set; }
 
     [EmailAddress]
     [StringLength(254)]
@@ -45,10 +45,7 @@ public partial class ProductAccount : IValidatableObject
 
     public Guid? UpdatedBy { get; set; }
 
-    [Range(0, double.MaxValue)]
-    public decimal CogsPrice { get; set; }
-
-    public virtual Product Product { get; set; } = null!;
+    public virtual ProductVariant Variant { get; set; } = null!;
 
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
 

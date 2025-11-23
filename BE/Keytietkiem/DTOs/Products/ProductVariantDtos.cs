@@ -40,7 +40,9 @@ namespace Keytietkiem.DTOs.Products
         string? MetaTitle,
         string? MetaDescription,
         int ViewCount,
-        string Status
+        string Status,
+        decimal SellPrice,
+        decimal CogsPrice
     );
 
     // Create/Update: giống Post (không có ViewCount vì server tự set)
@@ -65,7 +67,8 @@ namespace Keytietkiem.DTOs.Products
         string? Thumbnail,
         string? MetaTitle,
         string? MetaDescription,
-        string? Status
+        string? Status,
+        decimal? SellPrice
     );
     public class VariantImageUploadRequest
     {

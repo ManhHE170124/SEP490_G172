@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import homepageApi from "../../services/homepage";
 import "./HomePage.css";
@@ -249,19 +249,7 @@ const HomePage = () => {
     navigate(href);
   };
 
-  const heroBanners = data?.heroBanners ?? [];
   const topSearches = data?.topSearches ?? [];
-  const priceFilters = data?.priceFilters ?? [];
-  const extraShelves = useMemo(() => {
-    const list = [];
-    if (data?.bestSellers?.items?.length) {
-      list.push({ shelf: data.bestSellers, accent: false });
-    }
-    if (data?.newArrivals?.items?.length) {
-      list.push({ shelf: data.newArrivals, accent: true });
-    }
-    return list;
-  }, [data]);
 
   return (
     <div className="hp-page">
@@ -288,53 +276,11 @@ const HomePage = () => {
 
       {!loading && !error && (
         <>
-          <section className="hp-section hp-hero">
-            <div className="container">
-              <div className="hp-grid hp-grid-hero">
-                {heroBanners.map((banner) => (
-                  <a
-                    key={banner.title}
-                    className={`hp-banner-card ${banner.accent}`}
-                    href={banner.ctaLink}
-                    onClick={(event) => handleNavigate(banner.ctaLink, event)}
-                  >
-                    <div>
-                      <h1 className="hp-banner-title">{banner.title}</h1>
-                      <p className="hp-banner-desc">{banner.description}</p>
-                      <span className="hp-banner-cta">{banner.ctaText}</span>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </section>
-
           <FilterBlock
             title="Tìm kiếm hàng đầu"
             chips={topSearches}
             onNavigate={(href) => handleNavigate(href)}
           />
-
-          <ProductShelf
-            shelf={data?.todaysDeals}
-            accent
-            onNavigate={(href, event) => handleNavigate(href, event)}
-          />
-
-          <FilterBlock
-            title="Giá phù hợp"
-            chips={priceFilters}
-            onNavigate={(href) => handleNavigate(href)}
-          />
-
-          {extraShelves.map((block, index) => (
-            <ProductShelf
-              key={block.shelf.title}
-              shelf={block.shelf}
-              accent={index % 2 === 0}
-              onNavigate={(href, event) => handleNavigate(href, event)}
-            />
-          ))}
 
           <Services
             services={data?.services}

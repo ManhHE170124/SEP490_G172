@@ -7,7 +7,7 @@ public partial class ProductKey
 {
     public Guid KeyId { get; set; }
 
-    public Guid ProductId { get; set; }
+    public Guid VariantId { get; set; }
 
     public string KeyString { get; set; } = null!;
 
@@ -31,7 +31,7 @@ public partial class ProductKey
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
-    public virtual Product Product { get; set; } = null!;
+    public virtual ProductVariant Variant { get; set; } = null!;
 
     public virtual Supplier Supplier { get; set; } = null!;
 }

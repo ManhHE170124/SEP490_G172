@@ -123,12 +123,16 @@ public class LicensePackageController : ControllerBase
     /// Upload CSV file containing license keys and import to stock
     /// </summary>
     /// <param name="packageId">License package ID</param>
+    /// <param name="variantId">Product variant ID</param>
     /// <param name="supplierId">Supplier ID</param>
     /// <param name="file">CSV file containing license keys</param>
+    /// <param name="keyType">Key type (Individual/Pool)</param>
+    /// <param name="expiryDate">Optional expiry date</param>
     [HttpPost("upload-csv")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadLicenseCsv(
         [FromForm] Guid packageId,
+        [FromForm] Guid variantId,
         [FromForm] int supplierId,
         IFormFile file,
         [FromForm] string keyType = "Individual",
@@ -145,6 +149,7 @@ public class LicensePackageController : ControllerBase
 
         var result = await _licensePackageService.UploadLicenseCsvAsync(
             packageId,
+            variantId,
             supplierId,
             file,
             actorId,

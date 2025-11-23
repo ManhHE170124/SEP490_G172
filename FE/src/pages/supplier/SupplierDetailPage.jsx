@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { SupplierApi } from "../../services/suppliers";
 import { LicensePackageApi } from "../../services/licensePackages";
 import { ProductApi } from "../../services/products";
+import { ProductVariantsApi } from "../../services/productVariants";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import CsvUploadModal from "../../components/Modal/CsvUploadModal";
@@ -42,9 +43,12 @@ export default function SupplierDetailPage() {
   // License Package states
   const [packages, setPackages] = useState([]);
   const [products, setProducts] = useState([]);
+  const [variants, setVariants] = useState([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [packageForm, setPackageForm] = useState({
     productId: "",
+    variantId: "",
     quantity: "",
     pricePerUnit: "",
     effectiveDate: "",
@@ -309,7 +313,11 @@ export default function SupplierDetailPage() {
 
   const handleProductSelect = (product) => {
     setSelectedProduct(product);
-    setPackageForm((prev) => ({ ...prev, productId: product.productId }));
+    setPackageForm((prev) => ({
+      ...prev,
+      productId: product.productId,
+      variantId: "",
+    }));
     setShowProductDropdown(false);
     setProductSearch("");
   };
@@ -331,11 +339,40 @@ export default function SupplierDetailPage() {
     }
   };
 
+  const loadVariantsForProduct = useCallback(async (productId) => {
+    if (!productId) {
+      setVariants([]);
+      return;
+    }
+    setLoadingVariants(true);
+    try {
+      const data = await ProductVariantsApi.list(productId, {
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setVariants(data.items || data.data || []);
+    } catch (err) {
+      console.error("Failed to load variants:", err);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (packageForm.productId) {
+      loadVariantsForProduct(packageForm.productId);
+    } else {
+      setVariants([]);
+    }
+  }, [packageForm.productId, loadVariantsForProduct]);
+
   const handleAddPackage = async (e) => {
     e.preventDefault();
 
     if (
       !packageForm.productId ||
+      !packageForm.variantId ||
       !packageForm.quantity ||
       !packageForm.pricePerUnit
     ) {
@@ -349,7 +386,7 @@ export default function SupplierDetailPage() {
     try {
       await LicensePackageApi.create({
         supplierId: parseInt(id),
-        productId: packageForm.productId,
+        productId: packageForm.variantId, // backend expects variant id
         quantity: parseInt(packageForm.quantity),
         pricePerUnit: parseFloat(packageForm.pricePerUnit),
         effectiveDate: packageForm.effectiveDate || null,
@@ -358,11 +395,13 @@ export default function SupplierDetailPage() {
       showSuccess("Thành công", "Gói license đã được thêm thành công");
       setPackageForm({
         productId: "",
+        variantId: "",
         quantity: "",
         pricePerUnit: "",
         effectiveDate: "",
       });
       setSelectedProduct(null);
+      setVariants([]);
       setProductSearch("");
       loadLicensePackages();
     } catch (err) {
@@ -400,11 +439,25 @@ export default function SupplierDetailPage() {
       return;
     }
 
+    const variantId =
+      selectedPackageForImport.variantId ||
+      selectedPackageForImport.productVariantId ||
+      selectedPackageForImport.productId;
+
+    if (!variantId) {
+      showError(
+        "Thiếu thông tin",
+        "Không tìm thấy biến thể cho gói license này. Vui lòng tải lại dữ liệu."
+      );
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", csvFile);
       formData.append("packageId", selectedPackageForImport.packageId);
+      formData.append("variantId", variantId);
       formData.append("supplierId", id);
 
       // Add keyType
@@ -514,7 +567,7 @@ export default function SupplierDetailPage() {
               "Thêm nhà cung cấp mới"
             ) : (
               <>
-                Chi tiết nhà cung cấp — {" "}
+                Chi tiết nhà cung cấp —{" "}
                 <ChunkedText
                   value={formData.name}
                   fallback="(Không có tên)"
@@ -887,6 +940,34 @@ export default function SupplierDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+            <div className="form-row">
+              <label>Biến thể</label>
+              <select
+                className="input"
+                value={packageForm.variantId}
+                onChange={(e) =>
+                  handlePackageFormChange("variantId", e.target.value)
+                }
+                disabled={
+                  supplierInfo?.status !== "Active" ||
+                  !packageForm.productId ||
+                  loadingVariants
+                }
+              >
+                <option value="">
+                  {loadingVariants
+                    ? "Đang tải..."
+                    : !packageForm.productId
+                    ? "Chọn sản phẩm trước"
+                    : "Chọn biến thể"}
+                </option>
+                {variants.map((variant) => (
+                  <option key={variant.variantId} value={variant.variantId}>
+                    {variant.title}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-row">
               <label>Số lượng gói</label>

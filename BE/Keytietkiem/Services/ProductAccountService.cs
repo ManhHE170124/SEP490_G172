@@ -19,7 +19,7 @@ public class ProductAccountService : IProductAccountService
     private readonly IGenericRepository<ProductAccountCustomer> _productAccountCustomerRepository;
     private readonly IGenericRepository<ProductAccountHistory> _productAccountHistoryRepository;
     private readonly IGenericRepository<ProductAccount> _productAccountRepository;
-    private readonly IGenericRepository<Product> _productRepository;
+    private readonly IGenericRepository<ProductVariant> _productVariantRepository;
     private readonly IGenericRepository<User> _userRepository;
 
     public ProductAccountService(
@@ -28,7 +28,7 @@ public class ProductAccountService : IProductAccountService
         IGenericRepository<ProductAccountCustomer> productAccountCustomerRepository,
         IGenericRepository<ProductAccountHistory> productAccountHistoryRepository,
         IGenericRepository<User> userRepository,
-        IGenericRepository<Product> productRepository,
+        IGenericRepository<ProductVariant> productVariantRepository,
         IConfiguration configuration,
         IClock clock)
     {
@@ -37,7 +37,7 @@ public class ProductAccountService : IProductAccountService
         _productAccountCustomerRepository = productAccountCustomerRepository;
         _productAccountHistoryRepository = productAccountHistoryRepository;
         _userRepository = userRepository;
-        _productRepository = productRepository;
+        _productVariantRepository = productVariantRepository;
         _encryptionKey = configuration["EncryptionConfig:Key"]
                          ?? throw new InvalidOperationException("Encryption key not configured");
         _clock = clock;
@@ -48,7 +48,8 @@ public class ProductAccountService : IProductAccountService
         CancellationToken cancellationToken = default)
     {
         var query = _productAccountRepository.Query()
-            .Include(pa => pa.Product)
+            .Include(pa => pa.Variant)
+                .ThenInclude(v => v.Product)
             .Include(pa => pa.ProductAccountCustomers)
             .AsQueryable();
 
@@ -59,18 +60,21 @@ public class ProductAccountService : IProductAccountService
             query = query.Where(pa =>
                 pa.AccountEmail.ToLower().Contains(searchLower) ||
                 (pa.AccountUsername != null && pa.AccountUsername.ToLower().Contains(searchLower)) ||
-                pa.Product.ProductName.ToLower().Contains(searchLower));
+                pa.Variant.Product.ProductName.ToLower().Contains(searchLower) ||
+                pa.Variant.Title.ToLower().Contains(searchLower));
         }
 
-        if (filterDto.ProductId.HasValue) query = query.Where(pa => pa.ProductId == filterDto.ProductId.Value);
+        if (filterDto.VariantId.HasValue) query = query.Where(pa => pa.VariantId == filterDto.VariantId.Value);
+
+        if (filterDto.ProductId.HasValue) query = query.Where(pa => pa.Variant.ProductId == filterDto.ProductId.Value);
 
         if (!string.IsNullOrWhiteSpace(filterDto.Status)) query = query.Where(pa => pa.Status == filterDto.Status);
 
         // Filter by product type if provided
         if (!string.IsNullOrWhiteSpace(filterDto.ProductType))
-            query = query.Where(pa => pa.Product.ProductType == filterDto.ProductType);
+            query = query.Where(pa => pa.Variant.Product.ProductType == filterDto.ProductType);
         if (filterDto.ProductTypes != null && filterDto.ProductTypes.Any())
-            query = query.Where(pa => filterDto.ProductTypes.Contains(pa.Product.ProductType));
+            query = query.Where(pa => filterDto.ProductTypes.Contains(pa.Variant.Product.ProductType));
 
         // Get total count
         var totalCount = await query.CountAsync(cancellationToken);
@@ -83,13 +87,16 @@ public class ProductAccountService : IProductAccountService
             .Select(pa => new ProductAccountListDto
             {
                 ProductAccountId = pa.ProductAccountId,
-                ProductName = pa.Product.ProductName,
+                VariantId = pa.VariantId,
+                VariantTitle = pa.Variant.Title,
+                ProductName = pa.Variant.Product.ProductName,
                 AccountEmail = pa.AccountEmail,
                 AccountUsername = pa.AccountUsername,
                 MaxUsers = pa.MaxUsers,
                 CurrentUsers = pa.ProductAccountCustomers.Count(pac => pac.IsActive),
                 Status = pa.Status,
-                CogsPrice = (decimal)pa.CogsPrice,
+                CogsPrice = pa.Variant.CogsPrice,
+                SellPrice = pa.Variant.SellPrice,
                 ExpiryDate = pa.ExpiryDate,
                 CreatedAt = pa.CreatedAt
             })
@@ -104,14 +111,14 @@ public class ProductAccountService : IProductAccountService
         };
     }
 
-    public async Task<(Guid?, bool)> CheckAccountEmailOrUsernameExists(Guid productId, string email, string? username, CancellationToken cancellationToken = default)
+    public async Task<(Guid?, bool)> CheckAccountEmailOrUsernameExists(Guid variantId, string email, string? username, CancellationToken cancellationToken = default)
     {
-        var existAccount = await _productAccountRepository.FirstOrDefaultAsync(x=> x.ProductId == productId 
-            && (x.AccountEmail.ToLower().Equals(email.ToLower()) 
-            || (!string.IsNullOrWhiteSpace(username) 
-                && x.AccountUsername != null 
+        var existAccount = await _productAccountRepository.FirstOrDefaultAsync(x=> x.VariantId == variantId
+            && (x.AccountEmail.ToLower().Equals(email.ToLower())
+            || (!string.IsNullOrWhiteSpace(username)
+                && x.AccountUsername != null
                 && x.AccountUsername.ToLower().Equals(username.ToLower()))), cancellationToken);
-        
+
         return (existAccount?.ProductAccountId, existAccount != null);
     }
 
@@ -121,17 +128,13 @@ public class ProductAccountService : IProductAccountService
         CancellationToken cancellationToken = default)
     {
         var account = await _productAccountRepository.Query()
-            .Include(pa => pa.Product)
+            .Include(pa => pa.Variant)
+                .ThenInclude(v => v.Product)
             .Include(pa => pa.ProductAccountCustomers)
             .ThenInclude(pac => pac.User)
             .FirstOrDefaultAsync(pa => pa.ProductAccountId == productAccountId, cancellationToken);
 
         if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
-
-        var createdByUser = await _userRepository.GetByIdAsync(account.CreatedBy, cancellationToken);
-        User? updatedByUser = null;
-        if (account.UpdatedBy.HasValue)
-            updatedByUser = await _userRepository.GetByIdAsync(account.UpdatedBy.Value, cancellationToken);
 
         var password = includePassword
             ? EncryptionHelper.Decrypt(account.AccountPassword, _encryptionKey)
@@ -140,15 +143,18 @@ public class ProductAccountService : IProductAccountService
         return new ProductAccountResponseDto
         {
             ProductAccountId = account.ProductAccountId,
-            ProductId = account.ProductId,
-            ProductName = account.Product.ProductName,
+            ProductId = account.Variant.ProductId,
+            VariantId = account.VariantId,
+            VariantTitle = account.Variant.Title,
+            ProductName = account.Variant.Product.ProductName,
             AccountEmail = account.AccountEmail,
             AccountUsername = account.AccountUsername,
             AccountPassword = password,
             MaxUsers = account.MaxUsers,
             CurrentUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive),
             Status = account.Status,
-            CogsPrice = (decimal)account.CogsPrice,
+            CogsPrice = account.Variant.CogsPrice,
+            SellPrice = account.Variant.SellPrice,
             ExpiryDate = account.ExpiryDate,
             Notes = account.Notes,
             CreatedAt = account.CreatedAt,
@@ -178,15 +184,29 @@ public class ProductAccountService : IProductAccountService
         Guid createdBy,
         CancellationToken cancellationToken = default)
     {
-        // Validate product exists
-        var product = await _productRepository.GetByIdAsync(createDto.ProductId, cancellationToken);
-        if (product == null) throw new KeyNotFoundException("Không tìm thấy sản phẩm");
+        // Validate variant exists
+        var variant = await _productVariantRepository.Query()
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.VariantId == createDto.VariantId, cancellationToken);
+
+        if (variant == null) throw new KeyNotFoundException("Không tìm thấy biến thể sản phẩm");
 
         // Validate product type supports shared accounts
-        if (!(product.ProductType == nameof(ProductEnums.SHARED_ACCOUNT) ||
-              product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT)))
+        if (!(variant.Product.ProductType == nameof(ProductEnums.SHARED_ACCOUNT) ||
+              variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT)))
             throw new InvalidOperationException("Sản phẩm này không hỗ trợ tài khoản chia sẻ");
-        
+
+        // Update variant's CogsPrice if provided
+        if (createDto.CogsPrice.HasValue)
+        {
+            variant.CogsPrice = createDto.CogsPrice.Value;
+        }
+
+        // Increment stock quantity for the variant
+        variant.StockQty += 1;
+        variant.UpdatedAt = _clock.UtcNow;
+        _productVariantRepository.Update(variant);
+
         // Encrypt password
         var encryptedPassword = EncryptionHelper.Encrypt(createDto.AccountPassword, _encryptionKey);
 
@@ -195,15 +215,14 @@ public class ProductAccountService : IProductAccountService
         var account = new ProductAccount
         {
             ProductAccountId = Guid.NewGuid(),
-            ProductId = createDto.ProductId,
+            VariantId = createDto.VariantId,
             AccountEmail = (createDto.AccountEmail ?? string.Empty).Trim(),
             AccountUsername = string.IsNullOrWhiteSpace(createDto.AccountUsername)
                 ? null
                 : createDto.AccountUsername.Trim(),
             AccountPassword = encryptedPassword,
-            MaxUsers = product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT) ? 1 : createDto.MaxUsers,
+            MaxUsers = variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT) ? 1 : createDto.MaxUsers,
             Status = nameof(ProductAccountStatus.Active),
-            CogsPrice = createDto.CogsPrice,
             ExpiryDate = createDto.ExpiryDate,
             Notes = createDto.Notes,
             CreatedAt = now,
@@ -258,8 +277,13 @@ public class ProductAccountService : IProductAccountService
         }
 
         // Enforce MaxUsers based on product type
-        var updProduct = await _productRepository.GetByIdAsync(account.ProductId, cancellationToken);
-        var updIsPersonal = updProduct.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT);
+        var variant = await _productVariantRepository.Query()
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.VariantId == account.VariantId, cancellationToken);
+
+        if (variant == null) throw new KeyNotFoundException("Không tìm thấy biến thể sản phẩm");
+
+        var updIsPersonal = variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT);
         if (updIsPersonal)
         {
             account.MaxUsers = 1;
@@ -281,9 +305,6 @@ public class ProductAccountService : IProductAccountService
             account.ExpiryDate = updateDto.ExpiryDate;
 
         if (updateDto.Notes != null) account.Notes = updateDto.Notes;
-
-        // Update COGS price
-        account.CogsPrice = updateDto.CogsPrice;
 
         account.UpdatedAt = now;
         account.UpdatedBy = updatedBy;
@@ -475,7 +496,8 @@ public class ProductAccountService : IProductAccountService
         CancellationToken cancellationToken = default)
     {
         var account = await _productAccountRepository.Query()
-            .Include(pa => pa.Product)
+            .Include(pa => pa.Variant)
+                .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(pa => pa.ProductAccountId == productAccountId, cancellationToken);
 
         if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
@@ -501,7 +523,7 @@ public class ProductAccountService : IProductAccountService
         return new ProductAccountHistoryResponseDto
         {
             ProductAccountId = account.ProductAccountId,
-            ProductName = account.Product.ProductName,
+            ProductName = account.Variant.Product.ProductName,
             AccountEmail = account.AccountEmail,
             TotalHistoryRecords = history.Count,
             History = history

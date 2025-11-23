@@ -51,6 +51,7 @@ public class LicensePackageResponseDto
     public Guid PackageId { get; set; }
     public int SupplierId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
+    public Guid VariantId { get; set; }
     public Guid ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
@@ -68,6 +69,7 @@ public class LicensePackageListDto
 {
     public Guid PackageId { get; set; }
     public string SupplierName { get; set; } = string.Empty;
+    public Guid VariantId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
     public decimal PricePerUnit { get; set; }

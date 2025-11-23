@@ -261,6 +261,8 @@ namespace Keytietkiem.Controllers
                 v.MetaDescription,
                 v.ViewCount,
                 v.Status,
+                v.SellPrice,
+                v.CogsPrice,
                 HasSections = hasSections
             });
         }
@@ -356,7 +358,9 @@ namespace Keytietkiem.Controllers
                     v.MetaTitle,
                     v.MetaDescription,
                     v.ViewCount,
-                    v.Status
+                    v.Status,
+                    v.SellPrice,
+                    v.CogsPrice
                 ));
         }
 
@@ -376,6 +380,15 @@ namespace Keytietkiem.Controllers
 
             var (isValid, errorResult) = ValidateCommonFields(title, variantCode, durationDays, warrantyDays);
             if (!isValid) return errorResult!;
+
+            if (dto.SellPrice.HasValue && dto.SellPrice.Value < 0)
+            {
+                return BadRequest(new
+                {
+                    code = "SELL_PRICE_INVALID",
+                    message = "Giá bán phải lớn hơn hoặc bằng 0."
+                });
+            }
 
             // Check đang có section không
             var hasSections = await db.ProductSections
@@ -434,7 +447,10 @@ namespace Keytietkiem.Controllers
             v.Thumbnail = string.IsNullOrWhiteSpace(dto.Thumbnail) ? null : dto.Thumbnail!.Trim();
             v.MetaTitle = string.IsNullOrWhiteSpace(dto.MetaTitle) ? null : dto.MetaTitle!.Trim();
             v.MetaDescription = string.IsNullOrWhiteSpace(dto.MetaDescription) ? null : dto.MetaDescription!.Trim();
-
+            if (dto.SellPrice.HasValue)
+            {
+                v.SellPrice = dto.SellPrice.Value;
+            }
             // Nếu không bị khoá mã biến thể bởi section thì cho cập nhật mã
             if (!hasSections)
             {

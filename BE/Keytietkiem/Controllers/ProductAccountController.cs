@@ -59,7 +59,7 @@ public class ProductAccountController : ControllerBase
         {
             var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
             var exist =
-                await _productAccountService.CheckAccountEmailOrUsernameExists(createDto.ProductId, createDto.AccountEmail,
+                await _productAccountService.CheckAccountEmailOrUsernameExists(createDto.VariantId, createDto.AccountEmail,
                     createDto.AccountUsername);
             if (exist.Item1 != null && exist.Item2)
             {
@@ -89,8 +89,12 @@ public class ProductAccountController : ControllerBase
         {
             var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            // Get the existing account to retrieve VariantId for validation
+            var existingAccount = await _productAccountService.GetByIdAsync(id, includePassword: false);
+
             var exist =
-                await _productAccountService.CheckAccountEmailOrUsernameExists(updateDto.ProductId, updateDto.AccountEmail,
+                await _productAccountService.CheckAccountEmailOrUsernameExists(existingAccount.VariantId, updateDto.AccountEmail,
                     updateDto.AccountUsername);
             if (exist.Item1 != id && exist.Item2)
             {
