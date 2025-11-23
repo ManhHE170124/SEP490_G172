@@ -17,6 +17,7 @@ namespace Keytietkiem.Controllers
 
         private const int TitleMaxLength = 60;
         private const int CodeMaxLength = 50;
+        private const decimal MaxPriceValue = 9999999999999999.99M; // decimal(18,2)
 
         public ProductVariantsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
         {
@@ -144,7 +145,46 @@ namespace Keytietkiem.Controllers
 
             return (true, null);
         }
+        private (bool IsValid, ActionResult? ErrorResult) ValidatePriceFields(decimal sellPrice, decimal cogsPrice)
+        {
+            if (sellPrice < 0)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "SELL_PRICE_INVALID",
+                    message = "Giá bán phải lớn hơn hoặc bằng 0."
+                }));
+            }
 
+            if (cogsPrice < 0)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "COGS_PRICE_INVALID",
+                    message = "Giá niêm yết phải lớn hơn hoặc bằng 0."
+                }));
+            }
+
+            if (sellPrice > MaxPriceValue || cogsPrice > MaxPriceValue)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "PRICE_TOO_LARGE",
+                    message = "Giá không được vượt quá giới hạn cho phép (decimal 18,2)."
+                }));
+            }
+
+            if (sellPrice > cogsPrice)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "SELL_LT_COGS",
+                    message = "Giá bán không được lớn hơn giá niêm yết (Cogs)."
+                }));
+            }
+
+            return (true, null);
+        }
         private static string NormalizeString(string? s)
             => (s ?? string.Empty).Trim();
 
@@ -191,7 +231,15 @@ namespace Keytietkiem.Controllers
                         break;
                 }
             }
+            if (query.MinPrice.HasValue)
+            {
+                q = q.Where(v => v.SellPrice >= query.MinPrice.Value);
+            }
 
+            if (query.MaxPrice.HasValue)
+            {
+                q = q.Where(v => v.SellPrice <= query.MaxPrice.Value);
+            }
             var sort = (query.Sort ?? "created").Trim().ToLowerInvariant();
             var desc = string.Equals(query.Dir, "desc", StringComparison.OrdinalIgnoreCase);
 
@@ -202,6 +250,7 @@ namespace Keytietkiem.Controllers
                 "stock" => desc ? q.OrderByDescending(v => v.StockQty) : q.OrderBy(v => v.StockQty),
                 "status" => desc ? q.OrderByDescending(v => v.Status) : q.OrderBy(v => v.Status),
                 "views" => desc ? q.OrderByDescending(v => v.ViewCount) : q.OrderBy(v => v.ViewCount),
+                "price" => desc ? q.OrderByDescending(v => v.SellPrice) : q.OrderBy(v => v.SellPrice), // NEW
                 _ => desc ? q.OrderByDescending(v => v.CreatedAt) : q.OrderBy(v => v.CreatedAt),
             };
 
@@ -220,7 +269,9 @@ namespace Keytietkiem.Controllers
                     v.StockQty,
                     v.Status,
                     v.Thumbnail,
-                    v.ViewCount
+                    v.ViewCount,
+                     v.SellPrice,   // NEW
+        v.CogsPrice    // NEW
                 ))
                 .ToListAsync();
 
@@ -283,7 +334,29 @@ namespace Keytietkiem.Controllers
 
             var (isValid, errorResult) = ValidateCommonFields(title, variantCode, durationDays, warrantyDays);
             if (!isValid) return errorResult!;
+            if (!dto.SellPrice.HasValue)
+            {
+                return BadRequest(new
+                {
+                    code = "SELL_PRICE_REQUIRED",
+                    message = "Giá bán là bắt buộc."
+                });
+            }
 
+            if (!dto.CogsPrice.HasValue)
+            {
+                return BadRequest(new
+                {
+                    code = "COGS_PRICE_REQUIRED",
+                    message = "Giá niêm yết là bắt buộc."
+                });
+            }
+
+            var sellPrice = dto.SellPrice.Value;
+            var cogsPrice = dto.CogsPrice.Value;
+
+            var (priceValid, priceError) = ValidatePriceFields(sellPrice, cogsPrice);
+            if (!priceValid) return priceError!;
             // Không cho trùng Title trong cùng một sản phẩm (case-insensitive)
             var normalizedTitle = title.ToLower();
             var titleExists = await db.ProductVariants.AnyAsync(v =>
@@ -336,6 +409,8 @@ namespace Keytietkiem.Controllers
                 MetaDescription = string.IsNullOrWhiteSpace(dto.MetaDescription) ? null : dto.MetaDescription!.Trim(),
                 ViewCount = 0,
                 Status = status,
+                SellPrice = sellPrice,   // NEW
+                CogsPrice = cogsPrice,
                 CreatedAt = _clock.UtcNow
             };
 
@@ -381,15 +456,12 @@ namespace Keytietkiem.Controllers
             var (isValid, errorResult) = ValidateCommonFields(title, variantCode, durationDays, warrantyDays);
             if (!isValid) return errorResult!;
 
-            if (dto.SellPrice.HasValue && dto.SellPrice.Value < 0)
-            {
-                return BadRequest(new
-                {
-                    code = "SELL_PRICE_INVALID",
-                    message = "Giá bán phải lớn hơn hoặc bằng 0."
-                });
-            }
+            var newSellPrice = dto.SellPrice ?? v.SellPrice;
+            var newCogsPrice = dto.CogsPrice ?? v.CogsPrice;
 
+            // Validate giá
+            var (priceValid, priceError) = ValidatePriceFields(newSellPrice, newCogsPrice);
+            if (!priceValid) return priceError!;
             // Check đang có section không
             var hasSections = await db.ProductSections
                                       .AnyAsync(s => s.VariantId == variantId);
@@ -447,11 +519,8 @@ namespace Keytietkiem.Controllers
             v.Thumbnail = string.IsNullOrWhiteSpace(dto.Thumbnail) ? null : dto.Thumbnail!.Trim();
             v.MetaTitle = string.IsNullOrWhiteSpace(dto.MetaTitle) ? null : dto.MetaTitle!.Trim();
             v.MetaDescription = string.IsNullOrWhiteSpace(dto.MetaDescription) ? null : dto.MetaDescription!.Trim();
-            if (dto.SellPrice.HasValue)
-            {
-                v.SellPrice = dto.SellPrice.Value;
-            }
-            // Nếu không bị khoá mã biến thể bởi section thì cho cập nhật mã
+            v.SellPrice = newSellPrice;
+            v.CogsPrice = newCogsPrice;
             if (!hasSections)
             {
                 v.VariantCode = variantCode;

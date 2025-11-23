@@ -1,3 +1,4 @@
+// src/pages/storefront/StorefrontHomepagePage.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import StorefrontHomepageApi from "../../services/storefrontHomepageService";
@@ -84,13 +85,6 @@ const formatCurrency = (value) => {
   }
 };
 
-// Giá demo (vì BE chưa trả)
-const SAMPLE_PRICE_NOW = 295000;
-const SAMPLE_PRICE_OLD = 1500000;
-const SAMPLE_DISCOUNT = Math.round(
-  100 - (SAMPLE_PRICE_NOW / SAMPLE_PRICE_OLD) * 100
-);
-
 const StorefrontHomepagePage = () => {
   const navigate = useNavigate();
 
@@ -124,7 +118,9 @@ const StorefrontHomepagePage = () => {
       setProducts(res);
     } catch (err) {
       console.error("Load homepage products failed:", err);
-      setErrorProducts("Không tải được danh sách sản phẩm. Vui lòng thử lại sau.");
+      setErrorProducts(
+        "Không tải được danh sách sản phẩm. Vui lòng thử lại sau."
+      );
     } finally {
       setLoadingProducts(false);
     }
@@ -172,17 +168,18 @@ const StorefrontHomepagePage = () => {
     }
     goToProductList({});
   };
-const handleClickSideSlide = (slide) => {
-  if (slide?.linkTo) {
-    navigate(slide.linkTo);
-    return;
-  }
-  if (slide?.params) {
-    goToProductList(slide.params);
-    return;
-  }
-  goToProductList({});
-};
+
+  const handleClickSideSlide = (slide) => {
+    if (slide?.linkTo) {
+      navigate(slide.linkTo);
+      return;
+    }
+    if (slide?.params) {
+      goToProductList(slide.params);
+      return;
+    }
+    goToProductList({});
+  };
 
   // “Xem tất cả” cho từng block
   const handleViewAllTodayDeals = () => {
@@ -209,8 +206,26 @@ const handleClickSideSlide = (slide) => {
       ? `${variantTitle} - ${typeLabel}`
       : variantTitle;
 
-    const priceNowText = formatCurrency(SAMPLE_PRICE_NOW);
-    const priceOldText = formatCurrency(SAMPLE_PRICE_OLD);
+    const sellPrice =
+      item.sellPrice ?? item.SellPrice ?? item.cogsPrice ?? item.CogsPrice ?? null;
+    const cogsPrice = item.cogsPrice ?? item.CogsPrice ?? null;
+
+    let hasDiscount = false;
+    let discountPercent = 0;
+
+    if (
+      sellPrice != null &&
+      cogsPrice != null &&
+      sellPrice > 0 &&
+      cogsPrice > 0 &&
+      sellPrice < cogsPrice
+    ) {
+      hasDiscount = true;
+      discountPercent = Math.round(100 - (sellPrice / cogsPrice) * 100);
+    }
+
+    const priceNowText = formatCurrency(sellPrice ?? cogsPrice);
+    const priceOldText = hasDiscount ? formatCurrency(cogsPrice) : null;
 
     const isOutOfStock = item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
 
@@ -258,8 +273,12 @@ const handleClickSideSlide = (slide) => {
 
             <div className="sf-price">
               <div className="sf-price-now">{priceNowText}</div>
-              <div className="sf-price-old">{priceOldText}</div>
-              <div className="sf-price-off">-{SAMPLE_DISCOUNT}%</div>
+              {hasDiscount && (
+                <>
+                  <div className="sf-price-old">{priceOldText}</div>
+                  <div className="sf-price-off">-{discountPercent}%</div>
+                </>
+              )}
             </div>
           </div>
         </Link>
@@ -341,28 +360,28 @@ const handleClickSideSlide = (slide) => {
             </div>
 
             {/* 2 slider nhỏ bên phải */}
-           <div className="sf-home-side-sliders">
-  {SIDE_SLIDES.map((s) => (
-    <div
-      key={s.id}
-      className="sf-home-side-card"
-      role="button"
-      tabIndex={0}
-      onClick={() => handleClickSideSlide(s)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleClickSideSlide(s);
-        }
-      }}
-    >
-      <div className="sf-home-side-content">
-        <h3>{s.title}</h3>
-        <p>{s.subtitle}</p>
-      </div>
-    </div>
-  ))}
-</div>
+            <div className="sf-home-side-sliders">
+              {SIDE_SLIDES.map((s) => (
+                <div
+                  key={s.id}
+                  className="sf-home-side-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleClickSideSlide(s)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleClickSideSlide(s);
+                    }
+                  }}
+                >
+                  <div className="sf-home-side-content">
+                    <h3>{s.title}</h3>
+                    <p>{s.subtitle}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 

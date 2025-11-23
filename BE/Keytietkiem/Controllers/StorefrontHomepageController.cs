@@ -23,8 +23,8 @@ namespace Keytietkiem.Controllers
 
         /// <summary>
         /// L?y danh sách s?n ph?m cho homepage:
-        /// - ?u ?ãi hôm nay: T?M TH?I l?y 4 s?n ph?m có ViewCount cao nh?t
-        ///   (sau này s? ??i l?i: % gi?m giá cao nh?t, tie thì ViewCount nhi?u h?n x?p tr??c)
+        /// - ?u ?ãi hôm nay: 4 s?n ph?m có % gi?m giá cao nh?t
+        ///   (tie thì ViewCount nhi?u h?n, CreatedAt m?i h?n x?p tr??c)
         /// - S?n ph?m bán ch?y: sort gi?ng "sold/bestseller" ? trang list products
         /// - Xu h??ng tu?n này: nhi?u ViewCount nh?t (?u tiên trong 7 ngày g?n nh?t)
         /// - M?i c?p nh?t: sort theo UpdatedAt m?i nh?t
@@ -58,7 +58,9 @@ namespace Keytietkiem.Controllers
                     v.ViewCount,
                     v.CreatedAt,
                     v.UpdatedAt,
-                    0m, // DiscountPercent: T?M TH?I không dùng discount, ?? 0m
+                    v.SellPrice,
+                    v.CogsPrice,
+                    0m, // s? tính l?i bên d??i
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
                         .ToList()
@@ -77,18 +79,19 @@ namespace Keytietkiem.Controllers
                 return Ok(empty);
             }
 
-            // ====== 1. ?U ?ÃI HÔM NAY ======
-            // TR??C ?ÂY (theo thi?t k?):
-            // var todayDealsRaw = rawItems
-            //     .OrderByDescending(i => i.DiscountPercent)
-            //     .ThenByDescending(i => i.ViewCount)
-            //     .ThenByDescending(i => i.CreatedAt)
-            //     .Take(4)
-            //     .ToList();
-            //
-            // HI?N T?I: T?m th?i sort theo ViewCount DESC (top 4 s?n ph?m nhi?u view nh?t)
+            // ====== Tính % gi?m giá th?t d?a trên SellPrice / CogsPrice ======
+            rawItems = rawItems
+                .Select(i =>
+                {
+                    var discount = ComputeDiscountPercent(i.SellPrice, i.CogsPrice);
+                    return i with { DiscountPercent = discount };
+                })
+                .ToList();
+
+            // ====== 1. ?U ?ÃI HÔM NAY: % gi?m giá cao nh?t ======
             var todayDealsRaw = rawItems
-                .OrderByDescending(i => i.ViewCount)
+                .OrderByDescending(i => i.DiscountPercent)
+                .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
@@ -142,7 +145,7 @@ namespace Keytietkiem.Controllers
                     .Where(b => allBadgeCodes.Contains(b.BadgeCode))
                     .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
 
-            // Helper map raw -> StorefrontVariantListItemDto
+            // Helper map raw -> StorefrontVariantListItemDto (CÓ GIÁ)
             StorefrontVariantListItemDto MapToDto(HomepageVariantRawItem i)
             {
                 var badges = i.BadgeCodes
@@ -170,15 +173,17 @@ namespace Keytietkiem.Controllers
                     .ToList();
 
                 return new StorefrontVariantListItemDto(
-                    i.VariantId,
-                    i.ProductId,
-                    i.ProductCode,
-                    i.ProductName,
-                    i.ProductType,
-                    i.Title,
-                    i.Thumbnail,
-                    i.Status,
-                    badges
+                    VariantId: i.VariantId,
+                    ProductId: i.ProductId,
+                    ProductCode: i.ProductCode,
+                    ProductName: i.ProductName,
+                    ProductType: i.ProductType,
+                    VariantTitle: i.Title,
+                    Thumbnail: i.Thumbnail,
+                    Status: i.Status,
+                    SellPrice: i.SellPrice,
+                    CogsPrice: i.CogsPrice,
+                    Badges: badges
                 );
             }
 
@@ -222,8 +227,19 @@ namespace Keytietkiem.Controllers
             return ordered;
         }
 
+        private static decimal ComputeDiscountPercent(decimal sellPrice, decimal cogsPrice)
+        {
+            if (sellPrice <= 0 || cogsPrice <= 0 || sellPrice >= cogsPrice)
+            {
+                return 0m;
+            }
+
+            var percent = (cogsPrice - sellPrice) / cogsPrice * 100m;
+            return Math.Round(percent, 2);
+        }
+
         /// <summary>
-        /// Raw item dùng n?i b? cho homepage (m? r?ng t? VariantRawItem).
+        /// Raw item dùng n?i b? cho homepage.
         /// </summary>
         private sealed record HomepageVariantRawItem(
             Guid VariantId,
@@ -237,6 +253,8 @@ namespace Keytietkiem.Controllers
             int ViewCount,
             DateTime CreatedAt,
             DateTime? UpdatedAt,
+            decimal SellPrice,
+            decimal CogsPrice,
             decimal DiscountPercent,
             List<string> BadgeCodes
         );

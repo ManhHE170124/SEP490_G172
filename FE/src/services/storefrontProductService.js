@@ -57,6 +57,9 @@ const normalizeVariantItem = (v = {}) => {
     .toString()
     .toUpperCase();
 
+  const sellPrice = v.sellPrice ?? v.SellPrice ?? null;
+  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null;
+
   return {
     variantId:   v.variantId   ?? v.VariantId,
     productId:   v.productId   ?? v.ProductId,
@@ -70,6 +73,9 @@ const normalizeVariantItem = (v = {}) => {
     thumbnail: v.thumbnail ?? v.Thumbnail ?? null,
     status: rawStatus,
     isOutOfStock: rawStatus === "OUT_OF_STOCK",
+
+    sellPrice,
+    cogsPrice,
 
     badges: (v.badges ?? v.Badges ?? []).map(normalizeBadgeMini),
   };

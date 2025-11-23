@@ -10,6 +10,12 @@ const normalizePaged = (res, fallbackPageSize = 10) => ({
   pageSize: res?.pageSize ?? res?.PageSize ?? fallbackPageSize,
 });
 
+// Helper convert số
+const toNumber = (val, fallback = 0) => {
+  const num = Number(val);
+  return Number.isFinite(num) ? num : fallback;
+};
+
 // List item
 const normalizeListItem = (v = {}) => ({
   variantId: v.variantId ?? v.VariantId,
@@ -20,15 +26,13 @@ const normalizeListItem = (v = {}) => ({
   status: (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
   thumbnail: v.thumbnail ?? v.Thumbnail ?? null,
   viewCount: v.viewCount ?? v.ViewCount ?? 0,
+  // NEW: map thêm giá từ API list
+  sellPrice: toNumber(v.sellPrice ?? v.SellPrice ?? 0, 0),
+  cogsPrice: toNumber(v.cogsPrice ?? v.CogsPrice ?? 0, 0),
 });
 
 // Detail
 const normalizeDetail = (v = {}) => {
-  const toNumber = (val, fallback = 0) => {
-    const num = Number(val);
-    return Number.isFinite(num) ? num : fallback;
-  };
-
   return {
     variantId: v.variantId ?? v.VariantId,
     productId: v.productId ?? v.ProductId,
@@ -43,6 +47,7 @@ const normalizeDetail = (v = {}) => {
     metaDescription: v.metaDescription ?? v.MetaDescription ?? null,
     viewCount: v.viewCount ?? v.ViewCount ?? 0,
     hasSections: v.hasSections ?? v.HasSections ?? false,
+    // 2 trường giá khi xem chi tiết
     sellPrice: toNumber(v.sellPrice ?? v.SellPrice ?? 0, 0),
     cogsPrice: toNumber(v.cogsPrice ?? v.CogsPrice ?? 0, 0),
   };
@@ -50,7 +55,8 @@ const normalizeDetail = (v = {}) => {
 
 export const ProductVariantsApi = {
   // GET /api/products/{productId}/variants
-  // params: { q, status, dur, sort, dir, page, pageSize }
+  // params: { q, status, dur, minPrice, maxPrice, sort, dir, page, pageSize }
+  // sort có thể = created|title|duration|stock|status|views|price
   list: async (productId, params = {}) => {
     const axiosRes = await axiosClient.get(`products/${productId}/variants`, {
       params,
@@ -70,7 +76,19 @@ export const ProductVariantsApi = {
   },
 
   // POST /api/products/{pid}/variants
-  // dto: { variantCode?, title, durationDays?, stockQty, warrantyDays?, status?, thumbnail?, metaTitle?, metaDescription? }
+  // dto: {
+  //   variantCode,
+  //   title,
+  //   durationDays?,
+  //   stockQty,
+  //   warrantyDays?,
+  //   thumbnail?,
+  //   metaTitle?,
+  //   metaDescription?,
+  //   sellPrice,   // bắt buộc phía BE
+  //   cogsPrice,   // bắt buộc phía BE
+  //   status?
+  // }
   create: async (productId, dto) => {
     const axiosRes = await axiosClient.post(
       `products/${productId}/variants`,
@@ -81,7 +99,19 @@ export const ProductVariantsApi = {
   },
 
   // PUT /api/products/{pid}/variants/{vid}
-  // dto: { title, durationDays?, stockQty, warrantyDays?, status?, thumbnail?, metaTitle?, metaDescription?, sellPrice? }
+  // dto: {
+  //   title,
+  //   variantCode?,
+  //   durationDays?,
+  //   stockQty,
+  //   warrantyDays?,
+  //   thumbnail?,
+  //   metaTitle?,
+  //   metaDescription?,
+  //   status?,
+  //   sellPrice?,  // nếu null -> giữ nguyên
+  //   cogsPrice?   // nếu null -> giữ nguyên
+  // }
   update: (productId, variantId, dto) =>
     axiosClient.put(`products/${productId}/variants/${variantId}`, dto),
 

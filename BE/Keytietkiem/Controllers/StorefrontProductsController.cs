@@ -80,6 +80,19 @@ namespace Keytietkiem.Controllers
                 q = q.Where(v => v.Product.ProductType == type);
             }
 
+            // ===== Filter theo giá bán (SellPrice) =====
+            if (query.MinPrice.HasValue)
+            {
+                var min = query.MinPrice.Value;
+                q = q.Where(v => v.SellPrice >= min);
+            }
+
+            if (query.MaxPrice.HasValue)
+            {
+                var max = query.MaxPrice.Value;
+                q = q.Where(v => v.SellPrice <= max);
+            }
+
             // Phân trang info
             var page = Math.Max(1, query.Page);
             var pageSize = Math.Clamp(query.PageSize, 1, 8);
@@ -112,6 +125,8 @@ namespace Keytietkiem.Controllers
                     v.ViewCount,
                     v.CreatedAt,
                     v.UpdatedAt,
+                    v.SellPrice,
+                    v.CogsPrice,
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
                         .ToList()
@@ -149,13 +164,14 @@ namespace Keytietkiem.Controllers
                     "updated" => rawItems
                         .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt),
 
+                    // sort đúng theo SellPrice
                     "price-asc" => rawItems
-                        .OrderBy(i => i.ViewCount)
-                        .ThenByDescending(i => i.CreatedAt),
+                        .OrderBy(i => i.SellPrice)
+                        .ThenByDescending(i => i.ViewCount),
 
                     "price-desc" => rawItems
-                        .OrderByDescending(i => i.ViewCount)
-                        .ThenByDescending(i => i.CreatedAt),
+                        .OrderByDescending(i => i.SellPrice)
+                        .ThenByDescending(i => i.ViewCount),
 
                     "name-asc" => rawItems
                         .OrderBy(i => i.Title),
@@ -223,6 +239,8 @@ namespace Keytietkiem.Controllers
                         i.Title,
                         i.Thumbnail,
                         i.Status,
+                        i.SellPrice,
+                        i.CogsPrice,
                         badges
                     );
                 })
@@ -351,6 +369,8 @@ namespace Keytietkiem.Controllers
                 Thumbnail: v.Thumbnail,
                 Categories: categories,
                 SiblingVariants: siblingVariants,
+                SellPrice: v.SellPrice,
+                CogsPrice: v.CogsPrice,
                 Sections: sections,
                 Faqs: faqs
             );
@@ -437,6 +457,8 @@ namespace Keytietkiem.Controllers
                     v.Status ?? "INACTIVE",
                     v.ViewCount,
                     v.CreatedAt,
+                    v.SellPrice,
+                    v.CogsPrice,
                     v.Product.Categories
                         .Select(c => c.CategoryId)
                         .ToList(),
@@ -532,6 +554,8 @@ namespace Keytietkiem.Controllers
                         i.Title,
                         i.Thumbnail,
                         i.Status,
+                        i.SellPrice,
+                        i.CogsPrice,
                         badges
                     );
                 })
@@ -539,6 +563,8 @@ namespace Keytietkiem.Controllers
 
             return Ok(items);
         }
+
+        // ===== Raw record types =====
 
         private sealed record VariantRawItem(
             Guid VariantId,
@@ -552,6 +578,8 @@ namespace Keytietkiem.Controllers
             int ViewCount,
             DateTime CreatedAt,
             DateTime? UpdatedAt,
+            decimal SellPrice,
+            decimal CogsPrice,
             List<string> BadgeCodes
         );
 
@@ -566,6 +594,8 @@ namespace Keytietkiem.Controllers
             string Status,
             int ViewCount,
             DateTime CreatedAt,
+            decimal SellPrice,
+            decimal CogsPrice,
             List<int> CategoryIds,
             List<string> BadgeCodes
         );

@@ -124,9 +124,18 @@ const StorefrontProductDetailPage = () => {
       ? detail.categories[0]
       : null;
 
-  const priceNow = 295000;
-  const priceOld = 1500000;
-  const discountPercent = Math.round(100 - (priceNow / priceOld) * 100);
+  const sellPrice = detail?.sellPrice;
+  const cogsPrice = detail?.cogsPrice;
+
+  const priceNowText = formatCurrency(sellPrice);
+  const hasOldPrice =
+    cogsPrice != null &&
+    cogsPrice > sellPrice;
+
+  const priceOldText = hasOldPrice ? formatCurrency(cogsPrice) : null;
+  const discountPercent = hasOldPrice
+    ? Math.round(100 - (sellPrice / cogsPrice) * 100)
+    : null;
 
   const handleChangeVariant = (variantId) => {
     if (!variantId || variantId === currentVariantId) return;
@@ -260,14 +269,20 @@ const StorefrontProductDetailPage = () => {
                 <div className="sf-detail-price-block">
                   <div className="sf-detail-price-main">
                     <div className="sf-detail-price-now">
-                      {formatCurrency(priceNow)}
+                      {priceNowText}
                     </div>
-                    <div className="sf-detail-price-old">
-                      {formatCurrency(priceOld)}
-                    </div>
-                    <div className="sf-detail-price-off">
-                      -{discountPercent}%
-                    </div>
+                    {hasOldPrice && (
+                      <>
+                        <div className="sf-detail-price-old">
+                          {priceOldText}
+                        </div>
+                        {discountPercent > 0 && (
+                          <div className="sf-detail-price-off">
+                            -{discountPercent}%
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -428,8 +443,21 @@ const StorefrontProductDetailPage = () => {
                   ? `${variantTitle} - ${typeLabelCard}`
                   : variantTitle;
 
-                const priceNowText = formatCurrency(priceNow);
-                const priceOldText = formatCurrency(priceOld);
+                const sellPriceCard = item.sellPrice;
+                const cogsPriceCard = item.cogsPrice;
+
+                const priceNowText = formatCurrency(sellPriceCard);
+                const hasOldPriceCard =
+                  cogsPriceCard != null &&
+                  cogsPriceCard > sellPriceCard;
+
+                const priceOldText = hasOldPriceCard
+                  ? formatCurrency(cogsPriceCard)
+                  : null;
+
+                const discountPercentCard = hasOldPriceCard
+                  ? Math.round(100 - (sellPriceCard / cogsPriceCard) * 100)
+                  : null;
 
                 const isCardOut =
                   item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
@@ -483,10 +511,18 @@ const StorefrontProductDetailPage = () => {
 
                         <div className="sf-price">
                           <div className="sf-price-now">{priceNowText}</div>
-                          <div className="sf-price-old">{priceOldText}</div>
-                          <div className="sf-price-off">
-                            -{discountPercent}%
-                          </div>
+                          {hasOldPriceCard && (
+                            <>
+                              <div className="sf-price-old">
+                                {priceOldText}
+                              </div>
+                              {discountPercentCard > 0 && (
+                                <div className="sf-price-off">
+                                  -{discountPercentCard}%
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                     </Link>

@@ -383,14 +383,21 @@ const StorefrontProductListPage = () => {
                     ? `${variantTitle} - ${typeLabel}`
                     : variantTitle;
 
-                  const samplePriceNow = 295000;
-                  const samplePriceOld = 1500000;
-                  const discountPercent = Math.round(
-                    100 - (samplePriceNow / samplePriceOld) * 100
-                  );
+                  const sellPrice = item.sellPrice;
+                  const cogsPrice = item.cogsPrice;
 
-                  const priceNowText = formatCurrency(samplePriceNow);
-                  const priceOldText = formatCurrency(samplePriceOld);
+                  const priceNowText = formatCurrency(sellPrice);
+                  const hasOldPrice =
+                    cogsPrice != null &&
+                    cogsPrice > sellPrice;
+
+                  const priceOldText = hasOldPrice
+                    ? formatCurrency(cogsPrice)
+                    : null;
+
+                  const discountPercent = hasOldPrice
+                    ? Math.round(100 - (sellPrice / cogsPrice) * 100)
+                    : null;
 
                   const isOutOfStock =
                     item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
@@ -441,8 +448,16 @@ const StorefrontProductListPage = () => {
 
                           <div className="sf-price">
                             <div className="sf-price-now">{priceNowText}</div>
-                            <div className="sf-price-old">{priceOldText}</div>
-                            <div className="sf-price-off">-{discountPercent}%</div>
+                            {hasOldPrice && (
+                              <>
+                                <div className="sf-price-old">{priceOldText}</div>
+                                {discountPercent > 0 && (
+                                  <div className="sf-price-off">
+                                    -{discountPercent}%
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
                       </Link>

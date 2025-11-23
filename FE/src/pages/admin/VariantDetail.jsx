@@ -23,6 +23,37 @@ const sanitizeThumbnail = (url, max = 255) => {
   return noQuery.length > max ? noQuery.slice(0, max) : noQuery;
 };
 
+// Helper: parse số tiền
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const raw = String(value).replace(/,/g, "").trim();
+  if (!raw) return { num: null, raw: "" };
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return { num: null, raw };
+  return { num, raw };
+};
+
+// Helper: validate decimal(18,2)
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = raw.replace(/,/g, "").trim();
+  if (!normalized) return false;
+
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+
+  // tối đa 16 chữ số phần nguyên
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  // tối đa 2 chữ số thập phân
+  if (fracPart.length > 2) return false;
+
+  return true;
+};
+
 export default function VariantDetail() {
   const { id: productId, variantId } = useParams();
   const nav = useNavigate();
@@ -426,14 +457,6 @@ export default function VariantDetail() {
     const durationDays = parseIntOrNull(variant.durationDays);
     const warrantyDays = parseIntOrNull(variant.warrantyDays);
 
-    const parseDecimalOrNull = (v) => {
-      if (v === "" || v == null) return 0;
-      const n = Number(v);
-      return Number.isNaN(n) ? null : n;
-    };
-
-    const sellPrice = parseDecimalOrNull(variant.sellPrice);
-
     // Thời lượng (ngày) – bắt buộc
     if (durationDays == null) {
       nextErrors.durationDays = "Thời lượng (ngày) là bắt buộc.";
@@ -456,8 +479,37 @@ export default function VariantDetail() {
         "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
     }
 
-    if (sellPrice == null || sellPrice < 0) {
+    // ===== Validate giá =====
+    const { num: sellNum, raw: sellRaw } = parseMoney(variant.sellPrice);
+    const { num: cogsNum, raw: cogsRaw } = parseMoney(variant.cogsPrice);
+
+    if (cogsRaw === "" || cogsNum === null) {
+      nextErrors.cogsPrice = "Giá niêm yết là bắt buộc.";
+    } else if (cogsNum < 0) {
+      nextErrors.cogsPrice = "Giá niêm yết phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(cogsRaw)) {
+      nextErrors.cogsPrice =
+        "Giá niêm yết không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    // Giá bán
+    if (sellRaw === "" || sellNum === null) {
+      nextErrors.sellPrice = "Giá bán là bắt buộc.";
+    } else if (sellNum < 0) {
       nextErrors.sellPrice = "Giá bán phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(sellRaw)) {
+      nextErrors.sellPrice =
+        "Giá bán không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    if (
+      !nextErrors.cogsPrice &&
+      !nextErrors.sellPrice &&
+      cogsNum != null &&
+      sellNum != null &&
+      sellNum > cogsNum
+    ) {
+      nextErrors.sellPrice = "Giá bán không được lớn hơn giá niêm yết.";
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -477,13 +529,14 @@ export default function VariantDetail() {
 
       const dto = {
         title,
-        variantCode, // BE cần hỗ trợ update VariantCode
+        variantCode, // BE hỗ trợ update VariantCode (trừ khi bị khóa bởi section)
         durationDays,
         stockQty: Number(variant.stockQty ?? 0),
         warrantyDays,
         thumbnail: sanitizeThumbnail(thumbUrl) || null,
         status: variant.status,
-        sellPrice: sellPrice ?? 0,
+        sellPrice: Number(sellNum.toFixed(2)),
+        cogsPrice: Number(cogsNum.toFixed(2)),
       };
 
       await ProductVariantsApi.update(productId, variant.variantId, dto);
@@ -703,17 +756,23 @@ export default function VariantDetail() {
               )}
             </div>
             <div className="group">
-              <span>Giá vốn (COGS)</span>
+              <span>Giá niêm yết<span style={{ color: "#dc2626" }}>*</span></span>
               <input
                 type="number"
                 min={0}
                 step={1000}
                 value={variant.cogsPrice ?? ""}
                 disabled
+                className={errors.cogsPrice ? "input-error" : ""}
               />
+              {errors.cogsPrice && (
+                <div className="field-error">{errors.cogsPrice}</div>
+              )}
             </div>
             <div className="group">
-              <span>Giá bán</span>
+              <span>
+                Giá bán<span style={{ color: "#dc2626" }}>*</span>
+              </span>
               <input
                 type="number"
                 min={0}

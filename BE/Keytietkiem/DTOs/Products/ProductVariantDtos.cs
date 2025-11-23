@@ -8,7 +8,9 @@ namespace Keytietkiem.DTOs.Products
     public record ProductVariantListQuery(
         string? Q,
         string? Status,          // ACTIVE | INACTIVE | OUT_OF_STOCK
-        string? Dur,             // "<=30" | "31-180" | ">180"
+        string? Dur,
+         decimal? MinPrice = null, // NEW: lọc theo giá bán tối thiểu (SellPrice)
+    decimal? MaxPrice = null, // NEW: lọc theo giá bán tối đa (SellPrice)// "<=30" | "31-180" | ">180"
         string? Sort = "created",// created|title|duration|stock|status|views
         string? Dir = "desc",
         int Page = 1,
@@ -24,7 +26,9 @@ namespace Keytietkiem.DTOs.Products
         int StockQty,
         string Status,
         string? Thumbnail,
-        int ViewCount
+        int ViewCount,
+    decimal SellPrice,   // NEW
+    decimal CogsPrice    // NEW
     );
 
     // Detail: đầy đủ SEO field
@@ -55,6 +59,8 @@ namespace Keytietkiem.DTOs.Products
         string? Thumbnail,
         string? MetaTitle,
         string? MetaDescription,
+         decimal? SellPrice,     // NEW: bắt buộc, nhưng để nullable để tự validate
+    decimal? CogsPrice,
         string? Status
     );
 
@@ -68,7 +74,8 @@ namespace Keytietkiem.DTOs.Products
         string? MetaTitle,
         string? MetaDescription,
         string? Status,
-        decimal? SellPrice
+       decimal? SellPrice,   // đã có
+    decimal? CogsPrice    //
     );
     public class VariantImageUploadRequest
     {

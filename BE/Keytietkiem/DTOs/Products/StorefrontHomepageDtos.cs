@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace Keytietkiem.DTOs.Products
 {
-  
     public record StorefrontHomepageProductsDto(
         // Ưu đãi hôm nay: 4 sản phẩm có % giảm giá cao nhất
         IReadOnlyCollection<StorefrontVariantListItemDto> TodayBestDeals,
