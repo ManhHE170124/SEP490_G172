@@ -144,6 +144,20 @@ v2: i18n, FAQ chatbot, advanced analytics, UX/performance improvements, internat
   - Merge **ManhLD (Add Product FAQ, Product Section)** → **Develop** (pre-merge testing branch).
 - **v0.15 - 2025-11-13**
   - Merge **ThanBD (Update Ticket Detail, Add SignarIR, Fix Ticket Reply)** → **Develop** (pre-merge testing branch).
+  - Merge **ManhLD (Add VariantImage, Fix Product Variant)** → **Develop** (pre-merge testing branch).
+  - Merge **TungNV (Change Blog List Client Side)** → **Develop** (pre-merge testing branch).
+  - Merge **TrungDQ (Fix AdminLayout)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Add Order History,Order Detail Client Side,Fix Create Post)** → **Develop** (pre-merge testing branch).
+- **v0.16 - 2025-11-14**
+  - Merge **ThanBD (Fix Ticket Detail Validation)** → **Develop** (pre-merge testing branch).
+  - Merge **ManhLD (Fix Product, Variant, FAQ, Add Product,Variant,FAQ Validation)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Update Order History)** → **Develop** (pre-merge testing branch).
+- **v0.17 - 2025-11-15**
+  - Merge **ThanBD (Update Ticket Detail, Add SignarIR, Fix Ticket Reply)** → **Develop** (pre-merge testing branch).
+  - Merge **ManhLD (Add VariantImage, Fix Product Variant)** → **Develop** (pre-merge testing branch).
+  - Merge **TungNV (Update Webconfig, Bloglist)** → **Develop** (pre-merge testing branch).
+  - Merge **TrungDQ (Fix AdminLayout)** → **Develop** (pre-merge testing branch).
+  - Merge **HieuND (Add Order History,Order Detail Client Side,Fix Create Post)** → **Develop** (pre-merge testing branch).
 ---
 
 ## 📄 License
