@@ -6,7 +6,7 @@
  * Version: 1.0.0
  * Purpose: Application routes with layout separation (Client and Admin)
  */
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { Suspense, lazy } from "react";
 // import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
@@ -14,6 +14,8 @@ import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
+import HomePage from "../pages/home/HomePage";
+import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
@@ -33,6 +35,7 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
+import AdminProfilePage from "../pages/admin/AdminProfilePage";
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 import AccessDenied from "../pages/errors/AccessDenied";
@@ -61,14 +64,19 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
+import StorefrontHomepagePage from "../pages/storefront/StorefrontHomepagePage.jsx";
+import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
+
+import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 // Order pages
 import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
 import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
 
 // Customer ticket pages
-import CustomerTicketsPage from "../pages/tickets/customer-tickets.jsx";
+import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
+import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-management.jsx";
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -105,10 +113,18 @@ export default function AppRoutes() {
     </ProtectedRoute>
   );
 
-  return (
+ return (
     <Routes>
       {/* Default Access Routes */}
-      <Route path="/" element={<ClientLayout> </ClientLayout>} />
+      <Route
+        path="/"
+        element={
+          <ClientLayout>
+            {/* dùng homepage storefront mới làm trang mặc định */}
+            <StorefrontHomepagePage />
+          </ClientLayout>
+        }
+      />
 
       <Route
         path="/login"
@@ -150,8 +166,40 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route
+        path="/account/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ClientLayout>
+            <UserProfilePage />
+          </ClientLayout>
+        }
+      />
       <Route path="/admin" element={<div />} />
       <Route path="/admin/support-chats" element={<AdminSupportChatPage />} />
+      <Route
+        path="/admin/profile"
+        element={
+          <AdminLayout>
+            <AdminProfilePage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/staff/profile"
+        element={
+          <AdminLayout>
+            <AdminProfilePage />
+          </AdminLayout>
+        }
+      />
       {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
@@ -195,10 +243,10 @@ export default function AppRoutes() {
 
       {/* Customer tickets */}
       <Route
-        path="/tickets"
+        path="/tickets/create"
         element={
           <ClientLayout>
-            <CustomerTicketsPage />
+            <CustomerTicketCreatePage />
           </ClientLayout>
         }
       />
@@ -210,7 +258,14 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
-
+      <Route
+        path="/tickets"
+        element={
+          <ClientLayout>
+            <CustomerTicketManagementPage />
+          </ClientLayout>
+        }
+      />
       {/* Orders */}
       <Route
         path="/orders/history"
@@ -430,6 +485,16 @@ export default function AppRoutes() {
       />
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
+      <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
+      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
+  <Route
+        path="/homepage"
+        element={
+          <ClientLayout>
+            <StorefrontHomepagePage />
+          </ClientLayout>
+        }
+      />
       <Route
         path="/access-denied"
         element={
@@ -438,6 +503,7 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
 
       {/* Fallbacks */}
       <Route path="*" element={<Page404 />} />

@@ -3,6 +3,7 @@ import { usersApi } from "../../api/usersApi";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { ProductAccountApi } from "../../services/productAccounts";
 import { ProductApi } from "../../services/products";
+import { ProductVariantsApi } from "../../services/productVariants";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
@@ -22,11 +23,14 @@ export default function AccountDetailPage() {
   const [saving, setSaving] = useState(false);
   const [accountInfo, setAccountInfo] = useState(null);
   const [products, setProducts] = useState([]);
+  const [variants, setVariants] = useState([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [actualPassword, setActualPassword] = useState("");
 
   const [formData, setFormData] = useState({
     productId: "",
+    variantId: "",
     accountEmail: "",
     accountUsername: "",
     accountPassword: "",
@@ -82,8 +86,11 @@ export default function AccountDetailPage() {
     try {
       const data = await ProductAccountApi.get(id);
       setAccountInfo(data);
+      const variantId =
+        data.variantId || data.productVariantId || data.productVariantId?.value;
       setFormData({
         productId: data.productId,
+        variantId: variantId ? variantId.toString() : "",
         accountEmail: data.accountEmail,
         accountUsername: data.accountUsername || "",
         accountPassword: "", // Don't populate password
@@ -119,6 +126,26 @@ export default function AccountDetailPage() {
       setProducts(data.items || data.data || []);
     } catch (err) {
       console.error("Failed to load products:", err);
+    }
+  }, []);
+
+  const loadVariantsForProduct = useCallback(async (productId) => {
+    if (!productId) {
+      setVariants([]);
+      return;
+    }
+    setLoadingVariants(true);
+    try {
+      const data = await ProductVariantsApi.list(productId, {
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setVariants(data.items || []);
+    } catch (err) {
+      console.error("Failed to load variants:", err);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
     }
   }, []);
 
@@ -222,6 +249,13 @@ export default function AccountDetailPage() {
     }
   }, [isNew, loadProductAccount, loadProducts, loadHistory]);
 
+  // Load variants when product changes
+  useEffect(() => {
+    if (formData.productId) {
+      loadVariantsForProduct(formData.productId);
+    }
+  }, [formData.productId, loadVariantsForProduct]);
+
   // Reload history from API when history filters change
   useEffect(() => {
     if (!isNew) {
@@ -258,6 +292,10 @@ export default function AccountDetailPage() {
       newErrors.productId = "Sản phẩm là bắt buộc";
     }
 
+    if (!formData.variantId) {
+      newErrors.variantId = "Biến thể sản phẩm là bắt buộc";
+    }
+
     if (!formData.accountEmail.trim()) {
       newErrors.accountEmail = "Email tài khoản là bắt buộc";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.accountEmail)) {
@@ -289,7 +327,9 @@ export default function AccountDetailPage() {
       newErrors.cogsPrice = "Giá vốn không được âm";
     }
 
-    if (formData.expiryDate) {
+    if (isNew && !formData.expiryDate) {
+      newErrors.expiryDate = "Ngày hết hạn là bắt buộc";
+    } else if (formData.expiryDate) {
       const [y, m, d] = formData.expiryDate
         .split("-")
         .map((x) => parseInt(x, 10));
@@ -317,7 +357,7 @@ export default function AccountDetailPage() {
     try {
       const isPersonal = selectedProduct?.productType === "PERSONAL_ACCOUNT";
       const payload = {
-        productId: formData.productId,
+        variantId: formData.variantId,
         accountEmail: formData.accountEmail,
         accountUsername: formData.accountUsername || null,
         maxUsers: isPersonal ? 1 : parseInt(formData.maxUsers),
@@ -334,6 +374,7 @@ export default function AccountDetailPage() {
         navigate("/accounts");
       } else {
         payload.productAccountId = id;
+        payload.variantId = formData.variantId;
         payload.status = formData.status;
         // Only include password if it was changed
         if (formData.accountPassword.trim()) {
@@ -380,7 +421,13 @@ export default function AccountDetailPage() {
   };
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      // Reset variant when product changes
+      if (field === "productId" && value !== prev.productId) {
+        return { ...prev, [field]: value, variantId: "" };
+      }
+      return { ...prev, [field]: value };
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -497,6 +544,36 @@ export default function AccountDetailPage() {
                 </select>
                 {errors.productId && (
                   <small style={{ color: "red" }}>{errors.productId}</small>
+                )}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label>
+                Biến thể <span style={{ color: "red" }}>*</span>
+              </label>
+              <div>
+                <select
+                  className="input"
+                  value={formData.variantId}
+                  onChange={(e) => handleChange("variantId", e.target.value)}
+                  disabled={!isNew || !formData.productId || loadingVariants}
+                >
+                  <option value="">
+                    {loadingVariants
+                      ? "Đang tải..."
+                      : !formData.productId
+                      ? "Chọn sản phẩm trước"
+                      : "Chọn biến thể"}
+                  </option>
+                  {variants.map((variant) => (
+                    <option key={variant.variantId} value={variant.variantId}>
+                      {variant.title}
+                    </option>
+                  ))}
+                </select>
+                {errors.variantId && (
+                  <small style={{ color: "red" }}>{errors.variantId}</small>
                 )}
               </div>
             </div>
@@ -667,7 +744,9 @@ export default function AccountDetailPage() {
             )}
 
             <div className="form-row">
-              <label>Ngày hết hạn</label>
+              <label>
+                Ngày hết hạn <span style={{ color: "red" }}>*</span>
+              </label>
               <input
                 className="input"
                 type="date"
@@ -675,6 +754,7 @@ export default function AccountDetailPage() {
                 onChange={(e) => handleChange("expiryDate", e.target.value)}
                 min={todayStr}
                 disabled={!isNew}
+                required={isNew}
               />
               {errors.expiryDate && (
                 <small style={{ color: "red" }}>{errors.expiryDate}</small>
@@ -682,7 +762,9 @@ export default function AccountDetailPage() {
             </div>
 
             <div className="form-row">
-              <label>Giá nhập</label>
+              <label>
+                Giá nhập <span style={{ color: "red" }}>*</span>
+              </label>
               <div>
                 <input
                   className="input"
@@ -693,6 +775,7 @@ export default function AccountDetailPage() {
                   onChange={(e) => handleChange("cogsPrice", e.target.value)}
                   placeholder="Nhập giá vốn (COGS)"
                   disabled={!isNew}
+                  required={isNew}
                 />
                 {errors.cogsPrice && (
                   <small style={{ color: "red" }}>{errors.cogsPrice}</small>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
 import formatDate from "../../utils/formatDate";
 import "../admin/admin.css";
@@ -234,12 +235,31 @@ export default function SuppliersPage() {
               suppliers.map((supplier) => (
                 <tr key={supplier.supplierId}>
                   <td>
-                    <Link to={`/suppliers/${supplier.supplierId}`}>
-                      {supplier.name}
+                    <Link to={`/suppliers/${supplier.supplierId}`} title={supplier.name || "Không có tên"}>
+                      <ChunkedText
+                        value={supplier.name}
+                        fallback="(Không có tên)"
+                        chunkSize={28}
+                        className="chunk-text--cell chunk-text--block"
+                      />
                     </Link>
                   </td>
-                  <td>{supplier.contactEmail || "-"}</td>
-                  <td>{supplier.contactPhone || "-"}</td>
+                  <td>
+                    <ChunkedText
+                      value={supplier.contactEmail}
+                      fallback="-"
+                      chunkSize={32}
+                      className="chunk-text--cell chunk-text--block"
+                    />
+                  </td>
+                  <td>
+                    <ChunkedText
+                      value={supplier.contactPhone}
+                      fallback="-"
+                      chunkSize={20}
+                      className="chunk-text--cell chunk-text--block"
+                    />
+                  </td>
                   <td>{supplier.activeProductCount || 0}</td>
                   <td className="col-status">
                     {renderStatusBadge(supplier.status)}

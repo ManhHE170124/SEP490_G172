@@ -9,6 +9,9 @@ namespace Keytietkiem.DTOs.Tickets
     public enum SlaState { OK, Warning, Overdue }
     public enum AssignmentState { Unassigned, Assigned, Technical }
 
+    /// <summary>
+    /// DTO list cơ bản (dùng chung cho nhiều màn, không chứa SLA deadline).
+    /// </summary>
     public class TicketListItemDto
     {
         public Guid TicketId { get; set; }
@@ -29,6 +32,28 @@ namespace Keytietkiem.DTOs.Tickets
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// DTO list mở rộng cho màn Admin/Staff – thêm PriorityLevel + deadline SLA.
+    /// Giữ nguyên TicketListItemDto để không phá vỡ chỗ khác.
+    /// </summary>
+    public class TicketListItemWithSlaDto : TicketListItemDto
+    {
+        /// <summary>
+        /// Cấp ưu tiên (1 = cao nhất).
+        /// </summary>
+        public int PriorityLevel { get; set; }
+
+        /// <summary>
+        /// Hạn phản hồi đầu tiên (dùng cho bảng Unassigned).
+        /// </summary>
+        public DateTime? FirstResponseDueAt { get; set; }
+
+        /// <summary>
+        /// Hạn giải quyết (dùng cho bảng Ticket của tôi).
+        /// </summary>
+        public DateTime? ResolutionDueAt { get; set; }
     }
 
     public class TicketReplyDto
@@ -62,7 +87,8 @@ namespace Keytietkiem.DTOs.Tickets
         public DateTime CreatedAt { get; set; }
     }
 
-    public class TicketDetailDto
+    // ======= DTO list ticket dành cho khách hàng =======
+    public class CustomerTicketListItemDto
     {
         public Guid TicketId { get; set; }
         public string TicketCode { get; set; } = "";
@@ -70,7 +96,31 @@ namespace Keytietkiem.DTOs.Tickets
         public string Status { get; set; } = "New";
         public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
         public SlaState SlaStatus { get; set; } = SlaState.OK;
+
+        // Chỉ cho khách thấy người đang xử lý (nếu có)
+        public string? AssigneeName { get; set; }
+        public string? AssigneeEmail { get; set; }
+
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    public class TicketDetailDto
+    {
+        public Guid TicketId { get; set; }
+        public string TicketCode { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string? Description { get; set; }
+        public string Status { get; set; } = "New";
+        public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
+        public int PriorityLevel { get; set; }
+        public SlaState SlaStatus { get; set; } = SlaState.OK;
         public AssignmentState AssignmentState { get; set; } = AssignmentState.Unassigned;
+
+        public DateTime? FirstResponseDueAt { get; set; }
+        public DateTime? FirstRespondedAt { get; set; }
+        public DateTime? ResolutionDueAt { get; set; }
+        public DateTime? ResolvedAt { get; set; }
 
         public string CustomerName { get; set; } = "";
         public string? CustomerEmail { get; set; }
@@ -88,6 +138,53 @@ namespace Keytietkiem.DTOs.Tickets
         public List<RelatedTicketDto> RelatedTickets { get; set; } = new();
 
         public LatestOrderMiniDto? LatestOrder { get; set; }
+    }
+
+    public class CustomerCreateTicketDto
+    {
+        /// <summary>
+        /// Mã template tiêu đề ticket (TicketSubjectTemplates.TemplateCode)
+        /// </summary>
+        [Required]
+        [StringLength(50)]
+        public string TemplateCode { get; set; } = "";
+
+        /// <summary>
+        /// Mô tả chi tiết do khách hàng nhập (optional)
+        /// </summary>
+        [StringLength(1000)]
+        public string? Description { get; set; }
+    }
+
+    public class CustomerTicketCreatedDto
+    {
+        public Guid TicketId { get; set; }
+        public string TicketCode { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string? Description { get; set; }
+        public string Status { get; set; } = "New";
+        public TicketSeverity Severity { get; set; } = TicketSeverity.Medium;
+        public SlaState SlaStatus { get; set; } = SlaState.OK;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class TicketSubjectTemplateDto
+    {
+        public string TemplateCode { get; set; } = "";
+        public string Title { get; set; } = "";
+
+        /// <summary>
+        /// Low / Medium / High / Critical
+        /// </summary>
+        public string Severity { get; set; } = TicketSeverity.Medium.ToString();
+
+        /// <summary>
+        /// Payment, Key, Account, Refund, Support, Security, General...
+        /// (FE sẽ dịch sang tiếng Việt)
+        /// </summary>
+        public string? Category { get; set; }
+
+        public bool IsActive { get; set; }
     }
 
     public class CreateTicketReplyDto

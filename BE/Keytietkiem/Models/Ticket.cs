@@ -11,6 +11,8 @@ public partial class Ticket
 
     public string Subject { get; set; } = null!;
 
+    public string? Description { get; set; }
+
     public string Status { get; set; } = null!;
 
     public Guid? AssigneeId { get; set; }

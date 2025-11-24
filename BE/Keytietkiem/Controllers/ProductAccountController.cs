@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Keytietkiem.DTOs;
 using Keytietkiem.Services.Interfaces;
@@ -54,9 +55,23 @@ public class ProductAccountController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateProductAccountDto createDto)
     {
-        var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
-        var response = await _productAccountService.CreateAsync(createDto, accountId);
-        return CreatedAtAction(nameof(GetById), new { id = response.ProductAccountId }, response);
+        try
+        {
+            var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+            var exist =
+                await _productAccountService.CheckAccountEmailOrUsernameExists(createDto.VariantId, createDto.AccountEmail,
+                    createDto.AccountUsername);
+            if (exist.Item1 != null && exist.Item2)
+            {
+                return BadRequest(new { message = "Tên đăng nhập hoặc email đã tồn tại" });
+            }
+            var response = await _productAccountService.CreateAsync(createDto, accountId);
+            return CreatedAtAction(nameof(GetById), new { id = response.ProductAccountId }, response);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -70,10 +85,28 @@ public class ProductAccountController : ControllerBase
             return BadRequest("ID không khớp");
         }
 
-        var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
-        var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var response = await _productAccountService.UpdateAsync(updateDto, accountId, userId);
-        return Ok(response);
+        try
+        {
+            var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            // Get the existing account to retrieve VariantId for validation
+            var existingAccount = await _productAccountService.GetByIdAsync(id, includePassword: false);
+
+            var exist =
+                await _productAccountService.CheckAccountEmailOrUsernameExists(existingAccount.VariantId, updateDto.AccountEmail,
+                    updateDto.AccountUsername);
+            if (exist.Item1 != id && exist.Item2)
+            {
+                return BadRequest(new { message = "Tên đăng nhập hoặc email đã tồn tại" });
+            }
+            var response = await _productAccountService.UpdateAsync(updateDto, accountId, userId);
+            return Ok(response);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>

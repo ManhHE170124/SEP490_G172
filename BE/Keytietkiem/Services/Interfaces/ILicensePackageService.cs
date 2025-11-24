@@ -90,14 +90,18 @@ public interface ILicensePackageService
     /// Uploads CSV file containing license keys and imports them to stock
     /// </summary>
     /// <param name="packageId">Package identifier</param>
+    /// <param name="variantId">Product variant identifier</param>
     /// <param name="supplierId">Supplier identifier</param>
     /// <param name="file">CSV file containing license keys</param>
     /// <param name="actorId">User ID performing the action</param>
     /// <param name="actorEmail">User email performing the action</param>
+    /// <param name="keyType">Product key type</param>
+    /// <param name="expiryDate">Optional expiry date</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Upload and import result</returns>
     Task<CsvUploadResultDto> UploadLicenseCsvAsync(
         Guid packageId,
+        Guid variantId,
         int supplierId,
         IFormFile file,
         Guid actorId,
@@ -107,25 +111,25 @@ public interface ILicensePackageService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a new license package for a product and imports keys from CSV in a single step
+    /// Creates a new license package for a product variant and imports keys from CSV in a single step
     /// </summary>
-    /// <param name="productId">Product identifier</param>
+    /// <param name="variantId">Product variant identifier</param>
     /// <param name="supplierId">Supplier identifier</param>
-    /// <param name="pricePerUnit">Cost per unit (COGS)</param>
     /// <param name="file">CSV file containing license keys</param>
     /// <param name="actorId">User ID performing the action</param>
     /// <param name="actorEmail">User email performing the action</param>
     /// <param name="keyType">Product key type</param>
+    /// <param name="cogsPrice">Optional COGS price to update the variant</param>
     /// <param name="expiryDate">Optional expiry date</param>
     /// <param name="cancellationToken">Cancellation token</param>
     Task<CsvUploadResultDto> CreatePackageAndUploadCsvAsync(
-        Guid productId,
+        Guid variantId,
         int supplierId,
-        decimal pricePerUnit,
         IFormFile file,
         Guid actorId,
         string actorEmail,
         string keyType,
+        decimal? cogsPrice = null,
         DateTime? expiryDate = null,
         CancellationToken cancellationToken = default);
 

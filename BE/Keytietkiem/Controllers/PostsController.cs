@@ -27,6 +27,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 using Keytietkiem.Services;
 using Keytietkiem.DTOs.Post;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Keytietkiem.Controllers
 {
@@ -492,6 +493,103 @@ namespace Keytietkiem.Controllers
             _context.PostTypes.Remove(existing);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        /**
+         * Summary: Get post by slug for public viewing
+         * Route: GET /api/posts/slug/{slug}
+         * Params: slug (string) - post URL slug
+         * Returns: 200 OK with post detail, 404 if not found
+         */
+        [HttpGet("slug/{slug}")]
+        [AllowAnonymous] // Public endpoint - không cần auth
+        public async Task<IActionResult> GetPostBySlug(string slug)
+        {
+            var post = await _context.Posts
+                .Include(p => p.Author)
+                .Include(p => p.PostType)
+                .Include(p => p.Tags)
+                .Where(p => p.Slug == slug && p.Status == "Published") 
+                .FirstOrDefaultAsync();
+
+            if (post == null)
+            {
+                return NotFound(new { message = "Không tìm thấy bài viết" });
+            }
+            post.ViewCount = (post.ViewCount ?? 0) + 1;
+            await _context.SaveChangesAsync();
+
+            var postDto = new PostDTO
+            {
+                PostId = post.PostId,
+                Title = post.Title,
+                Slug = post.Slug,
+                ShortDescription = post.ShortDescription,
+                Content = post.Content,
+                Thumbnail = post.Thumbnail,
+                PostTypeId = post.PostTypeId,
+                AuthorId = post.AuthorId,
+                MetaTitle = post.MetaTitle,
+                MetaDescription = post.MetaDescription,
+                Status = post.Status,
+                ViewCount = post.ViewCount,
+                CreatedAt = post.CreatedAt,
+                UpdatedAt = post.UpdatedAt,
+                AuthorName = post.Author != null
+                    ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim())
+                    : null,
+                PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
+                Tags = post.Tags.Select(t => new TagDTO
+                {
+                    TagId = t.TagId,
+                    TagName = t.TagName,
+                    Slug = t.Slug
+                }).ToList()
+            };
+
+            return Ok(postDto);
+        }
+
+        /**
+         * Summary: Get related posts (same postType, exclude current)
+         * Route: GET /api/posts/{id}/related
+         * Params: id (Guid), limit (int, optional, default 3)
+         * Returns: 200 OK with list of related posts
+         */
+        [HttpGet("{id}/related")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRelatedPosts(Guid id, [FromQuery] int limit = 3)
+        {
+            var currentPost = await _context.Posts.FindAsync(id);
+            if (currentPost == null)
+            {
+                return NotFound();
+            }
+
+            var relatedPosts = await _context.Posts
+                .Include(p => p.PostType)
+                .Where(p =>
+                    p.PostId != id &&
+                    p.PostTypeId == currentPost.PostTypeId &&
+                    p.Status == "Published"
+                )
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(limit)
+                .Select(p => new PostListItemDTO
+                {
+                    PostId = p.PostId,
+                    Title = p.Title,
+                    Slug = p.Slug,
+                    ShortDescription = p.ShortDescription,
+                    Thumbnail = p.Thumbnail,
+                    PostTypeId = p.PostTypeId,
+                    ViewCount = p.ViewCount,
+                    CreatedAt = p.CreatedAt,
+                    PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null
+                })
+                .ToListAsync();
+
+            return Ok(relatedPosts);
         }
     }
 }

@@ -96,4 +96,21 @@ public interface IAccountService
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task SeedDataAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy thông tin hồ sơ tài khoản đang đăng nhập
+    /// </summary>
+    /// <param name="accountId">AccountId từ token</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>Thông tin hồ sơ kèm vai trò</returns>
+    Task<AccountProfileDto> GetProfileAsync(Guid accountId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cập nhật thông tin hồ sơ cho tài khoản đang đăng nhập
+    /// </summary>
+    /// <param name="accountId">AccountId từ token</param>
+    /// <param name="updateDto">Thông tin cần cập nhật</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>Thông tin hồ sơ sau khi cập nhật</returns>
+    Task<AccountProfileDto> UpdateProfileAsync(Guid accountId, UpdateAccountProfileDto updateDto, CancellationToken cancellationToken = default);
 }

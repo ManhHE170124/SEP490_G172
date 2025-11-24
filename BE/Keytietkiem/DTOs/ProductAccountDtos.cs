@@ -7,8 +7,8 @@ namespace Keytietkiem.DTOs;
 /// </summary>
 public class CreateProductAccountDto
 {
-    [Required(ErrorMessage = "ID sản phẩm là bắt buộc")]
-    public Guid ProductId { get; set; }
+    [Required(ErrorMessage = "ID biến thể sản phẩm là bắt buộc")]
+    public Guid VariantId { get; set; }
 
     [Required(ErrorMessage = "Email tài khoản là bắt buộc")]
     [EmailAddress(ErrorMessage = "Email không hợp lệ")]
@@ -26,9 +26,12 @@ public class CreateProductAccountDto
     [Range(1, 100, ErrorMessage = "Số lượng người dùng phải từ 1 đến 100")]
     public int MaxUsers { get; set; }
 
-    [Required]
-    public decimal CogsPrice { get; set; }
-    
+    /// <summary>
+    /// COGS price - will update the ProductVariant's CogsPrice
+    /// </summary>
+    [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
+    public decimal? CogsPrice { get; set; }
+
     public DateTime? ExpiryDate { get; set; }
 
     [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
@@ -58,9 +61,6 @@ public class UpdateProductAccountDto
 
     [StringLength(20, ErrorMessage = "Trạng thái không được vượt quá 20 ký tự")]
     public string? Status { get; set; }
-    
-    [Required]
-    public decimal CogsPrice { get; set; }
 
     public DateTime? ExpiryDate { get; set; }
 
@@ -75,6 +75,8 @@ public class ProductAccountResponseDto
 {
     public Guid ProductAccountId { get; set; }
     public Guid ProductId { get; set; }
+    public Guid VariantId { get; set; }
+    public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string AccountEmail { get; set; } = string.Empty;
     public string? AccountUsername { get; set; }
@@ -83,6 +85,7 @@ public class ProductAccountResponseDto
     public int CurrentUsers { get; set; }
     public string Status { get; set; } = string.Empty;
     public decimal CogsPrice { get; set; }
+    public decimal SellPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -98,6 +101,8 @@ public class ProductAccountResponseDto
 public class ProductAccountListDto
 {
     public Guid ProductAccountId { get; set; }
+    public Guid VariantId { get; set; }
+    public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string AccountEmail { get; set; } = string.Empty;
     public string? AccountUsername { get; set; }
@@ -105,6 +110,7 @@ public class ProductAccountListDto
     public int CurrentUsers { get; set; }
     public string Status { get; set; } = string.Empty;
     public decimal CogsPrice { get; set; }
+    public decimal SellPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -193,6 +199,7 @@ public class ProductAccountHistoryResponseDto
 public class ProductAccountFilterDto
 {
     public string? SearchTerm { get; set; }
+    public Guid? VariantId { get; set; }
     public Guid? ProductId { get; set; }
     public string? Status { get; set; }
     // Filter by product type of the linked Product (e.g., SHARED_ACCOUNT, PERSONAL_ACCOUNT)

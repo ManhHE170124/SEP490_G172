@@ -8,7 +8,12 @@ import "../admin/admin.css";
 
 const TITLE_MAX = 60;
 const CODE_MAX = 50;
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+];
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
 // Helper: chuẩn hoá URL thumbnail (bỏ query, cắt max length)
@@ -16,6 +21,37 @@ const sanitizeThumbnail = (url, max = 255) => {
   if (!url) return null;
   const noQuery = url.split("?")[0];
   return noQuery.length > max ? noQuery.slice(0, max) : noQuery;
+};
+
+// Helper: parse số tiền
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const raw = String(value).replace(/,/g, "").trim();
+  if (!raw) return { num: null, raw: "" };
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return { num: null, raw };
+  return { num, raw };
+};
+
+// Helper: validate decimal(18,2)
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = raw.replace(/,/g, "").trim();
+  if (!normalized) return false;
+
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+
+  // tối đa 16 chữ số phần nguyên
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  // tối đa 2 chữ số thập phân
+  if (fracPart.length > 2) return false;
+
+  return true;
 };
 
 export default function VariantDetail() {
@@ -75,13 +111,13 @@ export default function VariantDetail() {
       : "badge gray";
 
   const statusText = (s) =>
-    (
-      {
-        ACTIVE: "Hiển thị",
-        INACTIVE: "Ẩn",
-        OUT_OF_STOCK: "Hết hàng",
-      }[String(s || "").toUpperCase()] || s || "-"
-    );
+    ({
+      ACTIVE: "Hiển thị",
+      INACTIVE: "Ẩn",
+      OUT_OF_STOCK: "Hết hàng",
+    }[String(s || "").toUpperCase()] ||
+    s ||
+    "-");
 
   const load = React.useCallback(async () => {
     try {
@@ -107,6 +143,8 @@ export default function VariantDetail() {
         thumbnail: serverThumb,
         status: (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
         hasSections: v.hasSections ?? v.HasSections ?? false, // BE trả về nếu đang có section
+        sellPrice: v.sellPrice ?? v.SellPrice ?? 0,
+        cogsPrice: v.cogsPrice ?? v.CogsPrice ?? 0,
       };
 
       setVariant(mapped);
@@ -130,13 +168,14 @@ export default function VariantDetail() {
     load();
   }, [load]);
 
-  const setVar = (k, val) =>
-    setVariant((s) => (s ? { ...s, [k]: val } : s));
+  const setVar = (k, val) => setVariant((s) => (s ? { ...s, [k]: val } : s));
 
   // Tính xem form đã chỉnh sửa chưa
   const isDirty = React.useMemo(() => {
     if (!initialVariantRef.current || !variant) return false;
-    return JSON.stringify(initialVariantRef.current) !== JSON.stringify(variant);
+    return (
+      JSON.stringify(initialVariantRef.current) !== JSON.stringify(variant)
+    );
   }, [variant]);
 
   // Cảnh báo khi F5 / đóng tab nếu còn thay đổi
@@ -440,6 +479,39 @@ export default function VariantDetail() {
         "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
     }
 
+    // ===== Validate giá =====
+    const { num: sellNum, raw: sellRaw } = parseMoney(variant.sellPrice);
+    const { num: cogsNum, raw: cogsRaw } = parseMoney(variant.cogsPrice);
+
+    if (cogsRaw === "" || cogsNum === null) {
+      nextErrors.cogsPrice = "Giá niêm yết là bắt buộc.";
+    } else if (cogsNum < 0) {
+      nextErrors.cogsPrice = "Giá niêm yết phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(cogsRaw)) {
+      nextErrors.cogsPrice =
+        "Giá niêm yết không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    // Giá bán
+    if (sellRaw === "" || sellNum === null) {
+      nextErrors.sellPrice = "Giá bán là bắt buộc.";
+    } else if (sellNum < 0) {
+      nextErrors.sellPrice = "Giá bán phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(sellRaw)) {
+      nextErrors.sellPrice =
+        "Giá bán không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    if (
+      !nextErrors.cogsPrice &&
+      !nextErrors.sellPrice &&
+      cogsNum != null &&
+      sellNum != null &&
+      sellNum > cogsNum
+    ) {
+      nextErrors.sellPrice = "Giá bán không được lớn hơn giá niêm yết.";
+    }
+
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       addToast(
@@ -457,12 +529,14 @@ export default function VariantDetail() {
 
       const dto = {
         title,
-        variantCode, // BE cần hỗ trợ update VariantCode
+        variantCode, // BE hỗ trợ update VariantCode (trừ khi bị khóa bởi section)
         durationDays,
         stockQty: Number(variant.stockQty ?? 0),
         warrantyDays,
         thumbnail: sanitizeThumbnail(thumbUrl) || null,
         status: variant.status,
+        sellPrice: Number(sellNum.toFixed(2)),
+        cogsPrice: Number(cogsNum.toFixed(2)),
       };
 
       await ProductVariantsApi.update(productId, variant.variantId, dto);
@@ -487,8 +561,7 @@ export default function VariantDetail() {
       if (status === 409 && code === "VARIANT_TITLE_DUPLICATE") {
         setErrors((prev) => ({
           ...prev,
-          title:
-            msg || "Tên biến thể đã tồn tại trong sản phẩm này.",
+          title: msg || "Tên biến thể đã tồn tại trong sản phẩm này.",
         }));
         addToast(
           "warning",
@@ -498,8 +571,7 @@ export default function VariantDetail() {
       } else if (status === 409 && code === "VARIANT_CODE_DUPLICATE") {
         setErrors((prev) => ({
           ...prev,
-          variantCode:
-            msg || "Mã biến thể đã tồn tại trong sản phẩm này.",
+          variantCode: msg || "Mã biến thể đã tồn tại trong sản phẩm này.",
         }));
         addToast(
           "warning",
@@ -683,6 +755,36 @@ export default function VariantDetail() {
                 <div className="field-error">{errors.warrantyDays}</div>
               )}
             </div>
+            <div className="group">
+              <span>Giá niêm yết<span style={{ color: "#dc2626" }}>*</span></span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={variant.cogsPrice ?? ""}
+                disabled
+                className={errors.cogsPrice ? "input-error" : ""}
+              />
+              {errors.cogsPrice && (
+                <div className="field-error">{errors.cogsPrice}</div>
+              )}
+            </div>
+            <div className="group">
+              <span>
+                Giá bán<span style={{ color: "#dc2626" }}>*</span>
+              </span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={variant.sellPrice ?? ""}
+                onChange={(e) => setVar("sellPrice", e.target.value)}
+                className={errors.sellPrice ? "input-error" : ""}
+              />
+              {errors.sellPrice && (
+                <div className="field-error">{errors.sellPrice}</div>
+              )}
+            </div>
           </div>
 
           {/* Upload thumbnail */}
@@ -756,10 +858,7 @@ export default function VariantDetail() {
           </div>
 
           {/* Sections của biến thể */}
-          <div
-            className="group"
-            style={{ gridColumn: "1 / 3", marginTop: 12 }}
-          >
+          <div className="group" style={{ gridColumn: "1 / 3", marginTop: 12 }}>
             <ProductSectionsPanel
               productId={productId}
               variantId={variant.variantId}

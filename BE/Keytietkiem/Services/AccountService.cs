@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -25,6 +26,7 @@ public class AccountService : IAccountService
     private const int OtpExpiryMinutes = 5;
     private const int VerificationTokenExpiryMinutes = 30;
     private const string Admin = "admin";
+    private const string AccountNotFoundMessage = "Tài khoản không tồn tại";
     private readonly IGenericRepository<Account> _accountRepository;
     private readonly IMemoryCache _cache;
     private readonly IClock _clock;
@@ -34,6 +36,8 @@ public class AccountService : IAccountService
     private readonly ClientConfig _clientConfig;
     private readonly IGenericRepository<User> _userRepository;
 
+    [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters",
+        Justification = "Constructor injection requires these dependencies")]
     public AccountService(
         KeytietkiemDbContext context,
         IGenericRepository<Account> accountRepository,
@@ -207,12 +211,96 @@ public class AccountService : IAccountService
         return GenerateLoginResponse(account, user);
     }
 
+    public async Task<AccountProfileDto> GetProfileAsync(Guid accountId, CancellationToken cancellationToken = default)
+    {
+        var account = await _context.Accounts
+            .Include(a => a.User)
+            .ThenInclude(u => u.Roles)
+            .FirstOrDefaultAsync(a => a.AccountId == accountId, cancellationToken);
+
+        if (account == null)
+            throw new InvalidOperationException(AccountNotFoundMessage);
+
+        var user = account.User;
+        var roles = user.Roles.Select(r => r.RoleId).ToList();
+
+        return new AccountProfileDto
+        {
+            UserId = user.UserId,
+            AccountId = account.AccountId,
+            Username = account.Username,
+            Email = user.Email,
+            FullName = user.FullName ?? string.Empty,
+            Phone = user.Phone,
+            Address = user.Address,
+            AvatarUrl = user.AvatarUrl,
+            Status = user.Status,
+            Roles = roles
+        };
+    }
+
+    public async Task<AccountProfileDto> UpdateProfileAsync(Guid accountId, UpdateAccountProfileDto updateDto,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _context.Accounts
+            .Include(a => a.User)
+            .ThenInclude(u => u.Roles)
+            .FirstOrDefaultAsync(a => a.AccountId == accountId, cancellationToken);
+
+        if (account == null)
+            throw new InvalidOperationException(AccountNotFoundMessage);
+
+        var user = account.User ?? throw new InvalidOperationException("Người dùng không tồn tại");
+
+        var trimmedFullName = updateDto.FullName?.Trim() ?? string.Empty;
+        user.FullName = trimmedFullName;
+
+        if (!string.IsNullOrWhiteSpace(trimmedFullName))
+        {
+            var nameParts = trimmedFullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (nameParts.Length == 1)
+            {
+                user.FirstName = nameParts[0];
+                user.LastName = nameParts[0];
+            }
+            else
+            {
+                user.FirstName = nameParts[^1];
+                user.LastName = string.Join(' ', nameParts[..^1]);
+            }
+        }
+
+        user.Phone = updateDto.Phone;
+        user.Address = updateDto.Address;
+        user.AvatarUrl = updateDto.AvatarUrl;
+        user.UpdatedAt = _clock.UtcNow;
+
+        _userRepository.Update(user);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var roles = user.Roles.Select(r => r.RoleId).ToList();
+
+        return new AccountProfileDto
+        {
+            UserId = user.UserId,
+            AccountId = account.AccountId,
+            Username = account.Username,
+            Email = user.Email,
+            FullName = user.FullName ?? string.Empty,
+            Phone = user.Phone,
+            Address = user.Address,
+            AvatarUrl = user.AvatarUrl,
+            Status = user.Status,
+            Roles = roles
+        };
+    }
+
     public async Task ChangePasswordAsync(Guid accountId, ChangePasswordDto changePasswordDto,
         CancellationToken cancellationToken = default)
     {
         var account = await _accountRepository.GetByIdAsync(accountId, cancellationToken);
 
-        if (account == null) throw new InvalidOperationException("Tài khoản không tồn tại");
+        if (account == null) throw new InvalidOperationException(AccountNotFoundMessage);
 
         // Verify current password
         if (!VerifyPassword(changePasswordDto.CurrentPassword, account.PasswordHash))
@@ -347,7 +435,7 @@ public class AccountService : IAccountService
             cancellationToken);
 
         if (account == null)
-            throw new InvalidOperationException("Tài khoản không tồn tại");
+            throw new InvalidOperationException(AccountNotFoundMessage);
 
         // Update password
         account.PasswordHash = HashPassword(resetPasswordDto.NewPassword);
@@ -371,8 +459,8 @@ public class AccountService : IAccountService
         // Validate both tokens
         try
         {
-            var accessPrincipal = ValidateToken(revokeTokenDto.AccessToken);
-            var refreshPrincipal = ValidateToken(revokeTokenDto.RefreshToken);
+            _ = ValidateToken(revokeTokenDto.AccessToken);
+            _ = ValidateToken(revokeTokenDto.RefreshToken);
 
             // Get token JTI (unique identifier) from access token
             var accessTokenHandler = new JwtSecurityTokenHandler();
@@ -531,6 +619,7 @@ public class AccountService : IAccountService
                 Email = user.Email,
                 FullName = user.FullName ?? string.Empty,
                 Phone = user.Phone,
+                Address = user.Address,
                 AvatarUrl = user.AvatarUrl,
                 Status = user.Status,
                 Roles = roles

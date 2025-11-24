@@ -1,5 +1,4 @@
-﻿/* Sidebar Styles */
-.sb-sidebar {
+﻿.sb-sidebar {
   position: fixed;
   top: 0;
   left: 0;
@@ -11,9 +10,12 @@
   transition: width 0.25s ease, box-shadow 0.25s ease;
   
   /* FIX: Enable flexbox for scrollable nav */
-  display: flex;
-  flex-direction: column;
+
+  /* THÊM 2 DÒNG NÀY */
+  /* display: flex;
+  flex-direction: column; */
 }
+
 
 .sb-sidebar.collapsed {
   width: 96px;

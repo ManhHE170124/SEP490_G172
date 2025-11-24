@@ -1,10 +1,14 @@
-// 📝 WebsiteConfig.jsx - FULL VERSION
-
 import React, { useEffect, useState, useRef } from 'react';
 import '../../styles/WebsiteConfig.css';
 import { settingsApi } from '../../services/settings';
+import { useToast } from '../../contexts/ToastContext';
+import LayoutSectionsManager from './LayoutSectionsManager';
+import PaymentGatewaysManager from './PaymentGatewaysManager';
 
 const WebsiteConfig = () => {
+    // Toast
+    const { showToast } = useToast();
+
     // State management
     const [config, setConfig] = useState({
         name: '',
@@ -13,7 +17,6 @@ const WebsiteConfig = () => {
         primaryColor: '#2563EB',
         secondaryColor: '#111827',
         font: 'Inter (khuyên dùng)',
-        sections: [],
         contact: { address: '', phone: '', email: '' },
         smtp: { server: '', port: 587, user: '', password: '', tls: false, dkim: false },
         media: { uploadLimitMB: 10, formats: ['jpg', 'png', 'webp'] },
@@ -25,19 +28,30 @@ const WebsiteConfig = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
+    // Form field errors
+    const [formErrors, setFormErrors] = useState({});
+
     const logoFileRef = useRef(null);
     const [logoPreviewUrl, setLogoPreviewUrl] = useState(null);
 
     // Load data on mount
     useEffect(() => {
         loadData();
+        // Cleanup created object URL on unmount if created from file
+        return () => {
+            if (logoPreviewUrl && logoPreviewUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(logoPreviewUrl);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const loadData = async () => {
         setLoading(true);
         setError("");
         try {
-            const data = await settingsApi.getSettings();
+            const resp = await settingsApi.getSettings();
+            const data = resp && resp.data !== undefined ? resp.data : resp;
 
             console.log("✅ Settings loaded:", data);
 
@@ -50,7 +64,6 @@ const WebsiteConfig = () => {
                     primaryColor: data.primaryColor || prev.primaryColor,
                     secondaryColor: data.secondaryColor || prev.secondaryColor,
                     font: data.font || prev.font,
-                    sections: Array.isArray(data.sections) ? data.sections : prev.sections,
                     contact: {
                         address: data.contact?.address || prev.contact.address,
                         phone: data.contact?.phone || prev.contact.phone,
@@ -83,7 +96,9 @@ const WebsiteConfig = () => {
             }
         } catch (err) {
             console.error("❌ Load settings error:", err);
-            setError(err.message || "Không thể tải cấu hình");
+            const msg = err?.response?.data?.message || err.message || "Không thể tải cấu hình";
+            setError(msg);
+            showToast({ type: 'error', title: 'Lỗi tải cấu hình', message: msg });
         } finally {
             setLoading(false);
         }
@@ -107,52 +122,51 @@ const WebsiteConfig = () => {
         });
     };
 
+    // Simple URL validation using native URL parser
+    const isValidUrl = (value) => {
+        if (!value) return true; // empty allowed — validate required separately if needed
+        try {
+            const u = new URL(value);
+            return u.protocol === "http:" || u.protocol === "https:";
+        } catch {
+            return false;
+        }
+    };
+
+    const validateAll = () => {
+        const errs = {};
+        // Site name required
+        if (!config.name || config.name.trim().length < 2) {
+            errs.name = "Tên trang là bắt buộc (ít nhất 2 ký tự)";
+        }
+        // Website optional but if provided must be a valid URL
+        if (config.website && !isValidUrl(config.website)) {
+            errs.website = "URL không hợp lệ. Ví dụ: https://example.com";
+        }
+        // Email validation (optional)
+        if (config.contact?.email && !/^\S+@\S+\.\S+$/.test(config.contact.email)) {
+            errs.contactEmail = "Email không hợp lệ";
+        }
+
+        setFormErrors(errs);
+        return Object.keys(errs).length === 0;
+    };
+
     // Logo handling
     const onLogoChange = (e) => {
         const f = e.target.files?.[0];
         if (!f) return;
 
         console.log("📷 Logo selected:", f.name);
+
+        // revoke previous blob if we created it
+        if (logoPreviewUrl && logoPreviewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(logoPreviewUrl);
+        }
+
         const url = URL.createObjectURL(f);
         setLogoPreviewUrl(url);
         logoFileRef.current = f;
-    };
-
-    // Section management
-    const addSection = () => {
-        const id = 'custom.' + Date.now();
-        update({
-            sections: [
-                ...config.sections,
-                { id, title: 'New Section', order: config.sections.length + 1, visible: true }
-            ]
-        });
-    };
-
-    const deleteSection = (id) => {
-        if (!window.confirm('Xoá section này?')) return;
-        update({ sections: config.sections.filter(s => s.id !== id) });
-    };
-
-    const toggleSectionVisibility = (id) => {
-        update({
-            sections: config.sections.map(s =>
-                s.id === id ? { ...s, visible: !s.visible } : s
-            )
-        });
-    };
-
-    // Payment actions
-    const copyPaymentLink = async (index) => {
-        const link = config.payments?.[index]?.callback || '';
-        if (!navigator.clipboard) return;
-
-        try {
-            await navigator.clipboard.writeText(link);
-            alert('Đã sao chép URL');
-        } catch {
-            alert('Không thể sao chép');
-        }
     };
 
     // Prepare payload for save
@@ -168,15 +182,19 @@ const WebsiteConfig = () => {
             smtp: config.smtp,
             media: config.media,
             social: config.social,
-            sections: config.sections,
             payments: config.payments,
         };
     };
 
     // Save settings
-    // 📝 WebsiteConfig.jsx - Sửa onSave()
-
     const onSave = async () => {
+        // Validate form fields
+        if (!validateAll()) {
+            const firstErr = Object.values(formErrors)[0] || 'Vui lòng kiểm tra các trường';
+            showToast({ type: 'error', title: 'Lỗi nhập liệu', message: firstErr });
+            return;
+        }
+
         setSaving(true);
         try {
             const payload = collectPayload();
@@ -184,19 +202,20 @@ const WebsiteConfig = () => {
             console.log("💾 Has logo file:", !!logoFileRef.current);
 
             const result = await settingsApi.saveSettings(payload, logoFileRef.current);
+            const data = result && result.data !== undefined ? result.data : result;
 
-            console.log("✅ Save result:", result);
-            alert('Lưu thành công!');
+            console.log("✅ Save result:", data);
+            showToast({ type: 'success', title: 'Lưu thành công', message: 'Cấu hình đã được lưu' });
 
-            // ✅ Update logoUrl if returned
-            if (result?.logoUrl) {
-                update({ logoUrl: result.logoUrl });
-                setLogoPreviewUrl(result.logoUrl);
+            // Update logoUrl if returned
+            if (data?.logoUrl) {
+                update({ logoUrl: data.logoUrl });
+                setLogoPreviewUrl(data.logoUrl);
             }
 
             logoFileRef.current = null;
 
-            // ✅ Reload để sync với backend
+            // Reload to sync with backend
             await loadData();
 
         } catch (err) {
@@ -204,13 +223,12 @@ const WebsiteConfig = () => {
             console.error("❌ Error response:", err.response?.data);
             console.error("❌ Error status:", err.response?.status);
 
-            // ✅ Better error message
             const errorMsg = err.response?.data?.message
                 || err.response?.data?.error
                 || err.message
                 || 'Lỗi không xác định';
 
-            alert(`Lưu thất bại: ${errorMsg}`);
+            showToast({ type: 'error', title: 'Lưu thất bại', message: errorMsg });
         } finally {
             setSaving(false);
         }
@@ -228,23 +246,27 @@ const WebsiteConfig = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        showToast({ type: 'success', title: 'Xuất thành công', message: 'Đã xuất file cấu hình' });
     };
 
     // Test SMTP
     const onSendTestEmail = async () => {
         try {
             console.log("📧 Testing SMTP...");
-            const result = await settingsApi.testSmtp(config.smtp);
+            const resp = await settingsApi.testSmtp(config.smtp);
+            const result = resp && resp.data !== undefined ? resp.data : resp;
+
             console.log("✅ SMTP test result:", result);
 
             if (result?.success || result?.ok) {
-                alert('Email thử đã được gửi thành công!');
+                showToast({ type: 'success', title: 'Gửi thành công', message: 'Email thử đã được gửi thành công' });
             } else {
-                alert('Gửi email thất bại: ' + (result?.message || 'Unknown error'));
+                showToast({ type: 'error', title: 'Gửi thất bại', message: result?.message || 'Gửi email thất bại' });
             }
         } catch (err) {
             console.error("❌ SMTP test error:", err);
-            alert('Lỗi gửi email thử: ' + err.message);
+            const msg = err?.response?.data?.message || err.message || 'Lỗi gửi email thử';
+            showToast({ type: 'error', title: 'Lỗi SMTP', message: msg });
         }
     };
 
@@ -294,8 +316,10 @@ const WebsiteConfig = () => {
                                     value={config.name || ''}
                                     onChange={e => update({ name: e.target.value })}
                                     placeholder="Tên website..."
+                                    className={formErrors.name ? 'error' : ''}
                                 />
                             </div>
+                            {formErrors.name && <div className="field-error">{formErrors.name}</div>}
                             <div className="small">Hiển thị ở tiêu đề, email và SEO.</div>
                         </div>
                     </div>
@@ -420,86 +444,8 @@ const WebsiteConfig = () => {
                 </div>
             </details>
 
-            {/* Layout */}
-            <details className="card">
-                <summary>Layout</summary>
-                <div className="content">
-                    <div className="small" style={{ marginBottom: '12px' }}>
-                        Sắp xếp thứ tự section trên trang chủ. Trạng thái "Ẩn/Hiện" chỉ ảnh hưởng frontend.
-                    </div>
-                    <div className="table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Section ID</th>
-                                    <th>Tên section</th>
-                                    <th>Thứ tự</th>
-                                    <th>Trạng thái</th>
-                                    <th>Tùy chọn</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {config.sections && config.sections.length > 0 ? (
-                                    config.sections.map((s) => (
-                                        <tr key={s.id}>
-                                            <td>{s.id}</td>
-                                            <td>{s.title}</td>
-                                            <td>
-                                                <input
-                                                    type="number"
-                                                    value={s.order}
-                                                    min="1"
-                                                    onChange={e => {
-                                                        const v = parseInt(e.target.value || 1, 10);
-                                                        update({
-                                                            sections: config.sections.map(x =>
-                                                                x.id === s.id ? { ...x, order: v } : x
-                                                            )
-                                                        });
-                                                    }}
-                                                    style={{ width: '70px', padding: '6px', borderRadius: '8px' }}
-                                                />
-                                            </td>
-                                            <td>
-                                                <span className={`status ${s.visible ? 'on' : 'off'}`}>
-                                                    {s.visible ? 'Hiện' : 'Ẩn'}
-                                                </span>
-                                            </td>
-                                            <td className="row-actions">
-                                                <button
-                                                    className="icon-btn"
-                                                    onClick={() => toggleSectionVisibility(s.id)}
-                                                    title={s.visible ? 'Ẩn' : 'Hiện'}
-                                                >
-                                                    👁️
-                                                </button>
-                                                <button
-                                                    className="icon-btn"
-                                                    onClick={() => deleteSection(s.id)}
-                                                    title="Xoá"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="5" style={{ padding: '12px', textAlign: 'center' }}>
-                                            Chưa có section
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div style={{ marginTop: '10px' }}>
-                        <button className="btn" onClick={addSection}>
-                            + Thêm Section
-                        </button>
-                    </div>
-                </div>
-            </details>
+            {/* Layout Sections - Component mới */}
+            <LayoutSectionsManager />
 
             {/* Thông tin liên hệ */}
             <details className="card">
@@ -542,8 +488,10 @@ const WebsiteConfig = () => {
                                     value={config.contact.email || ''}
                                     onChange={e => updateNested('contact.email', e.target.value)}
                                     placeholder="support@example.com"
+                                    className={formErrors.contactEmail ? 'error' : ''}
                                 />
                             </div>
+                            {formErrors.contactEmail && <div className="field-error">{formErrors.contactEmail}</div>}
                         </div>
                     </div>
                 </div>
@@ -747,64 +695,8 @@ const WebsiteConfig = () => {
                 </div>
             </details>
 
- // 📝 WebsiteConfig.jsx - Line ~748
 
-            {/* Payment Gateways */}
-            <details className="card">
-                <summary>Cấu hình cổng thanh toán</summary>
-                <div className="content">
-                    <div className="table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Tên cổng</th>
-                                    <th>Link/Callback</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {config.payments && config.payments.length > 0 ? (
-                                    config.payments.map((p, idx) => (
-                                        // ✅ FIX: Dùng index thay vì p.name để tránh duplicate keys
-                                        <tr key={`payment-${idx}`}>
-                                            <td>{p.name}</td>
-                                            <td style={{
-                                                maxWidth: '300px',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
-                                            }}>
-                                                {p.callback}
-                                            </td>
-                                            <td>
-                                                <span className={`status ${p.enabled ? 'on' : 'off'}`}>
-                                                    {p.enabled ? 'Bật' : 'Tắt'}
-                                                </span>
-                                            </td>
-                                            <td className="row-actions">
-                                                <button
-                                                    className="icon-btn"
-                                                    onClick={() => copyPaymentLink(idx)}
-                                                    title="Copy link"
-                                                >
-                                                    📄
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="4" style={{ padding: '12px', textAlign: 'center' }}>
-                                            Chưa có cổng thanh toán
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </details>
+            <PaymentGatewaysManager />
 
             {/* Save Bar */}
             <div className="savebar">

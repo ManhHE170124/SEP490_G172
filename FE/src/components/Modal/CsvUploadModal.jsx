@@ -15,6 +15,12 @@ export default function CsvUploadModal({
 }) {
   if (!isOpen) return null;
 
+  const variantTitle =
+    selectedPackage?.variantTitle ||
+    selectedPackage?.variantName ||
+    selectedPackage?.variant?.title ||
+    null;
+
   return (
     <div
       style={{
@@ -56,6 +62,11 @@ export default function CsvUploadModal({
             <p style={{ margin: "0 0 8px", fontSize: "14px" }}>
               <strong>Sản phẩm:</strong> {selectedPackage.productName}
             </p>
+            {variantTitle && (
+              <p style={{ margin: "0 0 8px", fontSize: "14px" }}>
+                <strong>Biến thể:</strong> {variantTitle}
+              </p>
+            )}
             <p style={{ margin: "0 0 8px", fontSize: "14px" }}>
               <strong>Số lượng còn lại:</strong>{" "}
               {selectedPackage.remainingQuantity}

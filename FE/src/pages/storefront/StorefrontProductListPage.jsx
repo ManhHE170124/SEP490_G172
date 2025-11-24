@@ -1,21 +1,19 @@
 // src/pages/storefront/StorefrontProductListPage.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import StorefrontProductApi from "../../services/storefrontProductService";
 import "./StorefrontProductListPage.css";
 
-// Map sort value -> label hiển thị
 const SORT_OPTIONS = [
-  { value: "default",    label: "Phù hợp nhất" },   // nhiều view nhất
+  { value: "default",    label: "Phù hợp nhất" },
   { value: "updated",    label: "Mới cập nhật" },
-  { value: "sold",       label: "Bán chạy" },       // hiện tạm dùng ViewCount, sau map SoldCount
+  { value: "sold",       label: "Bán chạy" },
   { value: "price-asc",  label: "Giá tăng dần" },
   { value: "price-desc", label: "Giá giảm dần" },
   { value: "name-asc",   label: "Tên A → Z" },
   { value: "name-desc",  label: "Tên Z → A" },
 ];
 
-// Helper format tiền VND (nếu sau này Price khác null)
 const formatCurrency = (value) => {
   if (value == null) return "Đang cập nhật";
   try {
@@ -29,12 +27,46 @@ const formatCurrency = (value) => {
   }
 };
 
+const PAGE_SIZE = 8;
+
+// Helper: build query object từ URL (KHÔNG đẩy page / pageSize lên URL nữa)
+const buildQueryFromSearch = (search) => {
+  const params = new URLSearchParams(search);
+
+  const q = params.get("q") || "";
+
+  const categoryIdStr = params.get("categoryId");
+  const productType = params.get("productType") || "";
+
+  const minPriceStr = params.get("minPrice");
+  const maxPriceStr = params.get("maxPrice");
+
+  const sort = params.get("sort") || "default";
+
+  // page / pageSize: luôn dùng giá trị mặc định ở FE
+  const page = 1;
+  const pageSize = PAGE_SIZE;
+
+  return {
+    q,
+    categoryId: categoryIdStr ? Number(categoryIdStr) : undefined,
+    productType: productType || undefined,
+    minPrice: minPriceStr ? Number(minPriceStr) : undefined,
+    maxPrice: maxPriceStr ? Number(maxPriceStr) : undefined,
+    sort,
+    page,
+    pageSize,
+  };
+};
+
 const StorefrontProductListPage = () => {
-  // ====== State filters từ BE ======
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [categories, setCategories] = useState([]);
   const [availableTypes, setAvailableTypes] = useState([]);
 
-  // ====== State form filter trên UI ======
+  // Form filter hiển thị trên UI
   const [form, setForm] = useState({
     categoryId: "",
     productType: "",
@@ -43,30 +75,17 @@ const StorefrontProductListPage = () => {
     sort: "default",
   });
 
-  // ====== State query thực tế gửi lên API ======
-  const [query, setQuery] = useState({
-    q: "",
-    categoryId: undefined,
-    productType: undefined,
-    minPrice: undefined,
-    maxPrice: undefined,
-    sort: "default",
-    page: 1,
-    pageSize: 8,
-  });
-
-  // ====== Data list & paging ======
+  // Data list & paging
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(8);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // ====== Loading / error ======
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ====== Lấy filters (danh mục + loại) ======
+  // ==== Lấy filters (danh mục + loại) ====
   useEffect(() => {
     let isMounted = true;
 
@@ -77,7 +96,6 @@ const StorefrontProductListPage = () => {
 
         setCategories(res.categories || []);
 
-        // Map code -> label (dùng PRODUCT_TYPES + typeLabelOf đã đồng bộ với admin)
         const typeCodes = res.productTypes || [];
         const mappedTypes = typeCodes.map((code) => ({
           value: code,
@@ -94,8 +112,21 @@ const StorefrontProductListPage = () => {
     };
   }, []);
 
-  // ====== Gửi request lấy danh sách biến thể ======
-  const loadVariants = useCallback(async () => {
+  // ==== Đồng bộ FORM từ URL (mỗi lần location.search thay đổi) ====
+  useEffect(() => {
+    const q = buildQueryFromSearch(location.search);
+
+    setForm({
+      categoryId: q.categoryId != null ? String(q.categoryId) : "",
+      productType: q.productType ?? "",
+      minPrice: q.minPrice != null ? String(q.minPrice) : "",
+      maxPrice: q.maxPrice != null ? String(q.maxPrice) : "",
+      sort: q.sort || "default",
+    });
+  }, [location.search]);
+
+  // ==== Gửi request lấy danh sách biến thể theo URL (page mặc định = 1) ====
+  const loadVariants = useCallback(async (query) => {
     setLoading(true);
     setError("");
 
@@ -113,11 +144,12 @@ const StorefrontProductListPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, []);
 
   useEffect(() => {
-    loadVariants();
-  }, [loadVariants]);
+    const q = buildQueryFromSearch(location.search);
+    loadVariants(q);
+  }, [location.search, loadVariants]);
 
   // ====== Handlers ======
   const handleChangeField = (e) => {
@@ -128,18 +160,51 @@ const StorefrontProductListPage = () => {
     }));
   };
 
+  // Bấm nút "Lọc" -> cập nhật URL (URL là source of truth cho filter/sort, KHÔNG chứa page/pageSize)
   const handleApplyFilter = () => {
-    setQuery((prev) => ({
-      ...prev,
-      categoryId: form.categoryId ? Number(form.categoryId) : undefined,
-      productType: form.productType || undefined,
-      minPrice: form.minPrice ? Number(form.minPrice) : undefined,
-      maxPrice: form.maxPrice ? Number(form.maxPrice) : undefined,
-      sort: form.sort || "default",
-      page: 1, // reset về trang 1
-    }));
+    const params = new URLSearchParams(location.search);
+
+    // clear page / pageSize khỏi URL (nếu có từ link cũ)
+    params.delete("page");
+    params.delete("pageSize");
+
+    if (form.categoryId) {
+      params.set("categoryId", form.categoryId);
+    } else {
+      params.delete("categoryId");
+    }
+
+    if (form.productType) {
+      params.set("productType", form.productType);
+    } else {
+      params.delete("productType");
+    }
+
+    if (form.minPrice) {
+      params.set("minPrice", form.minPrice);
+    } else {
+      params.delete("minPrice");
+    }
+
+    if (form.maxPrice) {
+      params.set("maxPrice", form.maxPrice);
+    } else {
+      params.delete("maxPrice");
+    }
+
+    if (form.sort && form.sort !== "default") {
+      params.set("sort", form.sort);
+    } else {
+      params.delete("sort");
+    }
+
+    const search = params.toString();
+    // luôn reset page về 1 ở FE
+    setPage(1);
+    navigate(`${location.pathname}${search ? `?${search}` : ""}`);
   };
 
+  // Bấm "Khôi phục" -> clear filter + URL sạch
   const handleResetFilter = () => {
     setForm({
       categoryId: "",
@@ -149,27 +214,25 @@ const StorefrontProductListPage = () => {
       sort: "default",
     });
 
-    setQuery((prev) => ({
-      ...prev,
-      q: "",
-      categoryId: undefined,
-      productType: undefined,
-      minPrice: undefined,
-      maxPrice: undefined,
-      sort: "default",
-      page: 1,
-    }));
+    setPage(1);
+    navigate(location.pathname);
   };
 
+  // Chuyển trang -> chỉ đổi page ở FE, không đổi URL
   const handleChangePage = (newPage) => {
     if (newPage < 1 || newPage > totalPages || newPage === page) return;
-    setQuery((prev) => ({
-      ...prev,
+
+    const baseQuery = buildQueryFromSearch(location.search);
+    const queryWithPage = {
+      ...baseQuery,
       page: newPage,
-    }));
+      pageSize: PAGE_SIZE,
+    };
+
+    setPage(newPage);
+    loadVariants(queryWithPage);
   };
 
-  // ====== Tính text "Đang xem ..." ======
   const viewingFrom = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
   const viewingTo = totalItems === 0 ? 0 : Math.min(totalItems, page * pageSize);
 
@@ -295,7 +358,6 @@ const StorefrontProductListPage = () => {
           <div className="sf-section-header">
             <div>
               <h2>Tất cả sản phẩm</h2>
-              {/* Có thể hiển thị thêm mô tả, search text... nếu muốn */}
             </div>
           </div>
 
@@ -313,92 +375,97 @@ const StorefrontProductListPage = () => {
 
           {!loading && !error && (
             <>
-   <div className="sf-grid sf-grid-responsive">
-  {items.map((item) => {
-    const variantTitle = item.variantTitle || item.title || item.productName;
+              <div className="sf-grid sf-grid-responsive">
+                {items.map((item) => {
+                  const variantTitle = item.variantTitle || item.title || item.productName;
+                  const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
+                  const displayTitle = typeLabel
+                    ? `${variantTitle} - ${typeLabel}`
+                    : variantTitle;
 
-    const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
-    const displayTitle = typeLabel
-      ? `${variantTitle} - ${typeLabel}`
-      : variantTitle;
+                  const sellPrice = item.sellPrice;
+                  const cogsPrice = item.cogsPrice;
 
-    const samplePriceNow = 295000;
-    const samplePriceOld = 1500000;
-    const discountPercent = Math.round(
-      100 - (samplePriceNow / samplePriceOld) * 100
-    );
+                  const priceNowText = formatCurrency(sellPrice);
+                  const hasOldPrice =
+                    cogsPrice != null &&
+                    cogsPrice > sellPrice;
 
-    const priceNowText = formatCurrency(samplePriceNow);
-    const priceOldText = formatCurrency(samplePriceOld);
+                  const priceOldText = hasOldPrice
+                    ? formatCurrency(cogsPrice)
+                    : null;
 
-    // Kiểm tra trạng thái sản phẩm hết hàng
-    const isOutOfStock =
-      item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
+                  const discountPercent = hasOldPrice
+                    ? Math.round(100 - (sellPrice / cogsPrice) * 100)
+                    : null;
 
-    return (
-      <article
-        key={item.variantId}
-        className={`sf-card ${isOutOfStock ? "sf-card-out" : ""}`}  // Thêm class nếu hết hàng
-      >
-        <Link
-          className="sf-card-link"
-          to={`/products/${item.productId}?variant=${item.variantId}`}
-        >
-          {/* Ảnh sản phẩm */}
-          <div className="sf-media">
-            {item.thumbnail ? (
-              <img
-                src={item.thumbnail}
-                alt={displayTitle}
-              />
-            ) : (
-              <div className="sf-media-placeholder">
-                {displayTitle?.[0] || "K"}
+                  const isOutOfStock =
+                    item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
+
+                  return (
+                    <article
+                      key={item.variantId}
+                      className={`sf-card ${isOutOfStock ? "sf-card-out" : ""}`}
+                    >
+                      <Link
+                        className="sf-card-link"
+                        to={`/products/${item.productId}?variant=${item.variantId}`}
+                      >
+                        <div className="sf-media">
+                          {item.thumbnail ? (
+                            <img src={item.thumbnail} alt={displayTitle} />
+                          ) : (
+                            <div className="sf-media-placeholder">
+                              {displayTitle?.[0] || "K"}
+                            </div>
+                          )}
+
+                          {item.badges && item.badges.length > 0 && (
+                            <div className="sf-media-badges">
+                              {item.badges.map((b) => (
+                                <span
+                                  key={b.badgeCode}
+                                  className="sf-tag"
+                                  style={
+                                    b.colorHex
+                                      ? { backgroundColor: b.colorHex, color: "#fff" }
+                                      : undefined
+                                  }
+                                >
+                                  {b.displayName || b.badgeCode}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {isOutOfStock && (
+                            <div className="sf-out-of-stock">Hết hàng</div>
+                          )}
+                        </div>
+
+                        <div className="sf-body">
+                          <h3>{displayTitle}</h3>
+
+                          <div className="sf-price">
+                            <div className="sf-price-now">{priceNowText}</div>
+                            {hasOldPrice && (
+                              <>
+                                <div className="sf-price-old">{priceOldText}</div>
+                                {discountPercent > 0 && (
+                                  <div className="sf-price-off">
+                                    -{discountPercent}%
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    </article>
+                  );
+                })}
               </div>
-            )}
 
-            {/* Dòng "Hết hàng" */}
-            {isOutOfStock && (
-              <div className="sf-out-of-stock">Hết hàng</div>
-            )}
-          </div>
-
-          <div className="sf-body">
-            <h3>{displayTitle}</h3>
-
-            {/* Nhãn sản phẩm */}
-            {item.badges && item.badges.length > 0 && (
-              <div className="sf-body-badges">
-                {item.badges.map((b) => (
-                  <span
-                    key={b.badgeCode}
-                    className="sf-tag"
-                    style={
-                      b.colorHex
-                        ? { backgroundColor: b.colorHex, color: "#fff" }
-                        : undefined
-                    }
-                  >
-                    {b.displayName || b.badgeCode}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Giá sản phẩm */}
-            <div className="sf-price">
-              <div className="sf-price-now">{priceNowText}</div>
-              <div className="sf-price-old">{priceOldText}</div>
-              <div className="sf-price-off">-{discountPercent}%</div>
-            </div>
-          </div>
-        </Link>
-      </article>
-    );
-  })}
-</div>
-
-              {/* Pagination */}
               {totalPages > 1 && (
                 <nav className="sf-pager">
                   <button
@@ -410,10 +477,8 @@ const StorefrontProductListPage = () => {
                     Trước
                   </button>
 
-                  {/* Chỉ hiển thị vài trang xung quanh current cho gọn */}
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
                     .filter((p) => {
-                      // hiển thị luôn trang 1, cuối và các trang gần current
                       if (p === 1 || p === totalPages) return true;
                       return Math.abs(p - page) <= 1;
                     })

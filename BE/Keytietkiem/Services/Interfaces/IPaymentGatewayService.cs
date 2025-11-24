@@ -20,5 +20,6 @@ namespace Keytietkiem.Services.Interfaces
         Task<PaymentGatewayDto> CreateAsync(PaymentGatewayDto dto);
         Task<PaymentGatewayDto> UpdateAsync(int id, PaymentGatewayDto dto);
         Task<bool> DeleteAsync(int id);
+        Task<PaymentGatewayDto> ToggleActiveAsync(int id); 
     }
 }
