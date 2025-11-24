@@ -216,7 +216,7 @@ export default function OrderHistoryPage() {
           thumbnailUrl: order.thumbnailUrl || order.ThumbnailUrl || null,
           paymentStatus: order.paymentStatus || order.PaymentStatus || "Unpaid",
           // Computed fields
-          statusLabel: order.status === "Completed" ? "Đã xử lý" : 
+          statusLabel: order.status === "Paid" ? "Đã xử lý" : 
                       order.status === "Processing" ? "Đang xử lý" :
                       order.status === "Pending" ? "Đang chờ" :
                       order.status === "Cancelled" ? "Đã hủy" :
@@ -375,7 +375,7 @@ export default function OrderHistoryPage() {
 
   return (
     <div className="oh-wrapper">
-      <header className="oh-header">
+      {/* <header className="oh-header">
         <div>
           <h1>Lịch sử đơn hàng</h1>
           <p>Hiển thị thông tin các sản phẩm bạn đã mua tại Keytietkiem.</p>
@@ -387,7 +387,7 @@ export default function OrderHistoryPage() {
             </div>
           )}
         </div>
-      </header>
+      </header> */}
 
       <section className="oh-filters">
         <div className="oh-filter-field">
