@@ -1,8 +1,23 @@
 // src/pages/storefront/StorefrontProductDetailPage.jsx
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
+import {
+  useParams,
+  useLocation,
+  useNavigate,
+  Link,
+} from "react-router-dom";
 import StorefrontProductApi from "../../services/storefrontProductService";
+import StorefrontCartApi, {
+  CART_UPDATED_EVENT,
+} from "../../services/storefrontCartService";
+import Toast from "../../components/Toast/Toast";
 import "./StorefrontProductDetailPage.css";
+import GuestCartService from "../../services/guestCartService";
 
 const formatCurrency = (value) => {
   if (value == null) return "Đang cập nhật";
@@ -42,6 +57,20 @@ const getSectionTypeLabel = (sectionType) => {
   }
 };
 
+const readCustomerFromStorage = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = window.localStorage.getItem("access_token");
+    const storedUser = window.localStorage.getItem("user");
+    if (!token || !storedUser) return null;
+    const parsed = JSON.parse(storedUser);
+    return parsed?.profile ?? parsed;
+  } catch (error) {
+    console.error("Failed to parse stored user", error);
+    return null;
+  }
+};
+
 const StorefrontProductDetailPage = () => {
   const { productId } = useParams();
   const queryParams = useQueryParams();
@@ -55,17 +84,41 @@ const StorefrontProductDetailPage = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [error, setError] = useState("");
+  const [addingToCart, setAddingToCart] = useState(false);
 
-  const handleIncreaseQuantity = () => {
-    setQuantity((prevQuantity) => prevQuantity + 1);
-  };
+  // Toast state
+  const [toasts, setToasts] = useState([]);
 
-  const handleDecreaseQuantity = () => {
-    if (quantity > 1) {
-      setQuantity((prevQuantity) => prevQuantity - 1);
-    }
-  };
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
+  const addToast = useCallback(
+    (type, title, message) => {
+      const id = Date.now() + Math.random();
+      const toast = { id, type, title, message };
+      setToasts((prev) => [...prev, toast]);
+      setTimeout(() => removeToast(id), 4000);
+    },
+    [removeToast]
+  );
+
+  const [customer, setCustomer] = useState(() =>
+    readCustomerFromStorage()
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncCustomer = () => {
+      setCustomer(readCustomerFromStorage());
+    };
+
+    window.addEventListener("storage", syncCustomer);
+    return () => window.removeEventListener("storage", syncCustomer);
+  }, []);
+
+  // ====== Load detail & related ======
   const loadDetail = useCallback(async (pid, vid) => {
     if (!pid || !vid) return;
     setLoadingDetail(true);
@@ -73,9 +126,13 @@ const StorefrontProductDetailPage = () => {
     try {
       const res = await StorefrontProductApi.variantDetail(pid, vid);
       setDetail(res);
+      // Reset quantity về 1 khi đổi biến thể hoặc khi reload detail
+      setQuantity(1);
     } catch (err) {
       console.error("Load variant detail failed:", err);
-      setError("Không tải được thông tin sản phẩm. Vui lòng thử lại sau.");
+      setError(
+        "Không tải được thông tin sản phẩm. Vui lòng thử lại sau."
+      );
     } finally {
       setLoadingDetail(false);
     }
@@ -98,13 +155,67 @@ const StorefrontProductDetailPage = () => {
     }
   }, []);
 
+  // Lần đầu & khi đổi variant
   useEffect(() => {
     if (!productId || !currentVariantId) return;
     loadDetail(productId, currentVariantId);
     loadRelated(productId, currentVariantId);
   }, [productId, currentVariantId, loadDetail, loadRelated]);
 
-  const isOutOfStock = detail?.isOutOfStock;
+  // Khi giỏ hàng thay đổi (Add/Update/Remove/Clear) -> reload lại detail
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleCartUpdated = () => {
+      if (productId && currentVariantId) {
+        loadDetail(productId, currentVariantId);
+      }
+    };
+
+    window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    return () => {
+      window.removeEventListener(
+        CART_UPDATED_EVENT,
+        handleCartUpdated
+      );
+    };
+  }, [productId, currentVariantId, loadDetail]);
+
+  // ====== Quantity control ======
+  const handleIncreaseQuantity = () => {
+    if (!detail) {
+      setQuantity((prevQuantity) => prevQuantity + 1);
+      return;
+    }
+
+    const max = detail.stockQty ?? 0;
+
+    setQuantity((prevQuantity) => {
+      const next = prevQuantity + 1;
+
+      if (max > 0 && next > max) {
+        addToast(
+          "warning",
+          "Vượt số lượng tồn kho",
+          `Chỉ còn ${max} sản phẩm trong kho.`
+        );
+        return prevQuantity;
+      }
+
+      return next;
+    });
+  };
+
+  const handleDecreaseQuantity = () => {
+    if (quantity > 1) {
+      setQuantity((prevQuantity) => prevQuantity - 1);
+    }
+  };
+
+  // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
+  const isOutOfStock = detail
+    ? detail.isOutOfStock || (detail.stockQty ?? 0) <= 0
+    : false;
 
   const typeLabel = detail
     ? StorefrontProductApi.typeLabelOf(detail.productType)
@@ -125,29 +236,150 @@ const StorefrontProductDetailPage = () => {
       : null;
 
   const sellPrice = detail?.sellPrice;
-  const cogsPrice = detail?.cogsPrice;
+  const listPrice = detail?.listPrice;
 
   const priceNowText = formatCurrency(sellPrice);
-  const hasOldPrice =
-    cogsPrice != null &&
-    cogsPrice > sellPrice;
-
-  const priceOldText = hasOldPrice ? formatCurrency(cogsPrice) : null;
+  const hasOldPrice = listPrice != null && listPrice > sellPrice;
+  const priceOldText = hasOldPrice ? formatCurrency(listPrice) : null;
   const discountPercent = hasOldPrice
-    ? Math.round(100 - (sellPrice / cogsPrice) * 100)
+    ? Math.round(100 - (sellPrice / listPrice) * 100)
     : null;
 
   const handleChangeVariant = (variantId) => {
     if (!variantId || variantId === currentVariantId) return;
-    navigate(`/products/${productId}?variant=${variantId}`, { replace: false });
+    navigate(`/products/${productId}?variant=${variantId}`, {
+      replace: false,
+    });
   };
 
-  const handleBuyNow = () => {
-    alert("Tính năng mua ngay sẽ được bổ sung sau.");
+  // ====== Add to cart / Buy now ======
+  const handleAddToCart = async () => {
+    if (!detail || !detail.variantId) return;
+    if (quantity <= 0) return;
+
+    // Nếu đã hết hàng -> chặn luôn
+    if (isOutOfStock) {
+      addToast(
+        "warning",
+        "Sản phẩm đã hết hàng",
+        "Hiện tại sản phẩm này đã hết hàng. Vui lòng chọn sản phẩm khác hoặc quay lại sau."
+      );
+      return;
+    }
+
+    setAddingToCart(true);
+    try {
+      if (customer) {
+        // Đã đăng nhập -> dùng cart server-side
+        await StorefrontCartApi.addItem({
+          variantId: detail.variantId,
+          quantity,
+        });
+        // Sau khi BE cập nhật tồn kho, CART_UPDATED_EVENT sẽ bắn ra,
+        // effect phía trên sẽ tự loadDetail lại.
+      } else {
+        // Guest -> dùng cart frontend (localStorage)
+        GuestCartService.addItem({
+          variantId: detail.variantId,
+          productId: detail.productId,
+          productName: detail.productName,
+          productType: detail.productType,
+          variantTitle: detail.variantTitle || detail.title,
+          thumbnail: detail.thumbnail,
+          listPrice: detail.listPrice,
+          unitPrice: detail.sellPrice,
+          quantity,
+        });
+        // GuestCartService cũng bắn CART_UPDATED_EVENT -> sẽ loadDetail lại.
+      }
+
+      addToast(
+        "success",
+        "Đã thêm vào giỏ hàng",
+        "Sản phẩm đã được thêm vào giỏ hàng của bạn."
+      );
+    } catch (err) {
+      console.error("Thêm vào giỏ thất bại:", err);
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      const msg =
+        status === 401
+          ? "Vui lòng đăng nhập để sử dụng giỏ hàng."
+          : serverMsg || "Không thể thêm vào giỏ. Vui lòng thử lại.";
+      const type = status === 400 ? "warning" : "error";
+      addToast(type, "Thêm vào giỏ thất bại", msg);
+    } finally {
+      setAddingToCart(false);
+    }
   };
+
+  const handleBuyNow = async () => {
+    if (!detail || !detail.variantId) return;
+    if (quantity <= 0) return;
+
+    // Nếu đã hết hàng -> chặn luôn
+    if (isOutOfStock) {
+      addToast(
+        "warning",
+        "Sản phẩm đã hết hàng",
+        "Hiện tại sản phẩm này đã hết hàng. Vui lòng chọn sản phẩm khác hoặc quay lại sau."
+      );
+      return;
+    }
+
+    setAddingToCart(true);
+    try {
+      if (customer) {
+        await StorefrontCartApi.addItem({
+          variantId: detail.variantId,
+          quantity,
+        });
+      } else {
+        GuestCartService.addItem({
+          variantId: detail.variantId,
+          productId: detail.productId,
+          productName: detail.productName,
+          productType: detail.productType,
+          variantTitle: detail.variantTitle || detail.title,
+          thumbnail: detail.thumbnail,
+          listPrice: detail.listPrice,
+          unitPrice: detail.sellPrice,
+          quantity,
+        });
+      }
+
+      // Cart đã được cập nhật & bắn event, detail sẽ tự reload.
+      navigate("/cart");
+    } catch (err) {
+      console.error("Mua ngay thất bại:", err);
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      const msg =
+        status === 401
+          ? "Vui lòng đăng nhập để sử dụng giỏ hàng."
+          : serverMsg ||
+            "Không thể xử lý mua ngay. Vui lòng thử lại.";
+      const type = status === 400 ? "warning" : "error";
+      addToast(type, "Mua ngay thất bại", msg);
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  // Chuẩn hoá dữ liệu sections & FAQ cho an toàn
+  const sections = detail?.sections || detail?.detailSections || [];
+  const faqs =
+    detail?.faqs || detail?.faqItems || detail?.faqList || [];
 
   return (
     <main className="sf-detail-page">
+      {/* Toast stack */}
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <Toast key={t.id} toast={t} onRemove={removeToast} />
+        ))}
+      </div>
+
       <div className="sf-detail-container">
         {detail && (
           <nav className="sf-breadcrumb">
@@ -171,6 +403,7 @@ const StorefrontProductDetailPage = () => {
           </nav>
         )}
 
+        {/* HERO: ảnh + thông tin chính + nút mua */}
         <section className="sf-detail-hero">
           <div className="sf-detail-hero-left">
             <div
@@ -194,7 +427,10 @@ const StorefrontProductDetailPage = () => {
                       className="sf-tag"
                       style={
                         b.colorHex
-                          ? { backgroundColor: b.colorHex, color: "#fff" }
+                          ? {
+                              backgroundColor: b.colorHex,
+                              color: "#fff",
+                            }
                           : undefined
                       }
                     >
@@ -212,7 +448,9 @@ const StorefrontProductDetailPage = () => {
 
           <div className="sf-detail-hero-right">
             {loadingDetail && (
-              <div className="sf-detail-loading">Đang tải thông tin...</div>
+              <div className="sf-detail-loading">
+                Đang tải thông tin...
+              </div>
             )}
 
             {error && !loadingDetail && (
@@ -227,18 +465,27 @@ const StorefrontProductDetailPage = () => {
 
                 <div className="sf-detail-meta-row">
                   <div className="sf-detail-status">
-                    <span className="sf-detail-meta-label">Tình trạng:</span>{" "}
+                    <span className="sf-detail-meta-label">
+                      Tình trạng:
+                    </span>{" "}
                     {isOutOfStock ? (
-                      <strong className="sf-text-danger">Hết hàng</strong>
+                      <strong className="sf-text-danger">
+                        Hết hàng
+                      </strong>
                     ) : (
-                      <strong className="sf-text-success">Còn hàng</strong>
+                      <strong className="sf-text-success">
+                        Còn hàng
+                      </strong>
                     )}
                   </div>
                   {!isOutOfStock && (
                     <div className="sf-detail-stock">
-                      <span className="sf-detail-meta-label">Kho còn:</span>{" "}
+                      <span className="sf-detail-meta-label">
+                        Kho còn:
+                      </span>{" "}
                       <span className="sf-detail-meta-value">
-                        <strong>{detail.stockQty ?? 0}</strong> sản phẩm
+                        <strong>{detail.stockQty ?? 0}</strong> sản
+                        phẩm
                       </span>
                     </div>
                   )}
@@ -286,42 +533,55 @@ const StorefrontProductDetailPage = () => {
                   </div>
                 </div>
 
-                {detail.siblingVariants && detail.siblingVariants.length > 1 && (
-                  <div className="sf-detail-variants">
-                    <div className="sf-detail-variants-label">
-                      Tuỳ chọn gói sản phẩm:
-                    </div>
-                    <div className="sf-detail-variants-list">
-                      {detail.siblingVariants.map((sv) => {
-                        const active = sv.variantId === currentVariantId;
-                        const svOut = sv.isOutOfStock;
-                        return (
-                          <button
-                            key={sv.variantId}
-                            type="button"
-                            className={`sf-variant-chip ${
-                              active ? "sf-variant-chip-active" : ""
-                            } ${svOut ? "sf-variant-chip-out" : ""}`}
-                            onClick={() => handleChangeVariant(sv.variantId)}
-                            disabled={active}
-                          >
-                            <span className="sf-variant-chip-title">
-                              {sv.title}
-                            </span>
-                            {svOut && (
-                              <span className="sf-variant-chip-status">
-                                Hết hàng
+                {detail.siblingVariants &&
+                  detail.siblingVariants.length > 1 && (
+                    <div className="sf-detail-variants">
+                      <div className="sf-detail-variants-label">
+                        Tuỳ chọn gói sản phẩm:
+                      </div>
+                      <div className="sf-detail-variants-list">
+                        {detail.siblingVariants.map((sv) => {
+                          const active =
+                            sv.variantId === currentVariantId;
+                          // Nếu là biến thể hiện tại và detail đang out-of-stock
+                          // thì ép chip này cũng "Hết hàng"
+                          const svOut =
+                            sv.isOutOfStock ||
+                            (sv.variantId === detail.variantId &&
+                              isOutOfStock);
+                          return (
+                            <button
+                              key={sv.variantId}
+                              type="button"
+                              className={`sf-variant-chip ${
+                                active ? "sf-variant-chip-active" : ""
+                              } ${
+                                svOut ? "sf-variant-chip-out" : ""
+                              }`}
+                              onClick={() =>
+                                handleChangeVariant(sv.variantId)
+                              }
+                              disabled={active}
+                            >
+                              <span className="sf-variant-chip-title">
+                                {sv.title}
                               </span>
-                            )}
-                          </button>
-                        );
-                      })}
+                              {svOut && (
+                                <span className="sf-variant-chip-status">
+                                  Hết hàng
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 <div className="sf-quantity-control">
-                  <span className="sf-detail-meta-label">Số lượng:</span>
+                  <span className="sf-detail-meta-label">
+                    Số lượng:
+                  </span>
                   <button
                     type="button"
                     className="sf-btn sf-btn-outline sf-btn-lg"
@@ -344,17 +604,16 @@ const StorefrontProductDetailPage = () => {
                     type="button"
                     className="sf-btn sf-btn-primary sf-btn-lg"
                     onClick={handleBuyNow}
-                    disabled={isOutOfStock}
+                    disabled={isOutOfStock || addingToCart}
                   >
                     Mua ngay
                   </button>
+
                   <button
                     type="button"
                     className="sf-btn sf-btn-outline sf-btn-lg"
-                    onClick={() =>
-                      alert("Tính năng thêm vào giỏ sẽ được bổ sung sau.")
-                    }
-                    disabled={isOutOfStock}
+                    onClick={handleAddToCart}
+                    disabled={isOutOfStock || addingToCart}
                   >
                     Thêm vào giỏ
                   </button>
@@ -364,58 +623,88 @@ const StorefrontProductDetailPage = () => {
           </div>
         </section>
 
-        <section className="sf-detail-body">
-          <div className="sf-detail-main">
-            {detail?.sections && detail.sections.length > 0 && (
-              <div className="sf-detail-block">
-                <h2 className="sf-detail-block-title">
-                  Thông tin chi tiết sản phẩm
-                </h2>
-                <div className="sf-detail-sections">
-                  {detail.sections.map((s) => (
-                    <article
-                      key={s.sectionId}
-                      className="sf-detail-section-row"
-                    >
-                      <div className="sf-detail-section-type">
-                        {getSectionTypeLabel(s.sectionType)}
-                      </div>
-                      <div
-                        className="sf-detail-section-content"
-                        dangerouslySetInnerHTML={{ __html: s.content }}
-                      />
-                    </article>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* BODY: Sections mô tả / hướng dẫn / bảo hành + FAQ */}
+        {detail && (
+          <section className="sf-detail-body">
+            <div className="sf-detail-main">
+              {/* Các section nội dung */}
+              {sections && sections.length > 0 && (
+                <article className="sf-detail-block">
+                  <h2 className="sf-detail-block-title">
+                    Thông tin sản phẩm
+                  </h2>
+                  <div className="sf-detail-sections">
+                    {sections.map((s, idx) => {
+                      const sectionType =
+                        s.sectionType || s.type || s.kind || "";
+                      const title =
+                        getSectionTypeLabel(sectionType);
+                      const html =
+                        s.contentHtml ||
+                        s.htmlContent ||
+                        s.content ||
+                        "";
 
-            {detail?.faqs && detail.faqs.length > 0 && (
-              <div className="sf-detail-block">
-                <div className="sf-detail-section-row sf-detail-faq-row">
-                  <div className="sf-detail-section-type">
-                    Câu hỏi thường gặp (FAQ)
-                  </div>
-
-                  <div className="sf-detail-faq-list">
-                    {detail.faqs.map((f) => (
-                      <div key={f.faqId} className="sf-detail-faq-item">
-                        <div className="sf-detail-faq-question">
-                          {f.question}
-                        </div>
+                      return (
                         <div
-                          className="sf-detail-faq-answer"
-                          dangerouslySetInnerHTML={{ __html: f.answer }}
-                        />
-                      </div>
-                    ))}
+                          key={s.sectionId || s.id || idx}
+                          className="sf-detail-section-row"
+                        >
+                          <div className="sf-detail-section-type">
+                            {title}
+                          </div>
+                          <div
+                            className="sf-detail-section-content"
+                            dangerouslySetInnerHTML={{ __html: html }}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+                </article>
+              )}
 
+              {/* FAQ */}
+              {faqs && faqs.length > 0 && (
+                <article className="sf-detail-block">
+                  <h2 className="sf-detail-block-title">
+                    Câu hỏi thường gặp
+                  </h2>
+                  <div className="sf-detail-faq-list">
+                    {faqs.map((f, idx) => {
+                      const question =
+                        f.question || f.title || "";
+                      const answerHtml =
+                        f.answerHtml ||
+                        f.htmlAnswer ||
+                        f.answer ||
+                        "";
+
+                      return (
+                        <details
+                          key={f.faqId || f.id || idx}
+                          className="sf-detail-faq-item"
+                        >
+                          <summary className="sf-detail-faq-question">
+                            {question}
+                          </summary>
+                          <div
+                            className="sf-detail-faq-answer"
+                            dangerouslySetInnerHTML={{
+                              __html: answerHtml,
+                            }}
+                          />
+                        </details>
+                      );
+                    })}
+                  </div>
+                </article>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Sản phẩm liên quan */}
         <section className="sf-detail-related">
           <div className="sf-section-header">
             <h2>Sản phẩm liên quan</h2>
@@ -429,43 +718,53 @@ const StorefrontProductDetailPage = () => {
           )}
 
           {!loadingRelated && relatedItems.length === 0 && (
-            <div className="sf-detail-empty">Chưa có sản phẩm liên quan.</div>
+            <div className="sf-detail-empty">
+              Chưa có sản phẩm liên quan.
+            </div>
           )}
 
           {!loadingRelated && relatedItems.length > 0 && (
             <div className="sf-grid sf-grid-responsive sf-related-grid">
               {relatedItems.map((item) => {
-                const typeLabelCard = StorefrontProductApi.typeLabelOf(
-                  item.productType
-                );
-                const variantTitle = item.variantTitle || item.title;
+                const typeLabelCard =
+                  StorefrontProductApi.typeLabelOf(
+                    item.productType
+                  );
+                const variantTitle =
+                  item.variantTitle || item.title;
                 const displayTitleCard = typeLabelCard
                   ? `${variantTitle} - ${typeLabelCard}`
                   : variantTitle;
 
                 const sellPriceCard = item.sellPrice;
-                const cogsPriceCard = item.cogsPrice;
+                const listPriceCard = item.listPrice;
 
-                const priceNowText = formatCurrency(sellPriceCard);
+                const priceNowTextCard =
+                  formatCurrency(sellPriceCard);
                 const hasOldPriceCard =
-                  cogsPriceCard != null &&
-                  cogsPriceCard > sellPriceCard;
+                  listPriceCard != null &&
+                  listPriceCard > sellPriceCard;
 
-                const priceOldText = hasOldPriceCard
-                  ? formatCurrency(cogsPriceCard)
+                const priceOldTextCard = hasOldPriceCard
+                  ? formatCurrency(listPriceCard)
                   : null;
 
                 const discountPercentCard = hasOldPriceCard
-                  ? Math.round(100 - (sellPriceCard / cogsPriceCard) * 100)
+                  ? Math.round(
+                      100 - (sellPriceCard / listPriceCard) * 100
+                    )
                   : null;
 
                 const isCardOut =
-                  item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
+                  item.isOutOfStock ??
+                  item.status === "OUT_OF_STOCK";
 
                 return (
                   <article
                     key={item.variantId}
-                    className={`sf-card ${isCardOut ? "sf-card-out" : ""}`}
+                    className={`sf-card ${
+                      isCardOut ? "sf-card-out" : ""
+                    }`}
                   >
                     <Link
                       className="sf-card-link"
@@ -473,36 +772,43 @@ const StorefrontProductDetailPage = () => {
                     >
                       <div className="sf-media">
                         {item.thumbnail ? (
-                          <img src={item.thumbnail} alt={displayTitleCard} />
+                          <img
+                            src={item.thumbnail}
+                            alt={displayTitleCard}
+                          />
                         ) : (
                           <div className="sf-media-placeholder">
                             {displayTitleCard?.[0] || "K"}
                           </div>
                         )}
 
-                        {item.badges && item.badges.length > 0 && (
-                          <div className="sf-media-badges">
-                            {item.badges.map((b) => (
-                              <span
-                                key={b.badgeCode}
-                                className="sf-tag"
-                                style={
-                                  b.colorHex
-                                    ? {
-                                        backgroundColor: b.colorHex,
-                                        color: "#fff",
-                                      }
-                                    : undefined
-                                }
-                              >
-                                {b.displayName || b.badgeCode}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        {item.badges &&
+                          item.badges.length > 0 && (
+                            <div className="sf-media-badges">
+                              {item.badges.map((b) => (
+                                <span
+                                  key={b.badgeCode}
+                                  className="sf-tag"
+                                  style={
+                                    b.colorHex
+                                      ? {
+                                          backgroundColor:
+                                            b.colorHex,
+                                          color: "#fff",
+                                        }
+                                      : undefined
+                                  }
+                                >
+                                  {b.displayName || b.badgeCode}
+                                </span>
+                              ))}
+                            </div>
+                          )}
 
                         {isCardOut && (
-                          <div className="sf-out-of-stock">Hết hàng</div>
+                          <div className="sf-out-of-stock">
+                            Hết hàng
+                          </div>
                         )}
                       </div>
 
@@ -510,11 +816,13 @@ const StorefrontProductDetailPage = () => {
                         <h3>{displayTitleCard}</h3>
 
                         <div className="sf-price">
-                          <div className="sf-price-now">{priceNowText}</div>
+                          <div className="sf-price-now">
+                            {priceNowTextCard}
+                          </div>
                           {hasOldPriceCard && (
                             <>
                               <div className="sf-price-old">
-                                {priceOldText}
+                                {priceOldTextCard}
                               </div>
                               {discountPercentCard > 0 && (
                                 <div className="sf-price-off">

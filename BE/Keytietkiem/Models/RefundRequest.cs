@@ -14,6 +14,4 @@ public partial class RefundRequest
     public DateTime SubmittedAt { get; set; }
 
     public string Status { get; set; } = null!;
-
-    public virtual Order Order { get; set; } = null!;
 }

@@ -14,7 +14,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Configuration
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
 // ===== Connection string =====
 var connStr = builder.Configuration.GetConnectionString("MyCnn");
 
@@ -22,7 +24,6 @@ var connStr = builder.Configuration.GetConnectionString("MyCnn");
 // Dùng DbContextFactory để dễ test và control scope
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
     opt.UseSqlServer(connStr));
-
 // ===== Configuration Options =====
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
@@ -30,6 +31,7 @@ builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("Clien
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<PayOSService>();
 
 // ===== Repositories =====
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -39,8 +41,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
-builder.Services.AddScoped<ISupplierService, SupplierService>();
-builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
+//builder.Services.AddScoped<ISupplierService, SupplierService>();
+//builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
 builder.Services.AddScoped<IProductKeyService, ProductKeyService>();
 builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
 builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
@@ -118,10 +120,6 @@ builder.Services.AddAuthorization();
 // ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Configuration
-    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
-    .AddEnvironmentVariables();
 
 var app = builder.Build();
 

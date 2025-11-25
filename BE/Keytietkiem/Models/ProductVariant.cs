@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.Models;
 
@@ -34,15 +33,15 @@ public partial class ProductVariant
 
     public int ViewCount { get; set; }
 
-    [Range(0, double.MaxValue)]
     public decimal SellPrice { get; set; }
 
-    [Range(0, double.MaxValue)]
+    public decimal ListPrice { get; set; }
+
     public decimal CogsPrice { get; set; }
 
+    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+
     public virtual Product Product { get; set; } = null!;
-    
-    public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
 
     public virtual ICollection<ProductAccount> ProductAccounts { get; set; } = new List<ProductAccount>();
 

@@ -7,7 +7,9 @@ public partial class Order
 {
     public Guid OrderId { get; set; }
 
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+
+    public string Email { get; set; } = null!;
 
     public decimal TotalAmount { get; set; }
 
@@ -23,7 +25,5 @@ public partial class Order
 
     public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
 
-    public virtual ICollection<RefundRequest> RefundRequests { get; set; } = new List<RefundRequest>();
-
-    public virtual User User { get; set; } = null!;
+    public virtual User? User { get; set; }
 }

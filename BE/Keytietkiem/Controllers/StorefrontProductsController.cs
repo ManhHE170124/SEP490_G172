@@ -1,4 +1,5 @@
 ﻿using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -121,15 +122,16 @@ namespace Keytietkiem.Controllers
                     v.Product.ProductType,
                     v.Title,
                     v.Thumbnail,
-                    v.Status ?? "INACTIVE",
+                    v.Status ?? "ACTIVE",
                     v.ViewCount,
                     v.CreatedAt,
                     v.UpdatedAt,
                     v.SellPrice,
-                    v.CogsPrice,
+                    v.ListPrice, // dùng ListPrice là giá niêm yết
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
-                        .ToList()
+                        .ToList(),
+                    v.StockQty
                 ))
                 .ToListAsync();
 
@@ -230,6 +232,13 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
+                    // Ép trạng thái OUT_OF_STOCK nếu tồn kho <= 0
+                    var outOfStock =
+                        string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
+                        || i.StockQty <= 0;
+
+                    var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
                         i.ProductId,
@@ -238,9 +247,9 @@ namespace Keytietkiem.Controllers
                         i.ProductType,
                         i.Title,
                         i.Thumbnail,
-                        i.Status,
+                        status,
                         i.SellPrice,
-                        i.CogsPrice,
+                        i.ListPrice,
                         badges
                     );
                 })
@@ -275,6 +284,13 @@ namespace Keytietkiem.Controllers
             v.ViewCount += 1;
             await db.SaveChangesAsync();
 
+            // Ép trạng thái hết hàng theo tồn kho
+            var detailOutOfStock =
+                string.Equals(v.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
+                || v.StockQty <= 0;
+
+            var detailStatus = detailOutOfStock ? "OUT_OF_STOCK" : (v.Status ?? "ACTIVE");
+
             var p = v.Product;
 
             // ===== Danh mục của sản phẩm =====
@@ -300,7 +316,9 @@ namespace Keytietkiem.Controllers
                 .Select(x => new StorefrontSiblingVariantDto(
                     x.VariantId,
                     x.Title,
-                    x.Status ?? "INACTIVE"
+                    (x.Status == "OUT_OF_STOCK" || x.StockQty <= 0)
+                        ? "OUT_OF_STOCK"
+                        : (x.Status ?? "ACTIVE")
                 ))
                 .ToListAsync();
 
@@ -364,13 +382,13 @@ namespace Keytietkiem.Controllers
                 ProductName: p.ProductName,
                 ProductType: p.ProductType,
                 VariantTitle: v.Title,
-                Status: v.Status ?? "INACTIVE",
+                Status: detailStatus,
                 StockQty: v.StockQty,
                 Thumbnail: v.Thumbnail,
                 Categories: categories,
                 SiblingVariants: siblingVariants,
                 SellPrice: v.SellPrice,
-                CogsPrice: v.CogsPrice,
+                ListPrice: v.ListPrice,
                 Sections: sections,
                 Faqs: faqs
             );
@@ -454,17 +472,18 @@ namespace Keytietkiem.Controllers
                     v.Product.ProductType,
                     v.Title,
                     v.Thumbnail,
-                    v.Status ?? "INACTIVE",
+                    v.Status ?? "ACTIVE",
                     v.ViewCount,
                     v.CreatedAt,
                     v.SellPrice,
-                    v.CogsPrice,
+                    v.ListPrice,
                     v.Product.Categories
                         .Select(c => c.CategoryId)
                         .ToList(),
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
-                        .ToList()
+                        .ToList(),
+                    v.StockQty
                 ))
                 .ToListAsync();
 
@@ -545,6 +564,12 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
+                    var outOfStock =
+                        string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
+                        || i.StockQty <= 0;
+
+                    var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
                         i.ProductId,
@@ -553,9 +578,9 @@ namespace Keytietkiem.Controllers
                         i.ProductType,
                         i.Title,
                         i.Thumbnail,
-                        i.Status,
+                        status,
                         i.SellPrice,
-                        i.CogsPrice,
+                        i.ListPrice,
                         badges
                     );
                 })
@@ -579,8 +604,9 @@ namespace Keytietkiem.Controllers
             DateTime CreatedAt,
             DateTime? UpdatedAt,
             decimal SellPrice,
-            decimal CogsPrice,
-            List<string> BadgeCodes
+            decimal ListPrice,
+            List<string> BadgeCodes,
+            int StockQty
         );
 
         private sealed record RelatedVariantRawItem(
@@ -595,9 +621,10 @@ namespace Keytietkiem.Controllers
             int ViewCount,
             DateTime CreatedAt,
             decimal SellPrice,
-            decimal CogsPrice,
+            decimal ListPrice,
             List<int> CategoryIds,
-            List<string> BadgeCodes
+            List<string> BadgeCodes,
+            int StockQty
         );
     }
 }

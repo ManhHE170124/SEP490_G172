@@ -58,7 +58,8 @@ const normalizeVariantItem = (v = {}) => {
     .toUpperCase();
 
   const sellPrice = v.sellPrice ?? v.SellPrice ?? null;
-  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null;
+  const listPrice = v.listPrice ?? v.ListPrice ?? null;
+  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null; // có thì map, không thì null
 
   return {
     variantId:   v.variantId   ?? v.VariantId,
@@ -74,13 +75,14 @@ const normalizeVariantItem = (v = {}) => {
     status: rawStatus,
     isOutOfStock: rawStatus === "OUT_OF_STOCK",
 
+    // Giá hiển thị trên storefront
     sellPrice,
-    cogsPrice,
+    listPrice,   // <= GIÁ NIÊM YẾT / GIÁ GỐC
+    cogsPrice,   // chỉ để tham khảo nếu BE có trả về
 
     badges: (v.badges ?? v.Badges ?? []).map(normalizeBadgeMini),
   };
 };
-
 // ==== Chuẩn hoá sibling variant trong detail ====
 const normalizeSiblingVariant = (v = {}) => {
   const title =

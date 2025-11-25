@@ -1,4 +1,7 @@
-﻿namespace Keytietkiem.Models;
+﻿using System;
+using System.Collections.Generic;
+
+namespace Keytietkiem.Models;
 
 public partial class TicketSubjectTemplate
 {

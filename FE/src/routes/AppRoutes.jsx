@@ -66,7 +66,9 @@ import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
 import StorefrontHomepagePage from "../pages/storefront/StorefrontHomepagePage.jsx";
 import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
-
+import StorefrontCartPage from "../pages/storefront/StorefrontCartPage";
+import PaymentCancelPage from "../pages/storefront/PaymentCancelPage";
+import PaymentResultPage from "../pages/storefront/PaymentResultPage";
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 // Order pages
@@ -487,6 +489,9 @@ export default function AppRoutes() {
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
+      <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
+<Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
+  <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
   <Route
         path="/homepage"
         element={
