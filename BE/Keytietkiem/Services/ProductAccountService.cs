@@ -223,7 +223,7 @@ public class ProductAccountService : IProductAccountService
             AccountPassword = encryptedPassword,
             MaxUsers = variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT) ? 1 : createDto.MaxUsers,
             Status = nameof(ProductAccountStatus.Active),
-            ExpiryDate = createDto.ExpiryDate,
+            ExpiryDate = createDto.StartDate.AddDays(variant.DurationDays ?? 30),
             Notes = createDto.Notes,
             CreatedAt = now,
             CreatedBy = createdBy,

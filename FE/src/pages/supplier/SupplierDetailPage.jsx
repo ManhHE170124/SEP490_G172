@@ -10,7 +10,7 @@ import CsvUploadModal from "../../components/Modal/CsvUploadModal";
 import ViewKeysModal from "../../components/Modal/ViewKeysModal";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
-import formatDate from "../../utils/formatDate";
+import { formatDate } from "../../utils/formatDate";
 import "../admin/admin.css";
 
 export default function SupplierDetailPage() {

@@ -32,7 +32,7 @@ public class CreateProductAccountDto
     [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
     public decimal? CogsPrice { get; set; }
 
-    public DateTime? ExpiryDate { get; set; }
+    public DateTime StartDate { get; set; }
 
     [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
     public string? Notes { get; set; }
