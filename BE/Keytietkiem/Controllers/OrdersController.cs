@@ -1,30 +1,33 @@
 ﻿/**
  * File: OrdersController.cs
- * Flow mới:
- * - POST /api/orders/checkout:
- *      + tạo Order (Pending)
- *      + tạo Payment (Pending)
- *      + gọi PayOS => trả về PaymentUrl
- *      + FE redirect sang PayOS + clear cart (KHÔNG trả hàng về kho)
+ * Flow mới (sau khi tách Payment):
  *
- * - POST /api/orders/{id}/cancel:
- *      + chỉ cho phép khi Order.Status == "Pending"
- *      + đổi Status -> "Cancelled"
- *      + trả lại số lượng về kho (Variant.StockQty += Quantity)
- *      + các Payment Pending -> Failed/Cancelled
+ * - POST /api/orders/checkout
+ *      + Validate dữ liệu giỏ hàng (variants, số lượng, tồn kho, tổng tiền)
+ *      + Tạo Order (Status = "Pending")
+ *      + Tạo OrderDetails, trừ kho (Variant.StockQty -= Quantity)
+ *      + Tính FinalAmount = TotalAmount - DiscountAmount
+ *      + Trả về { orderId }
+ *      -> FE (hoặc backend khác) sẽ gọi tiếp /api/payments/payos/create để tạo Payment + PayOS checkoutUrl
  *
- * - POST /api/orders/payos/webhook:
- *      + nhận callback từ PayOS
- *      + dựa vào Description để lấy OrderId
- *      + nếu Status = "PAID": Order -> Paid, Payment -> Success
- *      + nếu Status = "CANCELLED"/"EXPIRED"/"FAILED": Order -> Cancelled, Payment -> Failed, + trả kho
+ * - POST /api/orders/{id}/cancel
+ *      + Chỉ cho phép khi Order.Status == "Pending"
+ *      + Đổi Status -> "Cancelled"
+ *      + Trả lại số lượng về kho (Variant.StockQty += Quantity)
+ *      + Các Payment Pending -> Failed
+ *
+ * - Các API khác:
+ *      + GET  /api/orders                : danh sách đơn (admin)
+ *      + GET  /api/orders/history        : lịch sử đơn của user
+ *      + GET  /api/orders/{id}           : xem chi tiết đơn
+ *      + GET  /api/orders/{id}/details   : xem line items
+ *      + POST /api/orders                : tạo đơn (luồng admin / back-office)
+ *      + PUT  /api/orders/{id}           : cập nhật trạng thái đơn
+ *      + DELETE /api/orders/{id}         : xoá đơn (nếu chưa có payment)
  */
 
 using Keytietkiem.DTOs.Orders;
-using Keytietkiem.DTOs.Payments;
-using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,8 +38,6 @@ namespace Keytietkiem.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
-        private readonly PayOSService _payOs;
-        private readonly IConfiguration _config;
 
         // CHỈ những trạng thái mà DB cho phép
         private static readonly string[] AllowedStatuses = new[]
@@ -44,14 +45,9 @@ namespace Keytietkiem.Controllers
             "Pending", "Paid", "Failed", "Cancelled"
         };
 
-        public OrdersController(
-            KeytietkiemDbContext context,
-            PayOSService payOs,
-            IConfiguration config)
+        public OrdersController(KeytietkiemDbContext context)
         {
             _context = context;
-            _payOs = payOs;
-            _config = config;
         }
 
         /// <summary>
@@ -341,7 +337,8 @@ namespace Keytietkiem.Controllers
 
         /// <summary>
         /// LUỒNG CHÍNH STORE FRONT:
-        /// Tạo order Pending + Payment Pending và trả về PaymentUrl để redirect sang PayOS.
+        /// Tạo order Pending và trả về OrderId.
+        /// Payment + PayOS sẽ do PaymentsController xử lý.
         /// POST /api/orders/checkout
         /// </summary>
         [HttpPost("checkout")]
@@ -432,7 +429,7 @@ namespace Keytietkiem.Controllers
 
             using var tx = await _context.Database.BeginTransactionAsync();
 
-            // Tạo Order Pending (bỏ qua Status client gửi lên, luôn là Pending)
+            // Tạo Order Pending
             var newOrder = new Order
             {
                 UserId = user?.UserId,
@@ -457,14 +454,12 @@ namespace Keytietkiem.Controllers
                     VariantId = detailDto.VariantId,
                     Quantity = detailDto.Quantity,
                     UnitPrice = detailDto.UnitPrice,
-                    // LUỒNG CHECKOUT: chưa gắn Key, để null
-                    KeyId = null
+                    KeyId = null // chưa gắn key
                 };
 
                 _context.OrderDetails.Add(orderDetail);
 
-                // Trừ kho: sau khi bắt đầu thanh toán thì cart phải clear
-                // nhưng KHÔNG trả lại kho, nên reserve ngay tại đây
+                // Trừ kho khi bắt đầu checkout
                 variant.StockQty -= detailDto.Quantity;
             }
 
@@ -472,60 +467,10 @@ namespace Keytietkiem.Controllers
             newOrder.FinalAmount = newOrder.TotalAmount - newOrder.DiscountAmount;
 
             await _context.SaveChangesAsync();
-
-            var finalAmount = newOrder.FinalAmount ?? newOrder.TotalAmount;
-            var amountInt = (int)Math.Round(finalAmount, 0, MidpointRounding.AwayFromZero);
-
-            // Tạo Payment Pending
-            var payment = new Payment
-            {
-                OrderId = newOrder.OrderId,
-                Amount = finalAmount,
-                Status = "Pending",
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Payments.Add(payment);
-            await _context.SaveChangesAsync();
-
-            // Tạo description nhét OrderId vào để webhook parse lại
-            var description = $"KEYTIK_ORDER:{newOrder.OrderId}";
-
-            // Gen orderCode int cho PayOS (ví dụ dùng timestamp)
-            var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
-
-            // URL FE – config trong appsettings:
-            // "PayOS": { "FrontendBaseUrl": "https://keytietkiem.com" }
-            var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/')
-                                  ?? "https://keytietkiem.com";
-
-            var returnUrl = $"{frontendBaseUrl}/payment-result?orderId={newOrder.OrderId}";
-            var cancelUrl = $"{frontendBaseUrl}/payment-cancel?orderId={newOrder.OrderId}";
-
-            var buyerName = user?.FullName ?? orderEmail;
-            var buyerEmail = orderEmail;
-            var buyerPhone = user?.Phone ?? "";
-
-            // Gọi PayOS để lấy checkoutUrl
-            var paymentUrl = await _payOs.CreatePayment(
-                orderCode,
-                amountInt,
-                description,
-                returnUrl,
-                cancelUrl,
-                buyerPhone,
-                buyerName,
-                buyerEmail
-            );
-
             await tx.CommitAsync();
 
-            var response = new CheckoutOrderResponseDTO
-            {
-                OrderId = newOrder.OrderId,
-                PaymentUrl = paymentUrl
-            };
-
-            return Ok(response);
+            // Checkout giờ chỉ trả về OrderId, phần tạo payment do PaymentsController xử lý
+            return Ok(new { orderId = newOrder.OrderId });
         }
 
         /// <summary>
@@ -567,7 +512,7 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Các payment Pending -> Failed/Cancelled
+            // Các payment Pending -> Failed
             if (order.Payments != null)
             {
                 foreach (var p in order.Payments
@@ -581,97 +526,6 @@ namespace Keytietkiem.Controllers
             await tx.CommitAsync();
 
             return NoContent();
-        }
-
-        /// <summary>
-        /// Webhook PayOS: nhận trạng thái thanh toán.
-        /// URL ví dụ: POST /api/orders/payos/webhook
-        /// </summary>
-        [HttpPost("payos/webhook")]
-        [AllowAnonymous]
-        public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookModel payload)
-        {
-            if (payload == null)
-                return BadRequest();
-
-            // Parse OrderId từ Description: "KEYTIK_ORDER:{Guid}"
-            var orderId = ParseOrderIdFromDescription(payload.Description);
-            if (orderId == Guid.Empty)
-            {
-                // Nếu không parse được, bỏ qua (hoặc log lại)
-                return Ok();
-            }
-
-            var order = await _context.Orders
-                .Include(o => o.OrderDetails)
-                    .ThenInclude(od => od.Variant)
-                .Include(o => o.Payments)
-                .FirstOrDefaultAsync(o => o.OrderId == orderId);
-
-            if (order == null)
-                return NotFound();
-
-            // Lấy payment mới nhất
-            var payment = order.Payments?
-                .OrderByDescending(p => p.CreatedAt)
-                .FirstOrDefault();
-
-            // Nếu order không còn Pending thì thôi, tránh double xử lý
-            if (!string.Equals(order.Status, "Pending", StringComparison.OrdinalIgnoreCase))
-            {
-                return Ok();
-            }
-
-            var status = (payload.Status ?? "").ToUpperInvariant();
-
-            if (status == "PAID")
-            {
-                // Thanh toán thành công
-                order.Status = "Paid";
-
-                if (payment != null)
-                {
-                    payment.Status = "Success";
-                }
-
-                // FinalAmount đảm bảo set đúng bằng số thanh toán thành công
-                var amountDecimal = (decimal)payload.Amount;
-                order.FinalAmount = amountDecimal;
-
-                // TODO: logic gắn key / tài khoản cho đơn xử lý sau
-
-                await _context.SaveChangesAsync();
-                return Ok();
-            }
-
-            // Các trạng thái coi như fail/time-out
-            if (status == "CANCELLED" || status == "FAILED" || status == "EXPIRED")
-            {
-                order.Status = "Cancelled";
-
-                if (payment != null && payment.Status == "Pending")
-                {
-                    payment.Status = "Failed";
-                }
-
-                // Trả hàng về kho
-                if (order.OrderDetails != null)
-                {
-                    foreach (var od in order.OrderDetails)
-                    {
-                        if (od.Variant != null)
-                        {
-                            od.Variant.StockQty += od.Quantity;
-                        }
-                    }
-                }
-
-                await _context.SaveChangesAsync();
-                return Ok();
-            }
-
-            // Trạng thái khác: log nhưng không làm gì
-            return Ok();
         }
 
         /// <summary>
@@ -783,33 +637,6 @@ namespace Keytietkiem.Controllers
             return Ok(orderDetails);
         }
 
-        /// <summary>
-        /// Get payments of an order.
-        /// GET /api/orders/{id}/payments
-        /// </summary>
-        [HttpGet("{id:guid}/payments")]
-        public async Task<IActionResult> GetOrderPayments(Guid id)
-        {
-            var order = await _context.Orders
-                .Include(o => o.Payments)
-                .FirstOrDefaultAsync(o => o.OrderId == id);
-
-            if (order == null)
-            {
-                return NotFound(new { message = "Đơn hàng không được tìm thấy" });
-            }
-
-            var payments = order.Payments?.Select(p => new PaymentDTO
-            {
-                PaymentId = p.PaymentId,
-                Amount = p.Amount,
-                Status = p.Status,
-                CreatedAt = p.CreatedAt
-            }).ToList() ?? new List<PaymentDTO>();
-
-            return Ok(payments);
-        }
-
         // ===== Helpers =====
 
         private static string ComputePaymentStatus(ICollection<Payment>? payments, decimal finalAmount)
@@ -894,20 +721,6 @@ namespace Keytietkiem.Controllers
                     order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount)
                 )
             };
-        }
-
-        private static Guid ParseOrderIdFromDescription(string? description)
-        {
-            // Format: "KEYTIK_ORDER:{Guid}"
-            if (string.IsNullOrWhiteSpace(description))
-                return Guid.Empty;
-
-            var prefix = "KEYTIK_ORDER:";
-            var idx = description.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-            if (idx < 0) return Guid.Empty;
-
-            var guidPart = description.Substring(idx + prefix.Length).Trim();
-            return Guid.TryParse(guidPart, out var orderId) ? orderId : Guid.Empty;
         }
     }
 }

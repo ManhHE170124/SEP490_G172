@@ -222,9 +222,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<LicensePackage>(entity =>
         {
-            entity.HasKey(e => e.PackageId).HasName("PK__LicenseP__322035CC9CAD5608");
+            entity.HasKey(e => e.PackageId).HasName("PKLicenseP322035CC9CAD5608");
 
             entity.HasIndex(e => e.CreatedAt, "IX_LicensePackages_CreatedAt").IsDescending();
+
+            entity.HasIndex(e => e.VariantId, "IX_LicensePackages_ProductVariant");
 
             entity.HasIndex(e => e.SupplierId, "IX_LicensePackages_Supplier");
 
@@ -233,6 +235,10 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(d => d.ProductVariant).WithMany(p => p.LicensePackages)
+                .HasForeignKey(d => d.VariantId)
+                .HasConstraintName("FK_LicensePackages_ProductVariant");
 
             entity.HasOne(d => d.Supplier).WithMany(p => p.LicensePackages)
                 .HasForeignKey(d => d.SupplierId)

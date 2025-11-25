@@ -50,4 +50,5 @@ public partial class ProductVariant
     public virtual ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
 
     public virtual ICollection<ProductSection> ProductSections { get; set; } = new List<ProductSection>();
+    public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
 }

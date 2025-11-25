@@ -8,6 +8,7 @@ import ConfirmDialog from "../../components/Toast/ConfirmDialog";
 import "./StorefrontCartPage.css";
 import GuestCartService from "../../services/guestCartService"; // NEW
 import StorefrontOrderApi from "../../services/storefrontOrderService";
+import StorefrontPaymentApi from "../../services/storefrontPaymentService";
 
 const formatCurrency = (value) => {
   if (value == null) return "0₫";
@@ -101,8 +102,7 @@ const StorefrontCartPage = () => {
         // Đã đăng nhập -> cart server-side
         res = await StorefrontCartApi.getCart();
 
-        const emailFromApi =
-          res.accountEmail || res.receiverEmail || "";
+        const emailFromApi = res.accountEmail || res.receiverEmail || "";
         setLocalEmail(emailFromApi);
       } else {
         // Guest -> cart frontend
@@ -142,10 +142,7 @@ const StorefrontCartPage = () => {
         "success",
         "Đã xoá sản phẩm",
         `Đã xoá "${
-          item.variantTitle ||
-          item.title ||
-          item.productName ||
-          "sản phẩm"
+          item.variantTitle || item.title || item.productName || "sản phẩm"
         }" khỏi giỏ hàng.`
       );
     } catch (err) {
@@ -279,7 +276,7 @@ const StorefrontCartPage = () => {
     }
   };
 
-    const handleProceedCheckout = async () => {
+  const handleProceedCheckout = async () => {
     if (!cart || !cart.items || cart.items.length === 0) return;
 
     // email ưu tiên:
@@ -316,23 +313,21 @@ const StorefrontCartPage = () => {
 
       // Lấy userId nếu có (tùy cấu trúc user khi login)
       const userId =
-        customer?.userId ??
-        customer?.userID ??
-        customer?.id ??
-        null;
+        customer?.userId ?? customer?.userID ?? customer?.id ?? null;
 
-      // Gọi /api/orders/checkout để:
-      //  - tạo Order Pending
-      //  - tạo Payment Pending
-      //  - nhận lại paymentUrl của PayOS
-      const { orderId, paymentUrl } =
-        await StorefrontOrderApi.checkoutFromCart({
-          userId,
-          email: effectiveEmail,
-          cart: checkoutCart,
-        });
+      // Bước 1: gọi /api/orders/checkout để tạo Order Pending và trừ kho
+      const { orderId } = await StorefrontOrderApi.checkoutFromCart({
+        userId,
+        email: effectiveEmail,
+        cart: checkoutCart,
+      });
 
-      // Sau khi tạo Order thành công:
+      // Bước 2: gọi /api/payments/payos/create để tạo Payment + lấy PayOS checkoutUrl
+      const { paymentUrl } = await StorefrontPaymentApi.createPayOSPayment(
+        orderId
+      );
+
+      // Sau khi tạo Order + Payment thành công:
       //  - clear cart
       //  - KHÔNG trả stock về kho (vì OrdersController đã trừ kho)
       if (customer) {
@@ -354,11 +349,11 @@ const StorefrontCartPage = () => {
       addToast(
         "error",
         "Thanh toán thất bại",
-        serverMsg || "Không thể tạo đơn hàng. Vui lòng thử lại."
+        serverMsg ||
+          "Không thể tạo đơn hàng hoặc phiên thanh toán. Vui lòng thử lại."
       );
     }
   };
-
 
   const handleContinueShopping = () => {
     navigate("/products");
@@ -429,8 +424,7 @@ const StorefrontCartPage = () => {
                 <>
                   <ul className="sf-cart-items">
                     {cart.items.map((item) => {
-                      const isUpdating =
-                        updatingItemId === item.variantId;
+                      const isUpdating = updatingItemId === item.variantId;
 
                       // Giống bên product list: variantTitle + typeLabel
                       const variantTitle =
@@ -441,10 +435,9 @@ const StorefrontCartPage = () => {
 
                       let typeLabel = "";
                       try {
-                        typeLabel =
-                          StorefrontProductApi.typeLabelOf(
-                            item.productType
-                          );
+                        typeLabel = StorefrontProductApi.typeLabelOf(
+                          item.productType
+                        );
                       } catch {
                         typeLabel = "";
                       }
@@ -471,16 +464,10 @@ const StorefrontCartPage = () => {
                       }
 
                       return (
-                        <li
-                          key={item.variantId}
-                          className="sf-cart-item"
-                        >
+                        <li key={item.variantId} className="sf-cart-item">
                           <div className="sf-cart-item-media">
                             {item.thumbnail ? (
-                              <img
-                                src={item.thumbnail}
-                                alt={displayTitle}
-                              />
+                              <img src={item.thumbnail} alt={displayTitle} />
                             ) : (
                               <div className="sf-cart-item-media-placeholder">
                                 {displayTitle?.[0] || "K"}
@@ -577,9 +564,7 @@ const StorefrontCartPage = () => {
 
             {/* Cột phải: tóm tắt & email */}
             <aside className="sf-cart-summary">
-              <h2 className="sf-cart-summary-title">
-                Thông tin đơn hàng
-              </h2>
+              <h2 className="sf-cart-summary-title">Thông tin đơn hàng</h2>
 
               {hasItems && (
                 <>
@@ -627,8 +612,7 @@ const StorefrontCartPage = () => {
                           {cart.accountEmail}
                         </div>
                         <div className="sf-cart-email-note">
-                          Email nhận hàng sẽ dùng email của tài khoản
-                          này.
+                          Email nhận hàng sẽ dùng email của tài khoản này.
                         </div>
                       </div>
                     ) : (
@@ -639,9 +623,7 @@ const StorefrontCartPage = () => {
                           className="sf-cart-email-input"
                           placeholder="nhapemail@domain.com"
                           value={localEmail}
-                          onChange={(e) =>
-                            setLocalEmail(e.target.value)
-                          }
+                          onChange={(e) => setLocalEmail(e.target.value)}
                         />
                         <button
                           type="button"
