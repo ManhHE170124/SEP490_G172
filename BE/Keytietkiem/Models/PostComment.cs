@@ -19,7 +19,7 @@ public partial class PostComment
 
     public bool? IsApproved { get; set; }
 
-    public virtual ICollection<PostComment> InverseParentComment { get; set; } = new List<PostComment>();
+    public virtual ICollection<PostComment> Replies { get; set; } = new List<PostComment>();
 
     public virtual PostComment? ParentComment { get; set; }
 

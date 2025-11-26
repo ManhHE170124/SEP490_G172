@@ -12,8 +12,8 @@
   /* FIX: Enable flexbox for scrollable nav */
 
   /* THÊM 2 DÒNG NÀY */
-  /* display: flex;
-  flex-direction: column; */
+  display: flex;
+  flex-direction: column;
 }
 
 
