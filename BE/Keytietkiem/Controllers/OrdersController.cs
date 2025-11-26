@@ -387,7 +387,7 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Một số gói sản phẩm (variant) không tồn tại" });
             }
 
-            // Check số lượng + tồn kho hiện tại
+            // Check số lượng + tồn kho hiện tại (tồn kho đã bị trừ khi AddToCart, nhưng vẫn check để tránh oversell)
             foreach (var detail in createOrderDto.OrderDetails)
             {
                 if (detail.Quantity <= 0)
@@ -443,11 +443,9 @@ namespace Keytietkiem.Controllers
             _context.Orders.Add(newOrder);
             await _context.SaveChangesAsync();
 
-            // Tạo OrderDetails, trừ kho (reserve)
+            // Tạo OrderDetails, KHÔNG trừ kho nữa (kho đã được trừ khi AddToCart)
             foreach (var detailDto in createOrderDto.OrderDetails)
             {
-                var variant = variants[detailDto.VariantId];
-
                 var orderDetail = new OrderDetail
                 {
                     OrderId = newOrder.OrderId,
@@ -458,9 +456,6 @@ namespace Keytietkiem.Controllers
                 };
 
                 _context.OrderDetails.Add(orderDetail);
-
-                // Trừ kho khi bắt đầu checkout
-                variant.StockQty -= detailDto.Quantity;
             }
 
             // FinalAmount = Total - Discount
@@ -472,6 +467,7 @@ namespace Keytietkiem.Controllers
             // Checkout giờ chỉ trả về OrderId, phần tạo payment do PaymentsController xử lý
             return Ok(new { orderId = newOrder.OrderId });
         }
+
 
         /// <summary>
         /// Hủy đơn (user confirm khi quay lại / hủy thanh toán).
@@ -512,13 +508,12 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Các payment Pending -> Failed
+            // Các payment Pending -> Cancelled
             if (order.Payments != null)
             {
-                foreach (var p in order.Payments
-                             .Where(p => p.Status == "Pending"))
+                foreach (var p in order.Payments.Where(p => p.Status == "Pending"))
                 {
-                    p.Status = "Failed";
+                    p.Status = "Cancelled";
                 }
             }
 
@@ -652,9 +647,12 @@ namespace Keytietkiem.Controllers
                 return "Refunded";
             }
 
-            // Status trong bảng Payment: Pending / Success / Failed / Completed ...
+            // Status trong bảng Payment: Pending / Paid / Cancelled / ...
             var totalPaid = payments
-                .Where(p => p.Status == "Success" || p.Status == "Completed")
+                .Where(p =>
+                    p.Status == "Paid" ||
+                    p.Status == "Success" ||  // để tương thích dữ liệu cũ (nếu có)
+                    p.Status == "Completed")
                 .Sum(p => p.Amount);
 
             if (totalPaid >= finalAmount)
@@ -669,6 +667,7 @@ namespace Keytietkiem.Controllers
 
             return "Unpaid";
         }
+
 
         private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
         {

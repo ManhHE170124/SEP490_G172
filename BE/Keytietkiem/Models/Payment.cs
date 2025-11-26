@@ -15,5 +15,10 @@ public partial class Payment
 
     public DateTime CreatedAt { get; set; }
 
+    // 👇 Thêm 2 trường mới map với DB
+    public long? ProviderOrderCode { get; set; }
+
+    public string? Provider { get; set; }
+
     public virtual Order Order { get; set; } = null!;
 }

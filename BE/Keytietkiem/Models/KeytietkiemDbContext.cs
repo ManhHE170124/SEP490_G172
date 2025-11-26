@@ -317,11 +317,21 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasMaxLength(15)
                 .IsUnicode(false);
 
+            // 👇 cấu hình Provider
+            entity.Property(e => e.Provider)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("PayOS");
+
+            // 👇 ProviderOrderCode có thể để trống, EF tự map bigint -> long?
+            entity.Property(e => e.ProviderOrderCode);
+
             entity.HasOne(d => d.Order).WithMany(p => p.Payments)
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Payments_Order");
         });
+
 
         modelBuilder.Entity<PaymentGateway>(entity =>
         {
