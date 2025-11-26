@@ -1,10 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Keytietkiem.Models;
 
-[Table("PostComments")]
 public partial class PostComment
 {
     public Guid CommentId { get; set; }
@@ -21,12 +19,11 @@ public partial class PostComment
 
     public bool? IsApproved { get; set; }
 
-    public virtual Post? Post { get; set; }
-
-    public virtual User? User { get; set; }
+    public virtual ICollection<PostComment> InverseParentComment { get; set; } = new List<PostComment>();
 
     public virtual PostComment? ParentComment { get; set; }
 
-    public virtual ICollection<PostComment> Replies { get; set; } = new List<PostComment>();
-}
+    public virtual Post? Post { get; set; }
 
+    public virtual User? User { get; set; }
+}

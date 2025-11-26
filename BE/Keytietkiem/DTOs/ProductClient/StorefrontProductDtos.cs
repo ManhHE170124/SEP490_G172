@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Keytietkiem.DTOs.Products
+namespace Keytietkiem.DTOs.ProductClient
 {
     public record StorefrontBadgeMiniDto(
         string BadgeCode,
@@ -16,7 +16,7 @@ namespace Keytietkiem.DTOs.Products
         string CategoryName
     );
 
-    // LIST ITEM: thêm SellPrice, CogsPrice
+    // LIST ITEM: SellPrice + ListPrice (giá niêm yết), KHÔNG dùng giá vốn (CogsPrice)
     public record StorefrontVariantListItemDto(
         Guid VariantId,
         Guid ProductId,
@@ -27,7 +27,7 @@ namespace Keytietkiem.DTOs.Products
         string? Thumbnail,
         string Status,
         decimal SellPrice,
-        decimal CogsPrice,
+        decimal ListPrice,
         IReadOnlyCollection<StorefrontBadgeMiniDto> Badges
     );
 
@@ -74,7 +74,7 @@ namespace Keytietkiem.DTOs.Products
         string Source
     );
 
-    // DETAIL: thêm SellPrice, CogsPrice
+    // DETAIL: SellPrice + ListPrice, không dùng CogsPrice
     public record StorefrontVariantDetailDto(
         Guid VariantId,
         Guid ProductId,
@@ -88,7 +88,7 @@ namespace Keytietkiem.DTOs.Products
         IReadOnlyCollection<StorefrontCategoryMiniDto> Categories,
         IReadOnlyCollection<StorefrontSiblingVariantDto> SiblingVariants,
         decimal SellPrice,
-        decimal CogsPrice,
+        decimal ListPrice,
         IReadOnlyCollection<StorefrontSectionDto> Sections,
         IReadOnlyCollection<StorefrontFaqItemDto> Faqs
     );

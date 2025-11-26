@@ -1,4 +1,3 @@
-// src/services/productVariants.js
 // Service cho Product Variants – theo Controllers/ProductVariantsController.cs
 import axiosClient from "../api/axiosClient";
 
@@ -28,7 +27,10 @@ const normalizeListItem = (v = {}) => ({
   viewCount: v.viewCount ?? v.ViewCount ?? 0,
   // NEW: map thêm giá từ API list
   sellPrice: toNumber(v.sellPrice ?? v.SellPrice ?? 0, 0),
-  cogsPrice: toNumber(v.cogsPrice ?? v.CogsPrice ?? 0, 0),
+  listPrice: toNumber(
+    v.listPrice ?? v.ListPrice ?? v.cogsPrice ?? v.CogsPrice ?? 0,
+    0
+  ), // fallback từ cogsPrice nếu data cũ
 });
 
 // Detail
@@ -47,16 +49,20 @@ const normalizeDetail = (v = {}) => {
     metaDescription: v.metaDescription ?? v.MetaDescription ?? null,
     viewCount: v.viewCount ?? v.ViewCount ?? 0,
     hasSections: v.hasSections ?? v.HasSections ?? false,
-    // 2 trường giá khi xem chi tiết
+    // 3 trường giá khi xem chi tiết
     sellPrice: toNumber(v.sellPrice ?? v.SellPrice ?? 0, 0),
-    cogsPrice: toNumber(v.cogsPrice ?? v.CogsPrice ?? 0, 0),
+    listPrice: toNumber(
+      v.listPrice ?? v.ListPrice ?? v.cogsPrice ?? v.CogsPrice ?? 0,
+      0
+    ),
+    cogsPrice: toNumber(v.cogsPrice ?? v.CogsPrice ?? 0, 0), // giá vốn – chỉ hiển thị
   };
 };
 
 export const ProductVariantsApi = {
   // GET /api/products/{productId}/variants
   // params: { q, status, dur, minPrice, maxPrice, sort, dir, page, pageSize }
-  // sort có thể = created|title|duration|stock|status|views|price
+  // sort: created|title|duration|stock|status|views|price
   list: async (productId, params = {}) => {
     const axiosRes = await axiosClient.get(`products/${productId}/variants`, {
       params,
@@ -86,7 +92,7 @@ export const ProductVariantsApi = {
   //   metaTitle?,
   //   metaDescription?,
   //   sellPrice,   // bắt buộc phía BE
-  //   cogsPrice,   // bắt buộc phía BE
+  //   listPrice,   // bắt buộc phía BE
   //   status?
   // }
   create: async (productId, dto) => {
@@ -109,8 +115,8 @@ export const ProductVariantsApi = {
   //   metaTitle?,
   //   metaDescription?,
   //   status?,
-  //   sellPrice?,  // nếu null -> giữ nguyên
-  //   cogsPrice?   // nếu null -> giữ nguyên
+  //   sellPrice?,   // nếu null -> giữ nguyên
+  //   listPrice?    // nếu null -> giữ nguyên
   // }
   update: (productId, variantId, dto) =>
     axiosClient.put(`products/${productId}/variants/${variantId}`, dto),
@@ -128,10 +134,9 @@ export const ProductVariantsApi = {
   },
 
   // ===== Image helper (Cloudinary via ProductVariantImagesController) =====
-  // POST /api/productvariantimages/uploadImage (multipart/form-data) -> { path }
   uploadImage: async (file) => {
     const form = new FormData();
-    form.append("file", file); // model binding ASP.NET Core không phân biệt hoa/thường
+    form.append("file", file);
     const axiosRes = await axiosClient.post(
       `productvariantimages/uploadImage`,
       form,
@@ -142,7 +147,6 @@ export const ProductVariantsApi = {
     return axiosRes?.data ?? axiosRes; // { path }
   },
 
-  // DELETE /api/productvariantimages/deleteImage  body:{ publicId }
   deleteImage: async (publicId) => {
     const axiosRes = await axiosClient.delete(
       `productvariantimages/deleteImage`,

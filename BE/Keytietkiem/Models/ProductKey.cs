@@ -7,8 +7,6 @@ public partial class ProductKey
 {
     public Guid KeyId { get; set; }
 
-    public Guid VariantId { get; set; }
-
     public string KeyString { get; set; } = null!;
 
     public string Status { get; set; } = null!;
@@ -29,9 +27,11 @@ public partial class ProductKey
 
     public DateTime? UpdatedAt { get; set; }
 
+    public Guid VariantId { get; set; }
+
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
-    public virtual ProductVariant Variant { get; set; } = null!;
-
     public virtual Supplier Supplier { get; set; } = null!;
+
+    public virtual ProductVariant Variant { get; set; } = null!;
 }
