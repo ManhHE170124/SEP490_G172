@@ -91,6 +91,16 @@ public class SupportChatController : ControllerBase
         });
     }
 
+    private static bool IsAdminLike(User u)
+    {
+        var roles = u.Roles ?? Array.Empty<Role>();
+        return roles.Any(r =>
+        {
+            var code = (r.Code ?? string.Empty).ToLower();
+            return code.Contains("admin");
+        });
+    }
+
     // ===== 1. MY SESSIONS =====
     // GET /api/support-chats/my-sessions
     /// <summary>
@@ -308,7 +318,6 @@ public class SupportChatController : ControllerBase
         return Ok(result);
     }
 
-
     // ===== 4. CLAIM SESSION =====
     // POST /api/support-chats/{sessionId}/claim
     /// <summary>
@@ -473,7 +482,8 @@ public class SupportChatController : ControllerBase
     /// <summary>
     /// Lấy toàn bộ lịch sử tin nhắn của 1 phiên chat.
     /// Customer: chỉ xem được các phiên của mình.
-    /// Staff/Admin: chỉ xem được các phiên được gán cho mình.
+    /// Staff: xem được phiên mình phụ trách + phiên queue + các phiên trước của cùng customer.
+    /// Admin: xem được mọi phiên.
     /// </summary>
     [HttpGet("{sessionId:guid}/messages")]
     public async Task<ActionResult> GetMessages(Guid sessionId)
@@ -496,6 +506,7 @@ public class SupportChatController : ControllerBase
         var isCustomer = session.CustomerId == me.Value;
         var isAssignedStaff = session.AssignedStaffId == me.Value && IsStaffLike(user);
         var isStaffLikeUser = IsStaffLike(user);
+        var isAdmin = IsAdminLike(user);
 
         // 1) Staff xem tin nhắn của phiên đang ở queue (Waiting + chưa assign)
         var canViewQueueSession = isStaffLikeUser
@@ -504,7 +515,7 @@ public class SupportChatController : ControllerBase
 
         // 2) Staff đang xử lý khách này được xem các phiên khác (previous sessions)
         bool canViewPreviousSessions = false;
-        if (isStaffLikeUser && !isCustomer && !isAssignedStaff)
+        if (isStaffLikeUser && !isCustomer && !isAssignedStaff && !isAdmin)
         {
             // Có ít nhất 1 phiên Active của cùng customer đang gán cho staff hiện tại
             canViewPreviousSessions = await _db.SupportChatSessions.AnyAsync(s =>
@@ -514,7 +525,8 @@ public class SupportChatController : ControllerBase
                 s.ChatSessionId != session.ChatSessionId);
         }
 
-        if (!(isCustomer || isAssignedStaff || canViewQueueSession || canViewPreviousSessions))
+        // Admin luôn pass qua isAdmin
+        if (!(isCustomer || isAssignedStaff || isAdmin || canViewQueueSession || canViewPreviousSessions))
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Người dùng không có quyền truy cập phiên chat này." });
@@ -549,7 +561,7 @@ public class SupportChatController : ControllerBase
     // POST /api/support-chats/{sessionId}/unassign
     /// <summary>
     /// Nhân viên trả lại phiên chat đang phụ trách về hàng chờ (Waiting + không có AssignedStaffId).
-    /// Chỉ nhân viên đang được gán phiên chat mới được unassign.
+    /// Nhân viên phụ trách hoặc Admin được unassign.
     /// </summary>
     [HttpPost("{sessionId:guid}/unassign")]
     public async Task<ActionResult<SupportChatSessionItemDto>> Unassign(Guid sessionId)
@@ -580,7 +592,9 @@ public class SupportChatController : ControllerBase
             return BadRequest(new { message = "Phiên chat đã đóng, không thể trả lại hàng chờ." });
         }
 
-        if (session.AssignedStaffId != me.Value)
+        var isAdmin = IsAdminLike(user);
+
+        if (session.AssignedStaffId != me.Value && !isAdmin)
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Bạn không phải nhân viên đang phụ trách phiên chat này." });
@@ -611,7 +625,8 @@ public class SupportChatController : ControllerBase
     /// <summary>
     /// Đóng 1 phiên chat.
     /// Customer: chỉ được đóng phiên chat của mình.
-    /// Staff/Admin: chỉ được đóng phiên chat được gán cho mình.
+    /// Staff: chỉ được đóng phiên chat được gán cho mình.
+    /// Admin: được đóng bất kỳ phiên chat nào.
     /// </summary>
     [HttpPost("{sessionId:guid}/close")]
     public async Task<IActionResult> Close(Guid sessionId)
@@ -632,9 +647,10 @@ public class SupportChatController : ControllerBase
         if (session is null) return NotFound();
 
         var isCustomer = session.CustomerId == me.Value;
-        var isStaff = session.AssignedStaffId == me.Value && IsStaffLike(user);
+        var isAssignedStaff = session.AssignedStaffId == me.Value && IsStaffLike(user);
+        var isAdmin = IsAdminLike(user);
 
-        if (!isCustomer && !isStaff)
+        if (!isCustomer && !isAssignedStaff && !isAdmin)
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Người dùng không có quyền đóng phiên chat này." });
@@ -659,6 +675,50 @@ public class SupportChatController : ControllerBase
             .SendAsync("SupportSessionUpdated", dto);
 
         return NoContent();
+    }
+
+    // ===== 9. ADMIN: CURRENT ASSIGNED SESSIONS (ĐÃ NHẬN) =====
+    // GET /api/support-chats/admin/assigned-sessions
+    /// <summary>
+    /// Danh sách tất cả các phiên chat đã được bất kỳ nhân viên nào nhận.
+    /// Chỉ dành cho Admin.
+    /// </summary>
+    [HttpGet("admin/assigned-sessions")]
+    public async Task<ActionResult<List<SupportChatSessionItemDto>>> AdminGetAssignedSessions(
+        [FromQuery] bool includeClosed = false)
+    {
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var user = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (user is null) return Unauthorized();
+
+        if (!IsAdminLike(user))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ admin mới xem được danh sách phiên đã nhận của toàn hệ thống." });
+        }
+
+        var query = _db.SupportChatSessions
+            .AsNoTracking()
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .Where(s => s.AssignedStaffId != null);
+
+        if (!includeClosed)
+        {
+            query = query.Where(s => s.Status != StatusClosed);
+        }
+
+        var sessions = await query
+            .OrderByDescending(s => s.LastMessageAt ?? s.StartedAt)
+            .Take(200)
+            .ToListAsync();
+
+        var result = sessions.Select(MapToSessionItem).ToList();
+        return Ok(result);
     }
 
     // GET /api/support-chats/customer/{customerId}/sessions
@@ -706,6 +766,7 @@ public class SupportChatController : ControllerBase
         var result = sessions.Select(MapToSessionItem).ToList();
         return Ok(result);
     }
+
     // GET /api/support-chats/admin/sessions
     [HttpGet("admin/sessions")]
     public async Task<ActionResult<PagedResult<SupportChatAdminSessionListItemDto>>> AdminSearchSessions(
@@ -804,14 +865,274 @@ public class SupportChatController : ControllerBase
             };
         }).ToList();
 
-        // 🔧 SỬ DỤNG CONSTRUCTOR CÓ SẴN CỦA PagedResult<T>
         var result = new PagedResult<SupportChatAdminSessionListItemDto>(
-            items,          // IEnumerable<SupportChatAdminSessionListItemDto>
-            page,           // page hiện tại
-            pageSize,       // page size
-            totalCount      // tổng số bản ghi
+            items,
+            page,
+            pageSize,
+            totalCount
         );
 
         return Ok(result);
+    }
+
+    // ===== 5b. ADMIN SEND MESSAGE WITHOUT CLAIM / STATUS CHANGE =====
+    // POST /api/support-chats/admin/{sessionId}/messages
+    /// <summary>
+    /// Admin gửi tin nhắn vào bất kỳ phiên chat nào (Waiting hoặc Active)
+    /// mà không thay đổi AssignedStaffId, Status, v.v.
+    /// </summary>
+    [HttpPost("admin/{sessionId:guid}/messages")]
+    public async Task<ActionResult<SupportChatMessageDto>> AdminPostMessage(
+        Guid sessionId,
+        [FromBody] CreateSupportChatMessageDto body)
+    {
+        var content = (body?.Content ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(content))
+            return BadRequest(new { message = "Nội dung tin nhắn trống." });
+
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var user = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (user is null) return Unauthorized();
+
+        if (!IsAdminLike(user))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ admin mới được gửi tin theo chế độ admin." });
+        }
+
+        var session = await _db.SupportChatSessions
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .FirstOrDefaultAsync(s => s.ChatSessionId == sessionId);
+
+        if (session is null) return NotFound();
+
+        if (session.Status == StatusClosed)
+            return BadRequest(new { message = "Phiên chat đã đóng." });
+
+        var now = DateTime.UtcNow;
+
+        var msg = new SupportChatMessage
+        {
+            ChatSessionId = session.ChatSessionId,
+            SenderId = me.Value,
+            IsFromStaff = true, // Admin luôn là phía staff
+            Content = content,
+            SentAt = now
+        };
+
+        _db.SupportChatMessages.Add(msg);
+
+        session.LastMessageAt = now;
+        session.LastMessagePreview = BuildPreview(content);
+        // Không đổi AssignedStaffId, Status – giữ nguyên đúng yêu cầu
+
+        await _db.SaveChangesAsync();
+
+        var dto = new SupportChatMessageDto
+        {
+            MessageId = msg.MessageId,
+            ChatSessionId = msg.ChatSessionId,
+            SenderId = msg.SenderId,
+            SenderName = user.FullName ?? user.Email ?? string.Empty,
+            IsFromStaff = msg.IsFromStaff,
+            Content = msg.Content,
+            SentAt = msg.SentAt
+        };
+
+        // Broadcast tới group của phiên để cả customer + staff nhận được
+        await _hub.Clients.Group(BuildSessionGroup(session.ChatSessionId))
+            .SendAsync("ReceiveSupportMessage", dto);
+
+        // Đồng bộ queue / danh sách phiên cho staff/admin
+        var sessionDto = MapToSessionItem(session);
+        await _hub.Clients.Group(QueueGroup)
+            .SendAsync("SupportSessionUpdated", sessionDto);
+
+        return Ok(dto);
+    }
+
+    // ===== 10. ADMIN ASSIGN / TRANSFER STAFF =====
+
+    public class SupportChatAssignStaffDto
+    {
+        public Guid AssigneeId { get; set; }
+    }
+
+    /// <summary>
+    /// Admin gán nhân viên cho phiên chat (thường dùng cho cột "Chờ nhận" trên màn admin).
+    /// Yêu cầu:
+    /// - Phiên chưa đóng.
+    /// - Phiên hiện chưa có AssignedStaffId.
+    /// - AssigneeId là nhân viên CSKH Active (Role.Code chứa "care").
+    /// </summary>
+    /// <remarks>
+    /// POST /api/support-chats/admin/{sessionId}/assign
+    /// Body: { "assigneeId": "..." }
+    /// </remarks>
+    [HttpPost("admin/{sessionId:guid}/assign")]
+    public async Task<ActionResult<SupportChatSessionItemDto>> AdminAssignStaff(
+        Guid sessionId,
+        [FromBody] SupportChatAssignStaffDto dtoBody)
+    {
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var currentUser = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (currentUser is null) return Unauthorized();
+
+        if (!IsAdminLike(currentUser))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ admin mới được gán nhân viên cho phiên chat." });
+        }
+
+        if (dtoBody == null || dtoBody.AssigneeId == Guid.Empty)
+        {
+            return BadRequest(new { message = "Vui lòng chọn nhân viên cần gán." });
+        }
+
+        var session = await _db.SupportChatSessions
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .FirstOrDefaultAsync(s => s.ChatSessionId == sessionId);
+
+        if (session is null) return NotFound();
+
+        if (session.Status == StatusClosed)
+        {
+            return BadRequest(new { message = "Phiên chat đã đóng, không thể gán nhân viên." });
+        }
+
+        if (session.AssignedStaffId.HasValue)
+        {
+            return BadRequest(new { message = "Phiên chat đã có nhân viên, hãy dùng chức năng chuyển nhân viên." });
+        }
+
+        // Validate staff: Active + Role.Code chứa "care"
+        var staff = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u =>
+                u.UserId == dtoBody.AssigneeId &&
+                ((u.Status ?? "Active") == "Active") &&
+                u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
+
+        if (staff is null)
+        {
+            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
+        }
+
+        session.AssignedStaffId = staff.UserId;
+        session.AssignedStaff = staff;
+        // Giữ nguyên Status (thường vẫn là Waiting),
+        // khi nhân viên trả lời tin đầu tiên thì PostMessage sẽ set sang Active.
+
+        await _db.SaveChangesAsync();
+
+        var dto = MapToSessionItem(session);
+
+        // Broadcast cập nhật cho cả group phiên + queue
+        await _hub.Clients.Group(BuildSessionGroup(session.ChatSessionId))
+            .SendAsync("SupportSessionUpdated", dto);
+
+        await _hub.Clients.Group(QueueGroup)
+            .SendAsync("SupportSessionUpdated", dto);
+
+        return Ok(dto);
+    }
+
+    /// <summary>
+    /// Admin chuyển phiên chat sang nhân viên khác.
+    /// Yêu cầu:
+    /// - Phiên chưa đóng.
+    /// - Phiên đang có AssignedStaffId.
+    /// - AssigneeId mới khác với AssignedStaffId hiện tại.
+    /// - Nhân viên đích là CSKH Active (Role.Code chứa "care").
+    /// </summary>
+    /// <remarks>
+    /// POST /api/support-chats/admin/{sessionId}/transfer-staff
+    /// Body: { "assigneeId": "..." }
+    /// </remarks>
+    [HttpPost("admin/{sessionId:guid}/transfer-staff")]
+    public async Task<ActionResult<SupportChatSessionItemDto>> AdminTransferStaff(
+        Guid sessionId,
+        [FromBody] SupportChatAssignStaffDto dtoBody)
+    {
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var currentUser = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (currentUser is null) return Unauthorized();
+
+        if (!IsAdminLike(currentUser))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ admin mới được chuyển nhân viên phụ trách phiên chat." });
+        }
+
+        if (dtoBody == null || dtoBody.AssigneeId == Guid.Empty)
+        {
+            return BadRequest(new { message = "Vui lòng chọn nhân viên cần chuyển tới." });
+        }
+
+        var session = await _db.SupportChatSessions
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .FirstOrDefaultAsync(s => s.ChatSessionId == sessionId);
+
+        if (session is null) return NotFound();
+
+        if (session.Status == StatusClosed)
+        {
+            return BadRequest(new { message = "Phiên chat đã đóng, không thể chuyển nhân viên." });
+        }
+
+        if (!session.AssignedStaffId.HasValue)
+        {
+            return BadRequest(new { message = "Phiên chat chưa có nhân viên, hãy dùng chức năng gán nhân viên." });
+        }
+
+        if (session.AssignedStaffId == dtoBody.AssigneeId)
+        {
+            return BadRequest(new { message = "Vui lòng chọn nhân viên khác với người đang phụ trách." });
+        }
+
+        // Validate staff: Active + Role.Code chứa "care"
+        var staff = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u =>
+                u.UserId == dtoBody.AssigneeId &&
+                ((u.Status ?? "Active") == "Active") &&
+                u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
+
+        if (staff is null)
+        {
+            return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
+        }
+
+        session.AssignedStaffId = staff.UserId;
+        session.AssignedStaff = staff;
+        // Không đổi Status (vẫn Waiting / Active tuỳ trạng thái hiện tại)
+
+        await _db.SaveChangesAsync();
+
+        var dto = MapToSessionItem(session);
+
+        // Broadcast cập nhật cho cả group phiên + queue
+        await _hub.Clients.Group(BuildSessionGroup(session.ChatSessionId))
+            .SendAsync("SupportSessionUpdated", dto);
+
+        await _hub.Clients.Group(QueueGroup)
+            .SendAsync("SupportSessionUpdated", dto);
+
+        return Ok(dto);
     }
 }

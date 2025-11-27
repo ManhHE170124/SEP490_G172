@@ -7,53 +7,83 @@ export const supportChatApi = {
     return axiosClient.post("/support-chats/open-or-get", body ?? {});
   },
 
-  // Danh sách phiên chat của chính user hiện tại (customer)
+  // Danh sách phiên chat của chính user hiện tại (customer hoặc staff)
   getMySessions(params) {
     return axiosClient.get("/support-chats/my-sessions", { params });
   },
 
-  // Queue các phiên Waiting + chưa gán staff (dùng cho staff page)
+  // Queue các phiên Waiting + chưa gán staff (dùng cho staff/admin page)
   getUnassigned(params) {
     return axiosClient.get("/support-chats/unassigned", { params });
   },
 
-  // Nhân viên claim 1 phiên chat
+  // Staff claim 1 phiên đang ở hàng chờ
   claim(sessionId) {
-    if (!sessionId) throw new Error("sessionId is required");
     return axiosClient.post(`/support-chats/${sessionId}/claim`);
   },
 
-  // Nhân viên trả lại hàng chờ
+  // Staff/Admin trả lại phiên về hàng chờ (chỉ khi đang là người phụ trách)
   unassign(sessionId) {
-    if (!sessionId) throw new Error("sessionId is required");
     return axiosClient.post(`/support-chats/${sessionId}/unassign`);
   },
 
-  // Đóng phiên chat
+  // Đóng phiên chat (chỉ người phụ trách)
   close(sessionId) {
-    if (!sessionId) throw new Error("sessionId is required");
     return axiosClient.post(`/support-chats/${sessionId}/close`);
   },
 
-  // Lấy lịch sử tin nhắn của 1 phiên
-  getMessages(sessionId) {
-    if (!sessionId) throw new Error("sessionId is required");
-    return axiosClient.get(`/support-chats/${sessionId}/messages`);
+  // Lấy lịch sử tin nhắn của 1 session
+  getMessages(sessionId, params) {
+    return axiosClient.get(`/support-chats/${sessionId}/messages`, {
+      params,
+    });
   },
 
-  // Gửi 1 tin nhắn trong phiên chat
+  // Tạo tin nhắn (customer hoặc staff đang phụ trách)
   postMessage(sessionId, body) {
-    if (!sessionId) throw new Error("sessionId is required");
-    return axiosClient.post(`/support-chats/${sessionId}/messages`, body ?? {});
+    return axiosClient.post(`/support-chats/${sessionId}/messages`, body);
   },
 
-  // Danh sách các phiên chat (bao gồm Closed) của 1 customer – cho staff
+  // Danh sách các phiên chat (bao gồm Closed) của 1 customer – cho staff/admin
   // dùng cho panel "Các phiên chat trước với user này"
   getCustomerSessions(customerId, params) {
     if (!customerId) throw new Error("customerId is required");
-    return axiosClient.get(
-      `/support-chats/customer/${customerId}/sessions`,
-      { params }
+    return axiosClient.get(`/support-chats/customer/${customerId}/sessions`, {
+      params,
+    });
+  },
+
+  // === ADMIN APIs ===
+
+  // Cột "Đã nhận": tất cả phiên đã được bất kỳ staff nào nhận
+  adminGetAssignedSessions(params) {
+    return axiosClient.get("/support-chats/admin/assigned-sessions", {
+      params,
+    });
+  },
+
+  // Admin gửi tin nhắn mà KHÔNG claim / KHÔNG đổi trạng thái
+  adminPostMessage(sessionId, body) {
+    return axiosClient.post(
+      `/support-chats/admin/${sessionId}/messages`,
+      body
+    );
+  },
+
+  // 🆕 Admin gán nhân viên cho 1 phiên chat (dùng cho popup "Gán" ở cột Chờ nhận)
+  adminAssignStaff(sessionId, assigneeId) {
+    return axiosClient.post(`/support-chats/admin/${sessionId}/assign`, {
+      assigneeId,
+    });
+  },
+
+  // 🆕 Admin chuyển phiên chat sang nhân viên khác (dùng cho nút "Chuyển nhân viên")
+  adminTransferStaff(sessionId, assigneeId) {
+    return axiosClient.post(
+      `/support-chats/admin/${sessionId}/transfer-staff`,
+      {
+        assigneeId,
+      }
     );
   },
 
