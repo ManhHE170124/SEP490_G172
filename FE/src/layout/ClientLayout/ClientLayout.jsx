@@ -3,6 +3,7 @@ import { useSettings } from "../../contexts/SettingContext.js";
 import Header from "./PublicHeader.jsx";
 import Footer from "./PublicFooter.jsx";
 import profileService from "../../services/profile";
+import ChatWidget from "../../components/SupportChat/ChatWidget";
 
 const unwrap = (payload) =>
   payload?.data !== undefined ? payload.data : payload;
@@ -68,6 +69,9 @@ const ClientLayout = ({ children }) => {
       />
       <main className="al-admin-main">{children}</main>
       <Footer />
+
+      {/* ✅ Widget chat cho customer */}
+      <ChatWidget />
     </div>
   );
 };

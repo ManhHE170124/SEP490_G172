@@ -24,7 +24,6 @@ public class SupportChatController : ControllerBase
     private const string StatusActive = "Active";
     private const string StatusClosed = "Closed";
 
-
     public SupportChatController(KeytietkiemDbContext db, IHubContext<SupportChatHub> hub)
     {
         _db = db;
@@ -36,9 +35,12 @@ public class SupportChatController : ControllerBase
     private Guid? GetCurrentUserIdOrNull()
     {
         var str = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(str, out var id) ? id : null;
+        return Guid.TryParse(str, out var id) ? id : (Guid?)null;
     }
 
+    /// <summary>
+    /// Chuẩn hoá PriorityLevel về khoảng [1..3].
+    /// </summary>
     private static int NormalizePriority(int? level)
     {
         var p = level.GetValueOrDefault(1);
@@ -83,7 +85,8 @@ public class SupportChatController : ControllerBase
         var roles = u.Roles ?? Array.Empty<Role>();
         return roles.Any(r =>
         {
-            return (r.Code ?? string.Empty).ToLower().Contains("care") || (r.Code ?? string.Empty).ToLower().Contains("admin");
+            var code = (r.Code ?? string.Empty).ToLower();
+            return code.Contains("care") || code.Contains("admin");
         });
     }
 
@@ -157,8 +160,10 @@ public class SupportChatController : ControllerBase
 
         if (user is null) return Unauthorized();
         if (!IsStaffLike(user))
+        {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Chỉ nhân viên hỗ trợ mới xem được queue unassigned." });
+        }
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -292,8 +297,10 @@ public class SupportChatController : ControllerBase
 
         if (user is null) return Unauthorized();
         if (!IsStaffLike(user))
+        {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Chỉ nhân viên hỗ trợ mới được claim phiên chat." });
+        }
 
         var session = await _db.SupportChatSessions
             .Include(s => s.Customer)
@@ -318,7 +325,6 @@ public class SupportChatController : ControllerBase
             return Ok(dtoExisting);
         }
 
-        // Thực hiện claim
         session.AssignedStaffId = me.Value;
         session.Status = StatusActive;
         session.AssignedStaff = user;
@@ -401,6 +407,7 @@ public class SupportChatController : ControllerBase
         session.LastMessageAt = now;
         session.LastMessagePreview = BuildPreview(content);
 
+        // Nếu nhân viên gửi tin đầu tiên vào phiên Waiting => chuyển thành Active
         if (!isCustomer && session.Status == StatusWaiting)
         {
             session.Status = StatusActive;
@@ -419,7 +426,7 @@ public class SupportChatController : ControllerBase
             SentAt = msg.SentAt
         };
 
-        // Broadcast tới group của phiên chat
+        // Broadcast tới group của phiên chat (FE customer + staff cùng nhận)
         await _hub.Clients.Group(BuildSessionGroup(session.ChatSessionId))
             .SendAsync("ReceiveSupportMessage", dto);
 
@@ -493,10 +500,9 @@ public class SupportChatController : ControllerBase
     // ===== 7. CLOSE SESSION =====
     // POST /api/support-chats/{sessionId}/close
     /// <summary>
-    /// Đóng phiên chat.
-    /// - Customer: chỉ được đóng phiên của mình.
-    /// - Staff/Admin: chỉ đóng được phiên được gán cho mình.
-    /// Idempotent: nếu đã đóng thì trả về 204.
+    /// Đóng 1 phiên chat.
+    /// Customer: chỉ được đóng phiên chat của mình.
+    /// Staff/Admin: chỉ được đóng phiên chat được gán cho mình.
     /// </summary>
     [HttpPost("{sessionId:guid}/close")]
     public async Task<IActionResult> Close(Guid sessionId)

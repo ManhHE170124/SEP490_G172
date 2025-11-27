@@ -6,50 +6,94 @@ using System.ComponentModel.DataAnnotations;
 namespace Keytietkiem.DTOs.SupportChat
 {
     /// <summary>
-    /// Trạng thái của phiên chat hỗ trợ.
-    /// Lưu trong DB dưới dạng chuỗi (Waiting / Active / Closed).
-    /// </summary>
-
-    /// <summary>
     /// Thông tin cơ bản về 1 phiên chat hỗ trợ (dùng cho list, queue, my-sessions).
     /// </summary>
     public class SupportChatSessionItemDto
     {
+        /// <summary>
+        /// Id phiên chat (PK).
+        /// </summary>
         public Guid ChatSessionId { get; set; }
 
+        /// <summary>
+        /// Id khách hàng mở phiên chat.
+        /// </summary>
         public Guid CustomerId { get; set; }
-        public string CustomerName { get; set; } = "";
-        public string CustomerEmail { get; set; } = "";
 
+        /// <summary>
+        /// Tên hiển thị của khách hàng (FullName nếu có, fallback Email).
+        /// </summary>
+        public string CustomerName { get; set; } = "";
+
+        /// <summary>
+        /// Email khách hàng (nếu có).
+        /// </summary>
+        public string? CustomerEmail { get; set; }
+
+        /// <summary>
+        /// Id nhân viên đang được gán xử lý phiên chat (nullable khi còn trong queue).
+        /// </summary>
         public Guid? AssignedStaffId { get; set; }
+
+        /// <summary>
+        /// Tên nhân viên phụ trách (FullName nếu có, fallback Email).
+        /// </summary>
         public string? AssignedStaffName { get; set; }
+
+        /// <summary>
+        /// Email nhân viên phụ trách (nếu có).
+        /// </summary>
         public string? AssignedStaffEmail { get; set; }
 
         /// <summary>
-        /// Chuỗi trạng thái hiện tại (Waiting / Active / Closed).
+        /// Trạng thái phiên chat: Waiting / Active / Closed.
         /// </summary>
-        public string Status { get; set; } = "";
+        public string Status { get; set; } = "Waiting";
 
         /// <summary>
-        /// Mức ưu tiên (1..3) lấy từ User.SupportPriorityLevel.
+        /// Cấp ưu tiên: 1 = cao nhất, 3 = thấp nhất.
         /// </summary>
         public int PriorityLevel { get; set; }
 
+        /// <summary>
+        /// Thời điểm bắt đầu phiên chat.
+        /// </summary>
         public DateTime StartedAt { get; set; }
+
+        /// <summary>
+        /// Thời điểm tin nhắn cuối cùng (nếu có).
+        /// </summary>
         public DateTime? LastMessageAt { get; set; }
+
+        /// <summary>
+        /// Nội dung rút gọn của tin nhắn cuối cùng (max 255 ký tự).
+        /// </summary>
         public string? LastMessagePreview { get; set; }
     }
 
     /// <summary>
-    /// DTO trả về 1 message trong khung chat hỗ trợ.
+    /// DTO tin nhắn trong phiên chat hỗ trợ.
     /// </summary>
     public class SupportChatMessageDto
     {
+        /// <summary>
+        /// Id tin nhắn (bigint).
+        /// </summary>
         public long MessageId { get; set; }
 
+        /// <summary>
+        /// Id phiên chat chứa tin nhắn này.
+        /// </summary>
         public Guid ChatSessionId { get; set; }
 
+        /// <summary>
+        /// Id người gửi (UserId).
+        /// </summary>
         public Guid SenderId { get; set; }
+
+        /// <summary>
+        /// Tên hiển thị người gửi (FullName nếu có, fallback Email).
+        /// </summary>
         public string SenderName { get; set; } = "";
 
         /// <summary>
@@ -58,8 +102,14 @@ namespace Keytietkiem.DTOs.SupportChat
         /// </summary>
         public bool IsFromStaff { get; set; }
 
+        /// <summary>
+        /// Nội dung tin nhắn.
+        /// </summary>
         public string Content { get; set; } = "";
 
+        /// <summary>
+        /// Thời điểm gửi.
+        /// </summary>
         public DateTime SentAt { get; set; }
     }
 

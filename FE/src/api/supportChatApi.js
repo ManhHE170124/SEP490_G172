@@ -2,54 +2,60 @@
 import axiosClient from "./axiosClient";
 
 export const supportChatApi = {
-  // Customer mở widget: open or get current session
-  openOrGet(payload) {
-    // payload optional: { initialMessage }
-    return axiosClient.post("/support-chats/open-or-get", payload || {});
+  // Customer mở hoặc lấy lại phiên chat
+  openOrGet(body) {
+    return axiosClient.post("/support-chats/open-or-get", body ?? {});
   },
 
-  // Danh sách phiên chat của user hiện tại (customer: của mình, staff: đang assigned)
-  getMySessions(params = {}) {
-    const p = {
-      includeClosed: params.includeClosed ?? false,
-    };
-    return axiosClient.get("/support-chats/my-sessions", { params: p });
+  // Danh sách phiên chat của chính user hiện tại
+  getMySessions(params) {
+    return axiosClient.get("/support-chats/my-sessions", { params });
   },
 
-  // Queue chờ nhận: các session Waiting + chưa gán staff
-  getUnassigned(params = {}) {
-    const p = {
-      page: params.page || 1,
-      pageSize: params.pageSize || 20,
-    };
-    return axiosClient.get("/support-chats/unassigned", { params: p });
+  // Queue các phiên Waiting + chưa gán staff (dùng cho staff page)
+  getUnassigned(params) {
+    return axiosClient.get("/support-chats/unassigned", { params });
   },
 
-  // Staff nhận (claim) 1 session
+  // Nhân viên nhận 1 phiên chat
   claim(sessionId) {
+    if (!sessionId) throw new Error("sessionId is required");
     return axiosClient.post(`/support-chats/${sessionId}/claim`, {});
   },
 
-  // Lấy danh sách message của 1 session
-  getMessages(sessionId, params = {}) {
-    const p = {
-      // chừa chỗ cho paging trong tương lai nếu cần
-      page: params.page || 1,
-      pageSize: params.pageSize || 200,
-    };
-    return axiosClient.get(`/support-chats/${sessionId}/messages`, {
-      params: p,
-    });
+  // Nhân viên trả lại 1 phiên chat về queue
+  unassign(sessionId) {
+    if (!sessionId) throw new Error("sessionId is required");
+    return axiosClient.post(`/support-chats/${sessionId}/unassign`, {});
   },
 
-  // Gửi message trong 1 session
-  postMessage(sessionId, payload) {
-    // payload: { content }
-    return axiosClient.post(`/support-chats/${sessionId}/messages`, payload);
-  },
-
-  // Đóng session
+  // Đóng 1 phiên chat
   close(sessionId) {
+    if (!sessionId) throw new Error("sessionId is required");
     return axiosClient.post(`/support-chats/${sessionId}/close`, {});
+  },
+
+  // Lấy danh sách tin nhắn trong 1 phiên chat
+  getMessages(sessionId) {
+    if (!sessionId) throw new Error("sessionId is required");
+    return axiosClient.get(`/support-chats/${sessionId}/messages`);
+  },
+
+  // Gửi tin nhắn mới vào 1 phiên chat
+  postMessage(sessionId, body) {
+    if (!sessionId) throw new Error("sessionId is required");
+    return axiosClient.post(`/support-chats/${sessionId}/messages`, body);
+  },
+
+  // ===== Alias để không phải sửa nhiều chỗ FE cũ =====
+
+  // Một số màn FE (staff) đang gọi claimSession
+  claimSession(sessionId) {
+    return this.claim(sessionId);
+  },
+
+  // Và unassignSession
+  unassignSession(sessionId) {
+    return this.unassign(sessionId);
   },
 };

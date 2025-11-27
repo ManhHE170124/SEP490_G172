@@ -1,8 +1,10 @@
-// File: src/components/ChatWidget.jsx
-import React, { useEffect, useRef, useState } from "react";
+// File: src/components/SupportChat/ChatWidget.jsx
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
-import axiosClient from "../api/axiosClient";
-import { supportChatApi } from "../api/supportChatApi";
+import axiosClient from "../../api/axiosClient";
+import { supportChatApi } from "../../api/supportChatApi";
+// ✅ THÊM DÒNG NÀY
+import "./support-chat-widget.css";
 
 function formatTime(value) {
   if (!value) return "";
@@ -34,15 +36,28 @@ export default function ChatWidget() {
   const messagesRef = useRef(null);
   const isAtBottomRef = useRef(true);
 
-  // Toggle widget
   const toggleOpen = () => {
     setOpen((prev) => !prev);
   };
 
-  // Khi widget mở lần đầu -> gọi open-or-get + load messages
+  const scrollToBottom = (force = false) => {
+    const el = messagesRef.current;
+    if (!el) return;
+    if (!force && !isAtBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  };
+
+  const handleMessagesScroll = () => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const threshold = 20;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isAtBottomRef.current = distanceToBottom <= threshold;
+  };
+
+  // -------- Khởi tạo session khi mở widget --------
   useEffect(() => {
     if (!open) {
-      // đóng widget: không phá session, chỉ ẩn UI
       setError("");
       return;
     }
@@ -51,7 +66,6 @@ export default function ChatWidget() {
 
     async function initSession() {
       if (session && session.chatSessionId) {
-        // đã có session -> chỉ reload messages
         await loadMessages(session.chatSessionId, { silent: true });
         return;
       }
@@ -93,7 +107,7 @@ export default function ChatWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Hàm load messages cho 1 session
+  // -------- Load messages của 1 session --------
   async function loadMessages(chatSessionId, opts = {}) {
     if (!chatSessionId) return;
     const { silent = false, force = false } = opts;
@@ -104,16 +118,20 @@ export default function ChatWidget() {
 
     try {
       const res = await supportChatApi.getMessages(chatSessionId);
-      const items = Array.isArray(res) ? res : res.items || [];
-      setMessages(items);
-      if (!force) {
-        // nếu không force thì chỉ auto-scroll nếu đang ở đáy
-        if (isAtBottomRef.current) scrollToBottom();
-      } else {
-        scrollToBottom(true);
-      }
+      const items = Array.isArray(res)
+        ? res
+        : res?.items ?? res?.Items ?? [];
+
+      setMessages((prev) => {
+        if (!force && prev && prev.length > 0) {
+          return prev;
+        }
+        return items;
+      });
+
+      setTimeout(() => scrollToBottom(true), 0);
     } catch (err) {
-      console.error("load messages failed", err);
+      console.error("load chat messages failed", err);
       if (!silent) {
         setError(
           err?.response?.data?.message ||
@@ -127,15 +145,22 @@ export default function ChatWidget() {
     }
   }
 
-  // Kết nối SignalR khi đã có sessionId + widget đang mở
+  // -------- Kết nối SignalR khi đã có sessionId + widget đang mở --------
   useEffect(() => {
     if (!open) return;
     if (!session || !session.chatSessionId) return;
 
-    let connection = null;
+    if (connRef.current) {
+      try {
+        connRef.current.stop().catch(() => {});
+      } catch {
+      } finally {
+        connRef.current = null;
+      }
+    }
+
     let disposed = false;
 
-    // base URL giống admin-ticket-detail
     let apiBase = axiosClient?.defaults?.baseURL || "";
     if (!apiBase) {
       apiBase =
@@ -145,41 +170,58 @@ export default function ChatWidget() {
           import.meta.env.VITE_API_BASE_URL) ||
         "https://localhost:7292/api";
     }
-    const hubRoot = apiBase.replace(/\/api\/?$/i, "");
-    const hubUrl = `${hubRoot}/hubs/support-chats`; // <-- nếu backend dùng path khác, chỉnh ở đây
 
-    connection = new HubConnectionBuilder()
+    let hubBase = apiBase.replace(/\/api\/?$/, "");
+    const hubUrl = `${hubBase}/supportChatHub`;
+
+    const connection = new HubConnectionBuilder()
       .withUrl(hubUrl, {
-        accessTokenFactory: () => localStorage.getItem("access_token") || "",
-        withCredentials: true,
+        accessTokenFactory: () => {
+          try {
+            const raw =
+              localStorage.getItem("access_token") ||
+              localStorage.getItem("token") ||
+              "";
+            return raw.replace(/^"|"$/g, "");
+          } catch {
+            return "";
+          }
+        },
       })
+      .configureLogging(LogLevel.Information)
       .withAutomaticReconnect()
-      .configureLogging(LogLevel.None)
       .build();
 
     connRef.current = connection;
 
     const handleSupportMessage = (msg) => {
       if (!msg || msg.chatSessionId !== session.chatSessionId) return;
+
       setMessages((prev) => {
         const list = prev || [];
-        // tránh trùng messageId
-        if (list.some((x) => x.messageId === msg.messageId)) return prev;
+        if (
+          msg.messageId &&
+          list.some((x) => x.messageId === msg.messageId)
+        ) {
+          return prev;
+        }
         const next = [...list, msg];
         return next;
       });
+
       if (isAtBottomRef.current) {
-        // auto scroll khi đang ở đáy
-        setTimeout(() => scrollToBottom(), 0);
+        setTimeout(() => scrollToBottom(true), 0);
       }
     };
 
     const handleSessionUpdated = (item) => {
       if (!item || item.chatSessionId !== session.chatSessionId) return;
-      setSession((prev) => ({ ...(prev || {}), ...item }));
+      setSession((prev) => ({
+        ...(prev || {}),
+        ...item,
+      }));
     };
 
-    // Đăng ký event (support nhiều tên để tránh lệch nhỏ giữa BE/FE)
     connection.on("SupportMessageReceived", handleSupportMessage);
     connection.on("ReceiveSupportMessage", handleSupportMessage);
     connection.on("SupportSessionUpdated", handleSessionUpdated);
@@ -191,9 +233,7 @@ export default function ChatWidget() {
           .invoke("JoinSupportSessionGroup", session.chatSessionId)
           .catch(() => {})
       )
-      .catch(() => {
-        // ignore lỗi nhỏ khi negotiate
-      });
+      .catch(() => {});
 
     return () => {
       disposed = true;
@@ -215,22 +255,7 @@ export default function ChatWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, session && session.chatSessionId]);
 
-  // Scroll handler để biết đang ở đáy hay không
-  const handleMessagesScroll = () => {
-    const el = messagesRef.current;
-    if (!el) return;
-    const threshold = 20;
-    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    isAtBottomRef.current = distanceToBottom <= threshold;
-  };
-
-  function scrollToBottom(force) {
-    const el = messagesRef.current;
-    if (!el) return;
-    if (!force && !isAtBottomRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }
-
+  // -------- Gửi tin nhắn --------
   async function handleSend(e) {
     e.preventDefault();
     if (!session || !session.chatSessionId) return;
@@ -270,150 +295,144 @@ export default function ChatWidget() {
     }
   }
 
-  // Nếu widget đang đóng chỉ render nút
+  const statusText = useMemo(() => {
+    if (!session) return "";
+    const status = String(session.status || session.Status || "").toLowerCase();
+    const staffName =
+      session.assignedStaffName ||
+      session.AssignedStaffName ||
+      "nhân viên hỗ trợ";
+
+    if (
+      status === "waiting" ||
+      (!session.assignedStaffName && status !== "closed")
+    ) {
+      return "Đang chờ kết nối nhân viên…";
+    }
+    if (status === "open" || status === "active") {
+      return `Đang chat với ${staffName}`;
+    }
+    if (status === "closed") {
+      return "Phiên chat đã kết thúc.";
+    }
+    return "";
+  }, [session]);
+
+  const canSend =
+    session &&
+    String(session.status || session.Status || "").toLowerCase() !== "closed";
+
   return (
-    <>
+    <div className="support-chat-widget">
       {/* Nút mở widget */}
-      <button
-        type="button"
-        className="btn btn-primary rounded-circle"
-        style={{
-          position: "fixed",
-          right: "20px",
-          bottom: "20px",
-          zIndex: 1050,
-          width: "56px",
-          height: "56px",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-        }}
-        onClick={toggleOpen}
-      >
-        💬
-      </button>
-
-      {/* Popup chat */}
-      {open && (
-        <div
-          className="card"
-          style={{
-            position: "fixed",
-            right: "20px",
-            bottom: "90px",
-            width: "320px",
-            maxHeight: "70vh",
-            display: "flex",
-            flexDirection: "column",
-            zIndex: 1050,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          }}
+      {!open && (
+        <button
+          type="button"
+          className="support-chat-toggle-btn"
+          onClick={toggleOpen}
         >
-          <div className="card-header d-flex justify-content-between align-items-center py-2">
-            <span className="fw-semibold">Hỗ trợ trực tuyến</span>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-secondary"
-              onClick={toggleOpen}
-            >
-              ✕
-            </button>
-          </div>
+          💬 Hỗ trợ
+        </button>
+      )}
 
-          <div
-            className="card-body p-2 d-flex flex-column"
-            style={{ flex: 1, minHeight: "220px" }}
-          >
-            {loadingSession && !session && (
-              <div className="small text-muted">Đang khởi tạo phiên chat…</div>
-            )}
-
-            {error && (
-              <div className="alert alert-warning py-1 small mb-2">
-                {error}
-              </div>
-            )}
-
-            {/* Message list */}
-            <div
-              ref={messagesRef}
-              className="flex-grow-1 mb-2"
-              style={{
-                overflowY: "auto",
-                border: "1px solid #eee",
-                borderRadius: "4px",
-                padding: "4px",
-                backgroundColor: "#fafafa",
-              }}
-              onScroll={handleMessagesScroll}
-            >
-              {loadingMessages && !messages.length ? (
-                <div className="small text-muted px-1 py-1">
-                  Đang tải lịch sử chat…
-                </div>
-              ) : !messages || messages.length === 0 ? (
-                <div className="small text-muted px-1 py-1">
-                  Hãy gửi tin nhắn đầu tiên để chúng tôi hỗ trợ bạn.
-                </div>
-              ) : (
-                <div className="d-flex flex-column gap-1">
-                  {messages.map((m) => {
-                    const isStaff = !!m.isFromStaff;
-                    return (
-                      <div
-                        key={m.messageId || `${m.sentAt}_${m.senderId}`}
-                        className={`d-flex ${
-                          isStaff ? "justify-content-start" : "justify-content-end"
-                        }`}
-                      >
-                        <div
-                          className="px-2 py-1 rounded"
-                          style={{
-                            maxWidth: "80%",
-                            fontSize: "0.85rem",
-                            backgroundColor: isStaff ? "#e9f3ff" : "#d1ffd6",
-                            border:
-                              "1px solid " + (isStaff ? "#c0d9ff" : "#a3f3b0"),
-                          }}
-                        >
-                          <div className="small mb-1 fw-semibold">
-                            {isStaff ? m.senderName || "Nhân viên hỗ trợ" : "Bạn"}
-                          </div>
-                          <div>{m.content}</div>
-                          <div className="text-muted small text-end mt-1">
-                            {formatTime(m.sentAt)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+      {/* Hộp chat */}
+      {open && (
+        <div className="support-chat-panel">
+          <div className="support-chat-header">
+            <div className="title">
+              <strong>Hỗ trợ trực tuyến</strong>
+              {statusText && (
+                <div className="status-text">
+                  <small>{statusText}</small>
                 </div>
               )}
             </div>
-
-            {/* Form gửi tin */}
-            <form onSubmit={handleSend}>
-              <div className="mb-2">
-                <textarea
-                  rows={2}
-                  className="form-control"
-                  placeholder="Nhập nội dung tin nhắn..."
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  disabled={sending || !!error || !session}
-                />
-              </div>
-              <div className="d-flex justify-content-end">
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-sm"
-                  disabled={sending || !input.trim() || !session}
-                >
-                  {sending ? "Đang gửi..." : "Gửi"}
-                </button>
-              </div>
-            </form>
+            <button
+              type="button"
+              className="close-btn"
+              onClick={toggleOpen}
+              aria-label="Đóng"
+            >
+              ×
+            </button>
           </div>
+
+          <div className="support-chat-body">
+            {loadingSession && (
+              <div className="state-text">Đang khởi tạo phiên chat…</div>
+            )}
+            {!loadingSession && !session && (
+              <div className="state-text">
+                Không thể khởi tạo chat. Vui lòng thử lại.
+              </div>
+            )}
+
+            {error && <div className="error-text">{error}</div>}
+
+            <div
+              className="messages-container"
+              ref={messagesRef}
+              onScroll={handleMessagesScroll}
+            >
+              {loadingMessages && messages.length === 0 && (
+                <div className="state-text">Đang tải lịch sử chat…</div>
+              )}
+
+              {messages.map((m) => {
+                const isMine = !m.isFromStaff && !m.IsFromStaff;
+                const senderName =
+                  m.senderName ||
+                  m.SenderName ||
+                  (isMine ? "Bạn" : "Nhân viên");
+                const time = formatTime(m.sentAt || m.SentAt);
+
+                return (
+                  <div
+                    key={m.messageId || m.MessageId || `${time}-${m.content}`}
+                    className={`msg-row ${isMine ? "mine" : "theirs"}`}
+                  >
+                    <div className="msg-bubble">
+                      <div className="msg-content">
+                        {m.content || m.Content}
+                      </div>
+                      <div className="msg-meta">
+                        <span className="sender">{senderName}</span>
+                        {time && <span className="time">{time}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {!loadingMessages && messages.length === 0 && session && (
+                <div className="state-text">
+                  Bắt đầu cuộc trò chuyện với nhân viên hỗ trợ…
+                </div>
+              )}
+            </div>
+          </div>
+
+          <form className="support-chat-footer" onSubmit={handleSend}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={
+                canSend
+                  ? "Nhập tin nhắn của bạn..."
+                  : "Phiên chat đã kết thúc."
+              }
+              disabled={!canSend || sending}
+            />
+            <button
+              type="submit"
+              disabled={!canSend || sending || !input.trim()}
+            >
+              Gửi
+            </button>
+          </form>
         </div>
       )}
-    </>
+    </div>
   );
 }
