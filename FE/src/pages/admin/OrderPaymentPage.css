@@ -122,10 +122,6 @@
   text-align: left;
 }
 
-.order-items-table th {
-  color: var(--muted);
-}
-
 /* Nhỏ lại text trong cột tiền */
 .text-right {
   text-align: right;
@@ -134,4 +130,28 @@
 .text-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
+}
+
+/* Căn lề trái cho bảng orders/payments trên page này */
+.table th,
+.table td {
+  text-align: left;
+}
+
+/* Header sort (click để sort theo cột) */
+.table-sort-header {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.table-sort-header:focus-visible {
+  outline: 1px solid var(--primary, #2563eb);
+  outline-offset: 2px;
 }

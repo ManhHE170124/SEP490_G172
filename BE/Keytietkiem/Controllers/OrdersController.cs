@@ -25,14 +25,86 @@ namespace Keytietkiem.Controllers
         // ========== CÁC API ==========
 
         [HttpGet]
-        public async Task<IActionResult> GetOrders()
+        public async Task<IActionResult> GetOrders(
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir)
         {
-            var orders = await _context.Orders
+            var query = _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
                         .ThenInclude(v => v.Product)
-                .ToListAsync();
+                .AsQueryable();
+
+            // Sort phía server
+            var sortByNorm = (sortBy ?? "CreatedAt").Trim();
+            var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
+            var asc = sortDirNorm == "asc";
+
+            switch (sortByNorm.ToLowerInvariant())
+            {
+                case "orderid":
+                    query = asc
+                        ? query.OrderBy(o => o.OrderId)
+                        : query.OrderByDescending(o => o.OrderId);
+                    break;
+
+                case "customer":
+                case "username":
+                    if (asc)
+                    {
+                        query = query.OrderBy(o =>
+                            o.User != null
+                                ? (o.User.FullName ?? o.User.Email ?? o.Email)
+                                : o.Email);
+                    }
+                    else
+                    {
+                        query = query.OrderByDescending(o =>
+                            o.User != null
+                                ? (o.User.FullName ?? o.User.Email ?? o.Email)
+                                : o.Email);
+                    }
+                    break;
+
+                case "email":
+                    query = asc
+                        ? query.OrderBy(o => o.Email)
+                        : query.OrderByDescending(o => o.Email);
+                    break;
+
+                case "status":
+                    query = asc
+                        ? query.OrderBy(o => o.Status)
+                        : query.OrderByDescending(o => o.Status);
+                    break;
+
+                case "totalamount":
+                    query = asc
+                        ? query.OrderBy(o => o.TotalAmount)
+                        : query.OrderByDescending(o => o.TotalAmount);
+                    break;
+
+                case "finalamount":
+                    query = asc
+                        ? query.OrderBy(o => o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount))
+                        : query.OrderByDescending(o => o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount));
+                    break;
+
+                case "itemcount":
+                    query = asc
+                        ? query.OrderBy(o => o.OrderDetails.Count)
+                        : query.OrderByDescending(o => o.OrderDetails.Count);
+                    break;
+
+                default: // createdAt
+                    query = asc
+                        ? query.OrderBy(o => o.CreatedAt)
+                        : query.OrderByDescending(o => o.CreatedAt);
+                    break;
+            }
+
+            var orders = await query.ToListAsync();
 
             var orderList = orders.Select(o => new OrderListItemDTO
             {
@@ -437,7 +509,7 @@ namespace Keytietkiem.Controllers
             //    finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount)
             var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
 
-            // Khoảng thời gian cho phép: ±30 phút quanh thời điểm tạo Order
+            // Khoảng thời gian cho phép: ±1 phút quanh thời điểm tạo Order
             var fromTime = order.CreatedAt.AddMinutes(-1);
             var toTime = order.CreatedAt.AddMinutes(1);
 
@@ -463,7 +535,6 @@ namespace Keytietkiem.Controllers
 
             return NoContent();
         }
-
 
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> UpdateOrder(Guid id, [FromBody] UpdateOrderDTO updateOrderDto)

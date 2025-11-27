@@ -29,13 +29,19 @@ const formatVnDateTime = (value) => {
   return d.toLocaleString("vi-VN");
 };
 
+/* Toggle sort state */
+const toggleSortState = (current, key) =>
+  current.sortBy === key
+    ? { sortBy: key, sortDir: current.sortDir === "asc" ? "desc" : "asc" }
+    : { sortBy: key, sortDir: "asc" };
+
+const renderSortIndicator = (current, key) => {
+  if (!current || current.sortBy !== key) return null;
+  return current.sortDir === "asc" ? " ▲" : " ▼";
+};
+
 /**
- * Các trạng thái ĐƠN HÀNG đang dùng trong hệ thống:
- *   - Pending   : chờ xử lý
- *   - Paid      : đã thanh toán
- *   - Failed    : thất bại
- *   - Cancelled : đã hủy
- * -> giữ nguyên value tiếng Anh để khớp API, chỉ đổi label sang tiếng Việt.
+ * Các trạng thái ĐƠN HÀNG
  */
 const ORDER_STATUS_OPTIONS = [
   { value: "Pending", label: "Chờ xử lý" },
@@ -45,14 +51,7 @@ const ORDER_STATUS_OPTIONS = [
 ];
 
 /**
- * Trạng thái PAYMENT (transaction) – bám theo PayOS / hệ thống:
- *   - Pending    : chờ thanh toán
- *   - Paid       : đã thanh toán
- *   - Success    : thành công
- *   - Completed  : hoàn tất
- *   - Cancelled  : đã hủy
- *   - Failed     : thất bại
- *   - Refunded   : hoàn tiền
+ * Trạng thái PAYMENT
  */
 const PAYMENT_STATUS_OPTIONS = [
   "Pending",
@@ -65,6 +64,14 @@ const PAYMENT_STATUS_OPTIONS = [
 ];
 
 const PAYMENT_PROVIDER_OPTIONS = ["", "PayOS"];
+
+/* Loại thanh toán (transactionType) - TẤT CẢ LOẠI ở đầu */
+const PAYMENT_TYPE_OPTIONS = [
+  { value: "", label: "Tất cả loại" },
+  { value: "ORDER_PAYMENT", label: "Thanh toán đơn hàng" },
+  { value: "DEPOSIT", label: "Nạp tiền" },
+  { value: "SERVICE_PAYMENT", label: "Thanh toán dịch vụ" },
+];
 
 /* Map status -> class cho badge */
 const getOrderStatusClass = (status) => {
@@ -89,7 +96,6 @@ const getPaymentStatusClass = (status) => {
 };
 
 /* Map status -> label tiếng Việt */
-
 const getOrderStatusLabel = (status) => {
   const s = (status || "").toLowerCase();
   switch (s) {
@@ -103,23 +109,6 @@ const getOrderStatusLabel = (status) => {
       return "Đã hủy";
     default:
       return status || "Không xác định";
-  }
-};
-
-// Trạng thái tổng hợp thanh toán của ĐƠN HÀNG (Unpaid, Partial, Paid, Refunded)
-const getOrderPaymentStatusLabel = (status) => {
-  const s = (status || "").toLowerCase();
-  switch (s) {
-    case "unpaid":
-      return "Chưa thanh toán";
-    case "partial":
-      return "Thanh toán một phần";
-    case "paid":
-      return "Đã thanh toán";
-    case "refunded":
-      return "Đã hoàn tiền";
-    default:
-      return getPaymentStatusLabel(status);
   }
 };
 
@@ -143,7 +132,39 @@ const getPaymentStatusLabel = (status) => {
   }
 };
 
-// Dùng riêng cho filter trạng thái payment, tránh trùng label
+// Trạng thái tổng hợp thanh toán của ĐƠN HÀNG (Unpaid, Partial, Paid, Refunded)
+const getOrderPaymentStatusLabel = (status) => {
+  const s = (status || "").toLowerCase();
+  switch (s) {
+    case "unpaid":
+      return "Chưa thanh toán";
+    case "partial":
+      return "Thanh toán một phần";
+    case "paid":
+      return "Đã thanh toán";
+    case "refunded":
+      return "Đã hoàn tiền";
+    default:
+      return getPaymentStatusLabel(status);
+  }
+};
+
+// Label tiếng Việt cho loại thanh toán
+const getTransactionTypeLabel = (type) => {
+  const t = (type || "").toUpperCase();
+  switch (t) {
+    case "ORDER_PAYMENT":
+      return "Thanh toán đơn hàng";
+    case "DEPOSIT":
+      return "Nạp tiền";
+    case "SERVICE_PAYMENT":
+      return "Thanh toán dịch vụ";
+    default:
+      return type || "Không xác định";
+  }
+};
+
+// Dùng riêng cho filter trạng thái payment
 const PAYMENT_STATUS_FILTER_OPTIONS = [
   { value: "Pending", label: getPaymentStatusLabel("Pending") },
   { value: "Paid", label: getPaymentStatusLabel("Paid") },
@@ -189,13 +210,10 @@ function OrderDetailModal({
       .finally(() => setLoading(false));
   }, [open, orderId, addToast]);
 
-  // Rule mới: chỉ được chỉnh tay khi đang Pending / Failed
   const currentStatus = (order?.status || "").toLowerCase();
   const canManuallyChangeStatus =
     currentStatus === "pending" || currentStatus === "failed";
 
-  // Chỉ cho chọn: trạng thái hiện tại + Paid + Cancelled (khi đang Pending/Failed)
-  // Nếu đã Paid/Cancelled/... thì dropdown chỉ hiển thị trạng thái hiện tại (read-only)
   const orderSelectOptions = ORDER_STATUS_OPTIONS.filter((opt) => {
     const v = opt.value.toLowerCase();
     if (!order) return false;
@@ -204,7 +222,6 @@ function OrderDetailModal({
       return v === currentStatus;
     }
 
-    // cho giữ nguyên hoặc chuyển sang Paid/Cancelled
     if (v === currentStatus) return true;
     return v === "paid" || v === "cancelled";
   });
@@ -512,7 +529,7 @@ function OrderDetailModal({
   );
 }
 
-/* ===== Modal: Payment Detail + (U hạn chế) UpdatePaymentStatus ===== */
+/* ===== Modal: Payment Detail ===== */
 
 function PaymentDetailModal({
   open,
@@ -550,7 +567,6 @@ function PaymentDetailModal({
       .finally(() => setLoading(false));
   }, [open, paymentId, addToast]);
 
-  // Rule mới: chỉ được chỉnh tay khi payment đang Pending / Failed
   const currentStatus = (payment?.status || "").toLowerCase();
   const canManuallyChangeStatus =
     currentStatus === "pending" || currentStatus === "failed";
@@ -600,7 +616,6 @@ function PaymentDetailModal({
       return;
     }
 
-    // U (hạn chế): confirm rất rõ ràng trước khi gọi updateStatus
     openConfirm?.({
       title: "Cập nhật trạng thái thanh toán?",
       message:
@@ -630,9 +645,6 @@ function PaymentDetailModal({
       },
     });
   };
-
-  const effectiveFinal =
-    payment?.orderFinalAmount ?? payment?.orderTotalAmount ?? 0;
 
   return (
     <div className="cat-modal-backdrop">
@@ -681,44 +693,17 @@ function PaymentDetailModal({
                     Loại giao dịch
                   </div>
                   <div className="detail-value">
-                    {payment.transactionType || "—"}
+                    {getTransactionTypeLabel(payment.transactionType)}
                   </div>
                 </div>
               </div>
 
-              {/* Thông tin tiền */}
+              {/* Thông tin tiền – CHỈ 1 KHỐI SỐ TIỀN THANH TOÁN */}
               <div className="detail-section-title">Số tiền</div>
               <div className="detail-section-box">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-                    gap: 8,
-                  }}
-                >
-                  <div>
-                    <div className="detail-label">
-                      Số tiền thanh toán
-                    </div>
-                    <div className="detail-value text-mono">
-                      {payment.amount?.toLocaleString("vi-VN")} đ
-                    </div>
-                  </div>
-                  <div>
-                    <div className="detail-label">Tổng đơn</div>
-                    <div className="detail-value text-mono">
-                      {payment.orderTotalAmount?.toLocaleString(
-                        "vi-VN"
-                      )}{" "}
-                      đ
-                    </div>
-                  </div>
-                  <div>
-                    <div className="detail-label">Thành tiền (đơn)</div>
-                    <div className="detail-value text-mono">
-                      {effectiveFinal?.toLocaleString("vi-VN")} đ
-                    </div>
-                  </div>
+                <div className="detail-label">Số tiền thanh toán</div>
+                <div className="detail-value text-mono">
+                  {payment.amount?.toLocaleString("vi-VN")} đ
                 </div>
               </div>
 
@@ -731,12 +716,18 @@ function PaymentDetailModal({
                   <div className="detail-label">Cổng thanh toán</div>
                   <div className="detail-value">
                     {payment.provider || "PayOS"}
-                    {payment.providerOrderCode != null && (
-                      <span className="mono">
-                        {" "}
-                        · Mã giao dịch: {payment.providerOrderCode}
-                      </span>
-                    )}
+                  </div>
+
+                  <div
+                    className="detail-label"
+                    style={{ marginTop: 6 }}
+                  >
+                    Mã giao dịch
+                  </div>
+                  <div className="detail-value mono">
+                    {payment.providerOrderCode != null
+                      ? payment.providerOrderCode
+                      : "—"}
                   </div>
                 </div>
                 <div>
@@ -795,10 +786,9 @@ function PaymentDetailModal({
   );
 }
 
-/* ===== MAIN PAGE: List Order + Payment (dùng chung) ===== */
+/* ===== MAIN PAGE ===== */
 
 export default function OrderPaymentPage() {
-  /* Toast + ConfirmDialog (reuse pattern CategoryPage) */
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -836,6 +826,10 @@ export default function OrderPaymentPage() {
     keyword: "",
     status: "",
   });
+  const [orderSort, setOrderSort] = React.useState({
+    sortBy: "createdAt",
+    sortDir: "desc",
+  });
   const [orderPage, setOrderPage] = React.useState(1);
   const [orderPageSize] = React.useState(10);
 
@@ -846,8 +840,12 @@ export default function OrderPaymentPage() {
 
   const loadOrders = React.useCallback(() => {
     setOrderLoading(true);
+    const params = {};
+    if (orderSort.sortBy) params.sortBy = orderSort.sortBy;
+    if (orderSort.sortDir) params.sortDir = orderSort.sortDir;
+
     orderApi
-      .list()
+      .list(params)
       .then((res) => {
         const data = res?.data ?? res ?? [];
         setOrders(Array.isArray(data) ? data : []);
@@ -861,7 +859,7 @@ export default function OrderPaymentPage() {
         );
       })
       .finally(() => setOrderLoading(false));
-  }, []);
+  }, [orderSort]);
 
   React.useEffect(() => {
     loadOrders();
@@ -894,13 +892,7 @@ export default function OrderPaymentPage() {
       list = list.filter((o) => o.status === orderFilter.status);
     }
 
-    // Sort mới nhất đầu
-    list = [...list].sort((a, b) => {
-      const da = new Date(a.createdAt || 0).getTime();
-      const db = new Date(b.createdAt || 0).getTime();
-      return db - da;
-    });
-
+    // Không sort lại ở FE – giữ nguyên thứ tự từ BE (đã sort)
     return list;
   }, [orders, orderFilter]);
 
@@ -946,6 +938,11 @@ export default function OrderPaymentPage() {
     keyword: "",
     status: "",
     provider: "",
+    transactionType: "ORDER_PAYMENT", // default: chỉ xem thanh toán đơn hàng
+  });
+  const [paymentSort, setPaymentSort] = React.useState({
+    sortBy: "createdAt",
+    sortDir: "desc",
   });
   const [paymentPage, setPaymentPage] = React.useState(1);
   const [paymentPageSize] = React.useState(10);
@@ -957,12 +954,16 @@ export default function OrderPaymentPage() {
 
   const loadPayments = React.useCallback(() => {
     setPaymentLoading(true);
-    const params = {
-      transactionType: "ORDER_PAYMENT",
-    };
+    const params = {};
+
+    if (paymentFilter.transactionType) {
+      params.transactionType = paymentFilter.transactionType;
+    }
     if (paymentFilter.status) params.status = paymentFilter.status;
     if (paymentFilter.provider) params.provider = paymentFilter.provider;
-    // keyword filter thực hiện ở FE
+
+    if (paymentSort.sortBy) params.sortBy = paymentSort.sortBy;
+    if (paymentSort.sortDir) params.sortDir = paymentSort.sortDir;
 
     paymentApi
       .list(params)
@@ -980,16 +981,26 @@ export default function OrderPaymentPage() {
         );
       })
       .finally(() => setPaymentLoading(false));
-  }, [paymentFilter.status, paymentFilter.provider]);
+  }, [
+    paymentFilter.transactionType,
+    paymentFilter.status,
+    paymentFilter.provider,
+    paymentSort,
+  ]);
 
   React.useEffect(() => {
-    const t = setTimeout(loadPayments, 300); // debounce nhẹ
+    const t = setTimeout(loadPayments, 300);
     return () => clearTimeout(t);
   }, [loadPayments]);
 
   React.useEffect(() => {
     setPaymentPage(1);
-  }, [paymentFilter.keyword, paymentFilter.status, paymentFilter.provider]);
+  }, [
+    paymentFilter.keyword,
+    paymentFilter.status,
+    paymentFilter.provider,
+    paymentFilter.transactionType,
+  ]);
 
   const filteredPayments = React.useMemo(() => {
     let list = Array.isArray(payments) ? payments : [];
@@ -1018,13 +1029,7 @@ export default function OrderPaymentPage() {
       list = list.filter((p) => p.provider === paymentFilter.provider);
     }
 
-    // mới nhất đầu
-    list = [...list].sort((a, b) => {
-      const da = new Date(a.createdAt || 0).getTime();
-      const db = new Date(b.createdAt || 0).getTime();
-      return db - da;
-    });
-
+    // Không sort lại ở FE – giữ nguyên thứ tự từ BE
     return list;
   }, [payments, paymentFilter]);
 
@@ -1105,26 +1110,122 @@ export default function OrderPaymentPage() {
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
               <tr>
-                <th>Mã đơn</th>
-                <th>Khách hàng</th>
-                <th>Email</th>
-                <th>Số SP</th>
-                <th>Thành tiền</th>
-                <th>Trạng thái</th>
-                <th>Ngày tạo</th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "orderId")
+                      )
+                    }
+                  >
+                    Mã đơn
+                    {renderSortIndicator(orderSort, "orderId")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "customer")
+                      )
+                    }
+                  >
+                    Khách hàng
+                    {renderSortIndicator(orderSort, "customer")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "email")
+                      )
+                    }
+                  >
+                    Email
+                    {renderSortIndicator(orderSort, "email")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "itemCount")
+                      )
+                    }
+                  >
+                    Số SP
+                    {renderSortIndicator(orderSort, "itemCount")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "finalAmount")
+                      )
+                    }
+                  >
+                    Thành tiền
+                    {renderSortIndicator(orderSort, "finalAmount")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "status")
+                      )
+                    }
+                  >
+                    Trạng thái
+                    {renderSortIndicator(orderSort, "status")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setOrderSort((cur) =>
+                        toggleSortState(cur, "createdAt")
+                      )
+                    }
+                  >
+                    Ngày tạo
+                    {renderSortIndicator(orderSort, "createdAt")}
+                  </button>
+                </th>
                 <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {orderPageItems.map((o) => {
                 const effectiveFinal =
-                  o.finalAmount ?? o.totalAmount - (o.discountAmount || 0);
+                  o.finalAmount ??
+                  o.totalAmount - (o.discountAmount || 0);
                 const canCancel =
                   (o.status || "").toLowerCase() === "pending";
                 return (
                   <tr key={o.orderId}>
                     <td>
-                      <EllipsisCell mono maxWidth={160} title={o.orderId}>
+                      <EllipsisCell
+                        mono
+                        maxWidth={160}
+                        title={o.orderId}
+                      >
                         {o.orderId}
                       </EllipsisCell>
                     </td>
@@ -1291,6 +1392,27 @@ export default function OrderPaymentPage() {
                 ))}
               </select>
             </div>
+            <div className="group" style={{ minWidth: 200 }}>
+              <span>Loại thanh toán</span>
+              <select
+                value={paymentFilter.transactionType}
+                onChange={(e) =>
+                  setPaymentFilter((s) => ({
+                    ...s,
+                    transactionType: e.target.value,
+                  }))
+                }
+              >
+                {PAYMENT_TYPE_OPTIONS.map((t) => (
+                  <option
+                    key={t.value || "all"}
+                    value={t.value}
+                  >
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               className="btn"
               type="button"
@@ -1299,6 +1421,7 @@ export default function OrderPaymentPage() {
                   keyword: "",
                   status: "",
                   provider: "",
+                  transactionType: "ORDER_PAYMENT",
                 })
               }
             >
@@ -1310,11 +1433,93 @@ export default function OrderPaymentPage() {
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
               <tr>
-                <th>Mã thanh toán</th>
-                <th>Cổng thanh toán</th>
-                <th>Số tiền</th>
-                <th>Trạng thái</th>
-                <th>Ngày tạo</th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setPaymentSort((cur) =>
+                        toggleSortState(cur, "paymentId")
+                      )
+                    }
+                  >
+                    Mã thanh toán
+                    {renderSortIndicator(paymentSort, "paymentId")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setPaymentSort((cur) =>
+                        toggleSortState(cur, "provider")
+                      )
+                    }
+                  >
+                    Cổng thanh toán
+                    {renderSortIndicator(paymentSort, "provider")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setPaymentSort((cur) =>
+                        toggleSortState(cur, "transactionType")
+                      )
+                    }
+                  >
+                    Loại thanh toán
+                    {renderSortIndicator(
+                      paymentSort,
+                      "transactionType"
+                    )}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setPaymentSort((cur) =>
+                        toggleSortState(cur, "amount")
+                      )
+                    }
+                  >
+                    Số tiền
+                    {renderSortIndicator(paymentSort, "amount")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setPaymentSort((cur) =>
+                        toggleSortState(cur, "status")
+                      )
+                    }
+                  >
+                    Trạng thái
+                    {renderSortIndicator(paymentSort, "status")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() =>
+                      setPaymentSort((cur) =>
+                        toggleSortState(cur, "createdAt")
+                      )
+                    }
+                  >
+                    Ngày tạo
+                    {renderSortIndicator(paymentSort, "createdAt")}
+                  </button>
+                </th>
                 <th>Thao tác</th>
               </tr>
             </thead>
@@ -1322,13 +1527,22 @@ export default function OrderPaymentPage() {
               {paymentPageItems.map((p) => (
                 <tr key={p.paymentId}>
                   <td>
-                    <EllipsisCell mono maxWidth={160} title={p.paymentId}>
+                    <EllipsisCell
+                      mono
+                      maxWidth={160}
+                      title={p.paymentId}
+                    >
                       {p.paymentId}
                     </EllipsisCell>
                   </td>
                   <td>
                     <EllipsisCell maxWidth={180}>
                       {p.provider || "PayOS"}
+                    </EllipsisCell>
+                  </td>
+                  <td>
+                    <EllipsisCell maxWidth={200}>
+                      {getTransactionTypeLabel(p.transactionType)}
                     </EllipsisCell>
                   </td>
                   <td className="text-right text-mono">
@@ -1365,7 +1579,7 @@ export default function OrderPaymentPage() {
               ))}
               {paymentPageItems.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: 12 }}>
+                  <td colSpan={7} style={{ padding: 12 }}>
                     Không có thanh toán nào phù hợp bộ lọc.
                   </td>
                 </tr>
@@ -1419,7 +1633,7 @@ export default function OrderPaymentPage() {
         openConfirm={openConfirm}
       />
 
-      {/* Toast + ConfirmDialog (dùng chung với các page khác) */}
+      {/* Toast + ConfirmDialog */}
       <ToastContainer
         toasts={toasts}
         onRemove={removeToast}
