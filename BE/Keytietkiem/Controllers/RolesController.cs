@@ -43,7 +43,7 @@ namespace Keytietkiem.Controllers
         {
             var roles = await _context.Roles
                 .AsNoTracking()
-                .Where(r => !EF.Functions.Like(r.Name.ToLower(), "%admin%"))
+                .Where(r => !EF.Functions.Like(r.Code.ToLower(), "%admin%"))
                 .Select(r => new { r.RoleId, r.Name })
                 .ToListAsync();
 

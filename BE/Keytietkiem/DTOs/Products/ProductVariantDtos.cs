@@ -8,14 +8,16 @@ namespace Keytietkiem.DTOs.Products
     public record ProductVariantListQuery(
         string? Q,
         string? Status,          // ACTIVE | INACTIVE | OUT_OF_STOCK
-        string? Dur,             // "<=30" | "31-180" | ">180"
-        string? Sort = "created",// created|title|duration|stock|status|views
+        string? Dur,
+        decimal? MinPrice = null, // lọc theo giá bán tối thiểu (SellPrice)
+        decimal? MaxPrice = null, // lọc theo giá bán tối đa (SellPrice) // "<=30" | "31-180" | ">180"
+        string? Sort = "created", // created|title|duration|stock|status|views|price
         string? Dir = "desc",
         int Page = 1,
         int PageSize = 10
     );
 
-    // List: hiển thị nhanh + thumbnail + viewcount
+    // List: hiển thị nhanh + thumbnail + viewcount + 3 loại giá
     public record ProductVariantListItemDto(
         Guid VariantId,
         string VariantCode,
@@ -24,10 +26,13 @@ namespace Keytietkiem.DTOs.Products
         int StockQty,
         string Status,
         string? Thumbnail,
-        int ViewCount
+        int ViewCount,
+        decimal SellPrice,   // Giá bán
+        decimal ListPrice,   // Giá niêm yết
+        decimal CogsPrice    // Giá vốn (read-only cho FE, không sửa qua API này)
     );
 
-    // Detail: đầy đủ SEO field
+    // Detail: đầy đủ SEO field + 3 loại giá
     public record ProductVariantDetailDto(
         Guid VariantId,
         Guid ProductId,
@@ -41,11 +46,12 @@ namespace Keytietkiem.DTOs.Products
         string? MetaDescription,
         int ViewCount,
         string Status,
-        decimal SellPrice,
-        decimal CogsPrice
+        decimal SellPrice,   // Giá bán
+        decimal ListPrice,   // Giá niêm yết
+        decimal CogsPrice    // Giá vốn (hiển thị cho admin, không cho sửa từ đây)
     );
 
-    // Create/Update: giống Post (không có ViewCount vì server tự set)
+    // Create: KHÔNG cho truyền CogsPrice, chỉ SellPrice + ListPrice
     public record ProductVariantCreateDto(
         string VariantCode,
         string Title,
@@ -55,9 +61,12 @@ namespace Keytietkiem.DTOs.Products
         string? Thumbnail,
         string? MetaTitle,
         string? MetaDescription,
+        decimal? SellPrice,     // bắt buộc, nullable để tự validate
+        decimal? ListPrice,     // bắt buộc, nullable để tự validate
         string? Status
     );
 
+    // Update: cũng KHÔNG cho chỉnh CogsPrice
     public record ProductVariantUpdateDto(
         string Title,
         string? VariantCode,
@@ -68,8 +77,10 @@ namespace Keytietkiem.DTOs.Products
         string? MetaTitle,
         string? MetaDescription,
         string? Status,
-        decimal? SellPrice
+        decimal? SellPrice,
+        decimal? ListPrice
     );
+
     public class VariantImageUploadRequest
     {
         public IFormFile File { get; set; } = default!;
@@ -79,5 +90,6 @@ namespace Keytietkiem.DTOs.Products
     {
         public string PublicId { get; set; } = default!;
     }
+
     public record VariantReorderDto(Guid[] VariantIdsInOrder);
 }

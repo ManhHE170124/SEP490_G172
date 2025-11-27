@@ -1,4 +1,3 @@
-// src/pages/admin/VariantsPanel.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import ProductVariantsApi from "../../services/productVariants";
@@ -10,18 +9,55 @@ const CODE_MAX = 50;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
+// Helper: parse số tiền
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const raw = String(value).replace(/,/g, "").trim();
+  if (!raw) return { num: null, raw: "" };
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return { num: null, raw };
+  return { num, raw };
+};
+
+// Helper: validate decimal(18,2)
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = raw.replace(/,/g, "").trim();
+  if (!normalized) return false;
+
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  if (fracPart.length > 2) return false;
+
+  return true;
+};
+
+const formatMoney = (val) => {
+  const num = Number(val);
+  if (!Number.isFinite(num)) return "0";
+  return num.toLocaleString("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
+
 export default function VariantsPanel({
   productId,
   productName,
   productCode,
-  onTotalChange, // optional
+  onTotalChange,
 }) {
   const nav = useNavigate();
   const detailPath = (v) =>
     `/admin/products/${productId}/variants/${v.variantId}`;
   const goDetail = (v) => nav(detailPath(v));
 
-  // Data + paging
   const [items, setItems] = React.useState([]);
   const [total, setTotal] = React.useState(0);
   const [totalPages, setTotalPages] = React.useState(1);
@@ -29,27 +65,24 @@ export default function VariantsPanel({
 
   // Query states
   const [q, setQ] = React.useState("");
-  const [status, setStatus] = React.useState(""); // "", ACTIVE, INACTIVE, OUT_OF_STOCK
-  const [dur, setDur] = React.useState(""); // "", "<=30", "31-180", ">180"
-  const [sort, setSort] = React.useState("created"); // created|title|duration|stock|status|views
-  const [dir, setDir] = React.useState("desc"); // asc|desc
+  const [status, setStatus] = React.useState("");
+  const [dur, setDur] = React.useState("");
+  const [priceMin, setPriceMin] = React.useState("");
+  const [priceMax, setPriceMax] = React.useState("");
+  const [sort, setSort] = React.useState("created");
+  const [dir, setDir] = React.useState("desc");
   const [page, setPage] = React.useState(1);
   const [size, setSize] = React.useState(10);
 
-  // Modal + form errors
   const [showModal, setShowModal] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [modalErrors, setModalErrors] = React.useState({});
   const fileInputRef = React.useRef(null);
 
-  // Upload preview/state
   const [thumbPreview, setThumbPreview] = React.useState(null);
   const [thumbUrl, setThumbUrl] = React.useState(null);
-
-  // Status trong modal (giống Detail: switch + badge)
   const [modalStatus, setModalStatus] = React.useState("ACTIVE");
 
-  // Toast + Confirm (local)
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
 
@@ -62,7 +95,7 @@ export default function VariantsPanel({
     (type, title, message) => {
       const id = `${Date.now()}-${Math.random()}`;
       setToasts((ts) => [...ts, { id, type, title, message }]);
-      setTimeout(() => removeToast(id), 5000); // auto hide 5s
+      setTimeout(() => removeToast(id), 5000);
     },
     [removeToast]
   );
@@ -84,7 +117,6 @@ export default function VariantsPanel({
     });
   }, []);
 
-  // Status mapping giống product
   const statusBadgeClass = (s, stockQty) => {
     const upper = String(s || "").toUpperCase();
     if (upper === "OUT_OF_STOCK" || (stockQty ?? 0) <= 0) return "badge warning";
@@ -105,7 +137,6 @@ export default function VariantsPanel({
     return noQuery.length > max ? noQuery.slice(0, max) : noQuery;
   };
 
-  // ===== Load từ server =====
   const load = React.useCallback(
     async () => {
       setLoading(true);
@@ -118,13 +149,14 @@ export default function VariantsPanel({
           dir,
           page,
           pageSize: size,
+          minPrice: priceMin || undefined,
+          maxPrice: priceMax || undefined,
         });
         const list = res.items || [];
         setItems(list);
         setTotal(res.totalItems || 0);
         setTotalPages(res.totalPages || 1);
 
-        // nếu BE trả kèm tổng tồn kho, có thể onTotalChange ở đây
         if (typeof onTotalChange === "function" && Array.isArray(list)) {
           const sum = list.reduce(
             (acc, v) => acc + (Number(v.stockQty) || 0),
@@ -143,23 +175,23 @@ export default function VariantsPanel({
         setLoading(false);
       }
     },
-    [productId, q, status, dur, sort, dir, page, size, onTotalChange, addToast]
+    [productId, q, status, dur, sort, dir, page, size, priceMin, priceMax, onTotalChange, addToast]
   );
 
   React.useEffect(() => {
     load();
   }, [load]);
 
-  // Reset về trang 1 khi đổi điều kiện
   React.useEffect(() => {
     setPage(1);
-  }, [q, status, dur, sort, dir]);
+  }, [q, status, dur, sort, dir, priceMin, priceMax]);
 
-  // Nút Đặt lại
   const resetFilters = () => {
     setQ("");
     setStatus("");
     setDur("");
+    setPriceMin("");
+    setPriceMax("");
     setSort("created");
     setDir("desc");
     setPage(1);
@@ -177,7 +209,7 @@ export default function VariantsPanel({
 
   const openEdit = (v) => goDetail(v);
 
-  // == Upload helpers ==
+  // Upload helpers
   const urlToFile = async (url) => {
     const res = await fetch(url);
     const blob = await res.blob();
@@ -314,7 +346,7 @@ export default function VariantsPanel({
     return Number.isNaN(n) ? null : n;
   };
 
-  // ===== Validate & Submit modal =====
+  // ===== Validate & Submit modal (CREATE) =====
   const onSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -323,9 +355,14 @@ export default function VariantsPanel({
     const variantCode = (fd.get("variantCode") || "").trim();
     const durationRaw = fd.get("durationDays");
     const warrantyRaw = fd.get("warrantyDays");
+    const listRaw = (fd.get("listPrice") || "").toString().trim();
+    const sellRaw = (fd.get("sellPrice") || "").toString().trim();
 
     const durationDays = parseIntOrNull(durationRaw);
     const warrantyDays = parseIntOrNull(warrantyRaw);
+
+    const { num: listNum } = parseMoney(listRaw);
+    const { num: sellNum } = parseMoney(sellRaw);
 
     const errors = {};
 
@@ -357,7 +394,7 @@ export default function VariantsPanel({
       }
     });
 
-    // Thời lượng / Bảo hành: số nguyên >= 0
+    // Thời lượng / Bảo hành
     if (durationDays != null && durationDays < 0) {
       errors.durationDays = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0.";
     }
@@ -371,6 +408,35 @@ export default function VariantsPanel({
     ) {
       errors.durationDays =
         "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
+    }
+
+    // ===== Validate giá niêm yết / giá bán =====
+    if (!listRaw || listNum === null) {
+      errors.listPrice = "Giá niêm yết là bắt buộc.";
+    } else if (listNum < 0) {
+      errors.listPrice = "Giá niêm yết phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(listRaw)) {
+      errors.listPrice =
+        "Giá niêm yết không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    if (!sellRaw || sellNum === null) {
+      errors.sellPrice = "Giá bán là bắt buộc.";
+    } else if (sellNum < 0) {
+      errors.sellPrice = "Giá bán phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(sellRaw)) {
+      errors.sellPrice =
+        "Giá bán không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    if (
+      !errors.listPrice &&
+      !errors.sellPrice &&
+      listNum != null &&
+      sellNum != null &&
+      sellNum > listNum
+    ) {
+      errors.sellPrice = "Giá bán không được lớn hơn giá niêm yết.";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -391,25 +457,19 @@ export default function VariantsPanel({
         title,
         durationDays,
         warrantyDays,
-        status: modalStatus, // dùng state, không dùng document.getElementById
+        status: modalStatus,
         thumbnail: sanitizeThumbnail(thumbUrl) || null,
+        stockQty: 0,
+        listPrice: Number(listNum.toFixed(2)),
+        sellPrice: Number(sellNum.toFixed(2)),
       };
 
-      if (editing?.variantId) {
-        await ProductVariantsApi.update(productId, editing.variantId, dto);
-        addToast(
-          "success",
-          "Cập nhật biến thể",
-          "Biến thể đã được cập nhật thành công."
-        );
-      } else {
-        await ProductVariantsApi.create(productId, dto);
-        addToast(
-          "success",
-          "Thêm biến thể",
-          "Biến thể mới đã được tạo thành công."
-        );
-      }
+      await ProductVariantsApi.create(productId, dto);
+      addToast(
+        "success",
+        "Thêm biến thể",
+        "Biến thể mới đã được tạo thành công."
+      );
 
       setShowModal(false);
       setPage(1);
@@ -466,7 +526,6 @@ export default function VariantsPanel({
     }
   };
 
-  // ===== SORT header =====
   const headerSort = (key) => {
     setSort((cur) => {
       if (cur === key) {
@@ -482,7 +541,6 @@ export default function VariantsPanel({
     sort === key ? (dir === "asc" ? " ▲" : " ▼") : "";
 
   const toggleVariantStatus = async (v) => {
-    // Nếu tồn kho = 0 ⇒ không cho đổi trạng thái, show toast cảnh báo giống product
     if ((v.stockQty ?? 0) <= 0) {
       addToast(
         "warning",
@@ -558,7 +616,6 @@ export default function VariantsPanel({
             </span>
           </h4>
 
-          {/* Toolbar */}
           <div className="variants-toolbar">
             <input
               className="ctl"
@@ -586,6 +643,22 @@ export default function VariantsPanel({
               <option value="31-180">31–180 ngày</option>
               <option value=">180">&gt; 180 ngày</option>
             </select>
+            <input
+              className="ctl"
+              type="number"
+              placeholder="Giá từ"
+              value={priceMin}
+              onChange={(e) => setPriceMin(e.target.value)}
+              style={{ maxWidth: 120 }}
+            />
+            <input
+              className="ctl"
+              type="number"
+              placeholder="Giá đến"
+              value={priceMax}
+              onChange={(e) => setPriceMax(e.target.value)}
+              style={{ maxWidth: 120 }}
+            />
             <button className="btn" onClick={resetFilters}>
               Đặt lại
             </button>
@@ -603,13 +676,15 @@ export default function VariantsPanel({
               <div className="variants-scroller">
                 <table className="variants-table">
                   <colgroup>
-                    <col style={{ width: "30%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "24%" }} />
                     <col style={{ width: "10%" }} />
-                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "12%" }} /> {/* Giá bán */}
+                    <col style={{ width: "12%" }} /> {/* Giá niêm yết */}
+                    <col style={{ width: "8%" }} />  {/* Trạng thái */}
+                    <col style={{ width: "7%" }} />  {/* Lượt xem */}
+                    <col style={{ width: "7%" }} />  {/* Thao tác */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -633,10 +708,17 @@ export default function VariantsPanel({
                         Tồn kho{sortMark("stock")}
                       </th>
                       <th
+                        onClick={() => headerSort("price")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Giá bán{sortMark("price")}
+                      </th>
+                      <th>Giá niêm yết</th>
+                      <th
                         onClick={() => headerSort("status")}
                         style={{ cursor: "pointer" }}
                       >
-                        Loại trạng thái{sortMark("status")}
+                        Trạng thái{sortMark("status")}
                       </th>
                       <th
                         onClick={() => headerSort("views")}
@@ -680,6 +762,14 @@ export default function VariantsPanel({
 
                         <td>{v.durationDays ?? 0} ngày</td>
                         <td>{v.stockQty ?? 0}</td>
+
+                        <td className="mono">
+                          {formatMoney(v.sellPrice ?? 0)}
+                        </td>
+
+                        <td className="mono">
+                          {formatMoney(v.listPrice ?? 0)}
+                        </td>
 
                         <td className="col-status">
                           <span
@@ -750,7 +840,7 @@ export default function VariantsPanel({
                     {items.length === 0 && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={9}
                           style={{
                             textAlign: "center",
                             color: "var(--muted)",
@@ -765,7 +855,6 @@ export default function VariantsPanel({
                 </table>
               </div>
 
-              {/* Footer phân trang */}
               <div
                 className="variants-footer"
                 style={{
@@ -870,7 +959,7 @@ export default function VariantsPanel({
         </div>
       </div>
 
-      {/* ===== MODAL CREATE / EDIT ===== */}
+      {/* MODAL CREATE / EDIT */}
       {showModal && (
         <div className="modal-backdrop">
           <div
@@ -948,7 +1037,10 @@ export default function VariantsPanel({
 
               <div className="grid cols-2" style={{ marginTop: 8 }}>
                 <div className="group">
-                  <span>Thời lượng (ngày)<span style={{ color: "#dc2626" }}>*</span></span>
+                  <span>
+                    Thời lượng (ngày)
+                    <span style={{ color: "#dc2626" }}>*</span>
+                  </span>
                   <input
                     type="number"
                     min={0}
@@ -976,6 +1068,44 @@ export default function VariantsPanel({
                   {modalErrors.warrantyDays && (
                     <div className="field-error">
                       {modalErrors.warrantyDays}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid cols-2" style={{ marginTop: 8 }}>
+                <div className="group">
+                  <span>
+                    Giá niêm yết
+                    <span style={{ color: "#dc2626" }}>*</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    name="listPrice"
+                    defaultValue={editing?.listPrice ?? 0}
+                    className={modalErrors.listPrice ? "input-error" : ""}
+                  />
+                  {modalErrors.listPrice && (
+                    <div className="field-error">{modalErrors.listPrice}</div>
+                  )}
+                </div>
+                <div className="group">
+                  <span>
+                    Giá bán<span style={{ color: "#dc2626" }}>*</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    name="sellPrice"
+                    defaultValue={editing?.sellPrice ?? 0}
+                    className={modalErrors.sellPrice ? "input-error" : ""}
+                  />
+                  {modalErrors.sellPrice && (
+                    <div className="field-error">
+                      {modalErrors.sellPrice}
                     </div>
                   )}
                 </div>
@@ -1062,7 +1192,6 @@ export default function VariantsPanel({
         </div>
       )}
 
-      {/* Toast + Confirm cho panel này */}
       <ToastContainer
         toasts={toasts}
         onRemove={removeToast}

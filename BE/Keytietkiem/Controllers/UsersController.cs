@@ -54,7 +54,7 @@ namespace Keytietkiem.Controllers
         }
 
         private static IQueryable<User> ExcludeAdminUsers(IQueryable<User> q)
-            => q.Where(u => !u.Roles.Any(r => r.Name.ToLower().Contains("admin")));
+            => q.Where(u => !u.Roles.Any(r => r.Code.ToLower().Contains("admin")));
 
         /// <summary>
         /// Lấy message lỗi đầu tiên từ ModelState (DataAnnotations trên DTO),
@@ -151,7 +151,7 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == id);
 
             if (u == null) return NotFound();
-            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
 
             return Ok(new UserDetailDto
             {
@@ -184,7 +184,7 @@ namespace Keytietkiem.Controllers
             if (!string.IsNullOrEmpty(dto.RoleId))
             {
                 var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == dto.RoleId);
-                if (role != null && role.Name.Contains("admin", StringComparison.OrdinalIgnoreCase))
+                if (role != null && role.Code.Contains("admin", StringComparison.OrdinalIgnoreCase))
                     return BadRequest(new { message = "Không được tạo người dùng với vai trò chứa 'admin'." });
             }
 
@@ -257,12 +257,12 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == id);
 
             if (u == null) return NotFound();
-            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
 
             if (!string.IsNullOrEmpty(dto.RoleId))
             {
                 var r = await _db.Roles.FirstOrDefaultAsync(x => x.RoleId == dto.RoleId);
-                if (r != null && r.Name.Contains("admin", StringComparison.OrdinalIgnoreCase))
+                if (r != null && r.Code.Contains("admin", StringComparison.OrdinalIgnoreCase))
                     return BadRequest(new { message = "Không được gán vai trò chứa 'admin'." });
             }
 
@@ -350,7 +350,7 @@ namespace Keytietkiem.Controllers
         {
             var u = await _db.Users.Include(x => x.Roles).FirstOrDefaultAsync(x => x.UserId == id);
             if (u == null) return NotFound();
-            if (u.Roles.Any(r => r.Name.ToLower().Contains("admin"))) return NotFound();
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
 
             u.Status = string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase) ? "Disabled" : "Active";
             u.UpdatedAt = DateTime.UtcNow;

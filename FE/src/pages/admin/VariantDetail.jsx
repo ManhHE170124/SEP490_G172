@@ -1,4 +1,3 @@
-// src/pages/admin/VariantDetail.jsx
 import React from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ProductVariantsApi } from "../../services/productVariants";
@@ -16,11 +15,37 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
-// Helper: chuẩn hoá URL thumbnail (bỏ query, cắt max length)
 const sanitizeThumbnail = (url, max = 255) => {
   if (!url) return null;
   const noQuery = url.split("?")[0];
   return noQuery.length > max ? noQuery.slice(0, max) : noQuery;
+};
+
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const raw = String(value).replace(/,/g, "").trim();
+  if (!raw) return { num: null, raw: "" };
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return { num: null, raw };
+  return { num, raw };
+};
+
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = raw.replace(/,/g, "").trim();
+  if (!normalized) return false;
+
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  if (fracPart.length > 2) return false;
+
+  return true;
 };
 
 export default function VariantDetail() {
@@ -34,10 +59,8 @@ export default function VariantDetail() {
   const [errors, setErrors] = React.useState({});
   const [variant, setVariant] = React.useState(null);
 
-  // Snapshot ban đầu để detect thay đổi (dirty)
   const initialVariantRef = React.useRef(null);
 
-  // Toast helpers
   const removeToast = React.useCallback(
     (id) => setToasts((ts) => ts.filter((t) => t.id !== id)),
     []
@@ -52,7 +75,6 @@ export default function VariantDetail() {
     [removeToast]
   );
 
-  // Confirm dialog (giống ProductDetail)
   const [confirmDialog, setConfirmDialog] = React.useState(null);
 
   const openConfirm = React.useCallback(({ title, message, onConfirm }) => {
@@ -67,9 +89,8 @@ export default function VariantDetail() {
     });
   }, []);
 
-  // Upload preview/state
-  const [thumbPreview, setThumbPreview] = React.useState(null); // DataURL/URL để xem trước
-  const [thumbUrl, setThumbUrl] = React.useState(null); // URL sau khi upload (gửi lên BE)
+  const [thumbPreview, setThumbPreview] = React.useState(null);
+  const [thumbUrl, setThumbUrl] = React.useState(null);
   const fileInputRef = React.useRef(null);
 
   const statusClass = (s) =>
@@ -111,19 +132,18 @@ export default function VariantDetail() {
         stockQty: v.stockQty ?? v.StockQty ?? 0,
         thumbnail: serverThumb,
         status: (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
-        hasSections: v.hasSections ?? v.HasSections ?? false, // BE trả về nếu đang có section
+        hasSections: v.hasSections ?? v.HasSections ?? false,
         sellPrice: v.sellPrice ?? v.SellPrice ?? 0,
-        cogsPrice: v.cogsPrice ?? v.CogsPrice ?? 0,
+        listPrice: v.listPrice ?? v.ListPrice ?? v.cogsPrice ?? v.CogsPrice ?? 0,
+        cogsPrice: v.cogsPrice ?? v.CogsPrice ?? 0, // giá vốn – chỉ hiển thị
       };
 
       setVariant(mapped);
 
-      // snapshot ban đầu chỉ set một lần
       if (!initialVariantRef.current) {
         initialVariantRef.current = mapped;
       }
 
-      // set preview & URL để màn detail có thể giữ / đổi / xoá ảnh
       setThumbPreview(serverThumb);
       setThumbUrl(serverThumb);
     } catch (e) {
@@ -139,7 +159,6 @@ export default function VariantDetail() {
 
   const setVar = (k, val) => setVariant((s) => (s ? { ...s, [k]: val } : s));
 
-  // Tính xem form đã chỉnh sửa chưa
   const isDirty = React.useMemo(() => {
     if (!initialVariantRef.current || !variant) return false;
     return (
@@ -147,7 +166,6 @@ export default function VariantDetail() {
     );
   }, [variant]);
 
-  // Cảnh báo khi F5 / đóng tab nếu còn thay đổi
   React.useEffect(() => {
     const handler = (e) => {
       if (!isDirty) return;
@@ -158,7 +176,6 @@ export default function VariantDetail() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  // Nút quay lại – thêm confirm nếu có thay đổi
   const handleBack = () => {
     if (!isDirty) {
       nav(`/admin/products/${productId}`);
@@ -178,7 +195,6 @@ export default function VariantDetail() {
   const toggleActive = async () => {
     if (!variant) return;
 
-    // Chặn bật nếu hết hàng (tồn kho = 0), giống panel list
     if ((variant.stockQty ?? 0) <= 0) {
       addToast(
         "warning",
@@ -195,7 +211,6 @@ export default function VariantDetail() {
       );
       const next = (payload?.Status || payload?.status || "").toUpperCase();
       if (next) {
-        // Toggle này lưu trực tiếp lên BE → coi như không phải "unsaved change"
         setVariant((prev) => {
           if (!prev) return prev;
           const updated = { ...prev, status: next };
@@ -225,7 +240,7 @@ export default function VariantDetail() {
     }
   };
 
-  // ===== Helpers upload ảnh =====
+  // Upload helpers
   const urlToFile = async (url) => {
     const res = await fetch(url);
     const blob = await res.blob();
@@ -267,9 +282,7 @@ export default function VariantDetail() {
   const uploadThumbnailFile = async (file) => {
     if (!validateImageFile(file)) return;
 
-    // xem trước ngay (local)
     handleLocalPreview(file);
-    // upload lên server (Cloudinary qua controller)
     try {
       const up = await ProductVariantsApi.uploadImage(file);
       const imageUrl =
@@ -336,7 +349,6 @@ export default function VariantDetail() {
       }
       return;
     }
-    // Support paste URL vào drop
     const text = dt.getData("text/uri-list") || dt.getData("text/plain");
     if (text && /^https?:\/\//i.test(text)) {
       try {
@@ -403,14 +415,12 @@ export default function VariantDetail() {
     const title = (variant.title || "").trim();
     const variantCode = (variant.variantCode || "").trim();
 
-    // Validate Tên biến thể
     if (!title) {
       nextErrors.title = "Tên biến thể là bắt buộc.";
     } else if (title.length > TITLE_MAX) {
       nextErrors.title = `Tên biến thể không được vượt quá ${TITLE_MAX} ký tự.`;
     }
 
-    // Validate Mã biến thể
     if (!variantCode) {
       nextErrors.variantCode = "Mã biến thể là bắt buộc.";
     } else if (variantCode.length > CODE_MAX) {
@@ -426,27 +436,16 @@ export default function VariantDetail() {
     const durationDays = parseIntOrNull(variant.durationDays);
     const warrantyDays = parseIntOrNull(variant.warrantyDays);
 
-    const parseDecimalOrNull = (v) => {
-      if (v === "" || v == null) return 0;
-      const n = Number(v);
-      return Number.isNaN(n) ? null : n;
-    };
-
-    const sellPrice = parseDecimalOrNull(variant.sellPrice);
-
-    // Thời lượng (ngày) – bắt buộc
     if (durationDays == null) {
       nextErrors.durationDays = "Thời lượng (ngày) là bắt buộc.";
     } else if (durationDays < 0) {
       nextErrors.durationDays = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0.";
     }
 
-    // Bảo hành (ngày) – số nguyên >= 0
     if (warrantyDays != null && warrantyDays < 0) {
       nextErrors.warrantyDays = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0.";
     }
 
-    // Quan hệ: thời lượng > bảo hành
     if (
       durationDays != null &&
       warrantyDays != null &&
@@ -456,8 +455,45 @@ export default function VariantDetail() {
         "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
     }
 
-    if (sellPrice == null || sellPrice < 0) {
+    const { num: listNum, raw: listRaw } = parseMoney(variant.listPrice);
+    const { num: sellNum, raw: sellRaw } = parseMoney(variant.sellPrice);
+    const cogsNum = Number(variant.cogsPrice ?? 0);
+
+    if (listRaw === "" || listNum === null) {
+      nextErrors.listPrice = "Giá niêm yết là bắt buộc.";
+    } else if (listNum < 0) {
+      nextErrors.listPrice = "Giá niêm yết phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(listRaw)) {
+      nextErrors.listPrice =
+        "Giá niêm yết không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    if (sellRaw === "" || sellNum === null) {
+      nextErrors.sellPrice = "Giá bán là bắt buộc.";
+    } else if (sellNum < 0) {
       nextErrors.sellPrice = "Giá bán phải lớn hơn hoặc bằng 0.";
+    } else if (!isValidDecimal18_2(sellRaw)) {
+      nextErrors.sellPrice =
+        "Giá bán không được vượt quá decimal(18,2) (tối đa 16 chữ số phần nguyên và 2 chữ số thập phân).";
+    }
+
+    if (
+      !nextErrors.listPrice &&
+      !nextErrors.sellPrice &&
+      listNum != null &&
+      sellNum != null &&
+      sellNum > listNum
+    ) {
+      nextErrors.sellPrice = "Giá bán không được lớn hơn giá niêm yết.";
+    }
+
+    if (
+      !nextErrors.listPrice &&
+      listNum != null &&
+      cogsNum > 0 &&
+      listNum < cogsNum
+    ) {
+      nextErrors.listPrice = "Giá niêm yết không được nhỏ hơn giá vốn.";
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -477,13 +513,15 @@ export default function VariantDetail() {
 
       const dto = {
         title,
-        variantCode, // BE cần hỗ trợ update VariantCode
+        variantCode,
         durationDays,
         stockQty: Number(variant.stockQty ?? 0),
         warrantyDays,
         thumbnail: sanitizeThumbnail(thumbUrl) || null,
         status: variant.status,
-        sellPrice: sellPrice ?? 0,
+        sellPrice: Number(sellNum.toFixed(2)),
+        listPrice: Number(listNum.toFixed(2)),
+        // cogsPrice không gửi – BE giữ giá vốn từ module nhập key/account
       };
 
       await ProductVariantsApi.update(productId, variant.variantId, dto);
@@ -494,7 +532,6 @@ export default function VariantDetail() {
         "Biến thể đã được lưu thành công."
       );
 
-      // Sau khi lưu xong quay lại Product Detail
       setTimeout(() => {
         nav(`/admin/products/${productId}`);
       }, 400);
@@ -504,7 +541,6 @@ export default function VariantDetail() {
       const code = data.code;
       const msg = data.message || e.message;
 
-      // Map lỗi BE -> field error + toast
       if (status === 409 && code === "VARIANT_TITLE_DUPLICATE") {
         setErrors((prev) => ({
           ...prev,
@@ -581,7 +617,6 @@ export default function VariantDetail() {
     <>
       <div className="page">
         <div className="card">
-          {/* Header (đồng bộ style với ProductDetail) */}
           <div
             style={{
               display: "flex",
@@ -593,7 +628,6 @@ export default function VariantDetail() {
             <h2>Chi tiết biến thể</h2>
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
-              {/* Tồn kho: hiển thị, không cho chỉnh trên màn hình này */}
               <span className="badge gray">
                 Tồn kho: {variant.stockQty ?? 0}
               </span>
@@ -623,7 +657,6 @@ export default function VariantDetail() {
             </div>
           </div>
 
-          {/* Form cơ bản – format giống ProductDetail */}
           <div
             className="grid cols-3 input-group"
             style={{ gridColumn: "1 / 3" }}
@@ -703,17 +736,25 @@ export default function VariantDetail() {
               )}
             </div>
             <div className="group">
-              <span>Giá vốn (COGS)</span>
+              <span>
+                Giá niêm yết<span style={{ color: "#dc2626" }}>*</span>
+              </span>
               <input
                 type="number"
                 min={0}
                 step={1000}
-                value={variant.cogsPrice ?? ""}
-                disabled
+                value={variant.listPrice ?? ""}
+                onChange={(e) => setVar("listPrice", e.target.value)}
+                className={errors.listPrice ? "input-error" : ""}
               />
+              {errors.listPrice && (
+                <div className="field-error">{errors.listPrice}</div>
+              )}
             </div>
             <div className="group">
-              <span>Giá bán</span>
+              <span>
+                Giá bán<span style={{ color: "#dc2626" }}>*</span>
+              </span>
               <input
                 type="number"
                 min={0}
@@ -728,7 +769,23 @@ export default function VariantDetail() {
             </div>
           </div>
 
-          {/* Upload thumbnail */}
+          {/* Giá vốn chỉ hiển thị, không chỉnh sửa */}
+          <div
+            className="grid cols-3 input-group"
+            style={{ gridColumn: "1 / 3" }}
+          >
+            <div className="group">
+              <span>Giá vốn (chỉ hiển thị)</span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={variant.cogsPrice ?? ""}
+                disabled
+              />
+            </div>
+          </div>
+
           <div className="input-group" style={{ gridColumn: "1 / 3" }}>
             <div className="group">
               <span>Ảnh biến thể (thumbnail)</span>
@@ -798,7 +855,6 @@ export default function VariantDetail() {
             </div>
           </div>
 
-          {/* Sections của biến thể */}
           <div className="group" style={{ gridColumn: "1 / 3", marginTop: 12 }}>
             <ProductSectionsPanel
               productId={productId}
@@ -806,7 +862,6 @@ export default function VariantDetail() {
             />
           </div>
 
-          {/* Actions */}
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn primary" disabled={saving} onClick={save}>
               {saving ? "Đang lưu…" : "Lưu thay đổi"}

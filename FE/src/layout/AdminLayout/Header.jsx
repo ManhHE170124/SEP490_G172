@@ -146,19 +146,6 @@ const Header = ({ profile }) => {
   return (
     <div className="alh-header" role="banner">
       <div className="alh-search">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M21 21l-4.2-4.2M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-            stroke="#6b7280"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-        <input
-          type="search"
-          placeholder="Tìm kiếm đơn hàng, key..."
-          aria-label="Tìm kiếm"
-        />
       </div>
       <div className="alh-right">
         <span

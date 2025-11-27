@@ -1,10 +1,8 @@
 // src/services/storefrontProductService.js
-// Service gọi API sản phẩm phía người dùng (storefront)
-
 import axiosClient from "../api/axiosClient";
 import {
-  PRODUCT_TYPES,   // 4 loại sản phẩm dùng chung với admin
-  typeLabelOf,     // helper map code -> nhãn tiếng Việt
+  PRODUCT_TYPES,
+  typeLabelOf,
 } from "./products";
 
 const ROOT = "storefront/products";
@@ -48,19 +46,20 @@ const normalizeBadgeMini = (b = {}) => ({
   icon:        b.icon        ?? b.Icon ?? null,
 });
 
-// src/services/storefrontProductService.js
-
+// ==== Chuẩn hoá item biến thể (dùng cho list & related) ====
 const normalizeVariantItem = (v = {}) => {
   const variantTitle =
-    v.variantTitle ??
-    v.VariantTitle ??
-    v.title ??
-    v.Title ??
+    v.variantTitle ?? v.VariantTitle ??
+    v.title        ?? v.Title        ??
     "";
 
   const rawStatus = (v.status ?? v.Status ?? "INACTIVE")
     .toString()
     .toUpperCase();
+
+  const sellPrice = v.sellPrice ?? v.SellPrice ?? null;
+  const listPrice = v.listPrice ?? v.ListPrice ?? null;
+  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null; // có thì map, không thì null
 
   return {
     variantId:   v.variantId   ?? v.VariantId,
@@ -74,13 +73,73 @@ const normalizeVariantItem = (v = {}) => {
 
     thumbnail: v.thumbnail ?? v.Thumbnail ?? null,
     status: rawStatus,
-    isOutOfStock: rawStatus === "OUT_OF_STOCK",   // <== thêm
+    isOutOfStock: rawStatus === "OUT_OF_STOCK",
+
+    // Giá hiển thị trên storefront
+    sellPrice,
+    listPrice,   // <= GIÁ NIÊM YẾT / GIÁ GỐC
+    cogsPrice,   // chỉ để tham khảo nếu BE có trả về
 
     badges: (v.badges ?? v.Badges ?? []).map(normalizeBadgeMini),
   };
 };
+// ==== Chuẩn hoá sibling variant trong detail ====
+const normalizeSiblingVariant = (v = {}) => {
+  const title =
+    v.variantTitle ?? v.VariantTitle ??
+    v.title        ?? v.Title        ??
+    "";
 
+  const rawStatus = (v.status ?? v.Status ?? "INACTIVE")
+    .toString()
+    .toUpperCase();
 
+  return {
+    variantId: v.variantId ?? v.VariantId,
+    title,
+    status: rawStatus,
+    isOutOfStock: rawStatus === "OUT_OF_STOCK",
+  };
+};
+
+// ==== Chuẩn hoá section trong detail ====
+const normalizeSection = (s = {}) => ({
+  sectionId:   s.sectionId   ?? s.SectionId,
+  sectionType: s.sectionType ?? s.SectionType,
+  title:       s.title       ?? s.Title,
+  content:     s.content     ?? s.Content ?? "",
+});
+
+// ==== Chuẩn hoá FAQ trong detail ====
+const normalizeFaq = (f = {}) => ({
+  faqId:    f.faqId    ?? f.FaqId,
+  question: f.question ?? f.Question,
+  answer:   f.answer   ?? f.Answer,
+  source:   f.source   ?? f.Source,
+});
+
+// ==== Chuẩn hoá detail variant ====
+const normalizeVariantDetail = (res = {}) => {
+  const main = normalizeVariantItem(res);
+  const stockQty = res.stockQty ?? res.StockQty ?? 0;
+
+  return {
+    ...main,
+    stockQty,
+
+    categories: (res.categories ?? res.Categories ?? []).map(
+      normalizeCategoryMini
+    ),
+
+    siblingVariants: (res.siblingVariants ?? res.SiblingVariants ?? []).map(
+      normalizeSiblingVariant
+    ),
+
+    sections: (res.sections ?? res.Sections ?? []).map(normalizeSection),
+
+    faqs: (res.faqs ?? res.Faqs ?? []).map(normalizeFaq),
+  };
+};
 
 // ==== Chuẩn hoá filters (StorefrontFiltersDto) ====
 const normalizeFilters = (res = {}) => ({
@@ -89,20 +148,16 @@ const normalizeFilters = (res = {}) => ({
     categoryCode: c.categoryCode ?? c.CategoryCode,
     categoryName: c.categoryName ?? c.CategoryName,
   })),
-  // productTypes bên BE chỉ là array string, FE có thể map sang label bằng PRODUCT_TYPES + typeLabelOf
   productTypes: res.productTypes ?? res.ProductTypes ?? [],
 });
 
 export const StorefrontProductApi = {
-  // ===== FILTERS (GET /api/storefront/products/filters) =====
   filters: async () => {
     const axiosRes = await axiosClient.get(`${ROOT}/filters`);
     const res = axiosRes?.data ?? axiosRes;
     return normalizeFilters(res);
   },
 
-  // ===== LIST VARIANTS (GET /api/storefront/products/variants) =====
-  // params: { q, categoryId, productType, minPrice, maxPrice, sort, page, pageSize }
   listVariants: async (params = {}) => {
     const {
       q,
@@ -136,7 +191,27 @@ export const StorefrontProductApi = {
     };
   },
 
-  // Re-export mapping loại sản phẩm dùng chung với admin
+  variantDetail: async (productId, variantId) => {
+    const axiosRes = await axiosClient.get(
+      `${ROOT}/${productId}/variants/${variantId}/detail`
+    );
+    const res = axiosRes?.data ?? axiosRes;
+    return normalizeVariantDetail(res);
+  },
+
+  relatedVariants: async (productId, variantId) => {
+    const axiosRes = await axiosClient.get(
+      `${ROOT}/${productId}/variants/${variantId}/related`
+    );
+    const res = axiosRes?.data ?? axiosRes;
+
+    const items = Array.isArray(res)
+      ? res
+      : res?.items ?? res?.Items ?? [];
+
+    return items.map(normalizeVariantItem);
+  },
+
   types: PRODUCT_TYPES,
   typeLabelOf,
 };

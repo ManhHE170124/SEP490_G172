@@ -14,6 +14,4 @@ public partial class WarrantyClaim
     public DateTime SubmittedAt { get; set; }
 
     public string Status { get; set; } = null!;
-
-    public virtual OrderDetail OrderDetail { get; set; } = null!;
 }

@@ -24,9 +24,6 @@ public class SupportChatController : ControllerBase
     private const string StatusActive = "Active";
     private const string StatusClosed = "Closed";
 
-    // Tên role giống TicketsController (Customer Care Staff)
-    private const string StaffRoleName = "customer care staff";
-    private const string AdminRoleName = "admin";
 
     public SupportChatController(KeytietkiemDbContext db, IHubContext<SupportChatHub> hub)
     {
@@ -86,8 +83,7 @@ public class SupportChatController : ControllerBase
         var roles = u.Roles ?? Array.Empty<Role>();
         return roles.Any(r =>
         {
-            var name = (r.Name ?? string.Empty).Trim().ToLowerInvariant();
-            return name == StaffRoleName || name == AdminRoleName;
+            return (r.Code ?? string.Empty).ToLower().Contains("care") || (r.Code ?? string.Empty).ToLower().Contains("admin");
         });
     }
 

@@ -14,7 +14,6 @@ import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
-import HomePage from "../pages/home/HomePage";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
@@ -36,6 +35,8 @@ import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
+import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 import AccessDenied from "../pages/errors/AccessDenied";
@@ -64,6 +65,11 @@ import KeyMonitorPage from "../pages/storage/KeyMonitorPage.jsx";
 //Blog(Client)
 import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
+import StorefrontHomepagePage from "../pages/storefront/StorefrontHomepagePage.jsx";
+import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
+import StorefrontCartPage from "../pages/storefront/StorefrontCartPage";
+import PaymentCancelPage from "../pages/storefront/PaymentCancelPage";
+import PaymentResultPage from "../pages/storefront/PaymentResultPage";
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 // Order pages
@@ -71,8 +77,9 @@ import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
 import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
 
 // Customer ticket pages
-import CustomerTicketsPage from "../pages/tickets/customer-tickets.jsx";
+import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
+import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-management.jsx";
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -109,14 +116,15 @@ export default function AppRoutes() {
     </ProtectedRoute>
   );
 
-  return (
+ return (
     <Routes>
       {/* Default Access Routes */}
       <Route
         path="/"
         element={
           <ClientLayout>
-            <HomePage />
+            {/* dùng homepage storefront mới làm trang mặc định */}
+            <StorefrontHomepagePage />
           </ClientLayout>
         }
       />
@@ -238,10 +246,10 @@ export default function AppRoutes() {
 
       {/* Customer tickets */}
       <Route
-        path="/tickets"
+        path="/tickets/create"
         element={
           <ClientLayout>
-            <CustomerTicketsPage />
+            <CustomerTicketCreatePage />
           </ClientLayout>
         }
       />
@@ -253,7 +261,14 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
-
+      <Route
+        path="/tickets"
+        element={
+          <ClientLayout>
+            <CustomerTicketManagementPage />
+          </ClientLayout>
+        }
+      />
       {/* Orders */}
       <Route
         path="/orders/history"
@@ -308,6 +323,21 @@ export default function AppRoutes() {
         element={renderAdminPage(
           MODULE_CODES.PRODUCT_MANAGER,
           <CategoryPage />
+        )}
+      />
+       <Route
+        path="/admin/orders"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,   // có thể đổi sang module code khác nếu sau này tách quyền
+          <OrderPaymentPage />
+        )}
+      />
+      {/* Alias: /admin/payments cũng mở cùng page */}
+      <Route
+        path="/admin/payments"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <OrderPaymentPage />
         )}
       />
       {/* FAQs */}
@@ -473,6 +503,19 @@ export default function AppRoutes() {
       />
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
+      <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
+      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
+      <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
+<Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
+  <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
+  <Route
+        path="/homepage"
+        element={
+          <ClientLayout>
+            <StorefrontHomepagePage />
+          </ClientLayout>
+        }
+      />
       <Route
         path="/access-denied"
         element={

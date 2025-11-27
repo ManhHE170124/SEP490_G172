@@ -211,7 +211,7 @@ const Sidebar = () => {
         },
       ],
     },
-    {
+       {
       id: "product",
       title: "Quản lý sản phẩm",
       moduleCode: MODULE_CODES.PRODUCT_MANAGER,
@@ -264,8 +264,79 @@ const Sidebar = () => {
             </svg>
           ),
         },
+
+        // === THÊM MENU ĐƠN HÀNG & THANH TOÁN ===
+        {
+          id: "orders-admin",
+          label: "Đơn hàng & thanh toán",
+          to: "/admin/orders",
+          // currentPage ở trên lấy bằng location.pathname.substring(1)
+          // nên path "/admin/orders" => currentPage === "admin/orders"
+          isActive:
+            currentPage === "/admin/orders" ||
+            currentPage === "/admin/payments",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="16"
+                rx="2"
+                ry="2"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <path
+                d="M3 9h18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M8 13h4M8 17h3"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <circle
+                cx="17"
+                cy="15"
+                r="2"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
+
+        {
+          id: "faqs",
+          label: "Câu hỏi thường gặp",
+          to: "/admin/faqs",
+          isActive: currentPage === "/admin/faqs",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="12"
+                cy="7"
+                r="4"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
       ],
     },
+
     {
       id: "role",
       title: "Quản lý phân quyền",
