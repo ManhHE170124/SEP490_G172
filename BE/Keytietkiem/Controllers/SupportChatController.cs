@@ -497,7 +497,68 @@ public class SupportChatController : ControllerBase
         return Ok(result);
     }
 
-    // ===== 7. CLOSE SESSION =====
+    // ===== 7. UNASSIGN SESSION =====
+    // POST /api/support-chats/{sessionId}/unassign
+    /// <summary>
+    /// Nhân viên trả lại phiên chat đang phụ trách về hàng chờ (Waiting + không có AssignedStaffId).
+    /// Chỉ nhân viên đang được gán phiên chat mới được unassign.
+    /// </summary>
+    [HttpPost("{sessionId:guid}/unassign")]
+    public async Task<ActionResult<SupportChatSessionItemDto>> Unassign(Guid sessionId)
+    {
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var user = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (user is null) return Unauthorized();
+
+        if (!IsStaffLike(user))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ nhân viên hỗ trợ mới được trả lại phiên chat." });
+        }
+
+        var session = await _db.SupportChatSessions
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .FirstOrDefaultAsync(s => s.ChatSessionId == sessionId);
+
+        if (session is null) return NotFound();
+
+        if (session.Status == StatusClosed)
+        {
+            return BadRequest(new { message = "Phiên chat đã đóng, không thể trả lại hàng chờ." });
+        }
+
+        if (session.AssignedStaffId != me.Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không phải nhân viên đang phụ trách phiên chat này." });
+        }
+
+        // Đưa về queue: bỏ gán nhân viên, set Status = Waiting
+        session.AssignedStaffId = null;
+        session.AssignedStaff = null;
+        session.Status = StatusWaiting;
+
+        await _db.SaveChangesAsync();
+
+        var dto = MapToSessionItem(session);
+
+        // Broadcast tới group của phiên chat (customer + staff) để header/status được cập nhật
+        await _hub.Clients.Group(BuildSessionGroup(session.ChatSessionId))
+            .SendAsync("SupportSessionUpdated", dto);
+
+        // Broadcast cho queue staff để tất cả màn staff thấy session quay lại hàng chờ
+        await _hub.Clients.Group(QueueGroup)
+            .SendAsync("SupportSessionUpdated", dto);
+
+        return Ok(dto);
+    }
+
+    // ===== 8. CLOSE SESSION =====
     // POST /api/support-chats/{sessionId}/close
     /// <summary>
     /// Đóng 1 phiên chat.

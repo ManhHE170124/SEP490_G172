@@ -32,15 +32,19 @@ function normalizeSession(raw) {
   return {
     chatSessionId: raw.chatSessionId || raw.ChatSessionId,
     customerName:
-      raw.customerName || raw.CustomerName || raw.customerEmail || "Khách hàng",
+      raw.customerName ||
+      raw.CustomerName ||
+      raw.customerEmail ||
+      raw.CustomerEmail ||
+      "Khách hàng",
     customerEmail: raw.customerEmail || raw.CustomerEmail || "",
     assignedStaffName: raw.assignedStaffName || raw.AssignedStaffName || "",
     status: raw.status || raw.Status || "",
     priorityLevel:
       raw.priorityLevel ?? raw.PriorityLevel ?? raw.priority ?? null,
     lastMessagePreview: raw.lastMessagePreview || raw.LastMessagePreview || "",
-    lastMessageAt: raw.lastMessageAt || raw.LastMessageAt,
-    startedAt: raw.startedAt || raw.StartedAt,
+    lastMessageAt: raw.lastMessageAt || raw.LastMessageAt || null,
+    startedAt: raw.startedAt || raw.StartedAt || null,
   };
 }
 
@@ -56,7 +60,12 @@ function normalizeMessage(raw) {
         ? raw.isFromStaff
         : !!raw.IsFromStaff,
     content: raw.content || raw.Content || "",
-    createdAt: raw.createdAt || raw.CreatedAt,
+    sentAt:
+      raw.sentAt ||
+      raw.SentAt ||
+      raw.createdAt ||
+      raw.CreatedAt ||
+      null,
   };
 }
 
@@ -96,7 +105,7 @@ function getPriorityLabel(level) {
   return "Tiêu chuẩn";
 }
 
-// === MỚI: helper đọc tab từ query string ===
+// helper đọc tab từ query string (?tab=unassigned|mine)
 function getTabFromQuery(searchParams) {
   if (!searchParams) return null;
   try {
@@ -121,7 +130,7 @@ function getTabFromQuery(searchParams) {
 // ---- Staff Support Chat Page ----
 
 export default function StaffSupportChatPage() {
-  const isAdmin = false; // staff bị hạn chế
+  const isAdmin = false; // Staff bị hạn chế, không xem closed
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSelectedId = searchParams.get("sessionId") || null;
@@ -130,11 +139,12 @@ export default function StaffSupportChatPage() {
   const [activeTab, setActiveTab] = useState(initialActiveTab); // "unassigned" | "mine"
   const [includeClosed] = useState(false); // staff không dùng, luôn false
 
-  const [queue, setQueue] = useState([]);
-  const [mine, setMine] = useState([]);
+  const [queue, setQueue] = useState([]); // hàng chờ chưa nhận
+  const [mine, setMine] = useState([]); // phiên của tôi
 
   const [selectedSessionId, setSelectedSessionId] = useState(initialSelectedId);
   const [messages, setMessages] = useState([]);
+
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [loadingMine, setLoadingMine] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -145,11 +155,16 @@ export default function StaffSupportChatPage() {
   const [stateText, setStateText] = useState("");
   const [errorText, setErrorText] = useState("");
 
-  const messagesEndRef = useRef(null);
-  const connectionRef = useRef(null);
+  // ==== Scroll state cho khung chat giống ticket detail ====
+  const messagesRef = useRef(null);
+  const isAtBottomRef = useRef(true);
+  const initialScrollDoneRef = useRef(false);
+
+  // Connection & group state
+  const [connection, setConnection] = useState(null);
   const joinedSessionIdRef = useRef(null);
 
-  const effectiveIncludeClosed = isAdmin && includeClosed; // => luôn false
+  const effectiveIncludeClosed = isAdmin && includeClosed; // staff => luôn false
 
   // Đồng bộ selectedSessionId với query param ?sessionId=...
   useEffect(() => {
@@ -157,7 +172,7 @@ export default function StaffSupportChatPage() {
     setSelectedSessionId((prev) => (prev === paramId ? prev : paramId));
   }, [searchParams]);
 
-  // === MỚI: Đồng bộ activeTab với query param ?tab=... (nếu có) ===
+  // Đồng bộ tab với query param ?tab=...
   useEffect(() => {
     const queryTab = getTabFromQuery(searchParams);
     if (!queryTab) return;
@@ -181,12 +196,12 @@ export default function StaffSupportChatPage() {
     setLoadingQueue(true);
     try {
       const res = await supportChatApi.getUnassigned();
-      const items = Array.isArray(res?.items ?? res?.Items)
+      const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
         ? res
         : [];
-      const mapped = items.map(normalizeSession).filter(Boolean);
+      const mapped = rawItems.map(normalizeSession).filter(Boolean);
       setQueue(mapped);
     } catch (e) {
       console.error(e);
@@ -200,30 +215,62 @@ export default function StaffSupportChatPage() {
     }
   }, []);
 
-  const loadMine = useCallback(async () => {
-    setLoadingMine(true);
+  const loadMine = useCallback(
+    async () => {
+      setLoadingMine(true);
+      try {
+        const res = await supportChatApi.getMySessions({
+          includeClosed: effectiveIncludeClosed,
+        });
+        const rawItems = Array.isArray(res?.items ?? res?.Items)
+          ? res.items ?? res.Items
+          : Array.isArray(res)
+          ? res
+          : [];
+        const mapped = rawItems.map(normalizeSession).filter(Boolean);
+        setMine(mapped);
+      } catch (e) {
+        console.error(e);
+        setErrorText(
+          e?.response?.data?.message ||
+            e.message ||
+            "Không tải được danh sách phiên của bạn."
+        );
+      } finally {
+        setLoadingMine(false);
+      }
+    },
+    [effectiveIncludeClosed]
+  );
+
+  // ---- Load messages ----
+  const loadMessages = useCallback(async (sessionId) => {
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
+
+    setLoadingMessages(true);
     try {
-      const res = await supportChatApi.getMySessions({
-        includeClosed: effectiveIncludeClosed,
-      });
-      const items = Array.isArray(res?.items ?? res?.Items)
+      const res = await supportChatApi.getMessages(sessionId);
+      const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
         ? res
         : [];
-      const mapped = items.map(normalizeSession).filter(Boolean);
-      setMine(mapped);
+      const mapped = rawItems.map(normalizeMessage).filter(Boolean);
+      setMessages(mapped);
     } catch (e) {
       console.error(e);
       setErrorText(
         e?.response?.data?.message ||
           e.message ||
-          "Không tải được danh sách phiên của bạn."
+          "Không tải được lịch sử tin nhắn."
       );
     } finally {
-      setLoadingMine(false);
+      setLoadingMessages(false);
     }
-  }, [effectiveIncludeClosed]);
+  }, []);
 
   const refreshAll = useCallback(async () => {
     setStateText("Đang tải dữ liệu...");
@@ -232,13 +279,13 @@ export default function StaffSupportChatPage() {
     setStateText("");
   }, [loadQueue, loadMine]);
 
-  // ---- SignalR connection ----
+  // ---- SignalR connection (khởi tạo 1 lần) ----
   useEffect(() => {
-    let alive = true;
+    let stopped = false;
+    let connInstance = null;
 
     const setupConnection = async () => {
       try {
-        // Lấy base URL giống các màn khác (ticket, widget)
         let apiBase = axiosClient?.defaults?.baseURL || "";
         if (!apiBase) {
           apiBase =
@@ -249,18 +296,19 @@ export default function StaffSupportChatPage() {
             "https://localhost:7292/api";
         }
         const hubRoot = apiBase.replace(/\/api\/?$/i, "");
-        // BE: MapHub<SupportChatHub>("/supportChatHub") hoặc "/hubs/support-chat"
-        const hubUrl = `${hubRoot}/supportChatHub`;
+        // ✅ Khớp BE: MapHub<SupportChatHub>("/hubs/support-chat")
+        const hubUrl = `${hubRoot}/hubs/support-chat`;
 
         const conn = new HubConnectionBuilder()
           .withUrl(hubUrl, {
             accessTokenFactory: () => {
               try {
                 const raw =
+                  localStorage.getItem("access_token") ||
                   localStorage.getItem("token") ||
                   sessionStorage.getItem("token") ||
                   "";
-                return raw;
+                return raw.replace(/^"|"$/g, "");
               } catch {
                 return "";
               }
@@ -270,24 +318,21 @@ export default function StaffSupportChatPage() {
           .withAutomaticReconnect()
           .build();
 
-        conn.on("ReceiveSupportChatMessage", (raw) => {
+        connInstance = conn;
+
+        // Handlers
+        const handleIncomingMessage = (raw) => {
           const msg = normalizeMessage(raw);
           if (!msg) return;
-          // Nếu tin nhắn thuộc phiên hiện đang join thì thêm vào
-          setMessages((prev) => {
-            if (!prev) return [msg];
-            if (prev.some((x) => x.messageId === msg.messageId)) return prev;
-            return [...prev, msg];
-          });
 
-          // Nếu là tin nhắn mới cho phiên trong list, update lastMessagePreview
+          // Cập nhật preview ở list
           setQueue((prev) =>
             prev.map((s) =>
               s.chatSessionId === msg.chatSessionId
                 ? {
                     ...s,
                     lastMessagePreview: msg.content,
-                    lastMessageAt: msg.createdAt,
+                    lastMessageAt: msg.sentAt ?? s.lastMessageAt,
                   }
                 : s
             )
@@ -298,32 +343,100 @@ export default function StaffSupportChatPage() {
                 ? {
                     ...s,
                     lastMessagePreview: msg.content,
-                    lastMessageAt: msg.createdAt,
+                    lastMessageAt: msg.sentAt ?? s.lastMessageAt,
                   }
                 : s
             )
           );
-        });
+
+          // Chỉ push vào panel chat nếu đang mở đúng session
+          if (joinedSessionIdRef.current !== msg.chatSessionId) {
+            return;
+          }
+
+          setMessages((prev) => {
+            const list = prev || [];
+            if (
+              msg.messageId &&
+              list.some((x) => x.messageId === msg.messageId)
+            ) {
+              return prev;
+            }
+            return [...list, msg];
+          });
+        };
+
+        const handleSessionUpdated = (raw) => {
+          const s = normalizeSession(raw);
+          if (!s) return;
+
+          setQueue((prev) => {
+            const exist = prev.some(
+              (x) => x.chatSessionId === s.chatSessionId
+            );
+            if (!exist) return prev;
+            return prev.map((x) =>
+              x.chatSessionId === s.chatSessionId ? { ...x, ...s } : x
+            );
+          });
+          setMine((prev) => {
+            const exist = prev.some(
+              (x) => x.chatSessionId === s.chatSessionId
+            );
+            if (!exist) return prev;
+            return prev.map((x) =>
+              x.chatSessionId === s.chatSessionId ? { ...x, ...s } : x
+            );
+          });
+        };
+
+        const handleSessionCreated = (raw) => {
+          const s = normalizeSession(raw);
+          if (!s) return;
+          setQueue((prev) => [s, ...prev]);
+        };
+
+        const handleSessionClosed = (raw) => {
+          const s = normalizeSession(raw);
+          if (!s) return;
+          setQueue((prev) =>
+            prev.filter((x) => x.chatSessionId !== s.chatSessionId)
+          );
+          setMine((prev) =>
+            prev.filter((x) => x.chatSessionId !== s.chatSessionId)
+          );
+
+          if (joinedSessionIdRef.current === s.chatSessionId) {
+            joinedSessionIdRef.current = null;
+            setSelectedSessionId(null);
+          }
+        };
+
+        conn.on("SupportMessageReceived", handleIncomingMessage);
+        conn.on("ReceiveSupportMessage", handleIncomingMessage);
+        conn.on("ReceiveSupportChatMessage", handleIncomingMessage); // legacy
+        conn.on("SupportSessionUpdated", handleSessionUpdated);
+        conn.on("SupportSessionCreated", handleSessionCreated);
+        conn.on("SupportSessionClosed", handleSessionClosed);
 
         conn.onclose((e) => {
-          console.warn("SupportChat SignalR connection closed:", e);
+          console.warn("[SupportChat] SignalR connection closed:", e);
         });
 
         await conn.start();
-        if (!alive) {
-          await conn.stop();
+        if (stopped) {
+          await conn.stop().catch(() => {});
           return;
         }
 
-        connectionRef.current = conn;
-
-        if (joinedSessionIdRef.current) {
-          try {
-            await conn.invoke("JoinSupportChatSession", joinedSessionIdRef.current);
-          } catch (e) {
-            console.error("Failed to re-join support chat session:", e);
-          }
+        // ✅ Staff join group queue để nhận realtime hàng chờ
+        try {
+          await conn.invoke("JoinStaffQueue");
+        } catch (err) {
+          console.error("[SupportChat] JoinStaffQueue failed:", err);
         }
+
+        setConnection(conn);
       } catch (e) {
         console.error("Failed to setup SupportChat SignalR connection:", e);
       }
@@ -332,46 +445,75 @@ export default function StaffSupportChatPage() {
     setupConnection();
 
     return () => {
-      alive = false;
-      if (connectionRef.current) {
-        connectionRef.current
+      stopped = true;
+      if (connInstance) {
+        connInstance
           .stop()
-          .catch((e) => console.error("Error stopping SignalR connection:", e));
-        connectionRef.current = null;
+          .catch((e) =>
+            console.error("Error stopping SupportChat SignalR connection:", e)
+          );
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // chỉ khởi tạo 1 lần
 
-  // ---- Join/leave session trên SignalR khi selectedSessionId thay đổi ----
+  // ---- Join/leave session group khi selectedSessionId hoặc connection thay đổi ----
   useEffect(() => {
-    const conn = connectionRef.current;
-    const sessionId = selectedSessionId;
-
-    if (!conn) return;
+    if (!connection) return;
 
     const run = async () => {
       try {
-        if (joinedSessionIdRef.current && joinedSessionIdRef.current !== sessionId) {
-          await conn.invoke("LeaveSupportChatSession", joinedSessionIdRef.current);
+        if (
+          joinedSessionIdRef.current &&
+          joinedSessionIdRef.current !== selectedSessionId
+        ) {
+          await connection.invoke(
+            "LeaveSession",
+            joinedSessionIdRef.current
+          );
           joinedSessionIdRef.current = null;
         }
 
-        if (sessionId) {
-          await conn.invoke("JoinSupportChatSession", sessionId);
-          joinedSessionIdRef.current = sessionId;
+        if (selectedSessionId) {
+          await connection.invoke("JoinSession", selectedSessionId);
+          joinedSessionIdRef.current = selectedSessionId;
         }
       } catch (e) {
-        console.error("Failed to join/leave support chat session:", e);
+        console.error("Failed to join/leave support session group:", e);
       }
     };
 
     run();
-  }, [selectedSessionId]);
+  }, [connection, selectedSessionId]);
 
-  // ---- Scroll xuống cuối khi có tin nhắn ----
+  // 🧷 Theo dõi scroll trong khung chat – giống thread ticket detail
+  const handleMessagesScroll = () => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const threshold = 20; // px – cho phép lệch chút vẫn coi như ở đáy
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isAtBottomRef.current = distanceToBottom <= threshold;
+  };
+
+  // 🧷 Auto scroll
   useEffect(() => {
-    if (!messagesEndRef.current) return;
-    messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    const el = messagesRef.current;
+    if (!el) return;
+
+    const scrollToBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+
+    if (!initialScrollDoneRef.current) {
+      scrollToBottom();
+      initialScrollDoneRef.current = true;
+      isAtBottomRef.current = true;
+      return;
+    }
+
+    if (isAtBottomRef.current) {
+      scrollToBottom();
+    }
   }, [messages, selectedSessionId]);
 
   // ---- Load list lần đầu ----
@@ -381,6 +523,9 @@ export default function StaffSupportChatPage() {
 
   // ---- Khi chọn session thì load messages ----
   useEffect(() => {
+    initialScrollDoneRef.current = false;
+    isAtBottomRef.current = true;
+
     if (!selectedSessionId) {
       setMessages([]);
       return;
@@ -391,18 +536,18 @@ export default function StaffSupportChatPage() {
   // ---- Helpers: select session + sync URL ----
 
   const handleSelectSession = (sessionId) => {
-    setSelectedSessionId(sessionId || null);
+    const id = sessionId || null;
+    setSelectedSessionId(id);
 
     const next = new URLSearchParams(searchParams);
-    if (sessionId) {
-      next.set("sessionId", sessionId);
+    if (id) {
+      next.set("sessionId", id);
     } else {
       next.delete("sessionId");
     }
     setSearchParams(next, { replace: false });
   };
 
-  // === MỚI: đổi tab + sync ?tab=... ===
   const handleChangeTab = (nextTab) => {
     if (nextTab !== "unassigned" && nextTab !== "mine") return;
 
@@ -451,7 +596,9 @@ export default function StaffSupportChatPage() {
     } catch (e) {
       console.error(e);
       setErrorText(
-        e?.response?.data?.message || e.message || "Trả lại phiên chat thất bại."
+        e?.response?.data?.message ||
+          e.message ||
+          "Trả lại phiên chat thất bại."
       );
     } finally {
       setStateText("");
@@ -477,176 +624,187 @@ export default function StaffSupportChatPage() {
     }
   };
 
-  const handleSendMessage = async (e) => {
-    e?.preventDefault();
-    const content = newMessage.trim();
-    if (!content) return;
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!selectedSession) return;
 
-    if (!selectedSessionId) {
-      setErrorText("Hãy chọn 1 phiên chat trước khi gửi tin nhắn.");
-      return;
-    }
+    const text = (newMessage || "").trim();
+    if (!text) return;
+
+    setSending(true);
+    setErrorText("");
 
     try {
-      setSending(true);
-      setErrorText("");
-      const msg = await supportChatApi.createMessage(selectedSessionId, {
-        content,
-      });
-      const normalized = normalizeMessage(msg);
-      if (normalized) {
-        setMessages((prev) => [...prev, normalized]);
-      }
+      const saved = await supportChatApi.createMessage(
+        selectedSession.chatSessionId,
+        { content: text }
+      );
+
+      const msg = normalizeMessage(saved) || saved;
       setNewMessage("");
-    } catch (e) {
-      console.error(e);
+
+      if (msg) {
+        setMessages((prev) => {
+          const list = prev || [];
+          if (
+            msg.messageId &&
+            list.some((x) => x.messageId === msg.messageId)
+          ) {
+            return prev;
+          }
+          return [...list, msg];
+        });
+      }
+    } catch (e2) {
+      console.error(e2);
       setErrorText(
-        e?.response?.data?.message || e.message || "Gửi tin nhắn thất bại."
+        e2?.response?.data?.message ||
+          e2.message ||
+          "Không gửi được tin nhắn. Vui lòng thử lại."
       );
     } finally {
       setSending(false);
     }
   };
 
-  // ---- Load messages helper ----
+  const sessionStatusText = getStatusTextForHeader(selectedSession);
 
-  const loadMessages = useCallback(async (sessionId) => {
-    if (!sessionId) {
-      setMessages([]);
-      return;
-    }
-
-    setLoadingMessages(true);
-    try {
-      const res = await supportChatApi.getMessages(sessionId);
-      const items = Array.isArray(res?.items ?? res?.Items)
-        ? res.items ?? res.Items
-        : Array.isArray(res)
-        ? res
-        : [];
-      const mapped = items.map(normalizeMessage).filter(Boolean);
-      setMessages(mapped);
-    } catch (e) {
-      console.error(e);
-      setErrorText(
-        e?.response?.data?.message ||
-          e.message ||
-          "Không tải được lịch sử tin nhắn."
-      );
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, []);
+  const canSend =
+    !!selectedSession &&
+    String(selectedSession.status || "")
+      .toLowerCase() !== "closed";
 
   // ---- Render helpers ----
 
-  const renderSessionItem = (session, { inQueue }) => {
-    const isSelected =
-      selectedSessionId && selectedSessionId === session.chatSessionId;
-    const initials =
-      (session.customerName || "?")
-        .trim()
-        .split(" ")
-        .map((x) => x[0])
-        .join("")
-        .toUpperCase();
+  const renderSessionItem = (s, isQueue) => {
+    if (!s) return null;
+    const isSelected = selectedSessionId === s.chatSessionId;
+    const firstChar = (s.customerName || "K")[0]?.toUpperCase?.() || "K";
+
+    const time =
+      s.lastMessageAt || s.startedAt
+        ? formatTimeShort(s.lastMessageAt || s.startedAt)
+        : "";
 
     return (
-      <button
-        key={session.chatSessionId}
-        type="button"
+      <div
+        key={s.chatSessionId}
         className={
-          "support-chat-session-item" + (isSelected ? " selected" : "")
+          "session-item" + (isSelected ? " session-item-selected" : "")
         }
-        onClick={() => handleSelectSession(session.chatSessionId)}
+        onClick={() => handleSelectSession(s.chatSessionId)}
       >
-        <div className="session-avatar">{initials}</div>
-        <div className="session-main">
-          <div className="session-row">
-            <span className="session-name">{session.customerName}</span>
-            <span className="session-time">
-              {formatTimeShort(session.lastMessageAt || session.startedAt)}
+        <div className="session-avatar">{firstChar}</div>
+        <div className="session-info">
+          <div className="session-line1">
+            <span className="session-customer">{s.customerName}</span>
+            {time && <span className="session-time">{time}</span>}
+          </div>
+          <div className="session-line2">
+            <span className="session-status">{getStatusLabel(s)}</span>
+            <span className="session-priority">
+              {getPriorityLabel(s.priorityLevel)}
             </span>
           </div>
-          <div className="session-row">
-            <span className="session-preview">
-              {session.lastMessagePreview || "Chưa có tin nhắn nào."}
-            </span>
-          </div>
-          <div className="session-row session-meta">
-            <span className="session-status">
-              {getStatusLabel(session)} • Ưu tiên:{" "}
-              {getPriorityLabel(session.priorityLevel)}
-            </span>
-            {inQueue && session.assignedStaffName && (
-              <span className="session-assigned">
-                Đang gán cho: {session.assignedStaffName}
-              </span>
-            )}
+          <div className="session-preview">
+            {s.lastMessagePreview || "Chưa có tin nhắn."}
           </div>
         </div>
-      </button>
+        <div className="session-actions">
+          {isQueue && (
+            <button
+              type="button"
+              className="btn-xs-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClaim(s.chatSessionId);
+              }}
+            >
+              Nhận
+            </button>
+          )}
+        </div>
+      </div>
     );
   };
 
-  const renderSidebarList = () => {
-    const list = activeTab === "unassigned" ? queue : mine;
-    const inQueue = activeTab === "unassigned";
-
-    if (inQueue && loadingQueue) {
-      return <div className="sidebar-empty">Đang tải hàng chờ...</div>;
-    }
-    if (!inQueue && loadingMine) {
-      return <div className="sidebar-empty">Đang tải phiên của bạn...</div>;
-    }
-
-    if (!list || list.length === 0) {
+  const renderMessages = () => {
+    if (!selectedSession) {
       return (
-        <div className="sidebar-empty">
-          {inQueue ? "Không có phiên chat nào đang chờ." : "Bạn chưa có phiên chat nào."}
+        <div className="chat-empty">
+          Chọn một phiên chat ở bên trái để bắt đầu.
         </div>
       );
     }
 
-    return list.map((s) => renderSessionItem(s, { inQueue }));
+    return (
+      <div
+        className="chat-messages"
+        ref={messagesRef}
+        onScroll={handleMessagesScroll}
+      >
+        {loadingMessages && !messages.length && (
+          <div className="empty small">Đang tải tin nhắn...</div>
+        )}
+
+        {!loadingMessages && messages.length === 0 && (
+          <div className="empty small">Chưa có tin nhắn nào.</div>
+        )}
+
+        {messages.map((msg) => {
+          const key = msg.messageId || `${msg.chatSessionId}_${msg.sentAt}`;
+          const rowCls =
+            "msg-row " +
+            (msg.isFromStaff ? "msg-row-staff" : "msg-row-customer");
+          const msgCls =
+            "msg " + (msg.isFromStaff ? "msg-staff" : "msg-customer");
+
+          return (
+            <div key={key} className={rowCls}>
+              <div className={msgCls}>
+                <div className="msg-meta">
+                  <span>
+                    {msg.isFromStaff ? "Bạn" : msg.senderName || "Khách"}
+                  </span>
+                  <span>{formatTimeShort(msg.sentAt)}</span>
+                </div>
+                <div className="msg-bubble">{msg.content}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
+
+  // ---- Render ----
 
   return (
     <div className="support-chat-page">
-      <header className="support-chat-header">
+      <div className="support-chat-header">
         <div>
-          <h1>{pageTitle}</h1>
+          <h1 className="page-title">{pageTitle}</h1>
           <div className="support-chat-header-stats">
             <span>Chờ nhận: {queue.length}</span>
-            <span>•</span>
-            <span>Phiên của bạn: {mine.length}</span>
+            <span>• Phiên của tôi: {mine.length}</span>
           </div>
         </div>
         <div className="support-chat-header-actions">
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => handleSelectSession(null)}
-          >
-            Bỏ chọn
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={refreshAll}
-          >
+          <button type="button" className="tab" onClick={refreshAll}>
             Làm mới
           </button>
         </div>
-      </header>
+      </div>
 
-      {stateText && <div className="alert info">{stateText}</div>}
-      {errorText && <div className="alert error">{errorText}</div>}
+      <div className="support-chat-state">
+        {stateText && <span className="state-text">{stateText}</span>}
+        {errorText && <span className="error-text">{errorText}</span>}
+      </div>
 
       <div className="support-chat-layout">
-        {/* Sidebar: danh sách phiên */}
-        <aside className="support-chat-sidebar">
-          <div className="tabs tabs-boxed">
+        {/* Sidebar */}
+        <div className="support-chat-sidebar">
+          <div className="tabs">
             <button
               type="button"
               className={
@@ -654,121 +812,164 @@ export default function StaffSupportChatPage() {
               }
               onClick={() => handleChangeTab("unassigned")}
             >
-              Hàng chờ
+              Chờ nhận
               <span className="badge">{queue.length}</span>
             </button>
             <button
               type="button"
-              className={"tab" + (activeTab === "mine" ? " tab-active" : "")}
+              className={
+                "tab" + (activeTab === "mine" ? " tab-active" : "")
+              }
               onClick={() => handleChangeTab("mine")}
             >
-              Phiên của tôi
+              Của tôi
               <span className="badge">{mine.length}</span>
             </button>
           </div>
-          <div className="support-chat-session-list">{renderSidebarList()}</div>
-        </aside>
 
-        {/* Main content: khung chat */}
-        <main className="support-chat-main">
+          <div className="sidebar-toolbar">
+            <span className="muted">
+              {activeTab === "unassigned"
+                ? "Các phiên chat đang chờ nhân viên nhận."
+                : "Các phiên chat bạn đang phụ trách."}
+            </span>
+          </div>
+
+          <div className="session-list">
+            {activeTab === "unassigned" && (
+              <>
+                {loadingQueue && (
+                  <div className="empty small">Đang tải hàng chờ...</div>
+                )}
+                {!loadingQueue && queue.length === 0 && (
+                  <div className="empty">
+                    Chưa có phiên chat nào trong hàng chờ.
+                  </div>
+                )}
+                {!loadingQueue &&
+                  queue.map((s) => renderSessionItem(s, true))}
+              </>
+            )}
+
+            {activeTab === "mine" && (
+              <>
+                {loadingMine && (
+                  <div className="empty small">Đang tải phiên của bạn...</div>
+                )}
+                {!loadingMine && mine.length === 0 && (
+                  <div className="empty">Bạn chưa có phiên chat nào.</div>
+                )}
+                {!loadingMine &&
+                  mine.map((s) => renderSessionItem(s, false))}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Main chat */}
+        <div className="support-chat-main">
           {!selectedSession && (
-            <div className="support-chat-empty">
-              <p>Hãy chọn một phiên chat ở bên trái để bắt đầu hỗ trợ khách hàng.</p>
+            <div className="chat-empty">
+              Chọn một phiên chat ở cột bên trái để bắt đầu hỗ trợ khách.
             </div>
           )}
 
           {selectedSession && (
-            <div className="support-chat-main-inner">
-              <div className="support-chat-main-header">
-                <div>
-                  <h2>{selectedSession.customerName}</h2>
-                  <p className="status-text">
-                    {getStatusTextForHeader(selectedSession)}
-                  </p>
+            <div className="chat-panel">
+              <div className="chat-header">
+                <div className="chat-header-main">
+                  <div className="chat-avatar">
+                    {(selectedSession.customerName || "K")
+                      .substring(0, 1)
+                      .toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="chat-customer-name">
+                      {selectedSession.customerName}
+                    </div>
+                    <div className="chat-meta">
+                      <span className="meta-item">
+                        <strong>Trạng thái:</strong>{" "}
+                        {getStatusLabel(selectedSession)}
+                      </span>
+                      {selectedSession.priorityLevel !== undefined && (
+                        <span className="meta-item">
+                          <strong>Ưu tiên:</strong>{" "}
+                          {getPriorityLabel(selectedSession.priorityLevel)}
+                        </span>
+                      )}
+                      {selectedSession.customerEmail && (
+                        <span className="meta-item">
+                          <strong>Email:</strong>{" "}
+                          {selectedSession.customerEmail}
+                        </span>
+                      )}
+                    </div>
+                    {sessionStatusText && (
+                      <div className="chat-meta-sub">{sessionStatusText}</div>
+                    )}
+                  </div>
                 </div>
-                <div className="support-chat-main-actions">
-                  {selectedSession.status === "waiting" && (
-                    <button
-                      type="button"
-                      className="btn primary"
-                      onClick={() => handleClaim(selectedSession.chatSessionId)}
-                    >
-                      Nhận phiên
-                    </button>
-                  )}
-                  {selectedSession.status !== "waiting" && (
-                    <>
+              </div>
+
+              <div className="chat-body">
+                {renderMessages()}
+
+                <form className="chat-footer" onSubmit={handleSend}>
+                  <textarea
+                    className="chat-input"
+                    placeholder={
+                      canSend
+                        ? "Nhập nội dung tin nhắn..."
+                        : "Phiên chat đã đóng, không thể gửi thêm."
+                    }
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    disabled={!canSend || sending}
+                  />
+                  <div className="chat-footer-actions">
+                    <div className="chat-footer-row">
+                      <button
+                        type="submit"
+                        className="btn primary"
+                        disabled={!canSend || sending}
+                      >
+                        {sending ? "Đang gửi..." : "Gửi"}
+                      </button>
+                    </div>
+                    <div className="chat-footer-row secondary">
                       <button
                         type="button"
                         className="btn ghost"
-                        onClick={() => handleUnassign(selectedSession.chatSessionId)}
+                        disabled={!selectedSession}
+                        onClick={() =>
+                          selectedSession &&
+                          handleUnassign(selectedSession.chatSessionId)
+                        }
                       >
                         Trả lại hàng chờ
                       </button>
                       <button
                         type="button"
                         className="btn danger"
-                        onClick={() => handleClose(selectedSession.chatSessionId)}
+                        disabled={!selectedSession}
+                        onClick={() =>
+                          selectedSession &&
+                          handleClose(selectedSession.chatSessionId)
+                        }
                       >
                         Đóng phiên
                       </button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="support-chat-messages">
-                {loadingMessages ? (
-                  <div className="support-chat-messages-loading">
-                    Đang tải lịch sử chat...
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="support-chat-messages-empty">
-                    Chưa có tin nhắn nào trong phiên chat này.
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div
-                      key={msg.messageId}
-                      className={
-                        "chat-message" +
-                        (msg.isFromStaff ? " from-staff" : " from-customer")
-                      }
-                    >
-                      <div className="chat-message-meta">
-                        <span className="chat-sender">
-                          {msg.isFromStaff ? msg.senderName || "Nhân viên" : "Khách hàng"}
-                        </span>
-                        <span className="chat-time">
-                          {formatTimeShort(msg.createdAt)}
-                        </span>
-                      </div>
-                      <div className="chat-message-content">{msg.content}</div>
                     </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
+                    {errorText && (
+                      <div className="error-text chat-error">{errorText}</div>
+                    )}
+                  </div>
+                </form>
               </div>
-
-              <form className="support-chat-input" onSubmit={handleSendMessage}>
-                <textarea
-                  rows={2}
-                  placeholder="Nhập nội dung tin nhắn..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  disabled={sending || !selectedSession}
-                />
-                <button
-                  type="submit"
-                  className="btn primary"
-                  disabled={sending || !newMessage.trim() || !selectedSession}
-                >
-                  {sending ? "Đang gửi..." : "Gửi"}
-                </button>
-              </form>
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

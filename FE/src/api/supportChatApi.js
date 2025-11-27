@@ -58,4 +58,14 @@ export const supportChatApi = {
   unassignSession(sessionId) {
     return this.unassign(sessionId);
   },
+
+  // Một số màn FE (staff) đang gọi closeSession
+  closeSession(sessionId) {
+    return this.close(sessionId);
+  },
+
+  // Và createMessage
+  createMessage(sessionId, body) {
+    return this.postMessage(sessionId, body);
+  },
 };

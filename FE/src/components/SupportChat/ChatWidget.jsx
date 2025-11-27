@@ -172,7 +172,8 @@ export default function ChatWidget() {
     }
 
     let hubBase = apiBase.replace(/\/api\/?$/, "");
-    const hubUrl = `${hubBase}/supportChatHub`;
+    // ✅ Khớp BE: MapHub<SupportChatHub>("/hubs/support-chat")
+    const hubUrl = `${hubBase}/hubs/support-chat`;
 
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl, {
@@ -230,7 +231,8 @@ export default function ChatWidget() {
       .start()
       .then(() =>
         connection
-          .invoke("JoinSupportSessionGroup", session.chatSessionId)
+          // ✅ Khớp BE: JoinSession
+          .invoke("JoinSession", session.chatSessionId)
           .catch(() => {})
       )
       .catch(() => {});
@@ -240,7 +242,8 @@ export default function ChatWidget() {
       if (!connection) return;
 
       connection
-        .invoke("LeaveSupportSessionGroup", session.chatSessionId)
+        // ✅ Khớp BE: LeaveSession
+        .invoke("LeaveSession", session.chatSessionId)
         .catch(() => {})
         .finally(() => {
           connection.off("SupportMessageReceived", handleSupportMessage);
