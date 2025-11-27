@@ -14,7 +14,6 @@ import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
-import HomePage from "../pages/home/HomePage";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
@@ -35,6 +34,8 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
+import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 import AccessDenied from "../pages/errors/AccessDenied";
@@ -65,7 +66,9 @@ import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
 import StorefrontHomepagePage from "../pages/storefront/StorefrontHomepagePage.jsx";
 import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
-
+import StorefrontCartPage from "../pages/storefront/StorefrontCartPage";
+import PaymentCancelPage from "../pages/storefront/PaymentCancelPage";
+import PaymentResultPage from "../pages/storefront/PaymentResultPage";
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
 // Order pages
@@ -323,6 +326,21 @@ export default function AppRoutes() {
           <CategoryPage />
         )}
       />
+      <Route
+        path="/admin/orders"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,   // có thể đổi sang module code khác nếu sau này tách quyền
+          <OrderPaymentPage />
+        )}
+      />
+      {/* Alias: /admin/payments cũng mở cùng page */}
+      <Route
+        path="/admin/payments"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <OrderPaymentPage />
+        )}
+      />
       {/* FAQs */}
       <Route
         path="/admin/faqs"
@@ -504,6 +522,9 @@ export default function AppRoutes() {
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
+      <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
+      <Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
+      <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
       <Route
         path="/homepage"
         element={

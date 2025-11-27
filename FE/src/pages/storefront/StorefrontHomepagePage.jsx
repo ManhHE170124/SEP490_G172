@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import StorefrontHomepageApi from "../../services/storefrontHomepageService";
 import StorefrontProductApi from "../../services/storefrontProductService";
+import { CART_UPDATED_EVENT } from "../../services/storefrontCartService";
 
 import "./StorefrontProductListPage.css"; // dùng lại css card/grid/nút
 import "./StorefrontHomepagePage.css";
@@ -15,7 +16,6 @@ const MAIN_SLIDES = [
     subtitle:
       "Windows, Office, Adobe, tài khoản AI… bảo hành rõ ràng & hỗ trợ từ xa.",
     badge: "Giảm đến 70%",
-    // sau này có thể đổi sang link riêng /homepage-promos/...
     params: { q: "Windows", sort: "default" },
   },
   {
@@ -130,6 +130,20 @@ const StorefrontHomepagePage = () => {
     loadHomepageProducts();
   }, [loadHomepageProducts]);
 
+  // Khi cart thay đổi (Add/Update/Remove/Clear) -> reload block sản phẩm
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleCartUpdated = () => {
+      loadHomepageProducts();
+    };
+
+    window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    return () => {
+      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    };
+  }, [loadHomepageProducts]);
+
   // Helper: chuyển sang trang danh sách sản phẩm
   const goToProductList = (params = {}) => {
     const sp = new URLSearchParams();
@@ -200,34 +214,41 @@ const StorefrontHomepagePage = () => {
 
   // Render 1 card sản phẩm (dùng chung cho mọi block)
   const renderProductCard = (item) => {
-    const variantTitle = item.variantTitle || item.title || item.productName;
+    const variantTitle =
+      item.variantTitle || item.title || item.productName;
     const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
     const displayTitle = typeLabel
       ? `${variantTitle} - ${typeLabel}`
       : variantTitle;
 
-    const sellPrice =
-      item.sellPrice ?? item.SellPrice ?? item.cogsPrice ?? item.CogsPrice ?? null;
-    const cogsPrice = item.cogsPrice ?? item.CogsPrice ?? null;
+    const sellPrice = item.sellPrice ?? item.SellPrice ?? null;
+    const listPrice = item.listPrice ?? item.ListPrice ?? null;
 
     let hasDiscount = false;
     let discountPercent = 0;
 
     if (
       sellPrice != null &&
-      cogsPrice != null &&
+      listPrice != null &&
       sellPrice > 0 &&
-      cogsPrice > 0 &&
-      sellPrice < cogsPrice
+      listPrice > 0 &&
+      sellPrice < listPrice
     ) {
       hasDiscount = true;
-      discountPercent = Math.round(100 - (sellPrice / cogsPrice) * 100);
+      discountPercent = Math.round(
+        100 - (sellPrice / listPrice) * 100
+      );
     }
 
-    const priceNowText = formatCurrency(sellPrice ?? cogsPrice);
-    const priceOldText = hasDiscount ? formatCurrency(cogsPrice) : null;
+    // Nếu chưa có sellPrice (trường hợp hiếm) thì hiển thị listPrice
+    const priceNowText = formatCurrency(sellPrice ?? listPrice);
+    const priceOldText = hasDiscount
+      ? formatCurrency(listPrice)
+      : null;
 
-    const isOutOfStock = item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
+    const isOutOfStock =
+      item.isOutOfStock ??
+      item.status === "OUT_OF_STOCK";
 
     return (
       <article
@@ -265,7 +286,9 @@ const StorefrontHomepagePage = () => {
               </div>
             )}
 
-            {isOutOfStock && <div className="sf-out-of-stock">Hết hàng</div>}
+            {isOutOfStock && (
+              <div className="sf-out-of-stock">Hết hàng</div>
+            )}
           </div>
 
           <div className="sf-body">
@@ -276,7 +299,9 @@ const StorefrontHomepagePage = () => {
               {hasDiscount && (
                 <>
                   <div className="sf-price-old">{priceOldText}</div>
-                  <div className="sf-price-off">-{discountPercent}%</div>
+                  <div className="sf-price-off">
+                    -{discountPercent}%
+                  </div>
                 </>
               )}
             </div>
@@ -333,7 +358,7 @@ const StorefrontHomepagePage = () => {
         {/* HERO: slider + 2 slider nhỏ bên cạnh */}
         <section className="sf-home-hero">
           <div className="sf-home-hero-inner">
-            {/* Slider chính – cả khối là link, không còn nút riêng trên ảnh */}
+            {/* Slider chính – cả khối là link */}
             <div
               className="sf-home-main-slider"
               role="button"
@@ -391,8 +416,8 @@ const StorefrontHomepagePage = () => {
             <div className="sf-home-top-search-header">
               <h3>Tìm kiếm hàng đầu</h3>
               <p>
-                Một số từ khóa được khách chọn nhiều. Click để lọc nhanh danh sách
-                sản phẩm.
+                Một số từ khóa được khách chọn nhiều. Click để lọc
+                nhanh danh sách sản phẩm.
               </p>
             </div>
             <div className="sf-home-top-search-keywords">
@@ -487,7 +512,8 @@ const StorefrontHomepagePage = () => {
               <div className="sf-home-service-icon">🖥️</div>
               <h3>Cài đặt từ xa</h3>
               <p>
-                Hỗ trợ cài Windows / Office, phần mềm qua TeamViewer / AnyDesk.
+                Hỗ trợ cài Windows / Office, phần mềm qua TeamViewer /
+                AnyDesk.
               </p>
             </div>
 
@@ -506,8 +532,8 @@ const StorefrontHomepagePage = () => {
               <div className="sf-home-service-icon">📘</div>
               <h3>Hướng dẫn sử dụng</h3>
               <p>
-                Video + bài viết hướng dẫn, giải đáp thắc mắc trong quá trình
-                sử dụng.
+                Video + bài viết hướng dẫn, giải đáp thắc mắc trong quá
+                trình sử dụng.
               </p>
             </div>
 
@@ -526,8 +552,8 @@ const StorefrontHomepagePage = () => {
               <div className="sf-home-service-icon">🛠️</div>
               <h3>Fix lỗi phần mềm đã mua</h3>
               <p>
-                Xử lý lỗi kích hoạt, lỗi bản quyền, tư vấn nâng cấp cấu hình
-                phù hợp.
+                Xử lý lỗi kích hoạt, lỗi bản quyền, tư vấn nâng cấp cấu
+                hình phù hợp.
               </p>
             </div>
           </div>

@@ -27,8 +27,6 @@ public partial class Product
 
     public string Slug { get; set; } = null!;
 
-    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
-
     public virtual ICollection<ProductBadge> ProductBadges { get; set; } = new List<ProductBadge>();
 
     public virtual ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();

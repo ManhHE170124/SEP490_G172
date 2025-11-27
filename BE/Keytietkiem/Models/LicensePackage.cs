@@ -19,7 +19,6 @@ public partial class LicensePackage
 
     public string? Notes { get; set; }
 
-    public virtual ProductVariant ProductVariant { get; set; } = null!;
-
     public virtual Supplier Supplier { get; set; } = null!;
+    public virtual ProductVariant ProductVariant { get; set; } = null!;
 }

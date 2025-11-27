@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CategoryApi } from "../../services/categories";
 import { AuthService } from "../../services/authService";
+import StorefrontCartApi, {
+  CART_UPDATED_EVENT,
+} from "../../services/storefrontCartService";
 import "./PublicHeader.css";
 
 const FALLBACK_PRODUCT_LINKS = [
@@ -138,6 +141,10 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
+
+  // ===== CART COUNT =====
+  const [cartCount, setCartCount] = useState(0);
+
   const isCustomerMode = Boolean(customer);
   const displayName =
     customer?.fullName || customer?.username || customer?.displayName || "";
@@ -214,6 +221,48 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ===== Lắng nghe cart update + load cart ban đầu =====
+  useEffect(() => {
+    let isMounted = true;
+
+    const initCartCount = async () => {
+      // Nếu chưa đăng nhập thì coi như 0, vì cart server-side cần login
+      if (!customer) {
+        if (isMounted) setCartCount(0);
+        return;
+      }
+      try {
+        const res = await StorefrontCartApi.getCart();
+        if (!isMounted) return;
+        const count = Array.isArray(res.items) ? res.items.length : 0;
+        setCartCount(count);
+      } catch (error) {
+        console.error("Cannot fetch cart in header", error);
+        if (isMounted) setCartCount(0);
+      }
+    };
+
+    initCartCount();
+
+    const handleCartUpdated = (event) => {
+      const cart = event.detail?.cart;
+      if (!cart) return;
+      const count = Array.isArray(cart.items) ? cart.items.length : 0;
+      setCartCount(count);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    }
+
+    return () => {
+      isMounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+      }
+    };
+  }, [customer]);
 
   const productDropdown = useMemo(() => {
     if (categories.length > 0) {
@@ -310,6 +359,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user");
       setCustomer(null);
+      setCartCount(0); // clear luôn badge cart
       setIsAccountMenuOpen(false);
       navigate("/login");
     }
@@ -357,11 +407,22 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
         {!isCustomerMode && (
           <div className="account guest-only">
             <a
-              className="btn"
+              className="btn cart-btn"
               href="/cart"
               onClick={(event) => handleNavigation(event, "/cart")}
             >
-              🛒 Giỏ hàng
+              <span className="cart-icon" aria-hidden="true">
+                🛒
+              </span>
+              <span className="cart-label">Giỏ hàng</span>
+              {cartCount > 0 && (
+                <span
+                  className="cart-badge"
+                  aria-label={`${cartCount} sản phẩm trong giỏ hàng`}
+                >
+                  {cartCount}
+                </span>
+              )}
             </a>
             <a
               className="btn"
@@ -383,11 +444,22 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
         {isCustomerMode && (
           <div className="account customer-only" ref={accountMenuRef}>
             <a
-              className="btn"
+              className="btn cart-btn"
               href="/cart"
               onClick={(event) => handleNavigation(event, "/cart")}
             >
-              🛒 Giỏ hàng
+              <span className="cart-icon" aria-hidden="true">
+                🛒
+              </span>
+              <span className="cart-label">Giỏ hàng</span>
+              {cartCount > 0 && (
+                <span
+                  className="cart-badge"
+                  aria-label={`${cartCount} sản phẩm trong giỏ hàng`}
+                >
+                  {cartCount}
+                </span>
+              )}
             </a>
             <a
               className="btn subtle"

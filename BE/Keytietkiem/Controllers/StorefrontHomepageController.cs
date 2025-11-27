@@ -1,4 +1,4 @@
-using Keytietkiem.DTOs.Products;
+using Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -54,16 +54,17 @@ namespace Keytietkiem.Controllers
                     v.Product.ProductType,
                     v.Title,
                     v.Thumbnail,
-                    v.Status ?? "INACTIVE",
+                    v.Status ?? "ACTIVE",
                     v.ViewCount,
                     v.CreatedAt,
                     v.UpdatedAt,
                     v.SellPrice,
-                    v.CogsPrice,
-                    0m, // s? tính l?i bên d??i
+                    v.ListPrice,   // dùng ListPrice làm giá niêm y?t
+                    0m,            // s? tính l?i bên d??i
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
-                        .ToList()
+                        .ToList(),
+                    v.StockQty
                 ))
                 .ToListAsync();
 
@@ -79,11 +80,11 @@ namespace Keytietkiem.Controllers
                 return Ok(empty);
             }
 
-            // ====== Tính % gi?m giá th?t d?a trên SellPrice / CogsPrice ======
+            // ====== Tính % gi?m giá d?a trên SellPrice / ListPrice ======
             rawItems = rawItems
                 .Select(i =>
                 {
-                    var discount = ComputeDiscountPercent(i.SellPrice, i.CogsPrice);
+                    var discount = ComputeDiscountPercent(i.SellPrice, i.ListPrice);
                     return i with { DiscountPercent = discount };
                 })
                 .ToList();
@@ -145,7 +146,7 @@ namespace Keytietkiem.Controllers
                     .Where(b => allBadgeCodes.Contains(b.BadgeCode))
                     .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
 
-            // Helper map raw -> StorefrontVariantListItemDto (CÓ GIÁ)
+            // Helper map raw -> StorefrontVariantListItemDto (CÓ GIÁ + ép h?t hàng theo t?n kho)
             StorefrontVariantListItemDto MapToDto(HomepageVariantRawItem i)
             {
                 var badges = i.BadgeCodes
@@ -172,6 +173,13 @@ namespace Keytietkiem.Controllers
                     })
                     .ToList();
 
+                // Ép tr?ng thái OUT_OF_STOCK n?u t?n kho <= 0
+                var outOfStock =
+                    string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
+                    || i.StockQty <= 0;
+
+                var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+
                 return new StorefrontVariantListItemDto(
                     VariantId: i.VariantId,
                     ProductId: i.ProductId,
@@ -180,9 +188,9 @@ namespace Keytietkiem.Controllers
                     ProductType: i.ProductType,
                     VariantTitle: i.Title,
                     Thumbnail: i.Thumbnail,
-                    Status: i.Status,
+                    Status: status,
                     SellPrice: i.SellPrice,
-                    CogsPrice: i.CogsPrice,
+                    ListPrice: i.ListPrice,
                     Badges: badges
                 );
             }
@@ -227,14 +235,15 @@ namespace Keytietkiem.Controllers
             return ordered;
         }
 
-        private static decimal ComputeDiscountPercent(decimal sellPrice, decimal cogsPrice)
+        private static decimal ComputeDiscountPercent(decimal sellPrice, decimal listPrice)
         {
-            if (sellPrice <= 0 || cogsPrice <= 0 || sellPrice >= cogsPrice)
+            // listPrice = giá niêm y?t, sellPrice = giá bán th?c t?
+            if (sellPrice <= 0 || listPrice <= 0 || sellPrice >= listPrice)
             {
                 return 0m;
             }
 
-            var percent = (cogsPrice - sellPrice) / cogsPrice * 100m;
+            var percent = (listPrice - sellPrice) / listPrice * 100m;
             return Math.Round(percent, 2);
         }
 
@@ -254,9 +263,10 @@ namespace Keytietkiem.Controllers
             DateTime CreatedAt,
             DateTime? UpdatedAt,
             decimal SellPrice,
-            decimal CogsPrice,
+            decimal ListPrice,
             decimal DiscountPercent,
-            List<string> BadgeCodes
+            List<string> BadgeCodes,
+            int StockQty
         );
     }
 }

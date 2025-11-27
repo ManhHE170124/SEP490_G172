@@ -154,7 +154,7 @@ public class LicensePackageService : ILicensePackageService
             _context.ProductVariants.Update(package.ProductVariant);
         }
 
-        
+
 
         if (updateDto.Notes != null)
             package.Notes = updateDto.Notes;

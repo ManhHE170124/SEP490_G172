@@ -26,7 +26,8 @@ const normalizeVariantItem = (v = {}) => {
     .toUpperCase();
 
   const sellPrice = v.sellPrice ?? v.SellPrice ?? null;
-  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null;
+  const listPrice = v.listPrice ?? v.ListPrice ?? null;
+  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null; // nếu BE có cũng không sao
 
   return {
     variantId:   v.variantId   ?? v.VariantId,
@@ -42,8 +43,10 @@ const normalizeVariantItem = (v = {}) => {
     status: rawStatus,
     isOutOfStock: rawStatus === "OUT_OF_STOCK",
 
-    sellPrice,
-    cogsPrice,
+    // GIÁ
+    sellPrice,   // giá bán thực tế
+    listPrice,   // giá niêm yết / giá gốc
+    cogsPrice,   // để đó nếu sau này cần
 
     badges: (v.badges ?? v.Badges ?? []).map(normalizeBadgeMini),
   };

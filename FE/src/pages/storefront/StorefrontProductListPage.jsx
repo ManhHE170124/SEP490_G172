@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import StorefrontProductApi from "../../services/storefrontProductService";
+import { CART_UPDATED_EVENT } from "../../services/storefrontCartService";
 import "./StorefrontProductListPage.css";
 
 const SORT_OPTIONS = [
@@ -151,6 +152,26 @@ const StorefrontProductListPage = () => {
     loadVariants(q);
   }, [location.search, loadVariants]);
 
+  // Khi cart thay đổi (Add/Update/Remove/Clear) -> reload list hiện tại
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleCartUpdated = () => {
+      const baseQuery = buildQueryFromSearch(location.search);
+      const queryWithPage = {
+        ...baseQuery,
+        page,
+        pageSize: PAGE_SIZE,
+      };
+      loadVariants(queryWithPage);
+    };
+
+    window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    return () => {
+      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    };
+  }, [location.search, page, loadVariants]);
+
   // ====== Handlers ======
   const handleChangeField = (e) => {
     const { name, value } = e.target;
@@ -160,7 +181,7 @@ const StorefrontProductListPage = () => {
     }));
   };
 
-  // Bấm nút "Lọc" -> cập nhật URL (URL là source of truth cho filter/sort, KHÔNG chứa page/pageSize)
+  // Bấm nút "Lọc" -> cập nhật URL
   const handleApplyFilter = () => {
     const params = new URLSearchParams(location.search);
 
@@ -199,7 +220,6 @@ const StorefrontProductListPage = () => {
     }
 
     const search = params.toString();
-    // luôn reset page về 1 ở FE
     setPage(1);
     navigate(`${location.pathname}${search ? `?${search}` : ""}`);
   };
@@ -377,26 +397,29 @@ const StorefrontProductListPage = () => {
             <>
               <div className="sf-grid sf-grid-responsive">
                 {items.map((item) => {
-                  const variantTitle = item.variantTitle || item.title || item.productName;
-                  const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
+                  const variantTitle =
+                    item.variantTitle || item.title || item.productName;
+                  const typeLabel =
+                    StorefrontProductApi.typeLabelOf(item.productType);
                   const displayTitle = typeLabel
                     ? `${variantTitle} - ${typeLabel}`
                     : variantTitle;
 
                   const sellPrice = item.sellPrice;
-                  const cogsPrice = item.cogsPrice;
+                  const listPrice = item.listPrice; // lấy từ DTO list
 
                   const priceNowText = formatCurrency(sellPrice);
+
                   const hasOldPrice =
-                    cogsPrice != null &&
-                    cogsPrice > sellPrice;
+                    listPrice != null &&
+                    listPrice > sellPrice;
 
                   const priceOldText = hasOldPrice
-                    ? formatCurrency(cogsPrice)
+                    ? formatCurrency(listPrice)
                     : null;
 
                   const discountPercent = hasOldPrice
-                    ? Math.round(100 - (sellPrice / cogsPrice) * 100)
+                    ? Math.round(100 - (sellPrice / listPrice) * 100)
                     : null;
 
                   const isOutOfStock =
