@@ -5,6 +5,8 @@
 
 .support-chat-page {
   padding: 24px;
+  /* 👇 CHỈNH CHIỀU CAO 3 CỘT Ở ĐÂY */
+  --staff-chat-height: 700px;
 }
 
 .support-chat-header {
@@ -35,6 +37,19 @@
   gap: 12px;
 }
 
+/* Nút làm mới nổi bật hơn */
+.refresh-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.refresh-icon {
+  font-size: 14px;
+}
+
 .support-chat-state {
   margin-bottom: 8px;
   font-size: 13px;
@@ -49,11 +64,15 @@
   color: #b91c1c;
 }
 
+/* ===== Layout 3 cột ===== */
+/* Dùng 1 chiều cao chung → đáy 3 cột trùng đáy chat-footer */
 .support-chat-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
+  height: var(--staff-chat-height);
+  min-height: var(--staff-chat-height);
 }
 
 /* Sidebar */
@@ -64,7 +83,9 @@
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  min-height: 480px;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
 
 .tabs {
@@ -119,6 +140,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  min-height: 0; /* để list scroll trong sidebar */
 }
 
 .empty {
@@ -225,14 +247,16 @@
   flex-shrink: 0;
 }
 
-/* Main chat */
+/* Main chat (cột giữa + panel phiên cũ bên phải) */
 
 .support-chat-main {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
-  min-height: 480px;
   display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
 
 .chat-empty {
@@ -246,6 +270,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .chat-header {
@@ -253,9 +278,23 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+/* header chia 2 bên: trái (avatar+info), phải (nút) */
 .chat-header-main {
   display: flex;
+  justify-content: space-between;
   gap: 12px;
+  align-items: flex-start;
+}
+
+.chat-header-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.chat-header-actions {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
@@ -301,6 +340,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* ===== Messages – giống thread-messages ở ticket detail ===== */
@@ -309,14 +349,19 @@
   padding: 12px 16px;
   background: #f9fafb;
   overflow-y: auto;
-  max-height: 420px; /* giới hạn chiều cao – nhiều hơn thì scroll */
+  min-height: 0; /* quan trọng để flex tính đúng chiều cao */
 }
 
 /* Messages */
 
 .msg-row {
   display: flex;
-  margin-bottom: 8px;
+  padding: 8px 0;
+  width: 100%;
+}
+
+.msg-row + .msg-row {
+  margin-top: 4px;
 }
 
 .msg-row-staff {
@@ -328,26 +373,37 @@
 }
 
 .msg {
-  max-width: 70%;
   display: flex;
   flex-direction: column;
+  max-width: 70%;            /* bubble không vượt quá 70%, nhưng ôm sát text */
 }
 
+/* meta tin nhắn: tên & thời gian khác màu nhau */
 .msg-meta {
   font-size: 11px;
   display: flex;
   justify-content: space-between;
   gap: 6px;
   margin-bottom: 2px;
-  color: #6b7280;
+}
+
+.msg-meta-name {
+  color: #4b5563; /* đậm hơn cho tên */
+}
+
+.msg-meta-time {
+  color: #9ca3af; /* nhạt hơn cho thời gian */
 }
 
 .msg-bubble {
+  display: inline-block;     /* để ôm sát nội dung */
+  max-width: 100%;           /* không vượt quá 70% của .msg */
   padding: 8px 12px;
   border-radius: 18px;
   font-size: 14px;
-  word-break: break-word;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;   /* không cho chữ thò ra ngoài bubble */
 }
 
 /* Khách (customer) bên trái */
@@ -449,4 +505,143 @@
   color: #ffffff;
   font-size: 11px;
   cursor: pointer;
+}
+
+/* ===== Previous sessions side panel ===== */
+
+.previous-sessions-panel {
+  width: 260px;
+  border-left: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.previous-sessions-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.previous-sessions-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.previous-sessions-tag {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.previous-sessions-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.previous-sessions-list {
+  padding: 8px 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.previous-session-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.previous-session-item:hover {
+  background: #e5e7eb;
+}
+
+.previous-session-line1 {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.previous-session-status {
+  font-weight: 500;
+  color: #111827;
+}
+
+.previous-session-time {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.previous-session-preview {
+  font-size: 12px;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Transcript hiển thị trong panel */
+
+.previous-transcript {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.previous-transcript-header {
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.previous-transcript-sub {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.previous-transcript-body {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+/* Nút link nhỏ */
+
+.link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* compact message style trong transcript */
+
+.msg-row-compact {
+  margin-bottom: 4px;
+}
+
+.msg-compact .msg-bubble {
+  font-size: 12px;
+  padding: 6px 8px;
 }

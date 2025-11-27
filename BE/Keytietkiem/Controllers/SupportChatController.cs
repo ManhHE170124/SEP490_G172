@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.SupportChat;
 using Keytietkiem.Hubs;
 using Keytietkiem.Models;
@@ -195,9 +196,10 @@ public class SupportChatController : ControllerBase
     /// - Nếu đã có phiên chat chưa đóng => trả về phiên đó.
     /// - Nếu chưa có => tạo mới (Status = Waiting, Priority theo User.SupportPriorityLevel).
     /// Có thể gửi kèm tin nhắn đầu tiên (InitialMessage).
+    /// Đồng thời trả thêm flag IsNew / HasPreviousClosedSession để FE hiển thị UI phù hợp.
     /// </summary>
     [HttpPost("open-or-get")]
-    public async Task<ActionResult<SupportChatSessionItemDto>> OpenOrGet([FromBody] OpenSupportChatDto? body)
+    public async Task<ActionResult<OpenSupportChatResultDto>> OpenOrGet([FromBody] OpenSupportChatDto? body)
     {
         var me = GetCurrentUserIdOrNull();
         if (me is null) return Unauthorized();
@@ -206,6 +208,12 @@ public class SupportChatController : ControllerBase
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
+
+        // Tìm phiên chat đã Closed gần nhất (nếu có) của user này
+        var lastClosedSession = await _db.SupportChatSessions
+            .Where(s => s.CustomerId == me.Value && s.Status == StatusClosed)
+            .OrderByDescending(s => s.ClosedAt ?? s.StartedAt)
+            .FirstOrDefaultAsync();
 
         // Tìm phiên chat đang mở (Waiting/Active) gần nhất
         var session = await _db.SupportChatSessions
@@ -261,23 +269,45 @@ public class SupportChatController : ControllerBase
             .Include(s => s.AssignedStaff)
             .FirstAsync(s => s.ChatSessionId == session.ChatSessionId);
 
-        var dto = MapToSessionItem(session);
+        var baseDto = MapToSessionItem(session);
+
+        var result = new OpenSupportChatResultDto
+        {
+            ChatSessionId = baseDto.ChatSessionId,
+            CustomerId = baseDto.CustomerId,
+            CustomerName = baseDto.CustomerName,
+            CustomerEmail = baseDto.CustomerEmail,
+            AssignedStaffId = baseDto.AssignedStaffId,
+            AssignedStaffName = baseDto.AssignedStaffName,
+            AssignedStaffEmail = baseDto.AssignedStaffEmail,
+            Status = baseDto.Status,
+            PriorityLevel = baseDto.PriorityLevel,
+            StartedAt = baseDto.StartedAt,
+            LastMessageAt = baseDto.LastMessageAt,
+            LastMessagePreview = baseDto.LastMessagePreview,
+
+            IsNew = isNew,
+            HasPreviousClosedSession = isNew && lastClosedSession != null,
+            LastClosedSessionId = isNew ? lastClosedSession?.ChatSessionId : null,
+            LastClosedAt = isNew ? (lastClosedSession?.ClosedAt ?? lastClosedSession?.StartedAt) : null
+        };
 
         // Nếu là phiên mới => broadcast cho queue staff
         if (isNew)
         {
             await _hub.Clients.Group(QueueGroup)
-                .SendAsync("SupportSessionCreated", dto);
+                .SendAsync("SupportSessionCreated", result);
         }
         else if (!string.IsNullOrWhiteSpace(initialMessage))
         {
             // Nếu chỉ thêm tin nhắn mới từ customer => broadcast cập nhật queue
             await _hub.Clients.Group(QueueGroup)
-                .SendAsync("SupportSessionUpdated", dto);
+                .SendAsync("SupportSessionUpdated", result);
         }
 
-        return Ok(dto);
+        return Ok(result);
     }
+
 
     // ===== 4. CLAIM SESSION =====
     // POST /api/support-chats/{sessionId}/claim
@@ -464,9 +494,27 @@ public class SupportChatController : ControllerBase
         if (session is null) return NotFound();
 
         var isCustomer = session.CustomerId == me.Value;
-        var isStaff = session.AssignedStaffId == me.Value && IsStaffLike(user);
+        var isAssignedStaff = session.AssignedStaffId == me.Value && IsStaffLike(user);
+        var isStaffLikeUser = IsStaffLike(user);
 
-        if (!isCustomer && !isStaff)
+        // 1) Staff xem tin nhắn của phiên đang ở queue (Waiting + chưa assign)
+        var canViewQueueSession = isStaffLikeUser
+                                  && session.Status == StatusWaiting
+                                  && session.AssignedStaffId == null;
+
+        // 2) Staff đang xử lý khách này được xem các phiên khác (previous sessions)
+        bool canViewPreviousSessions = false;
+        if (isStaffLikeUser && !isCustomer && !isAssignedStaff)
+        {
+            // Có ít nhất 1 phiên Active của cùng customer đang gán cho staff hiện tại
+            canViewPreviousSessions = await _db.SupportChatSessions.AnyAsync(s =>
+                s.CustomerId == session.CustomerId &&
+                s.AssignedStaffId == me.Value &&
+                s.Status == StatusActive &&
+                s.ChatSessionId != session.ChatSessionId);
+        }
+
+        if (!(isCustomer || isAssignedStaff || canViewQueueSession || canViewPreviousSessions))
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Người dùng không có quyền truy cập phiên chat này." });
@@ -611,5 +659,159 @@ public class SupportChatController : ControllerBase
             .SendAsync("SupportSessionUpdated", dto);
 
         return NoContent();
+    }
+
+    // GET /api/support-chats/customer/{customerId}/sessions
+    [HttpGet("customer/{customerId:guid}/sessions")]
+    public async Task<ActionResult<List<SupportChatSessionItemDto>>> GetCustomerSessionsForStaff(
+        Guid customerId,
+        [FromQuery] bool includeClosed = true,
+        [FromQuery] Guid? excludeSessionId = null)
+    {
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var user = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (user is null) return Unauthorized();
+
+        if (!IsStaffLike(user))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ nhân viên hỗ trợ mới xem được các phiên chat của khách hàng." });
+        }
+
+        var query = _db.SupportChatSessions
+            .AsNoTracking()
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .Where(s => s.CustomerId == customerId);
+
+        if (!includeClosed)
+        {
+            query = query.Where(s => s.Status != StatusClosed);
+        }
+
+        if (excludeSessionId.HasValue)
+        {
+            query = query.Where(s => s.ChatSessionId != excludeSessionId.Value);
+        }
+
+        var sessions = await query
+            .OrderByDescending(s => s.LastMessageAt ?? s.StartedAt)
+            .Take(50)
+            .ToListAsync();
+
+        var result = sessions.Select(MapToSessionItem).ToList();
+        return Ok(result);
+    }
+    // GET /api/support-chats/admin/sessions
+    [HttpGet("admin/sessions")]
+    public async Task<ActionResult<PagedResult<SupportChatAdminSessionListItemDto>>> AdminSearchSessions(
+        [FromQuery] SupportChatAdminSessionFilterDto filter)
+    {
+        var me = GetCurrentUserIdOrNull();
+        if (me is null) return Unauthorized();
+
+        var user = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
+        if (user is null) return Unauthorized();
+
+        // Chỉ admin (code role chứa "admin")
+        if (!(user.Roles ?? Array.Empty<Role>())
+                .Any(r => (r.Code ?? string.Empty).ToLower().Contains("admin")))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ admin mới truy cập được lịch sử chat tổng." });
+        }
+
+        var query = _db.SupportChatSessions
+            .AsNoTracking()
+            .Include(s => s.Customer)
+            .Include(s => s.AssignedStaff)
+            .AsQueryable();
+
+        if (filter.From.HasValue)
+        {
+            query = query.Where(s => s.StartedAt >= filter.From.Value);
+        }
+
+        if (filter.To.HasValue)
+        {
+            query = query.Where(s => s.StartedAt <= filter.To.Value);
+        }
+
+        if (filter.CustomerId.HasValue)
+        {
+            query = query.Where(s => s.CustomerId == filter.CustomerId.Value);
+        }
+
+        if (filter.StaffId.HasValue)
+        {
+            query = query.Where(s => s.AssignedStaffId == filter.StaffId.Value);
+        }
+
+        if (filter.PriorityLevel.HasValue)
+        {
+            query = query.Where(s => s.PriorityLevel == filter.PriorityLevel.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            query = query.Where(s => s.Status == filter.Status);
+        }
+
+        var page = Math.Max(1, filter.Page);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 200);
+
+        var totalCount = await query.CountAsync();
+
+        var sessions = await query
+            .OrderByDescending(s => s.StartedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        // Lấy message count theo group
+        var sessionIds = sessions.Select(s => s.ChatSessionId).ToList();
+
+        var messageCounts = await _db.SupportChatMessages
+            .Where(m => sessionIds.Contains(m.ChatSessionId))
+            .GroupBy(m => m.ChatSessionId)
+            .Select(g => new { ChatSessionId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ChatSessionId, x => x.Count);
+
+        var items = sessions.Select(s =>
+        {
+            var baseDto = MapToSessionItem(s);
+            return new SupportChatAdminSessionListItemDto
+            {
+                ChatSessionId = baseDto.ChatSessionId,
+                CustomerId = baseDto.CustomerId,
+                CustomerName = baseDto.CustomerName,
+                CustomerEmail = baseDto.CustomerEmail,
+                AssignedStaffId = baseDto.AssignedStaffId,
+                AssignedStaffName = baseDto.AssignedStaffName,
+                AssignedStaffEmail = baseDto.AssignedStaffEmail,
+                Status = baseDto.Status,
+                PriorityLevel = baseDto.PriorityLevel,
+                StartedAt = baseDto.StartedAt,
+                LastMessageAt = baseDto.LastMessageAt,
+                LastMessagePreview = baseDto.LastMessagePreview,
+                MessageCount = messageCounts.TryGetValue(s.ChatSessionId, out var c) ? c : 0
+            };
+        }).ToList();
+
+        // 🔧 SỬ DỤNG CONSTRUCTOR CÓ SẴN CỦA PagedResult<T>
+        var result = new PagedResult<SupportChatAdminSessionListItemDto>(
+            items,          // IEnumerable<SupportChatAdminSessionListItemDto>
+            page,           // page hiện tại
+            pageSize,       // page size
+            totalCount      // tổng số bản ghi
+        );
+
+        return Ok(result);
     }
 }

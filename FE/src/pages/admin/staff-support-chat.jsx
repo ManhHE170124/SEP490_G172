@@ -31,6 +31,7 @@ function normalizeSession(raw) {
   if (!raw) return null;
   return {
     chatSessionId: raw.chatSessionId || raw.ChatSessionId,
+    customerId: raw.customerId || raw.CustomerId || null, // ✅ thêm customerId
     customerName:
       raw.customerName ||
       raw.CustomerName ||
@@ -82,13 +83,13 @@ function getStatusLabel(session) {
 function getStatusTextForHeader(session) {
   if (!session) return "";
   const status = String(session.status || "").toLowerCase();
-  const staffName = session.assignedStaffName || "nhân viên hỗ trợ";
 
   if (status === "waiting") {
-    return "Phiên chat đang chờ nhân viên nhận.";
+    return "Phiên chat đang chờ bạn nhận.";
   }
   if (status === "open" || status === "active") {
-    return `Đang chat với ${session.customerName}. Nhân viên: ${staffName}.`;
+    // Không cần “Đang chat với ... Nhân viên: ...” nữa
+    return "Bạn đang hỗ trợ khách trong phiên chat này.";
   }
   if (status === "closed") {
     return "Phiên chat đã kết thúc.";
@@ -166,6 +167,13 @@ export default function StaffSupportChatPage() {
 
   const effectiveIncludeClosed = isAdmin && includeClosed; // staff => luôn false
 
+  // ---- State cho panel "Các phiên chat trước với user này" ----
+  const [previousSessions, setPreviousSessions] = useState([]);
+  const [loadingPreviousSessions, setLoadingPreviousSessions] = useState(false);
+  const [previewSession, setPreviewSession] = useState(null);
+  const [previewMessages, setPreviewMessages] = useState([]);
+  const [loadingPreviewMessages, setLoadingPreviewMessages] = useState(false);
+
   // Đồng bộ selectedSessionId với query param ?sessionId=...
   useEffect(() => {
     const paramId = searchParams.get("sessionId") || null;
@@ -188,6 +196,14 @@ export default function StaffSupportChatPage() {
     );
   }, [queue, mine, selectedSessionId]);
 
+  // session hiện tại có nằm trong "phiên của tôi" hay không
+  const isSelectedSessionMine = useMemo(
+    () =>
+      !!selectedSessionId &&
+      mine.some((s) => s.chatSessionId === selectedSessionId),
+    [mine, selectedSessionId]
+  );
+
   const pageTitle = "Chat hỗ trợ (Staff)";
 
   // ---- Load danh sách ----
@@ -199,16 +215,16 @@ export default function StaffSupportChatPage() {
       const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
-        ? res
-        : [];
+          ? res
+          : [];
       const mapped = rawItems.map(normalizeSession).filter(Boolean);
       setQueue(mapped);
     } catch (e) {
       console.error(e);
       setErrorText(
         e?.response?.data?.message ||
-          e.message ||
-          "Không tải được danh sách hàng chờ."
+        e.message ||
+        "Không tải được danh sách hàng chờ."
       );
     } finally {
       setLoadingQueue(false);
@@ -225,16 +241,16 @@ export default function StaffSupportChatPage() {
         const rawItems = Array.isArray(res?.items ?? res?.Items)
           ? res.items ?? res.Items
           : Array.isArray(res)
-          ? res
-          : [];
+            ? res
+            : [];
         const mapped = rawItems.map(normalizeSession).filter(Boolean);
         setMine(mapped);
       } catch (e) {
         console.error(e);
         setErrorText(
           e?.response?.data?.message ||
-            e.message ||
-            "Không tải được danh sách phiên của bạn."
+          e.message ||
+          "Không tải được danh sách phiên của bạn."
         );
       } finally {
         setLoadingMine(false);
@@ -256,16 +272,16 @@ export default function StaffSupportChatPage() {
       const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
-        ? res
-        : [];
+          ? res
+          : [];
       const mapped = rawItems.map(normalizeMessage).filter(Boolean);
       setMessages(mapped);
     } catch (e) {
       console.error(e);
       setErrorText(
         e?.response?.data?.message ||
-          e.message ||
-          "Không tải được lịch sử tin nhắn."
+        e.message ||
+        "Không tải được lịch sử tin nhắn."
       );
     } finally {
       setLoadingMessages(false);
@@ -330,10 +346,10 @@ export default function StaffSupportChatPage() {
             prev.map((s) =>
               s.chatSessionId === msg.chatSessionId
                 ? {
-                    ...s,
-                    lastMessagePreview: msg.content,
-                    lastMessageAt: msg.sentAt ?? s.lastMessageAt,
-                  }
+                  ...s,
+                  lastMessagePreview: msg.content,
+                  lastMessageAt: msg.sentAt ?? s.lastMessageAt,
+                }
                 : s
             )
           );
@@ -341,10 +357,10 @@ export default function StaffSupportChatPage() {
             prev.map((s) =>
               s.chatSessionId === msg.chatSessionId
                 ? {
-                    ...s,
-                    lastMessagePreview: msg.content,
-                    lastMessageAt: msg.sentAt ?? s.lastMessageAt,
-                  }
+                  ...s,
+                  lastMessagePreview: msg.content,
+                  lastMessageAt: msg.sentAt ?? s.lastMessageAt,
+                }
                 : s
             )
           );
@@ -425,7 +441,7 @@ export default function StaffSupportChatPage() {
 
         await conn.start();
         if (stopped) {
-          await conn.stop().catch(() => {});
+          await conn.stop().catch(() => { });
           return;
         }
 
@@ -504,6 +520,7 @@ export default function StaffSupportChatPage() {
       el.scrollTop = el.scrollHeight;
     };
 
+    // Lần đầu load messages cho session hiện tại: luôn kéo xuống cuối
     if (!initialScrollDoneRef.current) {
       scrollToBottom();
       initialScrollDoneRef.current = true;
@@ -511,6 +528,7 @@ export default function StaffSupportChatPage() {
       return;
     }
 
+    // Các lần sau: chỉ auto scroll nếu đang ở đáy
     if (isAtBottomRef.current) {
       scrollToBottom();
     }
@@ -532,6 +550,66 @@ export default function StaffSupportChatPage() {
     }
     loadMessages(selectedSessionId);
   }, [selectedSessionId, loadMessages]);
+
+  // ---- Load các phiên chat trước của cùng customer cho side panel ----
+  useEffect(() => {
+    // Reset khi đổi session
+    setPreviousSessions([]);
+    setPreviewSession(null);
+    setPreviewMessages([]);
+    setLoadingPreviousSessions(false);
+    setLoadingPreviewMessages(false);
+
+    if (!selectedSession || !selectedSession.customerId || !isSelectedSessionMine) {
+      // Chỉ load khi staff đang phụ trách phiên này
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchPrevious = async () => {
+      setLoadingPreviousSessions(true);
+      try {
+        const res = await supportChatApi.getCustomerSessions(
+          selectedSession.customerId,
+          {
+            includeClosed: true,
+            excludeSessionId: selectedSession.chatSessionId,
+          }
+        );
+
+        const rawItems = Array.isArray(res?.items ?? res?.Items)
+          ? res.items ?? res.Items
+          : Array.isArray(res)
+            ? res
+            : [];
+
+        const mapped = rawItems.map(normalizeSession).filter(Boolean);
+        if (!cancelled) {
+          setPreviousSessions(mapped);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error(e);
+          setErrorText(
+            e?.response?.data?.message ||
+            e.message ||
+            "Không tải được danh sách phiên chat trước."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPreviousSessions(false);
+        }
+      }
+    };
+
+    fetchPrevious();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSession, isSelectedSessionMine]);
 
   // ---- Helpers: select session + sync URL ----
 
@@ -597,8 +675,8 @@ export default function StaffSupportChatPage() {
       console.error(e);
       setErrorText(
         e?.response?.data?.message ||
-          e.message ||
-          "Trả lại phiên chat thất bại."
+        e.message ||
+        "Trả lại phiên chat thất bại."
       );
     } finally {
       setStateText("");
@@ -659,11 +737,39 @@ export default function StaffSupportChatPage() {
       console.error(e2);
       setErrorText(
         e2?.response?.data?.message ||
-          e2.message ||
-          "Không gửi được tin nhắn. Vui lòng thử lại."
+        e2.message ||
+        "Không gửi được tin nhắn. Vui lòng thử lại."
       );
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleOpenTranscript = async (session) => {
+    if (!session || !session.chatSessionId) return;
+
+    setPreviewSession(session);
+    setPreviewMessages([]);
+    setLoadingPreviewMessages(true);
+
+    try {
+      const res = await supportChatApi.getMessages(session.chatSessionId);
+      const rawItems = Array.isArray(res?.items ?? res?.Items)
+        ? res.items ?? res.Items
+        : Array.isArray(res)
+          ? res
+          : [];
+      const mapped = rawItems.map(normalizeMessage).filter(Boolean);
+      setPreviewMessages(mapped);
+    } catch (e) {
+      console.error(e);
+      setErrorText(
+        e?.response?.data?.message ||
+        e.message ||
+        "Không tải được transcript phiên chat trước."
+      );
+    } finally {
+      setLoadingPreviewMessages(false);
     }
   };
 
@@ -671,8 +777,8 @@ export default function StaffSupportChatPage() {
 
   const canSend =
     !!selectedSession &&
-    String(selectedSession.status || "")
-      .toLowerCase() !== "closed";
+    isSelectedSessionMine && // ✅ chỉ gửi được khi là "phiên của tôi"
+    String(selectedSession.status || "").toLowerCase() !== "closed";
 
   // ---- Render helpers ----
 
@@ -681,10 +787,12 @@ export default function StaffSupportChatPage() {
     const isSelected = selectedSessionId === s.chatSessionId;
     const firstChar = (s.customerName || "K")[0]?.toUpperCase?.() || "K";
 
-    const time =
-      s.lastMessageAt || s.startedAt
-        ? formatTimeShort(s.lastMessageAt || s.startedAt)
-        : "";
+    let timeLabel = "";
+    if (s.lastMessageAt) {
+      timeLabel = `Tin cuối: ${formatTimeShort(s.lastMessageAt)}`;
+    } else if (s.startedAt) {
+      timeLabel = `Bắt đầu: ${formatTimeShort(s.startedAt)}`;
+    }
 
     return (
       <div
@@ -698,7 +806,7 @@ export default function StaffSupportChatPage() {
         <div className="session-info">
           <div className="session-line1">
             <span className="session-customer">{s.customerName}</span>
-            {time && <span className="session-time">{time}</span>}
+            {timeLabel && <span className="session-time">{timeLabel}</span>}
           </div>
           <div className="session-line2">
             <span className="session-status">{getStatusLabel(s)}</span>
@@ -763,16 +871,164 @@ export default function StaffSupportChatPage() {
             <div key={key} className={rowCls}>
               <div className={msgCls}>
                 <div className="msg-meta">
-                  <span>
+                  <span className="msg-meta-name">
                     {msg.isFromStaff ? "Bạn" : msg.senderName || "Khách"}
                   </span>
-                  <span>{formatTimeShort(msg.sentAt)}</span>
+                  <span className="msg-meta-time">
+                    {formatTimeShort(msg.sentAt)}
+                  </span>
                 </div>
                 <div className="msg-bubble">{msg.content}</div>
               </div>
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  const renderPreviousSessionsPanel = () => {
+    if (!selectedSession) return null;
+
+    const canShowPanel =
+      isSelectedSessionMine && !!selectedSession.customerId;
+
+    return (
+      <div className="previous-sessions-panel">
+        <div className="previous-sessions-header">
+          <div className="previous-sessions-title">
+            Các phiên chat trước với user này
+          </div>
+          {loadingPreviousSessions && (
+            <span className="previous-sessions-tag">Đang tải...</span>
+          )}
+        </div>
+
+        {!canShowPanel && (
+          <div className="previous-sessions-empty">
+            Nhận phiên chat để xem lịch sử trước đó.
+          </div>
+        )}
+
+        {canShowPanel &&
+          !loadingPreviousSessions &&
+          !previewSession && (
+            <>
+              {previousSessions.length === 0 && (
+                <div className="previous-sessions-empty">
+                  Chưa có phiên chat trước nào.
+                </div>
+              )}
+
+              {previousSessions.length > 0 && (
+                <div className="previous-sessions-list">
+                  {previousSessions.map((s) => {
+                    let timeLabel = "";
+                    if (s.lastMessageAt) {
+                      timeLabel = `Tin cuối: ${formatTimeShort(
+                        s.lastMessageAt
+                      )}`;
+                    } else if (s.startedAt) {
+                      timeLabel = `Bắt đầu: ${formatTimeShort(
+                        s.startedAt
+                      )}`;
+                    }
+
+                    return (
+                      <button
+                        key={s.chatSessionId}
+                        type="button"
+                        className="previous-session-item"
+                        onClick={() => handleOpenTranscript(s)}
+                      >
+                        <div className="previous-session-line1">
+                          <span className="previous-session-status">
+                            {getStatusLabel(s)}
+                          </span>
+                          {timeLabel && (
+                            <span className="previous-session-time">
+                              {timeLabel}
+                            </span>
+                          )}
+                        </div>
+                        {s.lastMessagePreview && (
+                          <div className="previous-session-preview">
+                            {s.lastMessagePreview}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+        {canShowPanel && previewSession && (
+          <div className="previous-transcript">
+            <div className="previous-transcript-header">
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => setPreviewSession(null)}
+              >
+                ← Quay lại danh sách phiên
+              </button>
+              <div className="previous-transcript-sub">
+                <span>{getStatusLabel(previewSession)}</span>
+                {previewSession.startedAt && (
+                  <span>
+                    Bắt đầu:{" "}
+                    {formatTimeShort(previewSession.startedAt)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="previous-transcript-body">
+              {loadingPreviewMessages && (
+                <div className="empty small">Đang tải transcript...</div>
+              )}
+              {!loadingPreviewMessages &&
+                (!previewMessages.length ? (
+                  <div className="empty small">
+                    Không có tin nhắn trong phiên này.
+                  </div>
+                ) : (
+                  previewMessages.map((msg) => {
+                    const key =
+                      msg.messageId || `${msg.chatSessionId}_${msg.sentAt}`;
+                    const rowCls =
+                      "msg-row msg-row-compact " +
+                      (msg.isFromStaff
+                        ? "msg-row-staff"
+                        : "msg-row-customer");
+                    const msgCls =
+                      "msg msg-compact " +
+                      (msg.isFromStaff ? "msg-staff" : "msg-customer");
+
+                    return (
+                      <div key={key} className={rowCls}>
+                        <div className={msgCls}>
+                          <div className="msg-meta">
+                            {/* ✅ Ở transcript phiên cũ: staff luôn hiển thị "CSKH" */}
+                            <span className="msg-meta-name">
+                              {msg.isFromStaff
+                                ? "CSKH"
+                                : msg.senderName || "Khách"}
+                            </span>
+                            <span className="msg-meta-time">
+                              {formatTimeShort(msg.sentAt)}
+                            </span>
+                          </div>
+                          <div className="msg-bubble">{msg.content}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -790,8 +1046,14 @@ export default function StaffSupportChatPage() {
           </div>
         </div>
         <div className="support-chat-header-actions">
-          <button type="button" className="tab" onClick={refreshAll}>
-            Làm mới
+          {/* Nút làm mới nổi bật hơn */}
+          <button
+            type="button"
+            className="btn ghost refresh-button"
+            onClick={refreshAll}
+          >
+            <span className="refresh-icon">⟳</span>
+            <span>Làm mới</span>
           </button>
         </div>
       </div>
@@ -875,99 +1137,116 @@ export default function StaffSupportChatPage() {
           )}
 
           {selectedSession && (
-            <div className="chat-panel">
-              <div className="chat-header">
-                <div className="chat-header-main">
-                  <div className="chat-avatar">
-                    {(selectedSession.customerName || "K")
-                      .substring(0, 1)
-                      .toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="chat-customer-name">
-                      {selectedSession.customerName}
+            <>
+              <div className="chat-panel">
+                <div className="chat-header">
+                  <div className="chat-header-main">
+                    <div className="chat-header-left">
+                      <div className="chat-avatar">
+                        {(selectedSession.customerName || "K")
+                          .substring(0, 1)
+                          .toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="chat-customer-name">
+                          {selectedSession.customerName}
+                        </div>
+                        <div className="chat-meta">
+                          <span className="meta-item">
+                            <strong>Trạng thái:</strong>{" "}
+                            {getStatusLabel(selectedSession)}
+                          </span>
+                          {selectedSession.priorityLevel !== undefined && (
+                            <span className="meta-item">
+                              <strong>Ưu tiên:</strong>{" "}
+                              {getPriorityLabel(selectedSession.priorityLevel)}
+                            </span>
+                          )}
+                          {selectedSession.customerEmail && (
+                            <span className="meta-item">
+                              <strong>Email:</strong>{" "}
+                              {selectedSession.customerEmail}
+                            </span>
+                          )}
+                        </div>
+                        {sessionStatusText && (
+                          <div className="chat-meta-sub">
+                            {sessionStatusText}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="chat-meta">
-                      <span className="meta-item">
-                        <strong>Trạng thái:</strong>{" "}
-                        {getStatusLabel(selectedSession)}
-                      </span>
-                      {selectedSession.priorityLevel !== undefined && (
-                        <span className="meta-item">
-                          <strong>Ưu tiên:</strong>{" "}
-                          {getPriorityLabel(selectedSession.priorityLevel)}
-                        </span>
-                      )}
-                      {selectedSession.customerEmail && (
-                        <span className="meta-item">
-                          <strong>Email:</strong>{" "}
-                          {selectedSession.customerEmail}
-                        </span>
-                      )}
-                    </div>
-                    {sessionStatusText && (
-                      <div className="chat-meta-sub">{sessionStatusText}</div>
+
+                    {/* ✅ Hai nút Trả lại hàng chờ / Đóng phiên chuyển lên header, chỉ hiển thị khi phiên thuộc "Của tôi" */}
+                    {isSelectedSessionMine && (
+                      <div className="chat-header-actions">
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() =>
+                            selectedSession &&
+                            handleUnassign(selectedSession.chatSessionId)
+                          }
+                        >
+                          Trả lại hàng chờ
+                        </button>
+                        <button
+                          type="button"
+                          className="btn danger"
+                          onClick={() =>
+                            selectedSession &&
+                            handleClose(selectedSession.chatSessionId)
+                          }
+                        >
+                          Đóng phiên
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
+
+                <div className="chat-body">
+                  {renderMessages()}
+
+                  <form className="chat-footer" onSubmit={handleSend}>
+                    <textarea
+                      className="chat-input"
+                      placeholder={
+                        canSend
+                          ? "Nhập nội dung tin nhắn..."
+                          : isSelectedSessionMine
+                            ? "Phiên chat đã đóng, không thể gửi thêm."
+                            : "Hãy nhận phiên chat để trả lời khách."
+                      }
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      disabled={!canSend || sending}
+                    />
+                    <div className="chat-footer-actions">
+                      <div className="chat-footer-row">
+                        <button
+                          type="submit"
+                          className="btn primary"
+                          disabled={!canSend || sending}
+                        >
+                          {sending ? "Đang gửi..." : "Gửi"}
+                        </button>
+                      </div>
+
+                      {/* Nút Trả lại hàng chờ / Đóng phiên đã moved lên header */}
+
+                      {errorText && (
+                        <div className="error-text chat-error">
+                          {errorText}
+                        </div>
+                      )}
+                    </div>
+                  </form>
+                </div>
               </div>
 
-              <div className="chat-body">
-                {renderMessages()}
-
-                <form className="chat-footer" onSubmit={handleSend}>
-                  <textarea
-                    className="chat-input"
-                    placeholder={
-                      canSend
-                        ? "Nhập nội dung tin nhắn..."
-                        : "Phiên chat đã đóng, không thể gửi thêm."
-                    }
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    disabled={!canSend || sending}
-                  />
-                  <div className="chat-footer-actions">
-                    <div className="chat-footer-row">
-                      <button
-                        type="submit"
-                        className="btn primary"
-                        disabled={!canSend || sending}
-                      >
-                        {sending ? "Đang gửi..." : "Gửi"}
-                      </button>
-                    </div>
-                    <div className="chat-footer-row secondary">
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        disabled={!selectedSession}
-                        onClick={() =>
-                          selectedSession &&
-                          handleUnassign(selectedSession.chatSessionId)
-                        }
-                      >
-                        Trả lại hàng chờ
-                      </button>
-                      <button
-                        type="button"
-                        className="btn danger"
-                        disabled={!selectedSession}
-                        onClick={() =>
-                          selectedSession &&
-                          handleClose(selectedSession.chatSessionId)
-                        }
-                      >
-                        Đóng phiên
-                      </button>
-                    </div>
-                    {errorText && (
-                      <div className="error-text chat-error">{errorText}</div>
-                    )}
-                  </div>
-                </form>
-              </div>
-            </div>
+              {renderPreviousSessionsPanel()}
+            </>
           )}
         </div>
       </div>

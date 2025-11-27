@@ -7,7 +7,7 @@ export const supportChatApi = {
     return axiosClient.post("/support-chats/open-or-get", body ?? {});
   },
 
-  // Danh sách phiên chat của chính user hiện tại
+  // Danh sách phiên chat của chính user hiện tại (customer)
   getMySessions(params) {
     return axiosClient.get("/support-chats/my-sessions", { params });
   },
@@ -17,54 +17,60 @@ export const supportChatApi = {
     return axiosClient.get("/support-chats/unassigned", { params });
   },
 
-  // Nhân viên nhận 1 phiên chat
+  // Nhân viên claim 1 phiên chat
   claim(sessionId) {
     if (!sessionId) throw new Error("sessionId is required");
-    return axiosClient.post(`/support-chats/${sessionId}/claim`, {});
+    return axiosClient.post(`/support-chats/${sessionId}/claim`);
   },
 
-  // Nhân viên trả lại 1 phiên chat về queue
+  // Nhân viên trả lại hàng chờ
   unassign(sessionId) {
     if (!sessionId) throw new Error("sessionId is required");
-    return axiosClient.post(`/support-chats/${sessionId}/unassign`, {});
+    return axiosClient.post(`/support-chats/${sessionId}/unassign`);
   },
 
-  // Đóng 1 phiên chat
+  // Đóng phiên chat
   close(sessionId) {
     if (!sessionId) throw new Error("sessionId is required");
-    return axiosClient.post(`/support-chats/${sessionId}/close`, {});
+    return axiosClient.post(`/support-chats/${sessionId}/close`);
   },
 
-  // Lấy danh sách tin nhắn trong 1 phiên chat
+  // Lấy lịch sử tin nhắn của 1 phiên
   getMessages(sessionId) {
     if (!sessionId) throw new Error("sessionId is required");
     return axiosClient.get(`/support-chats/${sessionId}/messages`);
   },
 
-  // Gửi tin nhắn mới vào 1 phiên chat
+  // Gửi 1 tin nhắn trong phiên chat
   postMessage(sessionId, body) {
     if (!sessionId) throw new Error("sessionId is required");
-    return axiosClient.post(`/support-chats/${sessionId}/messages`, body);
+    return axiosClient.post(`/support-chats/${sessionId}/messages`, body ?? {});
   },
 
-  // ===== Alias để không phải sửa nhiều chỗ FE cũ =====
+  // Danh sách các phiên chat (bao gồm Closed) của 1 customer – cho staff
+  // dùng cho panel "Các phiên chat trước với user này"
+  getCustomerSessions(customerId, params) {
+    if (!customerId) throw new Error("customerId is required");
+    return axiosClient.get(
+      `/support-chats/customer/${customerId}/sessions`,
+      { params }
+    );
+  },
 
-  // Một số màn FE (staff) đang gọi claimSession
+  // ---- Alias giữ backward compatibility ----
+
   claimSession(sessionId) {
     return this.claim(sessionId);
   },
 
-  // Và unassignSession
   unassignSession(sessionId) {
     return this.unassign(sessionId);
   },
 
-  // Một số màn FE (staff) đang gọi closeSession
   closeSession(sessionId) {
     return this.close(sessionId);
   },
 
-  // Và createMessage
   createMessage(sessionId, body) {
     return this.postMessage(sessionId, body);
   },

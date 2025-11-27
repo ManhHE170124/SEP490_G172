@@ -133,4 +133,67 @@ namespace Keytietkiem.DTOs.SupportChat
         [Required, MinLength(1)]
         public string Content { get; set; } = "";
     }
+
+    /// <summary>
+    /// Filter cho màn admin lịch sử chat.
+    /// Dùng với [FromQuery].
+    /// </summary>
+    public class SupportChatAdminSessionFilterDto
+    {
+        public DateTime? From { get; set; }
+        public DateTime? To { get; set; }
+
+        public Guid? CustomerId { get; set; }
+        public Guid? StaffId { get; set; }
+
+        public int? PriorityLevel { get; set; }
+
+        /// <summary>
+        /// Trạng thái: Waiting / Active / Closed (optional).
+        /// Nếu null => không filter theo trạng thái.
+        /// </summary>
+        public string? Status { get; set; }
+
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 50;
+    }
+
+    /// <summary>
+    /// Item cho màn admin list session, kế thừa thông tin cơ bản + số tin nhắn.
+    /// </summary>
+    public class SupportChatAdminSessionListItemDto : SupportChatSessionItemDto
+    {
+        /// <summary>
+        /// Tổng số tin nhắn trong phiên.
+        /// </summary>
+        public int MessageCount { get; set; }
+    }
+    /// <summary>
+    /// Kết quả khi customer mở/tìm phiên chat (widget).
+    /// Kế thừa thông tin cơ bản của phiên + flag hỗ trợ UI.
+    /// </summary>
+    public class OpenSupportChatResultDto : SupportChatSessionItemDto
+    {
+        /// <summary>
+        /// true nếu đây là phiên chat mới được tạo.
+        /// false nếu dùng lại phiên đang mở (Waiting/Active).
+        /// </summary>
+        public bool IsNew { get; set; }
+
+        /// <summary>
+        /// true nếu trước khi mở phiên này, user đã từng có ít nhất 1 phiên chat đã Closed.
+        /// Dùng để hiển thị message "Phiên chat trước đã kết thúc..."
+        /// </summary>
+        public bool HasPreviousClosedSession { get; set; }
+
+        /// <summary>
+        /// Id phiên chat đã Closed gần nhất (nếu có).
+        /// </summary>
+        public Guid? LastClosedSessionId { get; set; }
+
+        /// <summary>
+        /// Thời điểm đóng của phiên chat đã Closed gần nhất (nếu có).
+        /// </summary>
+        public DateTime? LastClosedAt { get; set; }
+    }
 }

@@ -3,7 +3,6 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import axiosClient from "../../api/axiosClient";
 import { supportChatApi } from "../../api/supportChatApi";
-// ✅ THÊM DÒNG NÀY
 import "./support-chat-widget.css";
 
 function formatTime(value) {
@@ -17,6 +16,32 @@ function formatTime(value) {
   } catch {
     return String(value);
   }
+}
+
+// --- Helpers normalize từ API / SignalR (camelCase & PascalCase) ---
+function normalizeSession(raw) {
+  if (!raw) return null;
+  return {
+    chatSessionId: raw.chatSessionId || raw.ChatSessionId,
+    status: raw.status || raw.Status || "",
+    assignedStaffName:
+      raw.assignedStaffName || raw.AssignedStaffName || "",
+  };
+}
+
+function normalizeMessage(raw) {
+  if (!raw) return null;
+  return {
+    messageId: raw.messageId || raw.MessageId,
+    chatSessionId: raw.chatSessionId || raw.ChatSessionId,
+    isFromStaff:
+      typeof raw.isFromStaff === "boolean"
+        ? raw.isFromStaff
+        : !!raw.IsFromStaff,
+    senderName: raw.senderName || raw.SenderName || "",
+    content: raw.content || raw.Content || "",
+    sentAt: raw.sentAt || raw.SentAt || null,
+  };
 }
 
 export default function ChatWidget() {
@@ -35,6 +60,7 @@ export default function ChatWidget() {
   const connRef = useRef(null);
   const messagesRef = useRef(null);
   const isAtBottomRef = useRef(true);
+  const autoScrollRef = useRef(false); // <-- quyết định lần render tới có auto scroll không
 
   const toggleOpen = () => {
     setOpen((prev) => !prev);
@@ -45,6 +71,7 @@ export default function ChatWidget() {
     if (!el) return;
     if (!force && !isAtBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
+    isAtBottomRef.current = true;
   };
 
   const handleMessagesScroll = () => {
@@ -54,6 +81,14 @@ export default function ChatWidget() {
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     isAtBottomRef.current = distanceToBottom <= threshold;
   };
+
+  // Khi số lượng message thay đổi & autoScrollRef đang bật → kéo xuống đáy
+  useEffect(() => {
+    if (autoScrollRef.current) {
+      scrollToBottom(true);
+      autoScrollRef.current = false;
+    }
+  }, [messages.length]);
 
   // -------- Khởi tạo session khi mở widget --------
   useEffect(() => {
@@ -74,10 +109,16 @@ export default function ChatWidget() {
       setError("");
 
       try {
-        const s = await supportChatApi.openOrGet();
+        const raw = await supportChatApi.openOrGet();
         if (cancelled) return;
 
+        const s = normalizeSession(raw) || raw;
+        if (!s.chatSessionId && raw.ChatSessionId) {
+          s.chatSessionId = raw.ChatSessionId;
+        }
+
         setSession(s);
+        autoScrollRef.current = true; // load lịch sử → luôn kéo xuống
         await loadMessages(s.chatSessionId, { silent: false, force: true });
       } catch (err) {
         if (cancelled) return;
@@ -122,14 +163,19 @@ export default function ChatWidget() {
         ? res
         : res?.items ?? res?.Items ?? [];
 
+      const mapped = items.map(normalizeMessage).filter(Boolean);
+
+      // Lần load lịch sử (force) → auto scroll
+      if (force) {
+        autoScrollRef.current = true;
+      }
+
       setMessages((prev) => {
         if (!force && prev && prev.length > 0) {
           return prev;
         }
-        return items;
+        return mapped;
       });
-
-      setTimeout(() => scrollToBottom(true), 0);
     } catch (err) {
       console.error("load chat messages failed", err);
       if (!silent) {
@@ -195,8 +241,15 @@ export default function ChatWidget() {
 
     connRef.current = connection;
 
-    const handleSupportMessage = (msg) => {
-      if (!msg || msg.chatSessionId !== session.chatSessionId) return;
+    const currentSessionId = session.chatSessionId;
+
+    const handleSupportMessage = (raw) => {
+      const msg = normalizeMessage(raw);
+      if (!msg || msg.chatSessionId !== currentSessionId) return;
+
+      // Tin đến từ SignalR:
+      // nếu đang ở đáy → auto scroll; nếu đang cuộn lên → KHÔNG kéo
+      autoScrollRef.current = isAtBottomRef.current;
 
       setMessages((prev) => {
         const list = prev || [];
@@ -206,20 +259,19 @@ export default function ChatWidget() {
         ) {
           return prev;
         }
-        const next = [...list, msg];
-        return next;
+        return [...list, msg];
       });
-
-      if (isAtBottomRef.current) {
-        setTimeout(() => scrollToBottom(true), 0);
-      }
     };
 
-    const handleSessionUpdated = (item) => {
-      if (!item || item.chatSessionId !== session.chatSessionId) return;
+    const handleSessionUpdated = (raw) => {
+      const updated = normalizeSession(raw);
+      if (!updated || updated.chatSessionId !== currentSessionId) return;
+
+      // ✅ Cập nhật session → statusText sẽ re-render
       setSession((prev) => ({
         ...(prev || {}),
-        ...item,
+        ...raw,
+        ...updated,
       }));
     };
 
@@ -231,8 +283,8 @@ export default function ChatWidget() {
       .start()
       .then(() =>
         connection
-          // ✅ Khớp BE: JoinSession
-          .invoke("JoinSession", session.chatSessionId)
+          // ✅ Join đúng session
+          .invoke("JoinSession", currentSessionId)
           .catch(() => {})
       )
       .catch(() => {});
@@ -242,8 +294,7 @@ export default function ChatWidget() {
       if (!connection) return;
 
       connection
-        // ✅ Khớp BE: LeaveSession
-        .invoke("LeaveSession", session.chatSessionId)
+        .invoke("LeaveSession", currentSessionId)
         .catch(() => {})
         .finally(() => {
           connection.off("SupportMessageReceived", handleSupportMessage);
@@ -269,11 +320,17 @@ export default function ChatWidget() {
     setError("");
 
     try {
-      const saved = await supportChatApi.postMessage(session.chatSessionId, {
+      const raw = await supportChatApi.postMessage(session.chatSessionId, {
         content: text,
       });
 
+      const saved = normalizeMessage(raw) || raw;
+
       setInput("");
+
+      // Tin nhắn của mình → luôn kéo xuống đáy
+      autoScrollRef.current = true;
+
       setMessages((prev) => {
         const list = prev || [];
         if (
@@ -283,10 +340,8 @@ export default function ChatWidget() {
         ) {
           return prev;
         }
-        const next = [...list, saved];
-        return next;
+        return [...list, saved];
       });
-      setTimeout(() => scrollToBottom(true), 0);
     } catch (err) {
       console.error("send chat message failed", err);
       setError(
@@ -301,20 +356,19 @@ export default function ChatWidget() {
   const statusText = useMemo(() => {
     if (!session) return "";
     const status = String(session.status || session.Status || "").toLowerCase();
-    const staffName =
-      session.assignedStaffName ||
-      session.AssignedStaffName ||
-      "nhân viên hỗ trợ";
+    const assignedStaffName =
+      session.assignedStaffName || session.AssignedStaffName || "";
 
-    if (
-      status === "waiting" ||
-      (!session.assignedStaffName && status !== "closed")
-    ) {
+    // Chưa có NV hoặc status waiting → vẫn đang chờ
+    if (status === "waiting" || (!assignedStaffName && status !== "closed")) {
       return "Đang chờ kết nối nhân viên…";
     }
+
     if (status === "open" || status === "active") {
-      return `Đang chat với ${staffName}`;
+      // ✅ Khi SignalR update status/assignedStaffName → text này hiện ra
+      return "Đã kết nối với CSKH.";
     }
+
     if (status === "closed") {
       return "Phiên chat đã kết thúc.";
     }
@@ -383,23 +437,21 @@ export default function ChatWidget() {
 
               {messages.map((m) => {
                 const isMine = !m.isFromStaff && !m.IsFromStaff;
-                const senderName =
-                  m.senderName ||
-                  m.SenderName ||
-                  (isMine ? "Bạn" : "Nhân viên");
                 const time = formatTime(m.sentAt || m.SentAt);
+                const content = m.content || m.Content || "";
+                const key =
+                  m.messageId || m.MessageId || `${time}-${content}-${isMine}`;
 
                 return (
                   <div
-                    key={m.messageId || m.MessageId || `${time}-${m.content}`}
+                    key={key}
                     className={`msg-row ${isMine ? "mine" : "theirs"}`}
                   >
                     <div className="msg-bubble">
-                      <div className="msg-content">
-                        {m.content || m.Content}
-                      </div>
+                      <div className="msg-content">{content}</div>
                       <div className="msg-meta">
-                        <span className="sender">{senderName}</span>
+                        {/* Không hiển thị tên nhân viên, chỉ hiện "Bạn" cho tin của mình */}
+                        {isMine && <span className="sender">Bạn</span>}
                         {time && <span className="time">{time}</span>}
                       </div>
                     </div>
