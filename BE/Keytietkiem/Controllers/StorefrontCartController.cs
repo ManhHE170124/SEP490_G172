@@ -11,6 +11,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
+
 namespace Keytietkiem.Controllers
 {
     [ApiController]
@@ -182,7 +183,6 @@ namespace Keytietkiem.Controllers
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
 
-                // 🔧 SỬA Ở ĐÂY:
                 //  - TotalAmount  = tổng giá niêm yết (totalListAmount)
                 //  - DiscountAmount = tổng giảm giá
                 //  - FinalAmount  = tổng giá sau giảm (totalAmount)
@@ -217,7 +217,7 @@ namespace Keytietkiem.Controllers
 
                 await db.SaveChangesAsync();
 
-                // Clear cart
+                // Clear cart (không hoàn kho ở đây vì đã trừ khi AddItem)
                 var cacheKey = GetCacheKey(userId.Value);
                 _cache.Remove(cacheKey);
 
@@ -246,8 +246,6 @@ namespace Keytietkiem.Controllers
                 });
             }
         }
-
-
 
         // ===== PUT: /apistorefront/cart/items/{variantId} =====
         // Body: { "quantity": 3 }
@@ -347,7 +345,6 @@ namespace Keytietkiem.Controllers
             return Ok(ToDto(cart));
         }
 
-
         // ===== DELETE: /apistorefront/cart/items/{variantId} =====
         [HttpDelete("items/{variantId:guid}")]
         public async Task<ActionResult<StorefrontCartDto>> RemoveItem(Guid variantId)
@@ -386,7 +383,6 @@ namespace Keytietkiem.Controllers
             return Ok(ToDto(cart));
         }
 
-
         // ===== PUT: /apistorefront/cart/receiver-email =====
         // Body: { "receiverEmail": "abc@gmail.com" }
         [HttpPut("receiver-email")]
@@ -413,7 +409,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE: /apistorefront/cart =====
         [HttpDelete]
-        public async Task<IActionResult> ClearCart()
+        public async Task<IActionResult> ClearCart([FromQuery] bool skipRestoreStock = false)
         {
             var userId = GetCurrentUserId();
             if (userId is null)
@@ -423,7 +419,10 @@ namespace Keytietkiem.Controllers
 
             var cart = GetOrCreateCart(userId.Value);
 
-            if (cart.Items.Any())
+            // Nếu KHÔNG skipRestoreStock => hoàn kho như cũ (dùng cho nút "Xoá giỏ hàng").
+            // Nếu skipRestoreStock = true (dùng sau khi tạo Order từ cart) => KHÔNG hoàn kho nữa,
+            // vì tồn kho đã bị trừ ngay lúc AddItem/UpdateItem và sẽ chỉ cộng lại nếu đơn bị Cancel.
+            if (!skipRestoreStock && cart.Items.Any())
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -452,7 +451,6 @@ namespace Keytietkiem.Controllers
             var cacheKey = GetCacheKey(userId.Value);
             _cache.Remove(cacheKey);
 
-            // FE đang tự tạo emptyCart nên NoContent là OK
             return NoContent();
         }
 

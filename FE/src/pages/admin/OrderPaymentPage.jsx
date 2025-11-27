@@ -669,19 +669,19 @@ function PaymentDetailModal({
                 </div>
 
                 <div className="detail-section-box">
-                  <div className="detail-label">Mã đơn hàng</div>
-                  <div className="detail-value mono">
-                    {payment.orderId}
+                  <div className="detail-label">Email thanh toán</div>
+                  <div className="detail-value">
+                    {payment.email || "—"}
                   </div>
 
                   <div
                     className="detail-label"
                     style={{ marginTop: 6 }}
                   >
-                    Email đơn hàng
+                    Loại giao dịch
                   </div>
                   <div className="detail-value">
-                    {payment.orderEmail || "—"}
+                    {payment.transactionType || "—"}
                   </div>
                 </div>
               </div>
@@ -957,7 +957,9 @@ export default function OrderPaymentPage() {
 
   const loadPayments = React.useCallback(() => {
     setPaymentLoading(true);
-    const params = {};
+    const params = {
+      transactionType: "ORDER_PAYMENT",
+    };
     if (paymentFilter.status) params.status = paymentFilter.status;
     if (paymentFilter.provider) params.provider = paymentFilter.provider;
     // keyword filter thực hiện ở FE
@@ -997,9 +999,10 @@ export default function OrderPaymentPage() {
       list = list.filter((p) => {
         const haystack = [
           p.paymentId,
-          p.orderId,
-          p.orderEmail,
-          p.orderStatus,
+          p.email,
+          p.provider,
+          p.providerOrderCode,
+          p.transactionType,
         ]
           .filter(Boolean)
           .join(" ")
@@ -1248,7 +1251,7 @@ export default function OrderPaymentPage() {
                     keyword: e.target.value,
                   }))
                 }
-                placeholder="Tìm theo mã thanh toán, mã đơn, email…"
+                placeholder="Tìm theo mã thanh toán, email, cổng thanh toán…"
               />
             </div>
             <div className="group" style={{ minWidth: 160 }}>

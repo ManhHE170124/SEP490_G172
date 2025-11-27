@@ -4,7 +4,8 @@ import axiosClient from "../api/axiosClient";
 const END = { PAYMENTS: "payments" };
 
 export const paymentApi = {
-  list: (params) => axiosClient.get(END.PAYMENTS, { params }), // status, provider, orderId
+  // params: status, provider, email, transactionType, ...
+  list: (params) => axiosClient.get(END.PAYMENTS, { params }),
   get: (id) => axiosClient.get(`${END.PAYMENTS}/${id}`),
   getByOrder: (orderId) =>
     axiosClient.get(`${END.PAYMENTS}/order/${orderId}`),
