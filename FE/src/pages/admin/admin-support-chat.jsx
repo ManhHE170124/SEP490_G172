@@ -14,6 +14,10 @@ import { supportChatApi } from "../../api/supportChatApi";
 import { ticketsApi } from "../../api/ticketsApi";
 import "../../styles/staff-support-chat.css";
 
+// ⚠️ Điều chỉnh lại path cho đúng với project của bạn
+import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import Toast from "../../components/Toast/Toast";
+
 // ---- Helpers ----
 
 function formatTimeShort(value) {
@@ -155,6 +159,15 @@ export default function AdminSupportChatPage() {
   const [stateText, setStateText] = useState("");
   const [errorText, setErrorText] = useState("");
 
+  // ==== Toast & Confirm dialog state (MỚI) ====
+  const [toasts, setToasts] = useState([]);
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: null,
+  });
+
   // ==== Scroll state cho khung chat giống ticket detail ====
   const messagesRef = useRef(null);
   const isAtBottomRef = useRef(true);
@@ -178,6 +191,42 @@ export default function AdminSupportChatPage() {
     sessionId: null,
     excludeUserId: null,
   });
+
+  // ==== Toast helpers ====
+  const showToast = useCallback((type, title, message) => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const toast = { id, type, title, message };
+    setToasts((prev) => [...prev, toast]);
+    // Auto close sau 4s
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const handleRemoveToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // ==== Confirm dialog helpers ====
+  const openConfirm = (title, message, onConfirm) => {
+    setConfirmState({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
+  const handleConfirmOk = () => {
+    if (confirmState.onConfirm) {
+      confirmState.onConfirm();
+    }
+    setConfirmState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
 
   // Đồng bộ selectedSessionId với query param ?sessionId=...
   useEffect(() => {
@@ -218,15 +267,16 @@ export default function AdminSupportChatPage() {
       setQueue(mapped);
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Không tải được danh sách hàng chờ."
-      );
+        e.message ||
+        "Không tải được danh sách hàng chờ.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setLoadingQueue(false);
     }
-  }, []);
+  }, [showToast]);
 
   const loadAssigned = useCallback(async () => {
     setLoadingAssigned(true);
@@ -243,51 +293,57 @@ export default function AdminSupportChatPage() {
       setAssigned(mapped);
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Không tải được danh sách phiên đã nhận."
-      );
+        e.message ||
+        "Không tải được danh sách phiên đã nhận.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setLoadingAssigned(false);
     }
-  }, []);
+  }, [showToast]);
 
   // ---- Load messages ----
-  const loadMessages = useCallback(async (sessionId) => {
-    if (!sessionId) {
-      setMessages([]);
-      return;
-    }
+  const loadMessages = useCallback(
+    async (sessionId) => {
+      if (!sessionId) {
+        setMessages([]);
+        return;
+      }
 
-    setLoadingMessages(true);
-    try {
-      const res = await supportChatApi.getMessages(sessionId);
-      const rawItems = Array.isArray(res?.items ?? res?.Items)
-        ? res.items ?? res.Items
-        : Array.isArray(res)
-        ? res
-        : [];
-      const mapped = rawItems.map(normalizeMessage).filter(Boolean);
-      setMessages(mapped);
-    } catch (e) {
-      console.error(e);
-      setErrorText(
-        e?.response?.data?.message ||
+      setLoadingMessages(true);
+      try {
+        const res = await supportChatApi.getMessages(sessionId);
+        const rawItems = Array.isArray(res?.items ?? res?.Items)
+          ? res.items ?? res.Items
+          : Array.isArray(res)
+          ? res
+          : [];
+        const mapped = rawItems.map(normalizeMessage).filter(Boolean);
+        setMessages(mapped);
+      } catch (e) {
+        console.error(e);
+        const msg =
+          e?.response?.data?.message ||
           e.message ||
-          "Không tải được lịch sử tin nhắn."
-      );
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, []);
+          "Không tải được lịch sử tin nhắn.";
+        setErrorText(msg);
+        showToast("error", "Lỗi", msg);
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    [showToast]
+  );
 
   const refreshAll = useCallback(async () => {
     setStateText("Đang tải dữ liệu...");
     setErrorText("");
     await Promise.all([loadQueue(), loadAssigned()]);
     setStateText("");
-  }, [loadQueue, loadAssigned]);
+    showToast("success", "Đã làm mới", "Dữ liệu chat đã được cập nhật.");
+  }, [loadQueue, loadAssigned, showToast]);
 
   // ---- Admin assign / transfer helpers ----
 
@@ -297,13 +353,19 @@ export default function AdminSupportChatPage() {
       setStateText("Đang gán nhân viên cho phiên chat...");
       await supportChatApi.adminAssignStaff(sessionId, assigneeId);
       await refreshAll();
+      showToast(
+        "success",
+        "Gán nhân viên thành công",
+        "Đã gán nhân viên cho phiên chat."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Gán nhân viên cho phiên chat thất bại."
-      );
+        e.message ||
+        "Gán nhân viên cho phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
@@ -315,13 +377,19 @@ export default function AdminSupportChatPage() {
       setStateText("Đang chuyển nhân viên phụ trách...");
       await supportChatApi.adminTransferStaff(sessionId, assigneeId);
       await refreshAll();
+      showToast(
+        "success",
+        "Chuyển nhân viên thành công",
+        "Đã chuyển nhân viên phụ trách phiên chat."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Chuyển nhân viên phụ trách phiên chat thất bại."
-      );
+        e.message ||
+        "Chuyển nhân viên phụ trách phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
@@ -640,11 +708,12 @@ export default function AdminSupportChatPage() {
       } catch (e) {
         if (!cancelled) {
           console.error(e);
-          setErrorText(
+          const msg =
             e?.response?.data?.message ||
-              e.message ||
-              "Không tải được danh sách phiên chat trước."
-          );
+            e.message ||
+            "Không tải được danh sách phiên chat trước.";
+          setErrorText(msg);
+          showToast("error", "Lỗi", msg);
         }
       } finally {
         if (!cancelled) {
@@ -658,7 +727,7 @@ export default function AdminSupportChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSession]);
+  }, [selectedSession, showToast]);
 
   // ---- Helpers: select session + sync URL ----
 
@@ -710,51 +779,75 @@ export default function AdminSupportChatPage() {
     });
   };
 
-  const handleUnassign = async (sessionId) => {
+  // TÁCH logic cũ ra hàm riêng, dùng ConfirmDialog để xác nhận
+  const doUnassign = async (sessionId) => {
     if (!sessionId) return;
-    if (
-      !window.confirm(
-        "Bạn có chắc muốn trả lại phiên chat này về hàng chờ? Khách sẽ không nhận được phản hồi từ bạn nữa."
-      )
-    )
-      return;
 
     try {
       setStateText("Đang trả lại phiên chat...");
       await supportChatApi.unassignSession(sessionId);
       await refreshAll();
       handleSelectSession(null);
+      showToast(
+        "success",
+        "Đã trả lại phiên chat",
+        "Phiên chat đã được trả lại hàng chờ."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Trả lại phiên chat thất bại."
-      );
+        e.message ||
+        "Trả lại phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
   };
 
-  const handleClose = async (sessionId) => {
+  const handleUnassign = (sessionId) => {
     if (!sessionId) return;
-    if (!window.confirm("Đóng phiên chat này?")) return;
+    openConfirm(
+      "Trả lại phiên chat về hàng chờ",
+      "Bạn có chắc muốn trả lại phiên chat này về hàng chờ? Khách sẽ không nhận được phản hồi từ bạn nữa.",
+      () => doUnassign(sessionId)
+    );
+  };
+
+  const doClose = async (sessionId) => {
+    if (!sessionId) return;
 
     try {
       setStateText("Đang đóng phiên chat...");
       await supportChatApi.closeSession(sessionId);
       await refreshAll();
       handleSelectSession(null);
+      showToast(
+        "success",
+        "Đã đóng phiên chat",
+        "Phiên chat đã được đóng thành công."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Đóng phiên chat thất bại."
-      );
+        e.message ||
+        "Đóng phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
+  };
+
+  const handleClose = (sessionId) => {
+    if (!sessionId) return;
+    openConfirm(
+      "Đóng phiên chat",
+      "Bạn có chắc muốn đóng phiên chat này không?",
+      () => doClose(sessionId)
+    );
   };
 
   // ✅ Admin gửi message: luôn có thể gửi trong Chờ nhận / Đã nhận,
@@ -790,13 +883,15 @@ export default function AdminSupportChatPage() {
           return [...list, msg];
         });
       }
+      showToast("success", "Đã gửi tin nhắn", "Tin nhắn đã được gửi tới khách.");
     } catch (e2) {
       console.error(e2);
-      setErrorText(
+      const msg =
         e2?.response?.data?.message ||
-          e2.message ||
-          "Không gửi được tin nhắn. Vui lòng thử lại."
-      );
+        e2.message ||
+        "Không gửi được tin nhắn. Vui lòng thử lại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setSending(false);
     }
@@ -820,11 +915,12 @@ export default function AdminSupportChatPage() {
       setPreviewMessages(mapped);
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
-          e.message ||
-          "Không tải được transcript phiên chat trước."
-      );
+        e.message ||
+        "Không tải được transcript phiên chat trước.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setLoadingPreviewMessages(false);
     }
@@ -1361,6 +1457,22 @@ export default function AdminSupportChatPage() {
           }
         }}
       />
+
+      {/* Confirm dialog dùng chung */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={handleConfirmOk}
+        onCancel={handleConfirmCancel}
+      />
+
+      {/* Toasts hiển thị thông báo */}
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <Toast key={t.id} toast={t} onRemove={handleRemoveToast} />
+        ))}
+      </div>
     </div>
   );
 }

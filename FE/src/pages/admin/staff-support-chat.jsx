@@ -12,6 +12,10 @@ import axiosClient from "../../api/axiosClient";
 import { supportChatApi } from "../../api/supportChatApi";
 import "../../styles/staff-support-chat.css";
 
+// ⚠️ Điều chỉnh lại path nếu thư mục component khác
+import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import Toast from "../../components/Toast/Toast";
+
 // ---- Helpers ----
 
 function formatTimeShort(value) {
@@ -31,7 +35,7 @@ function normalizeSession(raw) {
   if (!raw) return null;
   return {
     chatSessionId: raw.chatSessionId || raw.ChatSessionId,
-    customerId: raw.customerId || raw.CustomerId || null, // ✅ thêm customerId
+    customerId: raw.customerId || raw.CustomerId || null,
     customerName:
       raw.customerName ||
       raw.CustomerName ||
@@ -88,7 +92,6 @@ function getStatusTextForHeader(session) {
     return "Phiên chat đang chờ bạn nhận.";
   }
   if (status === "open" || status === "active") {
-    // Không cần “Đang chat với ... Nhân viên: ...” nữa
     return "Bạn đang hỗ trợ khách trong phiên chat này.";
   }
   if (status === "closed") {
@@ -156,6 +159,48 @@ export default function StaffSupportChatPage() {
   const [stateText, setStateText] = useState("");
   const [errorText, setErrorText] = useState("");
 
+  // ==== Toast & Confirm dialog ====
+  const [toasts, setToasts] = useState([]);
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: null,
+  });
+
+  const showToast = useCallback((type, title, message) => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const toast = { id, type, title, message };
+    setToasts((prev) => [...prev, toast]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const handleRemoveToast = (id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const openConfirm = (title, message, onConfirm) => {
+    setConfirmState({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
+  const handleConfirmOk = () => {
+    if (confirmState.onConfirm) {
+      confirmState.onConfirm();
+    }
+    setConfirmState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
   // ==== Scroll state cho khung chat giống ticket detail ====
   const messagesRef = useRef(null);
   const isAtBottomRef = useRef(true);
@@ -215,85 +260,89 @@ export default function StaffSupportChatPage() {
       const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
-          ? res
-          : [];
+        ? res
+        : [];
       const mapped = rawItems.map(normalizeSession).filter(Boolean);
       setQueue(mapped);
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
         e.message ||
-        "Không tải được danh sách hàng chờ."
-      );
+        "Không tải được danh sách hàng chờ.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setLoadingQueue(false);
     }
-  }, []);
+  }, [showToast]);
 
-  const loadMine = useCallback(
-    async () => {
-      setLoadingMine(true);
-      try {
-        const res = await supportChatApi.getMySessions({
-          includeClosed: effectiveIncludeClosed,
-        });
-        const rawItems = Array.isArray(res?.items ?? res?.Items)
-          ? res.items ?? res.Items
-          : Array.isArray(res)
-            ? res
-            : [];
-        const mapped = rawItems.map(normalizeSession).filter(Boolean);
-        setMine(mapped);
-      } catch (e) {
-        console.error(e);
-        setErrorText(
-          e?.response?.data?.message ||
-          e.message ||
-          "Không tải được danh sách phiên của bạn."
-        );
-      } finally {
-        setLoadingMine(false);
-      }
-    },
-    [effectiveIncludeClosed]
-  );
-
-  // ---- Load messages ----
-  const loadMessages = useCallback(async (sessionId) => {
-    if (!sessionId) {
-      setMessages([]);
-      return;
-    }
-
-    setLoadingMessages(true);
+  const loadMine = useCallback(async () => {
+    setLoadingMine(true);
     try {
-      const res = await supportChatApi.getMessages(sessionId);
+      const res = await supportChatApi.getMySessions({
+        includeClosed: effectiveIncludeClosed,
+      });
       const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
-          ? res
-          : [];
-      const mapped = rawItems.map(normalizeMessage).filter(Boolean);
-      setMessages(mapped);
+        ? res
+        : [];
+      const mapped = rawItems.map(normalizeSession).filter(Boolean);
+      setMine(mapped);
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
         e.message ||
-        "Không tải được lịch sử tin nhắn."
-      );
+        "Không tải được danh sách phiên của bạn.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
-      setLoadingMessages(false);
+      setLoadingMine(false);
     }
-  }, []);
+  }, [effectiveIncludeClosed, showToast]);
+
+  // ---- Load messages ----
+  const loadMessages = useCallback(
+    async (sessionId) => {
+      if (!sessionId) {
+        setMessages([]);
+        return;
+      }
+
+      setLoadingMessages(true);
+      try {
+        const res = await supportChatApi.getMessages(sessionId);
+        const rawItems = Array.isArray(res?.items ?? res?.Items)
+          ? res.items ?? res.Items
+          : Array.isArray(res)
+          ? res
+          : [];
+        const mapped = rawItems.map(normalizeMessage).filter(Boolean);
+        setMessages(mapped);
+      } catch (e) {
+        console.error(e);
+        const msg =
+          e?.response?.data?.message ||
+          e.message ||
+          "Không tải được lịch sử tin nhắn.";
+        setErrorText(msg);
+        showToast("error", "Lỗi", msg);
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    [showToast]
+  );
 
   const refreshAll = useCallback(async () => {
     setStateText("Đang tải dữ liệu...");
     setErrorText("");
     await Promise.all([loadQueue(), loadMine()]);
     setStateText("");
-  }, [loadQueue, loadMine]);
+    showToast("success", "Đã làm mới", "Dữ liệu chat đã được cập nhật.");
+  }, [loadQueue, loadMine, showToast]);
 
   // ---- SignalR connection (khởi tạo 1 lần) ----
   useEffect(() => {
@@ -346,10 +395,10 @@ export default function StaffSupportChatPage() {
             prev.map((s) =>
               s.chatSessionId === msg.chatSessionId
                 ? {
-                  ...s,
-                  lastMessagePreview: msg.content,
-                  lastMessageAt: msg.sentAt ?? s.lastMessageAt,
-                }
+                    ...s,
+                    lastMessagePreview: msg.content,
+                    lastMessageAt: msg.sentAt ?? s.lastMessageAt,
+                  }
                 : s
             )
           );
@@ -357,10 +406,10 @@ export default function StaffSupportChatPage() {
             prev.map((s) =>
               s.chatSessionId === msg.chatSessionId
                 ? {
-                  ...s,
-                  lastMessagePreview: msg.content,
-                  lastMessageAt: msg.sentAt ?? s.lastMessageAt,
-                }
+                    ...s,
+                    lastMessagePreview: msg.content,
+                    lastMessageAt: msg.sentAt ?? s.lastMessageAt,
+                  }
                 : s
             )
           );
@@ -441,7 +490,7 @@ export default function StaffSupportChatPage() {
 
         await conn.start();
         if (stopped) {
-          await conn.stop().catch(() => { });
+          await conn.stop().catch(() => {});
           return;
         }
 
@@ -581,8 +630,8 @@ export default function StaffSupportChatPage() {
         const rawItems = Array.isArray(res?.items ?? res?.Items)
           ? res.items ?? res.Items
           : Array.isArray(res)
-            ? res
-            : [];
+          ? res
+          : [];
 
         const mapped = rawItems.map(normalizeSession).filter(Boolean);
         if (!cancelled) {
@@ -591,11 +640,12 @@ export default function StaffSupportChatPage() {
       } catch (e) {
         if (!cancelled) {
           console.error(e);
-          setErrorText(
+          const msg =
             e?.response?.data?.message ||
             e.message ||
-            "Không tải được danh sách phiên chat trước."
-          );
+            "Không tải được danh sách phiên chat trước.";
+          setErrorText(msg);
+          showToast("error", "Lỗi", msg);
         }
       } finally {
         if (!cancelled) {
@@ -609,7 +659,7 @@ export default function StaffSupportChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSession, isSelectedSessionMine]);
+  }, [selectedSession, isSelectedSessionMine, showToast]);
 
   // ---- Helpers: select session + sync URL ----
 
@@ -638,68 +688,109 @@ export default function StaffSupportChatPage() {
 
   // ---- Actions ----
 
-  const handleClaim = async (sessionId) => {
+  const doClaim = async (sessionId) => {
     if (!sessionId) return;
-    if (!window.confirm("Bạn có chắc muốn nhận phiên chat này?")) return;
 
     try {
       setStateText("Đang nhận phiên chat...");
       await supportChatApi.claimSession(sessionId);
       await refreshAll();
       handleSelectSession(sessionId);
+      showToast(
+        "success",
+        "Nhận phiên chat thành công",
+        "Bạn đã nhận phiên chat này."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
-        e?.response?.data?.message || e.message || "Nhận phiên chat thất bại."
-      );
+      const msg =
+        e?.response?.data?.message ||
+        e.message ||
+        "Nhận phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
   };
 
-  const handleUnassign = async (sessionId) => {
+  const handleClaim = (sessionId) => {
     if (!sessionId) return;
-    if (
-      !window.confirm(
-        "Bạn có chắc muốn trả lại phiên chat này về hàng chờ? Khách sẽ không nhận được phản hồi từ bạn nữa."
-      )
-    )
-      return;
+    openConfirm(
+      "Nhận phiên chat",
+      "Bạn có chắc muốn nhận phiên chat này?",
+      () => doClaim(sessionId)
+    );
+  };
+
+  const doUnassign = async (sessionId) => {
+    if (!sessionId) return;
 
     try {
       setStateText("Đang trả lại phiên chat...");
       await supportChatApi.unassignSession(sessionId);
       await refreshAll();
       handleSelectSession(null);
+      showToast(
+        "success",
+        "Đã trả lại phiên chat",
+        "Phiên chat đã được trả lại hàng chờ."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
         e.message ||
-        "Trả lại phiên chat thất bại."
-      );
+        "Trả lại phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
   };
 
-  const handleClose = async (sessionId) => {
+  const handleUnassign = (sessionId) => {
     if (!sessionId) return;
-    if (!window.confirm("Đóng phiên chat này?")) return;
+    openConfirm(
+      "Trả lại phiên chat về hàng chờ",
+      "Bạn có chắc muốn trả lại phiên chat này về hàng chờ? Khách sẽ không nhận được phản hồi từ bạn nữa.",
+      () => doUnassign(sessionId)
+    );
+  };
+
+  const doClose = async (sessionId) => {
+    if (!sessionId) return;
 
     try {
       setStateText("Đang đóng phiên chat...");
       await supportChatApi.closeSession(sessionId);
       await refreshAll();
       handleSelectSession(null);
+      showToast(
+        "success",
+        "Đã đóng phiên chat",
+        "Phiên chat đã được đóng thành công."
+      );
     } catch (e) {
       console.error(e);
-      setErrorText(
-        e?.response?.data?.message || e.message || "Đóng phiên chat thất bại."
-      );
+      const msg =
+        e?.response?.data?.message ||
+        e.message ||
+        "Đóng phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setStateText("");
     }
+  };
+
+  const handleClose = (sessionId) => {
+    if (!sessionId) return;
+    openConfirm(
+      "Đóng phiên chat",
+      "Bạn có chắc muốn đóng phiên chat này không?",
+      () => doClose(sessionId)
+    );
   };
 
   const handleSend = async (e) => {
@@ -733,13 +824,15 @@ export default function StaffSupportChatPage() {
           return [...list, msg];
         });
       }
+      showToast("success", "Đã gửi tin nhắn", "Tin nhắn đã được gửi tới khách.");
     } catch (e2) {
       console.error(e2);
-      setErrorText(
+      const msg =
         e2?.response?.data?.message ||
         e2.message ||
-        "Không gửi được tin nhắn. Vui lòng thử lại."
-      );
+        "Không gửi được tin nhắn. Vui lòng thử lại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setSending(false);
     }
@@ -757,17 +850,18 @@ export default function StaffSupportChatPage() {
       const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
         : Array.isArray(res)
-          ? res
-          : [];
+        ? res
+        : [];
       const mapped = rawItems.map(normalizeMessage).filter(Boolean);
       setPreviewMessages(mapped);
     } catch (e) {
       console.error(e);
-      setErrorText(
+      const msg =
         e?.response?.data?.message ||
         e.message ||
-        "Không tải được transcript phiên chat trước."
-      );
+        "Không tải được transcript phiên chat trước.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
     } finally {
       setLoadingPreviewMessages(false);
     }
@@ -777,7 +871,7 @@ export default function StaffSupportChatPage() {
 
   const canSend =
     !!selectedSession &&
-    isSelectedSessionMine && // ✅ chỉ gửi được khi là "phiên của tôi"
+    isSelectedSessionMine &&
     String(selectedSession.status || "").toLowerCase() !== "closed";
 
   // ---- Render helpers ----
@@ -1010,7 +1104,6 @@ export default function StaffSupportChatPage() {
                       <div key={key} className={rowCls}>
                         <div className={msgCls}>
                           <div className="msg-meta">
-                            {/* ✅ Ở transcript phiên cũ: staff luôn hiển thị "CSKH" */}
                             <span className="msg-meta-name">
                               {msg.isFromStaff
                                 ? "CSKH"
@@ -1177,7 +1270,7 @@ export default function StaffSupportChatPage() {
                       </div>
                     </div>
 
-                    {/* ✅ Hai nút Trả lại hàng chờ / Đóng phiên chuyển lên header, chỉ hiển thị khi phiên thuộc "Của tôi" */}
+                    {/* Hai nút Trả lại hàng chờ / Đóng phiên chuyển lên header, chỉ hiển thị khi phiên thuộc "Của tôi" */}
                     {isSelectedSessionMine && (
                       <div className="chat-header-actions">
                         <button
@@ -1215,8 +1308,8 @@ export default function StaffSupportChatPage() {
                         canSend
                           ? "Nhập nội dung tin nhắn..."
                           : isSelectedSessionMine
-                            ? "Phiên chat đã đóng, không thể gửi thêm."
-                            : "Hãy nhận phiên chat để trả lời khách."
+                          ? "Phiên chat đã đóng, không thể gửi thêm."
+                          : "Hãy nhận phiên chat để trả lời khách."
                       }
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
@@ -1233,8 +1326,6 @@ export default function StaffSupportChatPage() {
                         </button>
                       </div>
 
-                      {/* Nút Trả lại hàng chờ / Đóng phiên đã moved lên header */}
-
                       {errorText && (
                         <div className="error-text chat-error">
                           {errorText}
@@ -1249,6 +1340,22 @@ export default function StaffSupportChatPage() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Confirm dialog dùng chung */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={handleConfirmOk}
+        onCancel={handleConfirmCancel}
+      />
+
+      {/* Toasts hiển thị thông báo */}
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <Toast key={t.id} toast={t} onRemove={handleRemoveToast} />
+        ))}
       </div>
     </div>
   );
