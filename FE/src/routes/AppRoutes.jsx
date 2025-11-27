@@ -14,7 +14,6 @@ import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
-import HomePage from "../pages/home/HomePage";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
@@ -36,6 +35,8 @@ import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
+import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 import AccessDenied from "../pages/errors/AccessDenied";
@@ -322,6 +323,21 @@ export default function AppRoutes() {
         element={renderAdminPage(
           MODULE_CODES.PRODUCT_MANAGER,
           <CategoryPage />
+        )}
+      />
+       <Route
+        path="/admin/orders"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,   // có thể đổi sang module code khác nếu sau này tách quyền
+          <OrderPaymentPage />
+        )}
+      />
+      {/* Alias: /admin/payments cũng mở cùng page */}
+      <Route
+        path="/admin/payments"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <OrderPaymentPage />
         )}
       />
       {/* FAQs */}

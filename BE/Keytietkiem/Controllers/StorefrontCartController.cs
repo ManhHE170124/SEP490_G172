@@ -166,14 +166,15 @@ namespace Keytietkiem.Controllers
                 var unitPrice = item.UnitPrice;
                 if (unitPrice < 0) unitPrice = 0;
 
-                totalListAmount += listPrice * qty;
-                totalAmount += unitPrice * qty;
+                totalListAmount += listPrice * qty; // giá niêm yết
+                totalAmount += unitPrice * qty;     // giá sau giảm
             }
 
             var discountAmount = totalListAmount - totalAmount;
             if (discountAmount < 0) discountAmount = 0;
 
             // Round về 2 số lẻ cho khớp decimal(12,2) của Orders
+            totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
             totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
             discountAmount = Math.Round(discountAmount, 2, MidpointRounding.AwayFromZero);
 
@@ -181,12 +182,17 @@ namespace Keytietkiem.Controllers
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
 
+                // 🔧 SỬA Ở ĐÂY:
+                //  - TotalAmount  = tổng giá niêm yết (totalListAmount)
+                //  - DiscountAmount = tổng giảm giá
+                //  - FinalAmount  = tổng giá sau giảm (totalAmount)
                 var order = new Order
                 {
                     UserId = userId.Value,
                     Email = email,
-                    TotalAmount = totalAmount,
+                    TotalAmount = totalListAmount,
                     DiscountAmount = discountAmount,
+                    FinalAmount = totalAmount,
                     Status = "Pending",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -240,6 +246,7 @@ namespace Keytietkiem.Controllers
                 });
             }
         }
+
 
 
         // ===== PUT: /apistorefront/cart/items/{variantId} =====
