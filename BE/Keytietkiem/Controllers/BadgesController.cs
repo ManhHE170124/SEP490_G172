@@ -231,6 +231,7 @@ public class BadgesController : ControllerBase
                 return BadRequest(new { message = "ColorHex must be a valid hex color, e.g. #1e40af" });
         }
 
+        // Không đụng tới e.BadgeCode khi code không đổi
         e.DisplayName = name;
         e.ColorHex = color;
         e.Icon = dto.Icon?.Trim();
@@ -238,9 +239,24 @@ public class BadgesController : ControllerBase
 
         if (codeChanged)
         {
-            // Cập nhật ProductBadges liên quan
+            var oldCode = e.BadgeCode;
+
+            // Tạo badge mới với key mới
+            var newBadge = new Badge
+            {
+                BadgeCode = newCode,
+                DisplayName = e.DisplayName,
+                ColorHex = e.ColorHex,
+                Icon = e.Icon,
+                IsActive = e.IsActive,
+                CreatedAt = e.CreatedAt
+            };
+
+            db.Badges.Add(newBadge);
+
+            // Cập nhật ProductBadges sang code mới
             var related = await db.ProductBadges
-                .Where(pb => pb.Badge == e.BadgeCode)
+                .Where(pb => pb.Badge == oldCode)
                 .ToListAsync();
 
             foreach (var pb in related)
@@ -248,12 +264,14 @@ public class BadgesController : ControllerBase
                 pb.Badge = newCode;
             }
 
-            e.BadgeCode = newCode;
+            // Xoá badge cũ
+            db.Badges.Remove(e);
         }
 
         await db.SaveChangesAsync();
         return NoContent();
     }
+
 
     [HttpDelete("{code}")]
     public async Task<IActionResult> Delete(string code)
