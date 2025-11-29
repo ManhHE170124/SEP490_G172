@@ -2,54 +2,106 @@
 import axiosClient from "./axiosClient";
 
 export const supportChatApi = {
-  // Customer mở widget: open or get current session
-  openOrGet(payload) {
-    // payload optional: { initialMessage }
-    return axiosClient.post("/support-chats/open-or-get", payload || {});
+  // Customer mở hoặc lấy lại phiên chat
+  openOrGet(body) {
+    return axiosClient.post("/support-chats/open-or-get", body ?? {});
   },
 
-  // Danh sách phiên chat của user hiện tại (customer: của mình, staff: đang assigned)
-  getMySessions(params = {}) {
-    const p = {
-      includeClosed: params.includeClosed ?? false,
-    };
-    return axiosClient.get("/support-chats/my-sessions", { params: p });
+  // Danh sách phiên chat của chính user hiện tại (customer hoặc staff)
+  getMySessions(params) {
+    return axiosClient.get("/support-chats/my-sessions", { params });
   },
 
-  // Queue chờ nhận: các session Waiting + chưa gán staff
-  getUnassigned(params = {}) {
-    const p = {
-      page: params.page || 1,
-      pageSize: params.pageSize || 20,
-    };
-    return axiosClient.get("/support-chats/unassigned", { params: p });
+  // Queue các phiên Waiting + chưa gán staff (dùng cho staff/admin page)
+  getUnassigned(params) {
+    return axiosClient.get("/support-chats/unassigned", { params });
   },
 
-  // Staff nhận (claim) 1 session
+  // Staff claim 1 phiên đang ở hàng chờ
   claim(sessionId) {
-    return axiosClient.post(`/support-chats/${sessionId}/claim`, {});
+    return axiosClient.post(`/support-chats/${sessionId}/claim`);
   },
 
-  // Lấy danh sách message của 1 session
-  getMessages(sessionId, params = {}) {
-    const p = {
-      // chừa chỗ cho paging trong tương lai nếu cần
-      page: params.page || 1,
-      pageSize: params.pageSize || 200,
-    };
+  // Staff/Admin trả lại phiên về hàng chờ (chỉ khi đang là người phụ trách)
+  unassign(sessionId) {
+    return axiosClient.post(`/support-chats/${sessionId}/unassign`);
+  },
+
+  // Đóng phiên chat (chỉ người phụ trách)
+  close(sessionId) {
+    return axiosClient.post(`/support-chats/${sessionId}/close`);
+  },
+
+  // Lấy lịch sử tin nhắn của 1 session
+  getMessages(sessionId, params) {
     return axiosClient.get(`/support-chats/${sessionId}/messages`, {
-      params: p,
+      params,
     });
   },
 
-  // Gửi message trong 1 session
-  postMessage(sessionId, payload) {
-    // payload: { content }
-    return axiosClient.post(`/support-chats/${sessionId}/messages`, payload);
+  // Tạo tin nhắn (customer hoặc staff đang phụ trách)
+  postMessage(sessionId, body) {
+    return axiosClient.post(`/support-chats/${sessionId}/messages`, body);
   },
 
-  // Đóng session
-  close(sessionId) {
-    return axiosClient.post(`/support-chats/${sessionId}/close`, {});
+  // Danh sách các phiên chat (bao gồm Closed) của 1 customer – cho staff/admin
+  // dùng cho panel "Các phiên chat trước với user này"
+  getCustomerSessions(customerId, params) {
+    if (!customerId) throw new Error("customerId is required");
+    return axiosClient.get(`/support-chats/customer/${customerId}/sessions`, {
+      params,
+    });
+  },
+
+  // === ADMIN APIs ===
+
+  // Cột "Đã nhận": tất cả phiên đã được bất kỳ staff nào nhận
+  adminGetAssignedSessions(params) {
+    return axiosClient.get("/support-chats/admin/assigned-sessions", {
+      params,
+    });
+  },
+
+  // Admin gửi tin nhắn mà KHÔNG claim / KHÔNG đổi trạng thái
+  adminPostMessage(sessionId, body) {
+    return axiosClient.post(
+      `/support-chats/admin/${sessionId}/messages`,
+      body
+    );
+  },
+
+  // 🆕 Admin gán nhân viên cho 1 phiên chat (dùng cho popup "Gán" ở cột Chờ nhận)
+  adminAssignStaff(sessionId, assigneeId) {
+    return axiosClient.post(`/support-chats/admin/${sessionId}/assign`, {
+      assigneeId,
+    });
+  },
+
+  // 🆕 Admin chuyển phiên chat sang nhân viên khác (dùng cho nút "Chuyển nhân viên")
+  adminTransferStaff(sessionId, assigneeId) {
+    return axiosClient.post(
+      `/support-chats/admin/${sessionId}/transfer-staff`,
+      {
+        assigneeId,
+      }
+    );
+  },
+
+  // ---- Alias giữ backward compatibility ----
+
+  claimSession(sessionId) {
+    return this.claim(sessionId);
+  },
+
+  unassignSession(sessionId) {
+    return this.unassign(sessionId);
+  },
+
+  closeSession(sessionId) {
+    return this.close(sessionId);
+  },
+
+  createMessage(sessionId, body) {
+    return this.postMessage(sessionId, body);
   },
 };

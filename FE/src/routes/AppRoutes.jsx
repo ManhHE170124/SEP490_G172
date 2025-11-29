@@ -33,7 +33,6 @@ import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
-import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
 import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
 
@@ -81,6 +80,9 @@ import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
 import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-management.jsx";
 
+import AdminSupportChatPage from "../pages/admin/admin-support-chat";
+import StaffSupportChatPage from "../pages/admin/staff-support-chat";
+
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -116,7 +118,7 @@ export default function AppRoutes() {
     </ProtectedRoute>
   );
 
- return (
+  return (
     <Routes>
       {/* Default Access Routes */}
       <Route
@@ -186,7 +188,6 @@ export default function AppRoutes() {
         }
       />
       <Route path="/admin" element={<div />} />
-      <Route path="/admin/support-chats" element={<AdminSupportChatPage />} />
       <Route
         path="/admin/profile"
         element={
@@ -325,7 +326,7 @@ export default function AppRoutes() {
           <CategoryPage />
         )}
       />
-       <Route
+      <Route
         path="/admin/orders"
         element={renderAdminPage(
           MODULE_CODES.PRODUCT_MANAGER,   // có thể đổi sang module code khác nếu sau này tách quyền
@@ -501,14 +502,30 @@ export default function AppRoutes() {
           <WebsiteConfig />
         )}
       />
+      <Route
+        path="/admin/support-chats"
+        element={
+          <AdminLayout>
+            <AdminSupportChatPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/staff/support-chats"
+        element={
+          <AdminLayout>
+            <StaffSupportChatPage />
+          </AdminLayout>
+        }
+      />
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
-      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
+      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
-<Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
-  <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
-  <Route
+      <Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
+      <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
+      <Route
         path="/homepage"
         element={
           <ClientLayout>

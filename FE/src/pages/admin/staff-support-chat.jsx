@@ -1,4 +1,4 @@
-// File: src/pages/admin/admin-support-chat.jsx
+// File: src/pages/admin/staff-support-chat.jsx
 import React, {
   useCallback,
   useEffect,
@@ -8,13 +8,11 @@ import React, {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
-import { createPortal } from "react-dom";
 import axiosClient from "../../api/axiosClient";
 import { supportChatApi } from "../../api/supportChatApi";
-import { ticketsApi } from "../../api/ticketsApi";
 import "../../styles/staff-support-chat.css";
 
-// ⚠️ Điều chỉnh lại path cho đúng với project của bạn
+// ⚠️ Điều chỉnh lại path nếu thư mục component khác
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import Toast from "../../components/Toast/Toast";
 
@@ -45,7 +43,6 @@ function normalizeSession(raw) {
       raw.CustomerEmail ||
       "Khách hàng",
     customerEmail: raw.customerEmail || raw.CustomerEmail || "",
-    assignedStaffId: raw.assignedStaffId || raw.AssignedStaffId || null,
     assignedStaffName: raw.assignedStaffName || raw.AssignedStaffName || "",
     status: raw.status || raw.Status || "",
     priorityLevel:
@@ -92,10 +89,10 @@ function getStatusTextForHeader(session) {
   const status = String(session.status || "").toLowerCase();
 
   if (status === "waiting") {
-    return "Phiên chat đang chờ nhân viên nhận.";
+    return "Phiên chat đang chờ bạn nhận.";
   }
   if (status === "open" || status === "active") {
-    return "Bạn đang xem và có thể hỗ trợ khách trong phiên chat này.";
+    return "Bạn đang hỗ trợ khách trong phiên chat này.";
   }
   if (status === "closed") {
     return "Phiên chat đã kết thúc.";
@@ -112,7 +109,7 @@ function getPriorityLabel(level) {
   return "Tiêu chuẩn";
 }
 
-// helper đọc tab từ query string (?tab=unassigned|assigned)
+// helper đọc tab từ query string (?tab=unassigned|mine)
 function getTabFromQuery(searchParams) {
   if (!searchParams) return null;
   try {
@@ -124,7 +121,7 @@ function getTabFromQuery(searchParams) {
       .toString()
       .toLowerCase();
 
-    if (raw === "unassigned" || raw === "assigned") {
+    if (raw === "unassigned" || raw === "mine") {
       return raw;
     }
 
@@ -134,23 +131,26 @@ function getTabFromQuery(searchParams) {
   }
 }
 
-// ---- Main component: Admin Support Chat Page ----
+// ---- Staff Support Chat Page ----
 
-export default function AdminSupportChatPage() {
+export default function StaffSupportChatPage() {
+  const isAdmin = false; // Staff bị hạn chế, không xem closed
+
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSelectedId = searchParams.get("sessionId") || null;
   const initialActiveTab = getTabFromQuery(searchParams) || "unassigned";
 
-  const [activeTab, setActiveTab] = useState(initialActiveTab); // "unassigned" | "assigned"
+  const [activeTab, setActiveTab] = useState(initialActiveTab); // "unassigned" | "mine"
+  const [includeClosed] = useState(false); // staff không dùng, luôn false
 
   const [queue, setQueue] = useState([]); // hàng chờ chưa nhận
-  const [assigned, setAssigned] = useState([]); // tất cả phiên đã được bất kỳ staff nào nhận
+  const [mine, setMine] = useState([]); // phiên của tôi
 
   const [selectedSessionId, setSelectedSessionId] = useState(initialSelectedId);
   const [messages, setMessages] = useState([]);
 
   const [loadingQueue, setLoadingQueue] = useState(false);
-  const [loadingAssigned, setLoadingAssigned] = useState(false);
+  const [loadingMine, setLoadingMine] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [sending, setSending] = useState(false);
@@ -159,7 +159,7 @@ export default function AdminSupportChatPage() {
   const [stateText, setStateText] = useState("");
   const [errorText, setErrorText] = useState("");
 
-  // ==== Toast & Confirm dialog state (MỚI) ====
+  // ==== Toast & Confirm dialog ====
   const [toasts, setToasts] = useState([]);
   const [confirmState, setConfirmState] = useState({
     isOpen: false,
@@ -168,36 +168,10 @@ export default function AdminSupportChatPage() {
     onConfirm: null,
   });
 
-  // ==== Scroll state cho khung chat giống ticket detail ====
-  const messagesRef = useRef(null);
-  const isAtBottomRef = useRef(true);
-  const initialScrollDoneRef = useRef(false);
-
-  // Connection & group state
-  const [connection, setConnection] = useState(null);
-  const joinedSessionIdRef = useRef(null);
-
-  // ---- State cho panel "Các phiên chat trước với user này" ----
-  const [previousSessions, setPreviousSessions] = useState([]);
-  const [loadingPreviousSessions, setLoadingPreviousSessions] = useState(false);
-  const [previewSession, setPreviewSession] = useState(null);
-  const [previewMessages, setPreviewMessages] = useState([]);
-  const [loadingPreviewMessages, setLoadingPreviewMessages] = useState(false);
-
-  // ---- Modal assign/transfer staff ----
-  const [assignModal, setAssignModal] = useState({
-    open: false,
-    mode: "", // 'assign' | 'transfer'
-    sessionId: null,
-    excludeUserId: null,
-  });
-
-  // ==== Toast helpers ====
   const showToast = useCallback((type, title, message) => {
     const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const toast = { id, type, title, message };
     setToasts((prev) => [...prev, toast]);
-    // Auto close sau 4s
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
@@ -207,7 +181,6 @@ export default function AdminSupportChatPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // ==== Confirm dialog helpers ====
   const openConfirm = (title, message, onConfirm) => {
     setConfirmState({
       isOpen: true,
@@ -228,6 +201,24 @@ export default function AdminSupportChatPage() {
     setConfirmState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
   };
 
+  // ==== Scroll state cho khung chat giống ticket detail ====
+  const messagesRef = useRef(null);
+  const isAtBottomRef = useRef(true);
+  const initialScrollDoneRef = useRef(false);
+
+  // Connection & group state
+  const [connection, setConnection] = useState(null);
+  const joinedSessionIdRef = useRef(null);
+
+  const effectiveIncludeClosed = isAdmin && includeClosed; // staff => luôn false
+
+  // ---- State cho panel "Các phiên chat trước với user này" ----
+  const [previousSessions, setPreviousSessions] = useState([]);
+  const [loadingPreviousSessions, setLoadingPreviousSessions] = useState(false);
+  const [previewSession, setPreviewSession] = useState(null);
+  const [previewMessages, setPreviewMessages] = useState([]);
+  const [loadingPreviewMessages, setLoadingPreviewMessages] = useState(false);
+
   // Đồng bộ selectedSessionId với query param ?sessionId=...
   useEffect(() => {
     const paramId = searchParams.get("sessionId") || null;
@@ -245,12 +236,20 @@ export default function AdminSupportChatPage() {
     if (!selectedSessionId) return null;
     return (
       queue.find((s) => s.chatSessionId === selectedSessionId) ||
-      assigned.find((s) => s.chatSessionId === selectedSessionId) ||
+      mine.find((s) => s.chatSessionId === selectedSessionId) ||
       null
     );
-  }, [queue, assigned, selectedSessionId]);
+  }, [queue, mine, selectedSessionId]);
 
-  const pageTitle = "Chat hỗ trợ (Admin)";
+  // session hiện tại có nằm trong "phiên của tôi" hay không
+  const isSelectedSessionMine = useMemo(
+    () =>
+      !!selectedSessionId &&
+      mine.some((s) => s.chatSessionId === selectedSessionId),
+    [mine, selectedSessionId]
+  );
+
+  const pageTitle = "Chat hỗ trợ (Staff)";
 
   // ---- Load danh sách ----
 
@@ -278,11 +277,11 @@ export default function AdminSupportChatPage() {
     }
   }, [showToast]);
 
-  const loadAssigned = useCallback(async () => {
-    setLoadingAssigned(true);
+  const loadMine = useCallback(async () => {
+    setLoadingMine(true);
     try {
-      const res = await supportChatApi.adminGetAssignedSessions({
-        includeClosed: false,
+      const res = await supportChatApi.getMySessions({
+        includeClosed: effectiveIncludeClosed,
       });
       const rawItems = Array.isArray(res?.items ?? res?.Items)
         ? res.items ?? res.Items
@@ -290,19 +289,19 @@ export default function AdminSupportChatPage() {
         ? res
         : [];
       const mapped = rawItems.map(normalizeSession).filter(Boolean);
-      setAssigned(mapped);
+      setMine(mapped);
     } catch (e) {
       console.error(e);
       const msg =
         e?.response?.data?.message ||
         e.message ||
-        "Không tải được danh sách phiên đã nhận.";
+        "Không tải được danh sách phiên của bạn.";
       setErrorText(msg);
       showToast("error", "Lỗi", msg);
     } finally {
-      setLoadingAssigned(false);
+      setLoadingMine(false);
     }
-  }, [showToast]);
+  }, [effectiveIncludeClosed, showToast]);
 
   // ---- Load messages ----
   const loadMessages = useCallback(
@@ -340,60 +339,10 @@ export default function AdminSupportChatPage() {
   const refreshAll = useCallback(async () => {
     setStateText("Đang tải dữ liệu...");
     setErrorText("");
-    await Promise.all([loadQueue(), loadAssigned()]);
+    await Promise.all([loadQueue(), loadMine()]);
     setStateText("");
     showToast("success", "Đã làm mới", "Dữ liệu chat đã được cập nhật.");
-  }, [loadQueue, loadAssigned, showToast]);
-
-  // ---- Admin assign / transfer helpers ----
-
-  const doAdminAssign = async (sessionId, assigneeId) => {
-    if (!sessionId || !assigneeId) return;
-    try {
-      setStateText("Đang gán nhân viên cho phiên chat...");
-      await supportChatApi.adminAssignStaff(sessionId, assigneeId);
-      await refreshAll();
-      showToast(
-        "success",
-        "Gán nhân viên thành công",
-        "Đã gán nhân viên cho phiên chat."
-      );
-    } catch (e) {
-      console.error(e);
-      const msg =
-        e?.response?.data?.message ||
-        e.message ||
-        "Gán nhân viên cho phiên chat thất bại.";
-      setErrorText(msg);
-      showToast("error", "Lỗi", msg);
-    } finally {
-      setStateText("");
-    }
-  };
-
-  const doAdminTransfer = async (sessionId, assigneeId) => {
-    if (!sessionId || !assigneeId) return;
-    try {
-      setStateText("Đang chuyển nhân viên phụ trách...");
-      await supportChatApi.adminTransferStaff(sessionId, assigneeId);
-      await refreshAll();
-      showToast(
-        "success",
-        "Chuyển nhân viên thành công",
-        "Đã chuyển nhân viên phụ trách phiên chat."
-      );
-    } catch (e) {
-      console.error(e);
-      const msg =
-        e?.response?.data?.message ||
-        e.message ||
-        "Chuyển nhân viên phụ trách phiên chat thất bại.";
-      setErrorText(msg);
-      showToast("error", "Lỗi", msg);
-    } finally {
-      setStateText("");
-    }
-  };
+  }, [loadQueue, loadMine, showToast]);
 
   // ---- SignalR connection (khởi tạo 1 lần) ----
   useEffect(() => {
@@ -412,7 +361,7 @@ export default function AdminSupportChatPage() {
             "https://localhost:7292/api";
         }
         const hubRoot = apiBase.replace(/\/api\/?$/i, "");
-        // Khớp BE: MapHub<SupportChatHub>("/hubs/support-chat")
+        // ✅ Khớp BE: MapHub<SupportChatHub>("/hubs/support-chat")
         const hubUrl = `${hubRoot}/hubs/support-chat`;
 
         const conn = new HubConnectionBuilder()
@@ -453,7 +402,7 @@ export default function AdminSupportChatPage() {
                 : s
             )
           );
-          setAssigned((prev) =>
+          setMine((prev) =>
             prev.map((s) =>
               s.chatSessionId === msg.chatSessionId
                 ? {
@@ -482,62 +431,43 @@ export default function AdminSupportChatPage() {
           });
         };
 
-        const upsertIntoLists = (rawSession) => {
-          const s = normalizeSession(rawSession);
+        const handleSessionUpdated = (raw) => {
+          const s = normalizeSession(raw);
           if (!s) return;
 
-          const status = String(s.status || "").toLowerCase();
-          const isWaitingUnassigned =
-            status === "waiting" && !s.assignedStaffId;
-          const isAssignedActive = !!s.assignedStaffId && status !== "closed";
-
-          // Queue (chờ nhận)
           setQueue((prev) => {
-            let next = [...prev];
-            const idx = next.findIndex(
+            const exist = prev.some(
               (x) => x.chatSessionId === s.chatSessionId
             );
-            if (isWaitingUnassigned) {
-              if (idx >= 0) next[idx] = s;
-              else next.push(s);
-            } else if (idx >= 0) {
-              next.splice(idx, 1);
-            }
-            return next;
+            if (!exist) return prev;
+            return prev.map((x) =>
+              x.chatSessionId === s.chatSessionId ? { ...x, ...s } : x
+            );
           });
-
-          // Đã nhận: tất cả phiên có assignedStaffId và chưa đóng
-          setAssigned((prev) => {
-            let next = [...prev];
-            const idx = next.findIndex(
+          setMine((prev) => {
+            const exist = prev.some(
               (x) => x.chatSessionId === s.chatSessionId
             );
-            if (isAssignedActive) {
-              if (idx >= 0) next[idx] = s;
-              else next.unshift(s);
-            } else if (idx >= 0) {
-              next.splice(idx, 1);
-            }
-            return next;
+            if (!exist) return prev;
+            return prev.map((x) =>
+              x.chatSessionId === s.chatSessionId ? { ...x, ...s } : x
+            );
           });
-        };
-
-        const handleSessionUpdated = (raw) => {
-          upsertIntoLists(raw);
         };
 
         const handleSessionCreated = (raw) => {
-          upsertIntoLists(raw);
+          const s = normalizeSession(raw);
+          if (!s) return;
+          setQueue((prev) => [s, ...prev]);
         };
 
         const handleSessionClosed = (raw) => {
           const s = normalizeSession(raw);
           if (!s) return;
-
           setQueue((prev) =>
             prev.filter((x) => x.chatSessionId !== s.chatSessionId)
           );
-          setAssigned((prev) =>
+          setMine((prev) =>
             prev.filter((x) => x.chatSessionId !== s.chatSessionId)
           );
 
@@ -564,7 +494,7 @@ export default function AdminSupportChatPage() {
           return;
         }
 
-        // Admin vẫn join group queue để nhận realtime hàng chờ
+        // ✅ Staff join group queue để nhận realtime hàng chờ
         try {
           await conn.invoke("JoinStaffQueue");
         } catch (err) {
@@ -589,7 +519,8 @@ export default function AdminSupportChatPage() {
           );
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // chỉ khởi tạo 1 lần
 
   // ---- Join/leave session group khi selectedSessionId hoặc connection thay đổi ----
   useEffect(() => {
@@ -678,7 +609,8 @@ export default function AdminSupportChatPage() {
     setLoadingPreviousSessions(false);
     setLoadingPreviewMessages(false);
 
-    if (!selectedSession || !selectedSession.customerId) {
+    if (!selectedSession || !selectedSession.customerId || !isSelectedSessionMine) {
+      // Chỉ load khi staff đang phụ trách phiên này
       return;
     }
 
@@ -727,7 +659,7 @@ export default function AdminSupportChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSession, showToast]);
+  }, [selectedSession, isSelectedSessionMine, showToast]);
 
   // ---- Helpers: select session + sync URL ----
 
@@ -745,7 +677,7 @@ export default function AdminSupportChatPage() {
   };
 
   const handleChangeTab = (nextTab) => {
-    if (nextTab !== "unassigned" && nextTab !== "assigned") return;
+    if (nextTab !== "unassigned" && nextTab !== "mine") return;
 
     setActiveTab(nextTab);
 
@@ -756,30 +688,41 @@ export default function AdminSupportChatPage() {
 
   // ---- Actions ----
 
-  // Admin "Gán" nhân viên → mở popup
-  const handleOpenAssignModalForSession = (session) => {
-    if (!session?.chatSessionId) return;
-    setAssignModal({
-      open: true,
-      mode: "assign",
-      sessionId: session.chatSessionId,
-      excludeUserId: null,
-    });
+  const doClaim = async (sessionId) => {
+    if (!sessionId) return;
+
+    try {
+      setStateText("Đang nhận phiên chat...");
+      await supportChatApi.claimSession(sessionId);
+      await refreshAll();
+      handleSelectSession(sessionId);
+      showToast(
+        "success",
+        "Nhận phiên chat thành công",
+        "Bạn đã nhận phiên chat này."
+      );
+    } catch (e) {
+      console.error(e);
+      const msg =
+        e?.response?.data?.message ||
+        e.message ||
+        "Nhận phiên chat thất bại.";
+      setErrorText(msg);
+      showToast("error", "Lỗi", msg);
+    } finally {
+      setStateText("");
+    }
   };
 
-  // Admin "Chuyển nhân viên" → popup, exclude current staff
-  const handleOpenTransferModalForSession = (session) => {
-    if (!session?.chatSessionId) return;
-    if (!session.assignedStaffId) return;
-    setAssignModal({
-      open: true,
-      mode: "transfer",
-      sessionId: session.chatSessionId,
-      excludeUserId: session.assignedStaffId,
-    });
+  const handleClaim = (sessionId) => {
+    if (!sessionId) return;
+    openConfirm(
+      "Nhận phiên chat",
+      "Bạn có chắc muốn nhận phiên chat này?",
+      () => doClaim(sessionId)
+    );
   };
 
-  // TÁCH logic cũ ra hàm riêng, dùng ConfirmDialog để xác nhận
   const doUnassign = async (sessionId) => {
     if (!sessionId) return;
 
@@ -850,8 +793,6 @@ export default function AdminSupportChatPage() {
     );
   };
 
-  // ✅ Admin gửi message: luôn có thể gửi trong Chờ nhận / Đã nhận,
-  // và dùng API adminPostMessage để KHÔNG đổi AssignedStaff/Status
   const handleSend = async (e) => {
     e.preventDefault();
     if (!selectedSession) return;
@@ -863,7 +804,7 @@ export default function AdminSupportChatPage() {
     setErrorText("");
 
     try {
-      const saved = await supportChatApi.adminPostMessage(
+      const saved = await supportChatApi.createMessage(
         selectedSession.chatSessionId,
         { content: text }
       );
@@ -928,9 +869,9 @@ export default function AdminSupportChatPage() {
 
   const sessionStatusText = getStatusTextForHeader(selectedSession);
 
-  // ✅ Admin: chỉ cần phiên không closed là gửi được (không phụ thuộc "của tôi")
   const canSend =
     !!selectedSession &&
+    isSelectedSessionMine &&
     String(selectedSession.status || "").toLowerCase() !== "closed";
 
   // ---- Render helpers ----
@@ -978,10 +919,10 @@ export default function AdminSupportChatPage() {
               className="btn-xs-primary"
               onClick={(e) => {
                 e.stopPropagation();
-                handleOpenAssignModalForSession(s);
+                handleClaim(s.chatSessionId);
               }}
             >
-              Gán
+              Nhận
             </button>
           )}
         </div>
@@ -1025,7 +966,7 @@ export default function AdminSupportChatPage() {
               <div className={msgCls}>
                 <div className="msg-meta">
                   <span className="msg-meta-name">
-                    {msg.isFromStaff ? "CSKH" : msg.senderName || "Khách"}
+                    {msg.isFromStaff ? "Bạn" : msg.senderName || "Khách"}
                   </span>
                   <span className="msg-meta-time">
                     {formatTimeShort(msg.sentAt)}
@@ -1043,8 +984,8 @@ export default function AdminSupportChatPage() {
   const renderPreviousSessionsPanel = () => {
     if (!selectedSession) return null;
 
-    // ✅ Admin: chỉ cần có customerId là xem được lịch sử, không cần "nhận" phiên
-    const canShowPanel = !!selectedSession.customerId;
+    const canShowPanel =
+      isSelectedSessionMine && !!selectedSession.customerId;
 
     return (
       <div className="previous-sessions-panel">
@@ -1059,7 +1000,7 @@ export default function AdminSupportChatPage() {
 
         {!canShowPanel && (
           <div className="previous-sessions-empty">
-            Phiên này không gắn khách hàng, không có lịch sử trước đó.
+            Nhận phiên chat để xem lịch sử trước đó.
           </div>
         )}
 
@@ -1194,10 +1135,11 @@ export default function AdminSupportChatPage() {
           <h1 className="page-title">{pageTitle}</h1>
           <div className="support-chat-header-stats">
             <span>Chờ nhận: {queue.length}</span>
-            <span>• Đã nhận: {assigned.length}</span>
+            <span>• Phiên của tôi: {mine.length}</span>
           </div>
         </div>
         <div className="support-chat-header-actions">
+          {/* Nút làm mới nổi bật hơn */}
           <button
             type="button"
             className="btn ghost refresh-button"
@@ -1231,12 +1173,12 @@ export default function AdminSupportChatPage() {
             <button
               type="button"
               className={
-                "tab" + (activeTab === "assigned" ? " tab-active" : "")
+                "tab" + (activeTab === "mine" ? " tab-active" : "")
               }
-              onClick={() => handleChangeTab("assigned")}
+              onClick={() => handleChangeTab("mine")}
             >
-              Đã nhận
-              <span className="badge">{assigned.length}</span>
+              Của tôi
+              <span className="badge">{mine.length}</span>
             </button>
           </div>
 
@@ -1244,7 +1186,7 @@ export default function AdminSupportChatPage() {
             <span className="muted">
               {activeTab === "unassigned"
                 ? "Các phiên chat đang chờ nhân viên nhận."
-                : "Các phiên chat đã được nhân viên nhận."}
+                : "Các phiên chat bạn đang phụ trách."}
             </span>
           </div>
 
@@ -1264,20 +1206,16 @@ export default function AdminSupportChatPage() {
               </>
             )}
 
-            {activeTab === "assigned" && (
+            {activeTab === "mine" && (
               <>
-                {loadingAssigned && (
-                  <div className="empty small">
-                    Đang tải phiên đã nhận...
-                  </div>
+                {loadingMine && (
+                  <div className="empty small">Đang tải phiên của bạn...</div>
                 )}
-                {!loadingAssigned && assigned.length === 0 && (
-                  <div className="empty">
-                    Chưa có phiên chat nào đã được nhận.
-                  </div>
+                {!loadingMine && mine.length === 0 && (
+                  <div className="empty">Bạn chưa có phiên chat nào.</div>
                 )}
-                {!loadingAssigned &&
-                  assigned.map((s) => renderSessionItem(s, false))}
+                {!loadingMine &&
+                  mine.map((s) => renderSessionItem(s, false))}
               </>
             )}
           </div>
@@ -1287,7 +1225,7 @@ export default function AdminSupportChatPage() {
         <div className="support-chat-main">
           {!selectedSession && (
             <div className="chat-empty">
-              Chọn một phiên chat ở cột bên trái để xem và hỗ trợ khách.
+              Chọn một phiên chat ở cột bên trái để bắt đầu hỗ trợ khách.
             </div>
           )}
 
@@ -1314,21 +1252,13 @@ export default function AdminSupportChatPage() {
                           {selectedSession.priorityLevel !== undefined && (
                             <span className="meta-item">
                               <strong>Ưu tiên:</strong>{" "}
-                              {getPriorityLabel(
-                                selectedSession.priorityLevel
-                              )}
+                              {getPriorityLabel(selectedSession.priorityLevel)}
                             </span>
                           )}
                           {selectedSession.customerEmail && (
                             <span className="meta-item">
                               <strong>Email:</strong>{" "}
                               {selectedSession.customerEmail}
-                            </span>
-                          )}
-                          {selectedSession.assignedStaffName && (
-                            <span className="meta-item">
-                              <strong>Nhân viên phụ trách:</strong>{" "}
-                              {selectedSession.assignedStaffName}
                             </span>
                           )}
                         </div>
@@ -1340,44 +1270,31 @@ export default function AdminSupportChatPage() {
                       </div>
                     </div>
 
-                    {/* Admin actions */}
-                    <div className="chat-header-actions">
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() =>
-                          selectedSession &&
-                          handleUnassign(selectedSession.chatSessionId)
-                        }
-                      >
-                        Trả lại hàng chờ
-                      </button>
-
-                      {selectedSession.assignedStaffId && (
+                    {/* Hai nút Trả lại hàng chờ / Đóng phiên chuyển lên header, chỉ hiển thị khi phiên thuộc "Của tôi" */}
+                    {isSelectedSessionMine && (
+                      <div className="chat-header-actions">
                         <button
                           type="button"
-                          className="btn warning"
+                          className="btn ghost"
                           onClick={() =>
-                            handleOpenTransferModalForSession(
-                              selectedSession
-                            )
+                            selectedSession &&
+                            handleUnassign(selectedSession.chatSessionId)
                           }
                         >
-                          Chuyển nhân viên
+                          Trả lại hàng chờ
                         </button>
-                      )}
-
-                      <button
-                        type="button"
-                        className="btn danger"
-                        onClick={() =>
-                          selectedSession &&
-                          handleClose(selectedSession.chatSessionId)
-                        }
-                      >
-                        Đóng phiên
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          className="btn danger"
+                          onClick={() =>
+                            selectedSession &&
+                            handleClose(selectedSession.chatSessionId)
+                          }
+                        >
+                          Đóng phiên
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1390,7 +1307,9 @@ export default function AdminSupportChatPage() {
                       placeholder={
                         canSend
                           ? "Nhập nội dung tin nhắn..."
-                          : "Phiên chat đã đóng, không thể gửi thêm."
+                          : isSelectedSessionMine
+                          ? "Phiên chat đã đóng, không thể gửi thêm."
+                          : "Hãy nhận phiên chat để trả lời khách."
                       }
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
@@ -1423,41 +1342,6 @@ export default function AdminSupportChatPage() {
         </div>
       </div>
 
-      {/* Modal gán / chuyển nhân viên cho phiên chat */}
-      <AssignModal
-        open={assignModal.open}
-        title={
-          assignModal.mode === "transfer"
-            ? "Chuyển nhân viên phụ trách"
-            : "Gán nhân viên phụ trách"
-        }
-        excludeUserId={assignModal.excludeUserId}
-        onClose={() =>
-          setAssignModal({
-            open: false,
-            mode: "",
-            sessionId: null,
-            excludeUserId: null,
-          })
-        }
-        onConfirm={async (userId) => {
-          try {
-            if (assignModal.mode === "transfer") {
-              await doAdminTransfer(assignModal.sessionId, userId);
-            } else {
-              await doAdminAssign(assignModal.sessionId, userId);
-            }
-          } finally {
-            setAssignModal({
-              open: false,
-              mode: "",
-              sessionId: null,
-              excludeUserId: null,
-            });
-          }
-        }}
-      />
-
       {/* Confirm dialog dùng chung */}
       <ConfirmDialog
         isOpen={confirmState.isOpen}
@@ -1474,135 +1358,5 @@ export default function AdminSupportChatPage() {
         ))}
       </div>
     </div>
-  );
-}
-
-// ===== Shared helpers for popup =====
-
-function useDebounced(value, delay = 250) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return v;
-}
-
-function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const debounced = useDebounced(search, 250);
-  const [selected, setSelected] = useState("");
-
-  useEffect(() => {
-    if (!open) {
-      setSearch("");
-      setSelected("");
-      setList([]);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        let res;
-        if (excludeUserId) {
-          res = await ticketsApi.getTransferAssignees({
-            q: debounced,
-            excludeUserId,
-            pageSize: 50,
-            page: 1,
-          });
-        } else {
-          res = await ticketsApi.getAssignees({
-            q: debounced,
-            pageSize: 50,
-            page: 1,
-          });
-        }
-        const items = Array.isArray(res) ? res : [];
-        const mapped = items.map((u) => ({
-          id: u.userId,
-          name: u.fullName || u.email,
-          email: u.email,
-        }));
-        if (alive) setList(mapped);
-      } catch {
-        if (alive) setList([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [open, debounced, excludeUserId]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div className="tk-modal" role="dialog" aria-modal="true">
-      <div className="tk-modal-card">
-        <div className="tk-modal-head">
-          <h3 className="tk-modal-title">{title}</h3>
-          <button type="button" className="btn icon" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className="tk-modal-body">
-          <div className="form-group">
-            <label>Tìm theo tên hoặc email</label>
-            <input
-              className="ip"
-              placeholder="Nhập từ khóa..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="staff-list">
-            {loading && <div className="empty small">Đang tải...</div>}
-            {!loading && (!list || list.length === 0) && (
-              <div className="empty small">Không có nhân viên phù hợp.</div>
-            )}
-            {!loading && list && list.length > 0 && (
-              <ul className="staff-ul">
-                {list.map((u) => (
-                  <li
-                    key={u.id}
-                    className={
-                      "staff-item" + (selected === u.id ? " selected" : "")
-                    }
-                    onClick={() => setSelected(u.id)}
-                  >
-                    <span className="staff-info">
-                      <span className="staff-name">{u.name}</span>
-                      <span className="staff-email">{u.email}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-        <div className="tk-modal-foot">
-          <button type="button" className="btn ghost" onClick={onClose}>
-            Hủy
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={!selected}
-            onClick={() => selected && onConfirm(selected)}
-          >
-            Xác nhận
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
   );
 }

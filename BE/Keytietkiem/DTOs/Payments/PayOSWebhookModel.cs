@@ -34,16 +34,28 @@ namespace Keytietkiem.DTOs.Payments
     // ====== DTO PAYMENT DÙNG CHUNG ======
 
     /// <summary>
-    /// DTO dùng chung để embed vào Order, hoặc trả về khi query payment.
+    /// DTO dùng chung cho bảng Payments (bây giờ là bảng độc lập, không còn OrderId).
     /// </summary>
     public class PaymentDTO
     {
         public Guid PaymentId { get; set; }
-        public Guid OrderId { get; set; }
 
         public decimal Amount { get; set; }
         public string Status { get; set; } = null!;
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>
+        /// Email gắn với giao dịch (giống Email trong Orders).
+        /// </summary>
+        public string? Email { get; set; }
+
+        /// <summary>
+        /// Loại giao dịch:
+        /// - "DEPOSIT"          : nạp tiền vào tài khoản
+        /// - "SERVICE_PAYMENT"  : thanh toán cho dịch vụ
+        /// - "ORDER_PAYMENT"    : thanh toán cho đơn hàng
+        /// </summary>
+        public string TransactionType { get; set; } = null!;
 
         public string? Provider { get; set; }
         public long? ProviderOrderCode { get; set; }
@@ -51,29 +63,26 @@ namespace Keytietkiem.DTOs.Payments
 
     /// <summary>
     /// DTO cho màn list payment ở phía admin.
+    /// (hiện tại không còn thông tin Order kèm theo nữa)
     /// </summary>
     public class PaymentAdminListItemDTO : PaymentDTO
     {
-        public string OrderEmail { get; set; } = null!;
-        public string OrderStatus { get; set; } = null!;
-        public DateTime OrderCreatedAt { get; set; }
+        // Có thể bổ sung field khác nếu cần sau này.
     }
 
     /// <summary>
     /// DTO xem chi tiết 1 payment (admin).
+    /// Hiện giờ giống PaymentDTO, tách riêng để sau này mở rộng thêm field chi tiết.
     /// </summary>
     public class PaymentDetailDTO : PaymentDTO
     {
-        public string OrderEmail { get; set; } = null!;
-        public string? OrderStatus { get; set; }
-        public decimal OrderTotalAmount { get; set; }
-        public decimal? OrderFinalAmount { get; set; }
     }
 
     // ====== DTO TẠO PAYMENT PAYOS ======
 
     /// <summary>
-    /// Request body khi tạo payment PayOS.
+    /// Request body khi tạo payment PayOS cho 1 đơn hàng.
+    /// OrderId chỉ dùng ở tầng API/service, bảng Payments không còn FK tới Orders.
     /// </summary>
     public class CreatePayOSPaymentDTO
     {

@@ -1,5 +1,4 @@
 ﻿using Keytietkiem.DTOs.Orders;
-using Keytietkiem.DTOs.Payments; // 👈 thêm
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +22,7 @@ namespace Keytietkiem.Controllers
             _context = context;
         }
 
-        // ========== CÁC API ĐANG CÓ – GIỮ NGUYÊN ==========
+        // ========== CÁC API ==========
 
         [HttpGet]
         public async Task<IActionResult> GetOrders()
@@ -33,7 +32,6 @@ namespace Keytietkiem.Controllers
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
                         .ThenInclude(v => v.Product)
-                .Include(o => o.Payments)
                 .ToListAsync();
 
             var orderList = orders.Select(o => new OrderListItemDTO
@@ -49,11 +47,7 @@ namespace Keytietkiem.Controllers
                 FinalAmount = o.FinalAmount,
                 Status = o.Status,
                 CreatedAt = o.CreatedAt,
-                ItemCount = o.OrderDetails?.Count ?? 0,
-                PaymentStatus = ComputePaymentStatus(
-                    o.Payments,
-                    o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount)
-                )
+                ItemCount = o.OrderDetails?.Count ?? 0
             }).ToList();
 
             return Ok(orderList);
@@ -72,7 +66,6 @@ namespace Keytietkiem.Controllers
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
                         .ThenInclude(v => v.Product)
-                .Include(o => o.Payments)
                 .ToListAsync();
 
             var orderHistory = orders.Select(o => new OrderHistoryItemDTO
@@ -93,11 +86,7 @@ namespace Keytietkiem.Controllers
                     .Where(n => !string.IsNullOrEmpty(n))
                     .Distinct()
                     .ToList()
-                    ?? new List<string>(),
-                PaymentStatus = ComputePaymentStatus(
-                    o.Payments,
-                    o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount)
-                )
+                    ?? new List<string>()
             }).ToList();
 
             return Ok(orderHistory);
@@ -113,7 +102,6 @@ namespace Keytietkiem.Controllers
                         .ThenInclude(v => v.Product)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Key)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (order == null)
@@ -234,13 +222,12 @@ namespace Keytietkiem.Controllers
             {
                 UserId = user?.UserId,
                 Email = orderEmail,
-                TotalAmount = createOrderDto.TotalAmount,        // tổng gốc
-                DiscountAmount = createOrderDto.DiscountAmount,  // giảm giá
-                FinalAmount = expectedFinal,                     // giá cuối = gốc - giảm
+                TotalAmount = createOrderDto.TotalAmount,
+                DiscountAmount = createOrderDto.DiscountAmount,
+                FinalAmount = expectedFinal,
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
-
 
             _context.Orders.Add(newOrder);
             await _context.SaveChangesAsync();
@@ -280,7 +267,6 @@ namespace Keytietkiem.Controllers
                         .ThenInclude(v => v.Product)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Key)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == newOrder.OrderId);
 
             var orderDto = MapToOrderDTO(createdOrder!);
@@ -306,7 +292,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Giỏ hàng trống" });
             }
 
-            // ===== Load user nếu có =====
             User? user = null;
             if (createOrderDto.UserId.HasValue && createOrderDto.UserId.Value != Guid.Empty)
             {
@@ -319,7 +304,6 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // ===== Validate variants + tồn kho =====
             var variantIds = createOrderDto.OrderDetails
                 .Select(od => od.VariantId)
                 .Distinct()
@@ -356,12 +340,9 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // ===== Check tổng tiền: FINAL (sau giảm) =====
-            // calculatedFinal = Σ quantity * unitPrice (giá SELL)
             var calculatedFinal = createOrderDto.OrderDetails
                 .Sum(od => od.Quantity * od.UnitPrice);
 
-            // expectedFinal = TotalAmount (gốc) - DiscountAmount
             var expectedFinal = createOrderDto.TotalAmount - createOrderDto.DiscountAmount;
 
             if (Math.Abs(calculatedFinal - expectedFinal) > 0.01m)
@@ -369,7 +350,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Tổng tiền không khớp với chi tiết đơn hàng" });
             }
 
-            // ===== Chuẩn hoá email đơn hàng =====
             var orderEmail = createOrderDto.Email.Trim();
             if (string.IsNullOrWhiteSpace(orderEmail) && user != null)
             {
@@ -383,17 +363,13 @@ namespace Keytietkiem.Controllers
 
             using var tx = await _context.Database.BeginTransactionAsync();
 
-            // ===== Tạo Order =====
             var newOrder = new Order
             {
                 UserId = user?.UserId,
                 Email = orderEmail,
-
-                // Tổng gốc, giảm giá, thành tiền sau giảm
                 TotalAmount = createOrderDto.TotalAmount,
                 DiscountAmount = createOrderDto.DiscountAmount,
                 FinalAmount = expectedFinal,
-
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
@@ -401,7 +377,6 @@ namespace Keytietkiem.Controllers
             _context.Orders.Add(newOrder);
             await _context.SaveChangesAsync();
 
-            // ===== Tạo OrderDetails =====
             foreach (var detailDto in createOrderDto.OrderDetails)
             {
                 var orderDetail = new OrderDetail
@@ -410,7 +385,7 @@ namespace Keytietkiem.Controllers
                     VariantId = detailDto.VariantId,
                     Quantity = detailDto.Quantity,
                     UnitPrice = detailDto.UnitPrice,
-                    KeyId = null   // luồng checkout: chưa gắn key
+                    KeyId = null
                 };
 
                 _context.OrderDetails.Add(orderDetail);
@@ -422,14 +397,12 @@ namespace Keytietkiem.Controllers
             return Ok(new { orderId = newOrder.OrderId });
         }
 
-
         [HttpPost("{id:guid}/cancel")]
         public async Task<IActionResult> CancelOrder(Guid id)
         {
             var order = await _context.Orders
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (order == null)
@@ -444,8 +417,10 @@ namespace Keytietkiem.Controllers
 
             using var tx = await _context.Database.BeginTransactionAsync();
 
+            // 1. Cập nhật trạng thái đơn
             order.Status = "Cancelled";
 
+            // 2. Hoàn kho như cũ
             if (order.OrderDetails != null)
             {
                 foreach (var od in order.OrderDetails)
@@ -457,12 +432,30 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            if (order.Payments != null)
+            // 3. Tìm các payment tương ứng và set Cancelled
+            //    Logic khớp với CreatePayOSPayment:
+            //    finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount)
+            var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
+
+            // Khoảng thời gian cho phép: ±30 phút quanh thời điểm tạo Order
+            var fromTime = order.CreatedAt.AddMinutes(-1);
+            var toTime = order.CreatedAt.AddMinutes(1);
+
+            var relatedPayments = await _context.Payments
+                .Where(p =>
+                    p.Provider == "PayOS" &&
+                    p.TransactionType == "ORDER_PAYMENT" &&
+                    p.Email == order.Email &&
+                    p.Status == "Pending" &&
+                    p.Amount == finalAmount &&
+                    p.CreatedAt >= fromTime &&
+                    p.CreatedAt <= toTime
+                )
+                .ToListAsync();
+
+            foreach (var payment in relatedPayments)
             {
-                foreach (var p in order.Payments.Where(p => p.Status == "Pending"))
-                {
-                    p.Status = "Cancelled";
-                }
+                payment.Status = "Cancelled";
             }
 
             await _context.SaveChangesAsync();
@@ -471,8 +464,7 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        // 🔧 SỬA LOGIC UPDATE TRẠNG THÁI ĐƠN – CHỈ CHO PHÉP
-        // Pending/Failed -> Paid/Cancelled, không sửa khi đã Paid/Cancelled
+
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> UpdateOrder(Guid id, [FromBody] UpdateOrderDTO updateOrderDto)
         {
@@ -503,21 +495,18 @@ namespace Keytietkiem.Controllers
 
             var currentStatus = existing.Status ?? "Pending";
 
-            // Nếu đã Paid hoặc Cancelled thì không cho chỉnh nữa
             if (currentStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) ||
                 currentStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
             {
                 return BadRequest(new { message = "Không thể cập nhật trạng thái khi đơn đã ở trạng thái Paid hoặc Cancelled." });
             }
 
-            // Chỉ cho chỉnh tay khi đang Pending hoặc Failed
             if (!currentStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase) &&
                 !currentStatus.Equals("Failed", StringComparison.OrdinalIgnoreCase))
             {
                 return BadRequest(new { message = "Chỉ được phép chỉnh tay trạng thái đơn khi đang ở Pending hoặc Failed." });
             }
 
-            // Chỉ được chuyển sang Paid hoặc Cancelled
             if (!normalizedStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) &&
                 !normalizedStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
             {
@@ -529,7 +518,6 @@ namespace Keytietkiem.Controllers
             if (updateOrderDto.DiscountAmount.HasValue)
             {
                 existing.DiscountAmount = updateOrderDto.DiscountAmount.Value;
-                // Có thể cập nhật luôn FinalAmount = TotalAmount - DiscountAmount nếu muốn
                 existing.FinalAmount = existing.TotalAmount - existing.DiscountAmount;
             }
 
@@ -543,17 +531,11 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> DeleteOrder(Guid id)
         {
             var existingOrder = await _context.Orders
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (existingOrder == null)
             {
                 return NotFound(new { message = "Đơn hàng không được tìm thấy" });
-            }
-
-            if (existingOrder.Payments != null && existingOrder.Payments.Any())
-            {
-                return BadRequest(new { message = "Không thể xóa đơn hàng đã thanh toán" });
             }
 
             _context.Orders.Remove(existingOrder);
@@ -599,38 +581,6 @@ namespace Keytietkiem.Controllers
 
         // ===== Helpers =====
 
-        private static string ComputePaymentStatus(ICollection<Payment>? payments, decimal finalAmount)
-        {
-            if (payments == null || !payments.Any())
-            {
-                return "Unpaid";
-            }
-
-            if (payments.Any(p => p.Status == "Refunded"))
-            {
-                return "Refunded";
-            }
-
-            var totalPaid = payments
-                .Where(p =>
-                    p.Status == "Paid" ||
-                    p.Status == "Success" ||
-                    p.Status == "Completed")
-                .Sum(p => p.Amount);
-
-            if (totalPaid >= finalAmount)
-            {
-                return "Paid";
-            }
-
-            if (totalPaid > 0)
-            {
-                return "Partial";
-            }
-
-            return "Unpaid";
-        }
-
         private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
         {
             var dateStr = createdAt.ToString("yyyyMMdd");
@@ -669,21 +619,7 @@ namespace Keytietkiem.Controllers
                     KeyId = od.KeyId,
                     KeyString = od.Key?.KeyString,
                     SubTotal = od.Quantity * od.UnitPrice
-                }).ToList() ?? new List<OrderDetailDTO>(),
-                Payments = order.Payments?.Select(p => new PaymentDTO
-                {
-                    PaymentId = p.PaymentId,
-                    OrderId = p.OrderId,
-                    Amount = p.Amount,
-                    Status = p.Status,
-                    CreatedAt = p.CreatedAt,
-                    Provider = p.Provider,
-                    ProviderOrderCode = p.ProviderOrderCode
-                }).ToList() ?? new List<PaymentDTO>(),
-                PaymentStatus = ComputePaymentStatus(
-                    order.Payments,
-                    order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount)
-                )
+                }).ToList() ?? new List<OrderDetailDTO>()
             };
         }
     }
