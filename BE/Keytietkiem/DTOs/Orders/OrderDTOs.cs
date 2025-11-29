@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Keytietkiem.DTOs.Payments; // 👈 dùng PaymentDTO ở namespace Payments
 
 namespace Keytietkiem.DTOs.Orders
 {
@@ -55,9 +54,7 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
 
         public List<OrderDetailDTO> OrderDetails { get; set; } = new();
-        public List<PaymentDTO> Payments { get; set; } = new(); // 👈 DTO payment mới
-
-        public string PaymentStatus { get; set; } = "Unpaid"; // Unpaid, Partial, Paid, Refunded
+        // Không embed danh sách payments nữa vì bảng Payments đã tách hoàn toàn
     }
 
     /// <summary>
@@ -80,7 +77,7 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
         public int ItemCount { get; set; }
 
-        public string PaymentStatus { get; set; } = "Unpaid";
+        // Không còn PaymentStatus vì Orders không gắn Payment nữa
     }
 
     /// <summary>
@@ -103,7 +100,7 @@ namespace Keytietkiem.DTOs.Orders
         public int ItemCount { get; set; }
 
         public List<string> ProductNames { get; set; } = new();
-        public string PaymentStatus { get; set; } = "Unpaid";
+        // Không còn PaymentStatus
     }
 
     /// <summary>

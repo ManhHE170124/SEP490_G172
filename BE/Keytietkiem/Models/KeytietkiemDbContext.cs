@@ -308,29 +308,37 @@ public partial class KeytietkiemDbContext : DbContext
         {
             entity.HasKey(e => e.PaymentId).HasName("PK__Payments__9B556A38FD074B65");
 
-            entity.Property(e => e.PaymentId).HasDefaultValueSql("(newid())");
-            entity.Property(e => e.Amount).HasColumnType("decimal(12, 2)");
+            entity.Property(e => e.PaymentId)
+                .HasDefaultValueSql("(newid())");
+
+            entity.Property(e => e.Amount)
+                .HasColumnType("decimal(12, 2)");
+
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
+
             entity.Property(e => e.Status)
                 .HasMaxLength(15)
                 .IsUnicode(false);
 
-            // 👇 cấu hình Provider
+            entity.Property(e => e.Email)
+                .HasMaxLength(254);
+
+            entity.Property(e => e.TransactionType)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
             entity.Property(e => e.Provider)
                 .HasMaxLength(20)
                 .IsUnicode(false)
                 .HasDefaultValue("PayOS");
 
-            // 👇 ProviderOrderCode có thể để trống, EF tự map bigint -> long?
             entity.Property(e => e.ProviderOrderCode);
 
-            entity.HasOne(d => d.Order).WithMany(p => p.Payments)
-                .HasForeignKey(d => d.OrderId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Payments_Order");
+            // Không cấu hình HasOne(d => d.Order) nữa
         });
+
 
 
         modelBuilder.Entity<PaymentGateway>(entity =>
