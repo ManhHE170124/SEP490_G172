@@ -225,20 +225,29 @@ export default function AccountDetailPage() {
 
   const handleRemoveUserFromAccount = useCallback(
     async (userId) => {
-      try {
-        await ProductAccountApi.removeCustomer(id, {
-          productAccountId: id,
-          userId,
-        });
-        showSuccess("Thành công", "Đã xóa người dùng khỏi tài khoản");
-        await loadProductAccount();
-        await loadHistory(true);
-      } catch (err) {
-        console.error("Remove user failed:", err);
-        const msg =
-          err.response?.data?.message || err.message || "Không thể xóa";
-        showError("Lỗi", msg);
-      }
+      setConfirmDialog({
+        isOpen: true,
+        title: "Xác nhận xóa người dùng",
+        message: "Bạn có chắc muốn xóa người dùng này khỏi tài khoản?",
+        type: "danger",
+        onConfirm: async () => {
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+          try {
+            await ProductAccountApi.removeCustomer(id, {
+              productAccountId: id,
+              userId,
+            });
+            showSuccess("Thành công", "Đã xóa người dùng khỏi tài khoản");
+            await loadProductAccount();
+            await loadHistory(true);
+          } catch (err) {
+            console.error("Remove user failed:", err);
+            const msg =
+              err.response?.data?.message || err.message || "Không thể xóa";
+            showError("Lỗi", msg);
+          }
+        },
+      });
     },
     [id, loadProductAccount, loadHistory, showSuccess, showError]
   );
@@ -944,7 +953,7 @@ export default function AccountDetailPage() {
                 <h3 style={{ margin: 0, flex: 1 }}>
                   Người dùng trong tài khoản
                 </h3>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {/* <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input
                     className="input"
                     placeholder="Nhập email/tên để tìm kiếm"
@@ -981,7 +990,7 @@ export default function AccountDetailPage() {
                   >
                     Thêm
                   </button>
-                </div>
+                </div> */}
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="table">
@@ -1016,7 +1025,7 @@ export default function AccountDetailPage() {
                                 fontSize: 12,
                               }}
                             >
-                              Dang dung
+                              Đang dùng
                             </span>
                           ) : (
                             <span
@@ -1028,7 +1037,7 @@ export default function AccountDetailPage() {
                                 fontSize: 12,
                               }}
                             >
-                              Da go
+                              Đã gỡ
                             </span>
                           )}
                         </td>
@@ -1042,7 +1051,7 @@ export default function AccountDetailPage() {
                                 handleRemoveUserFromAccount(c.userId)
                               }
                             >
-                              Xoa
+                              Xóa
                             </button>
                           ) : (
                             <span className="muted">-</span>

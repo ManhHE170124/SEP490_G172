@@ -558,6 +558,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductAccountCustomers_User");
+                
+            entity.HasOne(d => d.Order).WithMany(p => p.ProductAccountCustomers)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccountCustomers_Order");
         });
 
         modelBuilder.Entity<ProductAccountHistory>(entity =>

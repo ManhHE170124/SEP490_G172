@@ -53,4 +53,9 @@ public interface IProductAccountService
     /// Get the decrypted password for a product account
     /// </summary>
     Task<string> GetDecryptedPasswordAsync(Guid productAccountId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Assign a product account to an order by adding the user as a customer
+    /// </summary>
+    Task<ProductAccountCustomerDto> AssignAccountToOrderAsync(AssignAccountToOrderDto assignDto, Guid assignedBy, CancellationToken cancellationToken = default);
 }

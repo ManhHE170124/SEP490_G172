@@ -1,6 +1,9 @@
 ﻿using Keytietkiem.DTOs.Orders;
-using Keytietkiem.DTOs.Payments; // 👈 thêm
+using Keytietkiem.DTOs.Payments;
+using Keytietkiem.DTOs.Products; // 👈 thêm
+using Keytietkiem.DTOs;
 using Keytietkiem.Models;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +14,10 @@ namespace Keytietkiem.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
+        private readonly IProductKeyService _productKeyService;
+        private readonly IProductAccountService _productAccountService;
+        private readonly IEmailService _emailService;
+        private readonly ILogger<OrdersController> _logger;
 
         // CHỈ những trạng thái mà DB cho phép
         private static readonly string[] AllowedStatuses = new[]
@@ -18,9 +25,18 @@ namespace Keytietkiem.Controllers
             "Pending", "Paid", "Failed", "Cancelled"
         };
 
-        public OrdersController(KeytietkiemDbContext context)
+        public OrdersController(
+            KeytietkiemDbContext context,
+            IProductKeyService productKeyService,
+            IProductAccountService productAccountService,
+            IEmailService emailService,
+            ILogger<OrdersController> logger)
         {
             _context = context;
+            _productKeyService = productKeyService;
+            _productAccountService = productAccountService;
+            _emailService = emailService;
+            _logger = logger;
         }
 
         // ========== CÁC API ĐANG CÓ – GIỮ NGUYÊN ==========
@@ -170,36 +186,22 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Một số gói sản phẩm (variant) không tồn tại" });
             }
 
-            var keyIds = createOrderDto.OrderDetails
-                .Where(od => od.KeyId.HasValue)
-                .Select(od => od.KeyId!.Value)
-                .Distinct()
-                .ToList();
-
-            if (keyIds.Any())
-            {
-                var keys = await _context.ProductKeys
-                    .Where(k => keyIds.Contains(k.KeyId))
-                    .ToListAsync();
-
-                if (keys.Count != keyIds.Count)
-                {
-                    return BadRequest(new { message = "Key sản phẩm không tồn tại" });
-                }
-
-                var unavailableKeys = keys.Where(k => k.Status != "Available").ToList();
-                if (unavailableKeys.Any())
-                {
-                    return BadRequest(new { message = "Một số key sản phẩm không khả dụng" });
-                }
-            }
-
+            var availableVariants = new List<ProductVariant>();
+            
             foreach (var detail in createOrderDto.OrderDetails)
             {
                 if (detail.Quantity <= 0)
                 {
                     return BadRequest(new { message = "Số lượng phải lớn hơn 0" });
                 }
+                var variant = variants.FirstOrDefault(x=> x.VariantId == detail.VariantId);
+                if (variant.StockQty < detail.Quantity)
+                {
+                    return BadRequest(new
+                        { message = $"Sản phẩn {variant.Product.ProductName} - {variant.Title} không đủ số lượng" });
+                }
+                
+                availableVariants.Add(variant);
             }
 
             var calculatedFinal = createOrderDto.OrderDetails.Sum(od => od.Quantity * od.UnitPrice);
@@ -270,7 +272,7 @@ namespace Keytietkiem.Controllers
                     }
                 }
             }
-
+            
             await _context.SaveChangesAsync();
 
             var createdOrder = await _context.Orders
@@ -487,6 +489,7 @@ namespace Keytietkiem.Controllers
             }
 
             var existing = await _context.Orders
+                .Include(x=>x.OrderDetails)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (existing == null)
@@ -525,7 +528,19 @@ namespace Keytietkiem.Controllers
             }
 
             existing.Status = normalizedStatus;
+            
+            //Xu ly gui mail + map pk/pa
+            if (normalizedStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                var variantIds = existing.OrderDetails.Select(x=> x.VariantId).Distinct();
+                var variants = await _context.ProductVariants
+                    .AsNoTracking()
+                    .Include(v => v.Product)
+                    .Where(x => variantIds.Contains(x.VariantId))
+                    .ToListAsync();
 
+                await ProcessVariants(variants, existing);
+            }
             if (updateOrderDto.DiscountAmount.HasValue)
             {
                 existing.DiscountAmount = updateOrderDto.DiscountAmount.Value;
@@ -636,6 +651,164 @@ namespace Keytietkiem.Controllers
             var dateStr = createdAt.ToString("yyyyMMdd");
             var orderIdStr = orderId.ToString().Replace("-", "").Substring(0, 4).ToUpperInvariant();
             return $"ORD-{dateStr}-{orderIdStr}";
+        }
+
+        private async Task ProcessVariants(List<ProductVariant> variants, Order order)
+        {
+            var systemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+            var userEmail = order.Email;
+
+            // Get the user ID from the order
+            if (!order.UserId.HasValue)
+            {
+                _logger.LogWarning("Order {OrderId} does not have a UserId, cannot assign products", order.OrderId);
+                return;
+            }
+
+            var userId = order.UserId.Value;
+
+            // Collect all products to send in a single email
+            var orderProducts = new List<OrderProductEmailDto>();
+
+            // Process PERSONAL_KEY type variants
+            var personalKeyVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_KEY).ToList();
+            foreach (var variant in personalKeyVariants)
+            {
+                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
+                if (orderDetail == null) continue;
+
+                var quantity = orderDetail.Quantity;
+
+                // Get available keys for this variant
+                var availableKeys = await _context.ProductKeys
+                    .AsNoTracking()
+                    .Where(pk => pk.VariantId == variant.VariantId &&
+                                 pk.Status == "Available")
+                    .Take(quantity)
+                    .ToListAsync();
+
+                if (availableKeys.Count < quantity)
+                {
+                    _logger.LogWarning("Not enough available keys for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                        variant.VariantId, quantity, availableKeys.Count);
+                    continue;
+                }
+
+                // Assign keys to order and collect for email
+                foreach (var key in availableKeys)
+                {
+                    try
+                    {
+                        // Assign key to order
+                        var assignDto = new AssignKeyToOrderDto
+                        {
+                            KeyId = key.KeyId,
+                            OrderId = order.OrderId
+                        };
+
+                        await _productKeyService.AssignKeyToOrderAsync(assignDto, systemUserId);
+
+                        // Add to products list for consolidated email
+                        orderProducts.Add(new OrderProductEmailDto
+                        {
+                            ProductName = variant.Product.ProductName,
+                            VariantTitle = variant.Title,
+                            ProductType = "KEY",
+                            KeyString = key.KeyString,
+                            ExpiryDate = key.ExpiryDate
+                        });
+
+                        _logger.LogInformation("Assigned key {KeyId} to order {OrderId}",
+                            key.KeyId, order.OrderId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to assign key {KeyId} to order {OrderId}", key.KeyId, order.OrderId);
+                    }
+                }
+            }
+
+            // Process PERSONAL_ACCOUNT type variants
+            var personalAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_ACCOUNT).ToList();
+            foreach (var variant in personalAccountVariants)
+            {
+                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
+                if (orderDetail == null) continue;
+
+                var quantity = orderDetail.Quantity;
+
+                // Get available personal accounts for this variant
+                var availableAccounts = await _context.ProductAccounts
+                    .AsNoTracking()
+                    .Where(pa => pa.VariantId == variant.VariantId &&
+                                 pa.Status == "Active" &&
+                                 pa.MaxUsers == 1) // Personal accounts have MaxUsers = 1
+                    .Include(pa => pa.ProductAccountCustomers)
+                    .Where(pa => !pa.ProductAccountCustomers.Any(pac => pac.IsActive)) // Not assigned to anyone
+                    .Take(quantity)
+                    .ToListAsync();
+
+                if (availableAccounts.Count < quantity)
+                {
+                    _logger.LogWarning("Not enough available personal accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                        variant.VariantId, quantity, availableAccounts.Count);
+                    continue;
+                }
+
+                // Assign accounts to order and collect for email
+                foreach (var account in availableAccounts)
+                {
+                    try
+                    {
+                        // Assign account to order
+                        var assignDto = new AssignAccountToOrderDto
+                        {
+                            ProductAccountId = account.ProductAccountId,
+                            OrderId = order.OrderId,
+                            UserId = userId
+                        };
+
+                        await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
+
+                        // Get decrypted password
+                        var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
+
+                        // Add to products list for consolidated email
+                        orderProducts.Add(new OrderProductEmailDto
+                        {
+                            ProductName = variant.Product.ProductName,
+                            VariantTitle = variant.Title,
+                            ProductType = "ACCOUNT",
+                            AccountEmail = account.AccountEmail,
+                            AccountUsername = account.AccountUsername,
+                            AccountPassword = decryptedPassword,
+                            ExpiryDate = account.ExpiryDate
+                        });
+
+                        _logger.LogInformation("Assigned account {AccountId} to order {OrderId}",
+                            account.ProductAccountId, order.OrderId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to assign account {AccountId} to order {OrderId}", account.ProductAccountId, order.OrderId);
+                    }
+                }
+            }
+
+            // Send a single consolidated email with all products
+            if (orderProducts.Any())
+            {
+                try
+                {
+                    await _emailService.SendOrderProductsEmailAsync(userEmail, orderProducts);
+                    _logger.LogInformation("Sent consolidated order email with {Count} products to {Email}",
+                        orderProducts.Count, userEmail);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send consolidated order email to {Email}", userEmail);
+                }
+            }
         }
 
         private OrderDTO MapToOrderDTO(Order order)

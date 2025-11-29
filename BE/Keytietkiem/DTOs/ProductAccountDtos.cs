@@ -219,3 +219,18 @@ public class ProductAccountListResponseDto
     public int TotalPages { get; set; }
     public int CurrentPage { get; set; }
 }
+
+/// <summary>
+/// DTO for assigning product account to order
+/// </summary>
+public class AssignAccountToOrderDto
+{
+    [Required(ErrorMessage = "ID tài khoản sản phẩm là bắt buộc")]
+    public Guid ProductAccountId { get; set; }
+
+    [Required(ErrorMessage = "ID đơn hàng là bắt buộc")]
+    public Guid OrderId { get; set; }
+
+    [Required(ErrorMessage = "ID người dùng là bắt buộc")]
+    public Guid UserId { get; set; }
+}

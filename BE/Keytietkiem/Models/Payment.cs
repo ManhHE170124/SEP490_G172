@@ -13,6 +13,8 @@ public partial class Payment
 
     public string Status { get; set; } = null!;
 
+    public string Email { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     // 👇 Thêm 2 trường mới map với DB

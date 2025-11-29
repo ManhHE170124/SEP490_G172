@@ -294,7 +294,8 @@ namespace Keytietkiem.Controllers
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow,
                 Provider = "PayOS",
-                ProviderOrderCode = orderCode
+                ProviderOrderCode = orderCode,
+                Email = order.Email
             };
 
             _context.Payments.Add(paymentNew);
