@@ -119,4 +119,68 @@ public class ProductReportController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get key error reports with pagination (reports with ProductKeyId)
+    /// </summary>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10)</param>
+    [HttpGet("key-errors")]
+    [Authorize(Roles = "Admin,Support Staff")]
+    public async Task<IActionResult> GetKeyErrors(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        if (pageNumber < 1)
+            return BadRequest(new { message = "Số trang phải lớn hơn 0" });
+
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest(new { message = "Kích thước trang phải từ 1 đến 100" });
+
+        var result = await _productReportService.GetKeyErrorsAsync(pageNumber, pageSize);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get account error reports with pagination (reports with ProductAccountId)
+    /// </summary>
+    /// <param name="pageNumber">Page number (default: 1)</param>
+    /// <param name="pageSize">Page size (default: 10)</param>
+    [HttpGet("account-errors")]
+    [Authorize(Roles = "Admin,Support Staff")]
+    public async Task<IActionResult> GetAccountErrors(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        if (pageNumber < 1)
+            return BadRequest(new { message = "Số trang phải lớn hơn 0" });
+
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest(new { message = "Kích thước trang phải từ 1 đến 100" });
+
+        var result = await _productReportService.GetAccountErrorsAsync(pageNumber, pageSize);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get total count of key error reports
+    /// </summary>
+    [HttpGet("key-errors/count")]
+    [Authorize(Roles = "Admin,Support Staff")]
+    public async Task<IActionResult> CountKeyErrors()
+    {
+        var count = await _productReportService.CountKeyErrorsAsync();
+        return Ok(new { count });
+    }
+
+    /// <summary>
+    /// Get total count of account error reports
+    /// </summary>
+    [HttpGet("account-errors/count")]
+    [Authorize(Roles = "Admin,Support Staff")]
+    public async Task<IActionResult> CountAccountErrors()
+    {
+        var count = await _productReportService.CountAccountErrorsAsync();
+        return Ok(new { count });
+    }
 }

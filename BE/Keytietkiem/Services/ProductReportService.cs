@@ -296,6 +296,106 @@ public class ProductReportService : IProductReportService
         return new PagedResult<ProductReportListDto>(reports, total, pageNumber, pageSize);
     }
 
+    public async Task<PagedResult<ProductReportResponseDto>> GetKeyErrorsAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.ProductReports
+            .Include(r => r.ProductVariant)
+                .ThenInclude(v => v.Product)
+            .Include(r => r.ProductKey)
+            .Include(r => r.User)
+            .Where(r => r.ProductKeyId != null)
+            .AsQueryable();
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var reports = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => new ProductReportResponseDto
+            {
+                Id = r.Id,
+                Status = r.Status,
+                Name = r.Name,
+                Description = r.Description,
+                ProductKeyId = r.ProductKeyId,
+                ProductKeyString = r.ProductKey!.KeyString,
+                ProductAccountId = r.ProductAccountId,
+                ProductAccountUsername = null,
+                ProductVariantId = r.ProductVariantId,
+                ProductVariantTitle = r.ProductVariant.Title,
+                ProductName = r.ProductVariant.Product.ProductName,
+                UserId = r.UserId,
+                UserEmail = r.User.Email,
+                UserFullName = r.User.FullName,
+                CreatedAt = r.CreatedAt,
+                UpdatedAt = r.UpdatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<ProductReportResponseDto>(reports, total, pageNumber, pageSize);
+    }
+
+    public async Task<PagedResult<ProductReportResponseDto>> GetAccountErrorsAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.ProductReports
+            .Include(r => r.ProductVariant)
+                .ThenInclude(v => v.Product)
+            .Include(r => r.ProductAccount)
+            .Include(r => r.User)
+            .Where(r => r.ProductAccountId != null)
+            .AsQueryable();
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var reports = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => new ProductReportResponseDto
+            {
+                Id = r.Id,
+                Status = r.Status,
+                Name = r.Name,
+                Description = r.Description,
+                ProductKeyId = r.ProductKeyId,
+                ProductKeyString = null,
+                ProductAccountId = r.ProductAccountId,
+                ProductAccountUsername = r.ProductAccount!.AccountUsername,
+                ProductVariantId = r.ProductVariantId,
+                ProductVariantTitle = r.ProductVariant.Title,
+                ProductName = r.ProductVariant.Product.ProductName,
+                UserId = r.UserId,
+                UserEmail = r.User.Email,
+                UserFullName = r.User.FullName,
+                CreatedAt = r.CreatedAt,
+                UpdatedAt = r.UpdatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<ProductReportResponseDto>(reports, total, pageNumber, pageSize);
+    }
+
+    public async Task<int> CountKeyErrorsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.ProductReports
+            .Where(r => r.ProductKeyId != null)
+            .CountAsync(cancellationToken);
+    }
+
+    public async Task<int> CountAccountErrorsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.ProductReports
+            .Where(r => r.ProductAccountId != null)
+            .CountAsync(cancellationToken);
+    }
+
     private async Task CreateAuditLogAsync(
         Guid actorId,
         string actorEmail,

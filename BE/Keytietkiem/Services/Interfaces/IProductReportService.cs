@@ -55,4 +55,42 @@ public interface IProductReportService
         string? status,
         Guid? userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets key error reports with pagination (reports with ProductKeyId)
+    /// </summary>
+    /// <param name="pageNumber">Page number (1-based)</param>
+    /// <param name="pageSize">Number of items per page</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paginated list of key error reports</returns>
+    Task<PagedResult<ProductReportResponseDto>> GetKeyErrorsAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets account error reports with pagination (reports with ProductAccountId)
+    /// </summary>
+    /// <param name="pageNumber">Page number (1-based)</param>
+    /// <param name="pageSize">Number of items per page</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paginated list of account error reports</returns>
+    Task<PagedResult<ProductReportResponseDto>> GetAccountErrorsAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the total count of key error reports
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Total count of key errors</returns>
+    Task<int> CountKeyErrorsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the total count of account error reports
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Total count of account errors</returns>
+    Task<int> CountAccountErrorsAsync(CancellationToken cancellationToken = default);
 }
