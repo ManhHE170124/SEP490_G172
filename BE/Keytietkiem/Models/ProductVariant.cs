@@ -47,6 +47,8 @@ public partial class ProductVariant
 
     public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
 
+    public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
+
     public virtual ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
 
     public virtual ICollection<ProductSection> ProductSections { get; set; } = new List<ProductSection>();

@@ -37,5 +37,7 @@ public partial class ProductAccount
 
     public virtual ICollection<ProductAccountHistory> ProductAccountHistories { get; set; } = new List<ProductAccountHistory>();
 
+    public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
+
     public virtual ProductVariant Variant { get; set; } = null!;
 }
