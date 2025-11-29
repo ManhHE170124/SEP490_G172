@@ -90,7 +90,7 @@ namespace Keytietkiem.DTOs
         public string KeyString { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string Type { get; set; }
-        public string? OrderCode { get; set; }
+        public Guid? AssignToOrder { get; set; }
         public DateTime? ImportedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

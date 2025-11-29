@@ -56,4 +56,6 @@ public partial class User
     public virtual ICollection<Ticket> TicketUsers { get; set; } = new List<Ticket>();
 
     public virtual ICollection<Role> Roles { get; set; } = new List<Role>();
+    
+    public virtual ICollection<ProductReport>  ProductReports { get; set; } = new List<ProductReport>();
 }

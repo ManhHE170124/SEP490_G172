@@ -83,6 +83,10 @@ import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-manag
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import StaffSupportChatPage from "../pages/admin/staff-support-chat";
 
+// Product Report Pages
+import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";
+import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx";
+
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -243,6 +247,22 @@ export default function AppRoutes() {
             </AdminLayout>
           </Suspense>
         }
+      />
+
+      {/* Product Reports */}
+      <Route
+        path="/reports"
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <ProductReportManagementPage />
+        )}
+      />
+      <Route
+        path="/reports/:id"
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <ProductReportDetailPage />
+        )}
       />
 
       {/* Customer tickets */}

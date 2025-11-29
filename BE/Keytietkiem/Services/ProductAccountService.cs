@@ -98,7 +98,8 @@ public class ProductAccountService : IProductAccountService
                 CogsPrice = pa.Variant.CogsPrice,
                 SellPrice = pa.Variant.SellPrice,
                 ExpiryDate = pa.ExpiryDate,
-                CreatedAt = pa.CreatedAt
+                CreatedAt = pa.CreatedAt,
+                OrderId = pa.ProductAccountCustomers.First(x=> x.OrderId.HasValue).OrderId
             })
             .ToListAsync(cancellationToken);
 

@@ -692,22 +692,25 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasCheckConstraint("CK_ProductReports_Status",
                 "[Status] IN ('Pending', 'Processing', 'Resolved')");
 
-            entity.HasOne(d => d.ProductKey).WithMany()
+            entity.HasOne(d => d.ProductKey)
+                .WithMany(x=> x.ProductReports)
                 .HasForeignKey(d => d.ProductKeyId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_ProductReports_ProductKey");
 
-            entity.HasOne(d => d.ProductAccount).WithMany()
+            entity.HasOne(d => d.ProductAccount)
+                .WithMany(x => x.ProductReports)
                 .HasForeignKey(d => d.ProductAccountId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_ProductReports_ProductAccount");
 
-            entity.HasOne(d => d.ProductVariant).WithMany()
+            entity.HasOne(d => d.ProductVariant)
+                .WithMany(x => x.ProductReports)
                 .HasForeignKey(d => d.ProductVariantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductReports_ProductVariant");
 
-            entity.HasOne(d => d.User).WithMany()
+            entity.HasOne(d => d.User).WithMany(x=> x.ProductReports)
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductReports_User");

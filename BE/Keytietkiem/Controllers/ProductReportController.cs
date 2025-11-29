@@ -68,9 +68,7 @@ public class ProductReportController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateProductReport([FromBody] CreateProductReportDto dto)
     {
-        var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-        var report = await _productReportService.CreateProductReportAsync(dto, userId);
+        var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId.Value);
         return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
     }
 

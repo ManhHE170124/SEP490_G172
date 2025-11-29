@@ -113,6 +113,7 @@ public class ProductAccountListDto
     public decimal SellPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime CreatedAt { get; set; }
+    public Guid? OrderId { get; set; }
 }
 
 /// <summary>

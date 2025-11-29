@@ -22,6 +22,8 @@ public class CreateProductReportDto
     public Guid? ProductKeyId { get; set; }
 
     public Guid? ProductAccountId { get; set; }
+
+    public Guid? UserId { get; set; }
 }
 
 /// <summary>
