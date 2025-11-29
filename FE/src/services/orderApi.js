@@ -39,8 +39,8 @@ export const orderApi = {
    * List all orders (admin) - filtering done in FE
    * @returns {Promise} Axios response with list of OrderListItemDTO
    */
-  list: () => {
-    return axiosClient.get(END.ORDERS);
+  list: (params) => {
+    return axiosClient.get(END.ORDERS, { params });
   },
 
   /**
