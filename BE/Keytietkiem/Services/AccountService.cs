@@ -83,20 +83,47 @@ public class AccountService : IAccountService
         if (customerRole == null)
             throw new InvalidOperationException("Customer role không tồn tại. Vui lòng kiểm tra cấu hình hệ thống");
 
-        // Create User entity
-        var user = new User
+        // Check if a temp user exists with this email
+        var existingTempUser = await _userRepository.FirstOrDefaultAsync(
+            u => u.Email == registerDto.Email && u.Status == "Temp",
+            cancellationToken);
+
+        User user;
+        bool isNewUser = false;
+
+        if (existingTempUser != null)
         {
-            UserId = Guid.NewGuid(),
-            FirstName = registerDto.FirstName,
-            LastName = registerDto.LastName,
-            FullName = $"{registerDto.FirstName} {registerDto.LastName}",
-            Email = registerDto.Email,
-            Phone = registerDto.Phone,
-            Address = registerDto.Address,
-            Status = "Active",
-            EmailVerified = true, // Email verified via OTP
-            CreatedAt = _clock.UtcNow
-        };
+            // Update existing temp user to active user
+            user = existingTempUser;
+            user.FirstName = registerDto.FirstName;
+            user.LastName = registerDto.LastName;
+            user.FullName = $"{registerDto.FirstName} {registerDto.LastName}";
+            user.Phone = registerDto.Phone;
+            user.Address = registerDto.Address;
+            user.Status = "Active";
+            user.EmailVerified = true; // Email verified via OTP
+            user.UpdatedAt = _clock.UtcNow;
+
+            _userRepository.Update(user);
+        }
+        else
+        {
+            // Create new User entity
+            user = new User
+            {
+                UserId = Guid.NewGuid(),
+                FirstName = registerDto.FirstName,
+                LastName = registerDto.LastName,
+                FullName = $"{registerDto.FirstName} {registerDto.LastName}",
+                Email = registerDto.Email,
+                Phone = registerDto.Phone,
+                Address = registerDto.Address,
+                Status = "Active",
+                EmailVerified = true, // Email verified via OTP
+                CreatedAt = _clock.UtcNow
+            };
+            isNewUser = true;
+        }
 
         // Add Customer role to user
         user.Roles.Add(customerRole);
@@ -116,7 +143,12 @@ public class AccountService : IAccountService
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            await _userRepository.AddAsync(user, cancellationToken);
+            if (isNewUser)
+            {
+                await _userRepository.AddAsync(user, cancellationToken);
+            }
+            // If updating existing temp user, Update was already called above
+
             await _accountRepository.AddAsync(account, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -295,6 +327,11 @@ public class AccountService : IAccountService
         };
     }
 
+    public async Task<User?> GetUserAsync(string email, CancellationToken cancellationToken = default)
+    {
+        return await _userRepository.FirstOrDefaultAsync(a => a.Email == email, cancellationToken);
+    }
+
     public async Task ChangePasswordAsync(Guid accountId, ChangePasswordDto changePasswordDto,
         CancellationToken cancellationToken = default)
     {
@@ -321,7 +358,35 @@ public class AccountService : IAccountService
 
     public async Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _userRepository.AnyAsync(u => u.Email == email, cancellationToken);
+        return await _userRepository.AnyAsync(u => u.Email == email && u.Status != "Temp", cancellationToken);
+    }
+
+    public async Task<User> CreateTempUserAsync(string email, CancellationToken cancellationToken = default)
+    {
+        // Check if temp user already exists
+        var existingTempUser = await _userRepository.FirstOrDefaultAsync(
+            u => u.Email == email && u.Status == "Temp",
+            cancellationToken);
+
+        if (existingTempUser != null)
+        {
+            return existingTempUser;
+        }
+
+        // Create new temp user
+        var tempUser = new User
+        {
+            UserId = Guid.NewGuid(),
+            Email = email,
+            Status = "Temp",
+            EmailVerified = false,
+            CreatedAt = _clock.UtcNow
+        };
+
+        await _userRepository.AddAsync(tempUser, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return tempUser;
     }
 
     public async Task<string> SendOtpAsync(SendOtpDto sendOtpDto, CancellationToken cancellationToken = default)

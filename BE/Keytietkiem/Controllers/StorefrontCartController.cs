@@ -2,6 +2,7 @@
 using Keytietkiem.DTOs.Cart;
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.Models;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -10,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
 
 namespace Keytietkiem.Controllers
@@ -22,15 +24,18 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IMemoryCache _cache;
+        private readonly IAccountService _accountService;
 
         private static readonly TimeSpan CartTtl = TimeSpan.FromMinutes(60);
 
         public StorefrontCartController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IAccountService accountService)
         {
             _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+            _accountService = accountService ?? throw new ArgumentNullException(nameof(accountService));
         }
 
         // ===== GET: /apistorefront/cart =====
@@ -139,8 +144,6 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<CartCheckoutResultDto>> Checkout()
         {
             var userId = GetCurrentUserId();
-            if (userId is null)
-                return Unauthorized(new { message = "Bạn cần đăng nhập để thanh toán." });
 
             var cart = GetOrCreateCart(userId.Value);
             if (cart.Items == null || cart.Items.Count == 0)
@@ -178,6 +181,21 @@ namespace Keytietkiem.Controllers
             totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
             totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
             discountAmount = Math.Round(discountAmount, 2, MidpointRounding.AwayFromZero);
+
+            // If user is not logged in, check if email exists and create temp user if needed
+            
+            if (!userId.HasValue)
+            { 
+                var user = await _accountService.GetUserAsync(email);
+                if (user != null)
+                {
+                    userId = user.UserId;
+                }
+                else
+                {
+                    userId = (await _accountService.CreateTempUserAsync(email)).UserId;
+                }
+            }
 
             try
             {
