@@ -77,6 +77,13 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<SupportChatSession> SupportChatSessions { get; set; }
 
+    // === DbSet mới cho hệ thống gói hỗ trợ ===
+    public virtual DbSet<SupportPlan> SupportPlans { get; set; }
+
+    public virtual DbSet<UserSupportPlanSubscription> UserSupportPlanSubscriptions { get; set; }
+
+    public virtual DbSet<SupportPriorityLoyaltyRule> SupportPriorityLoyaltyRules { get; set; }
+
     public virtual DbSet<Tag> Tags { get; set; }
 
     public virtual DbSet<Ticket> Tickets { get; set; }
@@ -337,11 +344,8 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasDefaultValue("PayOS");
 
             entity.Property(e => e.ProviderOrderCode);
-
-            // Không cấu hình HasOne(d => d.Order) nữa
+            // Quan hệ với UserSupportPlanSubscription được cấu hình ở entity UserSupportPlanSubscription
         });
-
-
 
         modelBuilder.Entity<PaymentGateway>(entity =>
         {
@@ -568,7 +572,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductAccountCustomers_User");
-                
+
             entity.HasOne(d => d.Order).WithMany(p => p.ProductAccountCustomers)
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -693,7 +697,7 @@ public partial class KeytietkiemDbContext : DbContext
                 "[Status] IN ('Pending', 'Processing', 'Resolved')");
 
             entity.HasOne(d => d.ProductKey)
-                .WithMany(x=> x.ProductReports)
+                .WithMany(x => x.ProductReports)
                 .HasForeignKey(d => d.ProductKeyId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_ProductReports_ProductKey");
@@ -710,7 +714,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductReports_ProductVariant");
 
-            entity.HasOne(d => d.User).WithMany(x=> x.ProductReports)
+            entity.HasOne(d => d.User).WithMany(x => x.ProductReports)
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductReports_User");
@@ -919,6 +923,88 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_SupportChatSessions_Customer");
         });
 
+        // === Mapping cho bảng SupportPlans ===
+        modelBuilder.Entity<SupportPlan>(entity =>
+        {
+            entity.HasKey(e => e.SupportPlanId).HasName("PK_SupportPlans");
+
+            entity.Property(e => e.Name)
+                .HasMaxLength(120);
+
+            entity.Property(e => e.Description)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.PriorityLevel);
+
+            entity.Property(e => e.Price)
+                .HasColumnType("decimal(18, 2)");
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+        });
+
+        // === Mapping cho bảng UserSupportPlanSubscriptions ===
+        modelBuilder.Entity<UserSupportPlanSubscription>(entity =>
+        {
+            entity.HasKey(e => e.SubscriptionId).HasName("PK_UserSupportPlanSubscriptions");
+
+            entity.Property(e => e.SubscriptionId)
+                .HasDefaultValueSql("(newid())");
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Note)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.StartedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.Property(e => e.ExpiresAt)
+                .HasPrecision(3);
+
+            entity.HasIndex(
+                e => new { e.UserId, e.Status, e.ExpiresAt },
+                "IX_UserSupportPlanSubscriptions_User_Status");
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.SupportPlanSubscriptions)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_UserSupportPlanSubscriptions_User");
+
+            entity.HasOne(d => d.SupportPlan)
+                .WithMany(p => p.UserSupportPlanSubscriptions)
+                .HasForeignKey(d => d.SupportPlanId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_UserSupportPlanSubscriptions_Plan");
+
+            entity.HasOne(d => d.Payment)
+                .WithMany(p => p.UserSupportPlanSubscriptions)
+                .HasForeignKey(d => d.PaymentId)
+                .HasConstraintName("FK_UserSupportPlanSubscriptions_Payment");
+        });
+
+        // === Mapping cho bảng SupportPriorityLoyaltyRules ===
+        modelBuilder.Entity<SupportPriorityLoyaltyRule>(entity =>
+        {
+            entity.HasKey(e => e.RuleId).HasName("PK_SupportPriorityLoyaltyRules");
+
+            entity.Property(e => e.MinTotalSpend)
+                .HasColumnType("decimal(18, 2)");
+
+            entity.Property(e => e.PriorityLevel);
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
+        });
+
         modelBuilder.Entity<Tag>(entity =>
         {
             entity.HasKey(e => e.TagId).HasName("PK__Tags__657CFA4CD58917C8");
@@ -1038,6 +1124,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .IsUnicode(false)
                 .HasDefaultValue("Active");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            // Mapping mới cho TotalProductSpend
+            entity.Property(e => e.TotalProductSpend)
+                .HasColumnType("decimal(18, 2)")
+                .HasDefaultValue(0m);
 
             entity.HasMany(d => d.Roles).WithMany(p => p.Users)
                 .UsingEntity<Dictionary<string, object>>(

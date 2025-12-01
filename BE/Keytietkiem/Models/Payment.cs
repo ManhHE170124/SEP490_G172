@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Keytietkiem.Models
 {
@@ -20,5 +21,7 @@ namespace Keytietkiem.Models
 
         public string? Provider { get; set; }
 
+        public virtual ICollection<UserSupportPlanSubscription> UserSupportPlanSubscriptions { get; set; }
+            = new List<UserSupportPlanSubscription>();
     }
 }
