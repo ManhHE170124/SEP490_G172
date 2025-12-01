@@ -463,8 +463,8 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
             </a>
             <a
               className="btn subtle"
-              href="/orders"
-              onClick={(event) => handleNavigation(event, "/orders")}
+              href="/orders/history"
+              onClick={(event) => handleNavigation(event, "/orders/history")}
             >
               Đơn hàng
             </a>
@@ -511,12 +511,12 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                 >
                   Hồ sơ của tôi
                 </button>
-                <button
+                {/* <button
                   className="account-dropdown-item"
-                  onClick={() => handleAccountAction("orders")}
+                  onClick={() => handleNavigation("/orders/history")}
                 >
                   Đơn hàng
-                </button>
+                </button> */}
                 <button
                   className="account-dropdown-item"
                   onClick={() => handleAccountAction("support")}
