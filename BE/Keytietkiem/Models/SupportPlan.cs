@@ -19,6 +19,5 @@ public partial class SupportPlan
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual ICollection<UserSupportPlanSubscription> UserSupportPlanSubscriptions { get; set; }
-        = new List<UserSupportPlanSubscription>();
+    public virtual ICollection<UserSupportPlanSubscription> UserSupportPlanSubscriptions { get; set; } = new List<UserSupportPlanSubscription>();
 }

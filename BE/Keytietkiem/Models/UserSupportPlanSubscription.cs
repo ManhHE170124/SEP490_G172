@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
 
@@ -20,9 +21,9 @@ public partial class UserSupportPlanSubscription
 
     public string? Note { get; set; }
 
-    public virtual User User { get; set; } = null!;
+    public virtual Payment? Payment { get; set; }
 
     public virtual SupportPlan SupportPlan { get; set; } = null!;
 
-    public virtual Payment? Payment { get; set; }
+    public virtual User User { get; set; } = null!;
 }
