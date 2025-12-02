@@ -101,13 +101,21 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<WebsiteSetting> WebsiteSettings { get; set; }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+        => optionsBuilder.UseSqlServer("Server=DESKTOP-VIO3U0P\\SQLEXPRESS;Database=KeytietkiemDB;User Id=thanbd;Password=123;TrustServerCertificate=True;Encrypt=False");
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>(entity =>
         {
-            entity.HasIndex(e => e.UserId, "UQ__Accounts__1788CC4D69E87AD2").IsUnique();
+            entity.HasKey(e => e.AccountId).HasName("PK_Accounts");
 
-            entity.HasIndex(e => e.Username, "UQ__Accounts__536C85E469CB3B5E").IsUnique();
+            entity.ToTable("Account");
+
+            entity.HasIndex(e => e.UserId, "UQ__Accounts__1788CC4DC1BA8C54").IsUnique();
+
+            entity.HasIndex(e => e.Username, "UQ__Accounts__536C85E47EEB9C95").IsUnique();
 
             entity.Property(e => e.AccountId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CreatedAt)
@@ -126,7 +134,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F23985C5E1074");
+            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F23986F01F4DF");
+
+            entity.ToTable("AuditLog");
 
             entity.Property(e => e.Action)
                 .HasMaxLength(50)
@@ -147,7 +157,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Badge>(entity =>
         {
-            entity.HasKey(e => e.BadgeCode).HasName("PK__Badges__8BF404E7C962BC8E");
+            entity.HasKey(e => e.BadgeCode).HasName("PK__Badges__8BF404E77A8D77E3");
+
+            entity.ToTable("Badge");
 
             entity.Property(e => e.BadgeCode).HasMaxLength(32);
             entity.Property(e => e.ColorHex)
@@ -163,9 +175,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Category>(entity =>
         {
-            entity.HasKey(e => e.CategoryId).HasName("PK__Categori__19093A0B95D4C1AF");
+            entity.HasKey(e => e.CategoryId).HasName("PK__Categori__19093A0B232590E3");
 
-            entity.HasIndex(e => e.CategoryCode, "UQ__Categori__371BA955ED88B675").IsUnique();
+            entity.ToTable("Category");
+
+            entity.HasIndex(e => e.CategoryCode, "UQ__Categori__371BA955DCE4758A").IsUnique();
 
             entity.Property(e => e.CategoryCode)
                 .HasMaxLength(50)
@@ -181,7 +195,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Faq>(entity =>
         {
-            entity.HasKey(e => e.FaqId).HasName("PK__Faqs__9C741C43F9B2F0C0");
+            entity.HasKey(e => e.FaqId).HasName("PK__Faqs__9C741C43FB6254C5");
+
+            entity.ToTable("Faq");
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
@@ -198,8 +214,8 @@ public partial class KeytietkiemDbContext : DbContext
                         .HasConstraintName("FK_FaqCategories_Faqs"),
                     j =>
                     {
-                        j.HasKey("FaqId", "CategoryId");
-                        j.ToTable("FaqCategories");
+                        j.HasKey("FaqId", "CategoryId").HasName("PK_FaqCategories");
+                        j.ToTable("FaqCategory");
                     });
 
             entity.HasMany(d => d.Products).WithMany(p => p.Faqs)
@@ -213,14 +229,16 @@ public partial class KeytietkiemDbContext : DbContext
                         .HasConstraintName("FK_FaqProducts_Faqs"),
                     j =>
                     {
-                        j.HasKey("FaqId", "ProductId");
-                        j.ToTable("FaqProducts");
+                        j.HasKey("FaqId", "ProductId").HasName("PK_FaqProducts");
+                        j.ToTable("FaqProduct");
                     });
         });
 
         modelBuilder.Entity<LayoutSection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__LayoutSe__3214EC078DD37E6F");
+            entity.HasKey(e => e.Id).HasName("PK__LayoutSe__3214EC071F62B302");
+
+            entity.ToTable("LayoutSection");
 
             entity.HasIndex(e => e.SectionKey, "UQ_LayoutSections_SectionKey").IsUnique();
 
@@ -234,7 +252,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<LicensePackage>(entity =>
         {
-            entity.HasKey(e => e.PackageId).HasName("PK__LicenseP__322035CCC91D3B88");
+            entity.HasKey(e => e.PackageId).HasName("PK__LicenseP__322035CCAC2FE4F7");
+
+            entity.ToTable("LicensePackage");
 
             entity.HasIndex(e => e.CreatedAt, "IX_LicensePackages_CreatedAt").IsDescending();
 
@@ -258,9 +278,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Module>(entity =>
         {
-            entity.HasKey(e => e.ModuleId).HasName("PK__Modules__2B7477A7DFA04E79");
+            entity.HasKey(e => e.ModuleId).HasName("PK__Modules__2B7477A720AF1A3B");
 
-            entity.HasIndex(e => e.ModuleName, "UQ__Modules__EAC9AEC34FB599B7").IsUnique();
+            entity.ToTable("Module");
+
+            entity.HasIndex(e => e.ModuleName, "UQ__Modules__EAC9AEC3856619C6").IsUnique();
 
             entity.Property(e => e.Code).HasMaxLength(50);
             entity.Property(e => e.CreatedAt)
@@ -273,7 +295,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Order>(entity =>
         {
-            entity.HasKey(e => e.OrderId).HasName("PK__Orders__C3905BCF90582D0C");
+            entity.HasKey(e => e.OrderId).HasName("PK__Orders__C3905BCF1DF8D4F5");
+
+            entity.ToTable("Order");
 
             entity.Property(e => e.OrderId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CreatedAt)
@@ -296,7 +320,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<OrderDetail>(entity =>
         {
-            entity.HasKey(e => e.OrderDetailId).HasName("PK__OrderDet__D3B9D36C394FB197");
+            entity.HasKey(e => e.OrderDetailId).HasName("PK__OrderDet__D3B9D36CD6BB586C");
+
+            entity.ToTable("OrderDetail");
 
             entity.Property(e => e.UnitPrice).HasColumnType("decimal(12, 2)");
 
@@ -317,7 +343,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Payment>(entity =>
         {
-            entity.HasKey(e => e.PaymentId).HasName("PK__Payments__9B556A381A682606");
+            entity.HasKey(e => e.PaymentId).HasName("PK__Payments__9B556A38D28FD774");
+
+            entity.ToTable("Payment");
 
             entity.Property(e => e.PaymentId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Amount).HasColumnType("decimal(12, 2)");
@@ -340,7 +368,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<PaymentGateway>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__PaymentG__3214EC077B09A85F");
+            entity.HasKey(e => e.Id).HasName("PK__PaymentG__3214EC07E79718A1");
+
+            entity.ToTable("PaymentGateway");
 
             entity.Property(e => e.CallbackUrl).HasMaxLength(500);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
@@ -351,9 +381,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Permission>(entity =>
         {
-            entity.HasKey(e => e.PermissionId).HasName("PK__Permissi__EFA6FB2F2B7477D1");
+            entity.HasKey(e => e.PermissionId).HasName("PK__Permissi__EFA6FB2F887090C6");
 
-            entity.HasIndex(e => e.PermissionName, "UQ__Permissi__0FFDA3572538846C").IsUnique();
+            entity.ToTable("Permission");
+
+            entity.HasIndex(e => e.PermissionName, "UQ__Permissi__0FFDA357CFDE1B70").IsUnique();
 
             entity.Property(e => e.Code).HasMaxLength(50);
             entity.Property(e => e.CreatedAt)
@@ -366,9 +398,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Post>(entity =>
         {
-            entity.HasKey(e => e.PostId).HasName("PK__Posts__AA1260387319F940");
+            entity.HasKey(e => e.PostId).HasName("PK__Posts__AA12603818D9187C");
 
-            entity.HasIndex(e => e.Slug, "UQ__Posts__BC7B5FB6634ADF29").IsUnique();
+            entity.ToTable("Post");
+
+            entity.HasIndex(e => e.Slug, "UQ__Posts__BC7B5FB6F4753FF9").IsUnique();
 
             entity.Property(e => e.PostId)
                 .HasDefaultValueSql("(newid())")
@@ -409,8 +443,8 @@ public partial class KeytietkiemDbContext : DbContext
                         .HasConstraintName("FK__PostTags__PostID__17C286CF"),
                     j =>
                     {
-                        j.HasKey("PostId", "TagId").HasName("PK__PostTags__7C45AF9CF867227E");
-                        j.ToTable("PostTags");
+                        j.HasKey("PostId", "TagId").HasName("PK__PostTags__7C45AF9C10016B91");
+                        j.ToTable("PostTag");
                         j.IndexerProperty<Guid>("PostId").HasColumnName("PostID");
                         j.IndexerProperty<Guid>("TagId").HasColumnName("TagID");
                     });
@@ -418,7 +452,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<PostComment>(entity =>
         {
-            entity.HasKey(e => e.CommentId);
+            entity.HasKey(e => e.CommentId).HasName("PK_PostComments");
+
+            entity.ToTable("PostComment");
 
             entity.HasIndex(e => e.ParentCommentId, "IX_PostComments_ParentCommentId");
 
@@ -445,9 +481,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<PostType>(entity =>
         {
-            entity.HasKey(e => e.PostTypeId).HasName("PK__PostType__AB21261041E39BE3");
+            entity.HasKey(e => e.PostTypeId).HasName("PK__PostType__AB2126102CC3272B");
 
-            entity.HasIndex(e => e.Slug, "UQ__PostType__BC7B5FB661B3A137").IsUnique();
+            entity.ToTable("PostType");
+
+            entity.HasIndex(e => e.Slug, "UQ__PostType__BC7B5FB626D7DA7A").IsUnique();
 
             entity.Property(e => e.PostTypeId)
                 .HasDefaultValueSql("(newid())")
@@ -462,11 +500,13 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Product>(entity =>
         {
-            entity.HasKey(e => e.ProductId).HasName("PK__Products__B40CC6CDAF2C3D6B");
+            entity.HasKey(e => e.ProductId).HasName("PK__Products__B40CC6CD4CDEB1D2");
+
+            entity.ToTable("Product");
 
             entity.HasIndex(e => e.ProductCode, "UQ_Products_ProductCode").IsUnique();
 
-            entity.HasIndex(e => e.ProductCode, "UQ__Products__2F4E024F90F90BF7").IsUnique();
+            entity.HasIndex(e => e.ProductCode, "UQ__Products__2F4E024F833C5527").IsUnique();
 
             entity.HasIndex(e => e.Slug, "UX_Products_Slug").IsUnique();
 
@@ -501,14 +541,16 @@ public partial class KeytietkiemDbContext : DbContext
                         .HasConstraintName("FK_ProductCategories_Product"),
                     j =>
                     {
-                        j.HasKey("ProductId", "CategoryId");
-                        j.ToTable("ProductCategories");
+                        j.HasKey("ProductId", "CategoryId").HasName("PK_ProductCategories");
+                        j.ToTable("ProductCategory");
                     });
         });
 
         modelBuilder.Entity<ProductAccount>(entity =>
         {
-            entity.HasKey(e => e.ProductAccountId).HasName("PK__ProductA__DC9454DB922AA35E");
+            entity.HasKey(e => e.ProductAccountId).HasName("PK__ProductA__DC9454DB0EC3DE61");
+
+            entity.ToTable("ProductAccount");
 
             entity.HasIndex(e => e.Status, "IX_ProductAccounts_Status");
 
@@ -539,7 +581,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductAccountCustomer>(entity =>
         {
-            entity.HasKey(e => e.ProductAccountCustomerId).HasName("PK__ProductA__46479837F280ECC6");
+            entity.HasKey(e => e.ProductAccountCustomerId).HasName("PK__ProductA__464798379FE40325");
+
+            entity.ToTable("ProductAccountCustomer");
 
             entity.HasIndex(e => new { e.ProductAccountId, e.UserId }, "IX_ProductAccountCustomers_Account_User");
 
@@ -571,7 +615,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductAccountHistory>(entity =>
         {
-            entity.HasKey(e => e.HistoryId).HasName("PK__ProductA__4D7B4ABDECAB0EAA");
+            entity.HasKey(e => e.HistoryId).HasName("PK__ProductA__4D7B4ABD7003F0E3");
+
+            entity.ToTable("ProductAccountHistory");
 
             entity.HasIndex(e => e.ProductAccountId, "IX_ProductAccountHistory_Account");
 
@@ -599,7 +645,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductBadge>(entity =>
         {
-            entity.HasKey(e => new { e.ProductId, e.Badge });
+            entity.HasKey(e => new { e.ProductId, e.Badge }).HasName("PK_ProductBadges");
+
+            entity.ToTable("ProductBadge");
 
             entity.Property(e => e.Badge).HasMaxLength(32);
             entity.Property(e => e.CreatedAt)
@@ -618,13 +666,15 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductKey>(entity =>
         {
-            entity.HasKey(e => e.KeyId).HasName("PK__ProductK__21F5BE47CAF49AC3");
+            entity.HasKey(e => e.KeyId).HasName("PK__ProductK__21F5BE4787E336C1");
+
+            entity.ToTable("ProductKey");
 
             entity.HasIndex(e => e.SupplierId, "IX_ProductKeys_Supplier");
 
             entity.HasIndex(e => e.VariantId, "IX_ProductKeys_Variant");
 
-            entity.HasIndex(e => e.KeyString, "UQ__ProductK__BE7B08A9CFC41424").IsUnique();
+            entity.HasIndex(e => e.KeyString, "UQ__ProductK__BE7B08A9B9C32D63").IsUnique();
 
             entity.Property(e => e.KeyId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.ExpiryDate).HasPrecision(3);
@@ -657,6 +707,8 @@ public partial class KeytietkiemDbContext : DbContext
         modelBuilder.Entity<ProductReport>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PKProductR3214EC07A1B2C3D4");
+
+            entity.ToTable("ProductReport");
 
             entity.HasIndex(e => e.CreatedAt, "IX_ProductReports_CreatedAt").IsDescending();
 
@@ -701,7 +753,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductReview>(entity =>
         {
-            entity.HasKey(e => e.ReviewId);
+            entity.HasKey(e => e.ReviewId).HasName("PK_ProductReviews");
+
+            entity.ToTable("ProductReview");
 
             entity.HasIndex(e => e.Rating, "IX_ProductReviews_Rating");
 
@@ -722,7 +776,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductSection>(entity =>
         {
-            entity.HasKey(e => e.SectionId);
+            entity.HasKey(e => e.SectionId).HasName("PK_ProductSections");
+
+            entity.ToTable("ProductSection");
 
             entity.HasIndex(e => new { e.VariantId, e.SortOrder }, "IX_ProductSections_Variant");
 
@@ -744,7 +800,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<ProductVariant>(entity =>
         {
-            entity.HasKey(e => e.VariantId);
+            entity.HasKey(e => e.VariantId).HasName("PK_ProductVariants");
+
+            entity.ToTable("ProductVariant");
 
             entity.HasIndex(e => new { e.ProductId, e.Title }, "UX_ProductVariants_Product_Title").IsUnique();
 
@@ -775,7 +833,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<RefundRequest>(entity =>
         {
-            entity.HasKey(e => e.RefundId).HasName("PK__RefundRe__725AB9200179F223");
+            entity.HasKey(e => e.RefundId).HasName("PK__RefundRe__725AB9208A6D2B16");
+
+            entity.ToTable("RefundRequest");
 
             entity.Property(e => e.RefundId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Reason).HasMaxLength(200);
@@ -789,7 +849,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Role>(entity =>
         {
-            entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1A46C911E5");
+            entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1AB0D1CBFA");
+
+            entity.ToTable("Role");
 
             entity.Property(e => e.RoleId).HasMaxLength(50);
             entity.Property(e => e.Code).HasMaxLength(50);
@@ -803,7 +865,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<RolePermission>(entity =>
         {
-            entity.HasKey(e => new { e.RoleId, e.PermissionId, e.ModuleId });
+            entity.HasKey(e => new { e.RoleId, e.PermissionId, e.ModuleId }).HasName("PK_RolePermissions");
+
+            entity.ToTable("RolePermission");
 
             entity.Property(e => e.RoleId).HasMaxLength(50);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
@@ -823,6 +887,10 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SlaRule>(entity =>
         {
+            entity.HasKey(e => e.SlaRuleId).HasName("PK_SlaRules");
+
+            entity.ToTable("SlaRule");
+
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysdatetime())");
@@ -836,7 +904,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Supplier>(entity =>
         {
-            entity.HasKey(e => e.SupplierId).HasName("PK__Supplier__4BE666B41562D3E1");
+            entity.HasKey(e => e.SupplierId).HasName("PK__Supplier__4BE666B44EA0F678");
+
+            entity.ToTable("Supplier");
 
             entity.Property(e => e.ContactEmail).HasMaxLength(254);
             entity.Property(e => e.ContactPhone).HasMaxLength(32);
@@ -853,7 +923,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportChatMessage>(entity =>
         {
-            entity.HasKey(e => e.MessageId);
+            entity.HasKey(e => e.MessageId).HasName("PK_SupportChatMessages");
+
+            entity.ToTable("SupportChatMessage");
 
             entity.HasIndex(e => new { e.ChatSessionId, e.SentAt }, "IX_SupportChatMessages_Session_SentAt");
 
@@ -874,7 +946,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportChatSession>(entity =>
         {
-            entity.HasKey(e => e.ChatSessionId);
+            entity.HasKey(e => e.ChatSessionId).HasName("PK_SupportChatSessions");
+
+            entity.ToTable("SupportChatSession");
 
             entity.HasIndex(e => new { e.CustomerId, e.Status, e.StartedAt }, "IX_SupportChatSessions_Customer");
 
@@ -904,6 +978,10 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportPlan>(entity =>
         {
+            entity.HasKey(e => e.SupportPlanId).HasName("PK_SupportPlans");
+
+            entity.ToTable("SupportPlan");
+
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
@@ -915,7 +993,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportPriorityLoyaltyRule>(entity =>
         {
-            entity.HasKey(e => e.RuleId);
+            entity.HasKey(e => e.RuleId).HasName("PK_SupportPriorityLoyaltyRules");
+
+            entity.ToTable("SupportPriorityLoyaltyRule");
 
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.MinTotalSpend).HasColumnType("decimal(18, 2)");
@@ -923,9 +1003,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Tag>(entity =>
         {
-            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CFA4C8CF2304E");
+            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CFA4C9AF77166");
 
-            entity.HasIndex(e => e.Slug, "UQ__Tags__BC7B5FB6AA559019").IsUnique();
+            entity.ToTable("Tag");
+
+            entity.HasIndex(e => e.Slug, "UQ__Tags__BC7B5FB628706194").IsUnique();
 
             entity.Property(e => e.TagId)
                 .HasDefaultValueSql("(newid())")
@@ -936,7 +1018,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<Ticket>(entity =>
         {
-            entity.HasKey(e => e.TicketId).HasName("PK__Tickets__712CC607C07288BB");
+            entity.HasKey(e => e.TicketId).HasName("PK__Tickets__712CC607D30C124F");
+
+            entity.ToTable("Ticket");
 
             entity.HasIndex(e => new { e.Status, e.SlaStatus, e.PriorityLevel, e.Severity, e.ResolutionDueAt }, "IX_Tickets_Queue");
 
@@ -989,7 +1073,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<TicketReply>(entity =>
         {
-            entity.HasKey(e => e.ReplyId).HasName("PK__TicketRe__C25E4609FC58C3F0");
+            entity.HasKey(e => e.ReplyId).HasName("PK__TicketRe__C25E46092071F1A6");
+
+            entity.ToTable("TicketReply");
 
             entity.Property(e => e.SentAt)
                 .HasPrecision(3)
@@ -1008,7 +1094,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<TicketSubjectTemplate>(entity =>
         {
-            entity.HasKey(e => e.TemplateCode);
+            entity.HasKey(e => e.TemplateCode).HasName("PK_TicketSubjectTemplates");
+
+            entity.ToTable("TicketSubjectTemplate");
 
             entity.Property(e => e.TemplateCode)
                 .HasMaxLength(50)
@@ -1022,7 +1110,11 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.HasIndex(e => e.Email, "UQ__Users__A9D105344E54ED57").IsUnique();
+            entity.HasKey(e => e.UserId).HasName("PK_Users");
+
+            entity.ToTable("User");
+
+            entity.HasIndex(e => e.Email, "UQ__Users__A9D105342FF35DEE").IsUnique();
 
             entity.Property(e => e.UserId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Address).HasMaxLength(300);
@@ -1053,15 +1145,17 @@ public partial class KeytietkiemDbContext : DbContext
                         .HasConstraintName("FK_UserRoles_User"),
                     j =>
                     {
-                        j.HasKey("UserId", "RoleId");
-                        j.ToTable("UserRoles");
+                        j.HasKey("UserId", "RoleId").HasName("PK_UserRoles");
+                        j.ToTable("UserRole");
                         j.IndexerProperty<string>("RoleId").HasMaxLength(50);
                     });
         });
 
         modelBuilder.Entity<UserSupportPlanSubscription>(entity =>
         {
-            entity.HasKey(e => e.SubscriptionId);
+            entity.HasKey(e => e.SubscriptionId).HasName("PK_UserSupportPlanSubscriptions");
+
+            entity.ToTable("UserSupportPlanSubscription");
 
             entity.HasIndex(e => new { e.UserId, e.Status, e.ExpiresAt }, "IX_UserSupportPlanSubscriptions_User_Status");
 
@@ -1092,7 +1186,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<WarrantyClaim>(entity =>
         {
-            entity.HasKey(e => e.ClaimId).HasName("PK__Warranty__EF2E139B12780AD2");
+            entity.HasKey(e => e.ClaimId).HasName("PK__Warranty__EF2E139B3FEE90EA");
+
+            entity.ToTable("WarrantyClaim");
 
             entity.Property(e => e.ClaimId).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Reason).HasMaxLength(200);
@@ -1106,7 +1202,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<WebsiteSetting>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__WebsiteS__3214EC072A68A911");
+            entity.HasKey(e => e.Id).HasName("PK__WebsiteS__3214EC07F2A9F6D3");
+
+            entity.ToTable("WebsiteSetting");
 
             entity.Property(e => e.AllowedExtensions).HasMaxLength(200);
             entity.Property(e => e.CompanyAddress).HasMaxLength(500);
