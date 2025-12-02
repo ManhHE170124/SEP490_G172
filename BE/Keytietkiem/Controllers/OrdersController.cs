@@ -16,6 +16,7 @@ namespace Keytietkiem.Controllers
         private readonly KeytietkiemDbContext _context;
         private readonly IProductKeyService _productKeyService;
         private readonly IProductAccountService _productAccountService;
+        private readonly IAccountService _accountService;
         private readonly IEmailService _emailService;
         private readonly ILogger<OrdersController> _logger;
 
@@ -30,13 +31,15 @@ namespace Keytietkiem.Controllers
             IProductKeyService productKeyService,
             IProductAccountService productAccountService,
             IEmailService emailService,
-            ILogger<OrdersController> logger)
+            ILogger<OrdersController> logger, 
+            IAccountService accountService)
         {
             _context = context;
             _productKeyService = productKeyService;
             _productAccountService = productAccountService;
             _emailService = emailService;
             _logger = logger;
+            _accountService = accountService;
         }
 
         // ========== CÁC API ==========
@@ -392,6 +395,10 @@ namespace Keytietkiem.Controllers
                 {
                     return NotFound(new { message = "Người dùng không tồn tại" });
                 }
+            }
+            else
+            {
+                user = await _accountService.GetUserAsync(createOrderDto.Email) ?? await _accountService.CreateTempUserAsync(createOrderDto.Email);
             }
 
             // ===== Validate variants + tồn kho =====
