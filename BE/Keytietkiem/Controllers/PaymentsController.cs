@@ -30,14 +30,16 @@ namespace Keytietkiem.Controllers
             _config = config;
         }
 
-        // ===== API ADMIN: list payment với filter cơ bản =====
-        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT
+        // ===== API ADMIN: list payment với filter cơ bản + sort =====
+        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT&sortBy=CreatedAt&sortDir=desc
         [HttpGet]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
             [FromQuery] string? provider,
             [FromQuery] string? email,
-            [FromQuery] string? transactionType)
+            [FromQuery] string? transactionType,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir)
         {
             var query = _context.Payments.AsQueryable();
 
@@ -65,8 +67,63 @@ namespace Keytietkiem.Controllers
                 query = query.Where(p => p.TransactionType == normalizedType);
             }
 
+            // Sort phía server
+            var sortByNorm = (sortBy ?? "CreatedAt").Trim();
+            var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
+            var asc = sortDirNorm == "asc";
+
+            switch (sortByNorm.ToLowerInvariant())
+            {
+                case "paymentid":
+                    query = asc
+                        ? query.OrderBy(p => p.PaymentId)
+                        : query.OrderByDescending(p => p.PaymentId);
+                    break;
+
+                case "amount":
+                    query = asc
+                        ? query.OrderBy(p => p.Amount)
+                        : query.OrderByDescending(p => p.Amount);
+                    break;
+
+                case "status":
+                    query = asc
+                        ? query.OrderBy(p => p.Status)
+                        : query.OrderByDescending(p => p.Status);
+                    break;
+
+                case "provider":
+                    query = asc
+                        ? query.OrderBy(p => p.Provider)
+                        : query.OrderByDescending(p => p.Provider);
+                    break;
+
+                case "transactiontype":
+                    query = asc
+                        ? query.OrderBy(p => p.TransactionType)
+                        : query.OrderByDescending(p => p.TransactionType);
+                    break;
+
+                case "email":
+                    query = asc
+                        ? query.OrderBy(p => p.Email)
+                        : query.OrderByDescending(p => p.Email);
+                    break;
+
+                case "providerordercode":
+                    query = asc
+                        ? query.OrderBy(p => p.ProviderOrderCode)
+                        : query.OrderByDescending(p => p.ProviderOrderCode);
+                    break;
+
+                default: // CreatedAt
+                    query = asc
+                        ? query.OrderBy(p => p.CreatedAt)
+                        : query.OrderByDescending(p => p.CreatedAt);
+                    break;
+            }
+
             var items = await query
-                .OrderByDescending(p => p.CreatedAt)
                 .Select(p => new PaymentAdminListItemDTO
                 {
                     PaymentId = p.PaymentId,
@@ -380,10 +437,6 @@ namespace Keytietkiem.Controllers
 
         // ===== Helpers encode/decode OrderId =====
 
-        /// <summary>
-        /// Encode Guid OrderId thành chuỗi Base64 URL-safe, bỏ padding,
-        /// thêm tiền tố 'K' → độ dài luôn &lt;= 23 ký tự (thỏa điều kiện &lt;= 25).
-        /// </summary>
         private static string EncodeOrderIdToDescription(Guid orderId)
         {
             var bytes = orderId.ToByteArray();
@@ -396,9 +449,6 @@ namespace Keytietkiem.Controllers
             return "K" + base64;
         }
 
-        /// <summary>
-        /// Decode lại OrderId từ description do EncodeOrderIdToDescription tạo ra.
-        /// </summary>
         private static bool TryDecodeOrderIdFromDescription(string description, out Guid orderId)
         {
             orderId = Guid.Empty;
