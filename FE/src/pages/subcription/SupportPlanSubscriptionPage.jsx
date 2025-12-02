@@ -2,7 +2,9 @@
 /**
  * Màn khách hàng chọn gói hỗ trợ (Support Plan Subscription)
  * - Lấy danh sách gói từ: GET /api/supportplans/active
- * - Lấy gói hiện tại của user (nếu đăng nhập): GET /api/supportplans/me/current
+ * - Lấy mức ưu tiên/gói hiện tại của user: GET /api/supportplans/me/current
+ *   + PriorityLevel trong DTO được tính từ Users.SupportPriorityLevel (BE),
+ *     kết hợp với subscription active (nếu có).
  * - Khi chọn gói có trả phí:
  *      -> POST /api/payments/payos/create-support-plan
  *      -> Redirect sang PayOS PaymentUrl trả về
@@ -76,7 +78,7 @@ const normalizePlan = (raw) => {
   };
 };
 
-// Chuẩn hoá subscription hiện tại
+// Chuẩn hoá subscription / mức ưu tiên hiện tại
 const normalizeCurrentSubscription = (raw) => {
   if (!raw) return null;
   return {
@@ -112,6 +114,7 @@ const getSubscriptionStatusLabel = (status) => {
   if (st === "pending") return "Đang chờ kích hoạt";
   if (st === "expired") return "Đã hết hạn";
   if (st === "cancelled" || st === "canceled") return "Đã huỷ";
+  if (st === "none") return "Chưa đăng ký gói trả phí";
   return status || "";
 };
 
@@ -129,7 +132,21 @@ const SupportPlanSubscriptionPage = () => {
   const [customer] = useState(() => readCustomerFromStorage());
   const navigate = useNavigate();
 
-  // Toast helpers giống Cart
+  // PriorityLevel hiện tại luôn lấy từ BE (/supportplans/me/current)
+  const currentPriorityLevel = currentSub
+    ? Number(
+        currentSub.priorityLevel ??
+          currentSub.PriorityLevel ??
+          0
+      ) || 0
+    : 0;
+
+  // Status "None" nghĩa là không có subscription active, nhưng vẫn có PriorityLevel từ user
+  const isStatusNone =
+    currentSub &&
+    (currentSub.status || "").toLowerCase() === "none";
+
+  // Toast helpers
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -150,16 +167,16 @@ const SupportPlanSubscriptionPage = () => {
 
     try {
       const activePromise = axiosClient.get("/supportplans/active");
-      const currentPromise = axiosClient
-        .get("/supportplans/me/current")
-        .catch((err) => {
-          // Nếu chưa đăng nhập -> 401 -> coi như không có gói hiện tại
-          if (err?.response?.status === 401) {
-            return null;
-          }
-          console.error("Failed to load current subscription", err);
-          return null;
-        });
+
+      // Chỉ gọi /me/current nếu user đang đăng nhập
+      const currentPromise = customer
+        ? axiosClient
+            .get("/supportplans/me/current")
+            .catch((err) => {
+              console.error("Failed to load current subscription", err);
+              return null;
+            })
+        : Promise.resolve(null);
 
       const [activeRes, currentRes] = await Promise.all([
         activePromise,
@@ -193,7 +210,7 @@ const SupportPlanSubscriptionPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [addToast]);
+  }, [addToast, customer]);
 
   useEffect(() => {
     fetchData();
@@ -203,7 +220,7 @@ const SupportPlanSubscriptionPage = () => {
     async (plan) => {
       if (!plan || !plan.supportPlanId) return;
 
-      // Gói miễn phí -> không gọi PayOS
+      // Gói miễn phí (Standard) -> không gọi PayOS
       if (!plan.price || plan.price <= 0) {
         addToast(
           "info",
@@ -229,7 +246,6 @@ const SupportPlanSubscriptionPage = () => {
       try {
         const payload = {
           supportPlanId: plan.supportPlanId,
-          // note: có thể thêm trường Note sau nếu cần
         };
 
         const resp = await axiosClient.post(
@@ -240,7 +256,6 @@ const SupportPlanSubscriptionPage = () => {
         const paymentUrl = data.paymentUrl || data.PaymentUrl;
 
         if (paymentUrl) {
-          // Redirect sang PayOS
           window.location.href = paymentUrl;
         } else {
           throw new Error(
@@ -263,9 +278,25 @@ const SupportPlanSubscriptionPage = () => {
 
   const hasPlans = plans && plans.length > 0;
 
+  // Tên & mô tả hiển thị ở block "Mức hỗ trợ hiện tại"
+  const displayPlanName =
+    currentSub &&
+    (currentSub.planName && !isStatusNone
+      ? currentSub.planName
+      : getPriorityLabel(currentPriorityLevel));
+
+  const displayPlanDescription =
+    currentSub &&
+    (currentSub.planDescription ||
+      (isStatusNone
+        ? currentPriorityLevel > 0
+          ? "Bạn đang được hưởng mức ưu tiên hỗ trợ theo tài khoản hiện tại."
+          : "Bạn đang sử dụng gói hỗ trợ mặc định (Standard Support)."
+        : null));
+
   return (
     <main className="sp-sub-page">
-      {/* Toast stack (giống Cart) */}
+      {/* Toast stack */}
       <div className="toast-container">
         {toasts.map((t) => (
           <Toast key={t.id} toast={t} onRemove={removeToast} />
@@ -285,69 +316,10 @@ const SupportPlanSubscriptionPage = () => {
           <h1 className="sp-sub-title">Gói hỗ trợ khách hàng</h1>
           <p className="sp-sub-subtitle">
             Chọn gói hỗ trợ phù hợp với nhu cầu sử dụng Keytietkiem của bạn.
-            Các gói cao hơn sẽ được ưu tiên xử lý nhanh hơn khi bạn cần trợ
-            giúp.
+            Các gói có mức ưu tiên cao hơn sẽ được xử lý nhanh hơn khi bạn cần
+            trợ giúp.
           </p>
         </header>
-
-        {/* Gói hiện tại (nếu có) */}
-        {currentSub && (
-          <section className="sp-sub-current">
-            <div className="sp-sub-current-label">Gói hiện tại của bạn</div>
-            <div className="sp-sub-current-main">
-              <div className="sp-sub-current-info">
-                <div className="sp-sub-current-name-row">
-                  <h2 className="sp-sub-current-name">
-                    {currentSub.planName}
-                  </h2>
-                  <span
-                    className={getPriorityBadgeClass(
-                      currentSub.priorityLevel
-                    )}
-                  >
-                    {getPriorityLabel(currentSub.priorityLevel)}
-                  </span>
-                </div>
-                {currentSub.planDescription && (
-                  <p className="sp-sub-current-desc">
-                    {currentSub.planDescription}
-                  </p>
-                )}
-                <div className="sp-sub-current-meta">
-                  <span className="sp-sub-current-status">
-                    Trạng thái:{" "}
-                    <strong>
-                      {getSubscriptionStatusLabel(currentSub.status)}
-                    </strong>
-                  </span>
-                  <span className="sp-sub-current-dates">
-                    Bắt đầu:{" "}
-                    <strong>{formatDate(currentSub.startedAt) || "—"}</strong>
-                    {currentSub.expiresAt && (
-                      <>
-                        {"  •  "}
-                        Hết hạn:{" "}
-                        <strong>
-                          {formatDate(currentSub.expiresAt) || "—"}
-                        </strong>
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-              <div className="sp-sub-current-price">
-                <div className="sp-sub-current-price-label">
-                  Giá gói mỗi tháng
-                </div>
-                <div className="sp-sub-current-price-value">
-                  {currentSub.price > 0
-                    ? formatCurrency(currentSub.price)
-                    : "Miễn phí"}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* Lỗi tổng (nếu có) */}
         {error && !loading && (
@@ -380,21 +352,49 @@ const SupportPlanSubscriptionPage = () => {
           {!loading && hasPlans && (
             <div className="sp-sub-plan-grid">
               {plans.map((plan) => {
-                const isCurrent =
-                  currentSub &&
-                  currentSub.supportPlanId === plan.supportPlanId;
+                const planLevel = Number(plan.priorityLevel) || 0;
                 const isFree = !plan.price || plan.price <= 0;
+
+                // Gói trả phí (1 hoặc 2) và level trùng với Priority hiện tại -> gói hiện tại (không cho click)
+                const isCurrentPaidPlan =
+                  !isFree &&
+                  currentPriorityLevel > 0 &&
+                  planLevel === currentPriorityLevel;
+
                 const isHighlight =
-                  plan.priorityLevel >= 2 ||
-                  (!isFree && plan.priorityLevel === 1);
+                  planLevel >= 2 || (!isFree && planLevel === 1);
 
                 const cardClasses = [
                   "sp-sub-plan-card",
                   isHighlight ? "sp-sub-plan-card--highlight" : "",
-                  isCurrent ? "sp-sub-plan-card--current" : "",
+                  isCurrentPaidPlan ? "sp-sub-plan-card--current" : "",
                 ]
                   .filter(Boolean)
                   .join(" ");
+
+                // Disable rules:
+                // - Gói mặc định (free) luôn disable (gói default)
+                // - Gói hiện tại (1/2) disable
+                // - Trong lúc đang tạo payment cho gói đó cũng disable
+                const disabled =
+                  isFree ||
+                  isCurrentPaidPlan ||
+                  creatingPaymentPlanId === plan.supportPlanId;
+
+                let buttonLabel;
+                if (isFree) {
+                  // Gói mặc định không phụ thuộc current plan, luôn là "Gói mặc định"
+                  buttonLabel = "Gói mặc định";
+                } else if (
+                  creatingPaymentPlanId === plan.supportPlanId
+                ) {
+                  buttonLabel = "Đang chuyển đến thanh toán...";
+                } else if (isCurrentPaidPlan) {
+                  // User đang ở level 1 hoặc 2 tương ứng
+                  buttonLabel = "Gói hiện tại";
+                } else {
+                  buttonLabel = "Chọn gói này";
+                }
 
                 return (
                   <article
@@ -413,9 +413,9 @@ const SupportPlanSubscriptionPage = () => {
                         </span>
                       </div>
 
-                      {isCurrent && (
+                      {isCurrentPaidPlan && (
                         <div className="sp-sub-plan-current-badge">
-                          Gói đang sử dụng
+                          Gói hiện tại của bạn
                         </div>
                       )}
                     </div>
@@ -465,25 +465,13 @@ const SupportPlanSubscriptionPage = () => {
                     <button
                       type="button"
                       className="sf-btn sf-btn-primary sp-sub-plan-cta"
-                      disabled={
-                        creatingPaymentPlanId === plan.supportPlanId ||
-                        isCurrent ||
-                        isFree
-                      }
+                      disabled={disabled}
                       onClick={() => handleSelectPlan(plan)}
                     >
-                      {isFree
-                        ? isCurrent
-                          ? "Đang sử dụng"
-                          : "Gói mặc định"
-                        : creatingPaymentPlanId === plan.supportPlanId
-                        ? "Đang chuyển đến thanh toán..."
-                        : isCurrent
-                        ? "Đang sử dụng"
-                        : "Chọn gói này"}
+                      {buttonLabel}
                     </button>
 
-                    {isFree && !isCurrent && (
+                    {isFree && (
                       <div className="sp-sub-plan-note">
                         Nếu bạn không đăng ký gói trả phí, hệ thống sẽ áp dụng{" "}
                         <strong>Standard Support</strong> mặc định.

@@ -57,8 +57,10 @@ namespace Keytietkiem.Controllers
             return Ok(plans);
         }
 
-        // ===== CUSTOMER: Lấy gói hỗ trợ hiện tại của user (nếu có) =====
+        // ===== CUSTOMER: Lấy mức ưu tiên/gói hỗ trợ hiện tại của user =====
         // GET /api/supportplans/me/current
+        // Luôn tính PriorityLevel dựa trên Users.SupportPriorityLevel,
+        // kết hợp với subscription hiện tại nếu có.
         [HttpGet("me/current")]
         [Authorize]
         public async Task<ActionResult<SupportPlanCurrentSubscriptionDto?>> GetMyCurrentSubscription()
@@ -68,20 +70,54 @@ namespace Keytietkiem.Controllers
 
             var nowUtc = DateTime.UtcNow;
 
+            // Lấy user để đọc SupportPriorityLevel hiện tại
+            var user = await _db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == userId.Value);
+
+            if (user == null)
+            {
+                return Unauthorized();
+            }
+
+            // Tìm subscription active (nếu có)
             var sub = await _db.UserSupportPlanSubscriptions
                 .AsNoTracking()
                 .Include(s => s.SupportPlan)
                 .Where(s =>
                     s.UserId == userId.Value &&
-                    s.Status == "Active" &&
+                    s.Status == "Active" &&                // ✅ Dùng so sánh thường để EF translate
                     (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
                 .OrderByDescending(s => s.StartedAt)
                 .FirstOrDefaultAsync();
 
+            // Priority hiệu lực lấy từ Users.SupportPriorityLevel,
+            // và tối thiểu bằng PriorityLevel của gói (nếu có subscription)
+            var effectivePriorityLevel = user.SupportPriorityLevel;
+
             if (sub == null)
             {
-                // Không có gói active -> trả về 200 với body null để FE dễ xử lý.
-                return Ok(null);
+                // Không có subscription active: vẫn trả PriorityLevel hiện tại từ user
+                var dtoNoSub = new SupportPlanCurrentSubscriptionDto
+                {
+                    SubscriptionId = Guid.Empty,
+                    SupportPlanId = 0,
+                    PlanName = string.Empty,
+                    PlanDescription = null,
+                    PriorityLevel = effectivePriorityLevel,
+                    Price = 0,
+                    Status = "None",
+                    StartedAt = nowUtc,
+                    ExpiresAt = null
+                };
+
+                return Ok(dtoNoSub);
+            }
+
+            var planPriority = sub.SupportPlan?.PriorityLevel ?? 0;
+            if (planPriority > effectivePriorityLevel)
+            {
+                effectivePriorityLevel = planPriority;
             }
 
             var dto = new SupportPlanCurrentSubscriptionDto
@@ -90,7 +126,7 @@ namespace Keytietkiem.Controllers
                 SupportPlanId = sub.SupportPlanId,
                 PlanName = sub.SupportPlan?.Name ?? string.Empty,
                 PlanDescription = sub.SupportPlan?.Description,
-                PriorityLevel = sub.SupportPlan?.PriorityLevel ?? 0,
+                PriorityLevel = effectivePriorityLevel,
                 Price = sub.SupportPlan?.Price ?? 0,
                 Status = sub.Status,
                 StartedAt = sub.StartedAt,
@@ -179,13 +215,22 @@ namespace Keytietkiem.Controllers
                     return BadRequest(new { message = "Payment đã được gán cho người dùng khác." });
                 }
 
+                // Priority hiệu lực cho response: dựa theo Users.SupportPriorityLevel,
+                // nhưng đảm bảo không thấp hơn PriorityLevel của gói
+                var effectivePriorityLevelExisting = user.SupportPriorityLevel;
+                var existingPlanPriority = existing.SupportPlan?.PriorityLevel ?? plan.PriorityLevel;
+                if (existingPlanPriority > effectivePriorityLevelExisting)
+                {
+                    effectivePriorityLevelExisting = existingPlanPriority;
+                }
+
                 var existingDto = new SupportPlanCurrentSubscriptionDto
                 {
                     SubscriptionId = existing.SubscriptionId,
                     SupportPlanId = existing.SupportPlanId,
                     PlanName = existing.SupportPlan?.Name ?? plan.Name,
                     PlanDescription = existing.SupportPlan?.Description ?? plan.Description,
-                    PriorityLevel = existing.SupportPlan?.PriorityLevel ?? plan.PriorityLevel,
+                    PriorityLevel = effectivePriorityLevelExisting,
                     Price = existing.SupportPlan?.Price ?? plan.Price,
                     Status = existing.Status,
                     StartedAt = existing.StartedAt,
@@ -209,7 +254,7 @@ namespace Keytietkiem.Controllers
 
             _db.UserSupportPlanSubscriptions.Add(subscription);
 
-            // Option: nâng SupportPriorityLevel của user nếu gói cao hơn
+            // Nâng SupportPriorityLevel của user nếu gói cao hơn
             if (plan.PriorityLevel > user.SupportPriorityLevel)
             {
                 user.SupportPriorityLevel = plan.PriorityLevel;
@@ -217,13 +262,20 @@ namespace Keytietkiem.Controllers
 
             await _db.SaveChangesAsync();
 
+            // Sau khi lưu, priority hiệu lực là Users.SupportPriorityLevel (ít nhất bằng plan.PriorityLevel)
+            var effectivePriorityLevelNew = user.SupportPriorityLevel;
+            if (plan.PriorityLevel > effectivePriorityLevelNew)
+            {
+                effectivePriorityLevelNew = plan.PriorityLevel;
+            }
+
             var result = new SupportPlanCurrentSubscriptionDto
             {
                 SubscriptionId = subscription.SubscriptionId,
                 SupportPlanId = subscription.SupportPlanId,
                 PlanName = plan.Name,
                 PlanDescription = plan.Description,
-                PriorityLevel = plan.PriorityLevel,
+                PriorityLevel = effectivePriorityLevelNew,
                 Price = plan.Price,
                 Status = subscription.Status,
                 StartedAt = subscription.StartedAt,
