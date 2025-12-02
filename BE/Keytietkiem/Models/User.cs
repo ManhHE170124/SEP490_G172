@@ -31,6 +31,8 @@ public partial class User
 
     public int SupportPriorityLevel { get; set; }
 
+    public decimal TotalProductSpend { get; set; }
+
     public virtual Account? Account { get; set; }
 
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
@@ -42,6 +44,8 @@ public partial class User
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
 
     public virtual ICollection<ProductAccountHistory> ProductAccountHistories { get; set; } = new List<ProductAccountHistory>();
+
+    public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
 
     public virtual ICollection<SupportChatMessage> SupportChatMessages { get; set; } = new List<SupportChatMessage>();
 
@@ -55,7 +59,7 @@ public partial class User
 
     public virtual ICollection<Ticket> TicketUsers { get; set; } = new List<Ticket>();
 
+    public virtual ICollection<UserSupportPlanSubscription> UserSupportPlanSubscriptions { get; set; } = new List<UserSupportPlanSubscription>();
+
     public virtual ICollection<Role> Roles { get; set; } = new List<Role>();
-    
-    public virtual ICollection<ProductReport>  ProductReports { get; set; } = new List<ProductReport>();
 }

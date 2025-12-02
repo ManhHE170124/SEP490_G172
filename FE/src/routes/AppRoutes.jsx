@@ -83,6 +83,9 @@ import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-manag
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import StaffSupportChatPage from "../pages/admin/staff-support-chat";
 
+// Subscription (Support Plan)
+import SupportPlanSubscriptionPage from "../pages/subcription/SupportPlanSubscriptionPage.jsx";
+
 // Product Report Pages
 import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";
 import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx";
@@ -538,7 +541,16 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
-
+      {/* Support plan subscription (gói hỗ trợ) */}
+      <Route
+        path="/support/subscription"
+        element={
+          <ClientLayout>
+            <SupportPlanSubscriptionPage />
+          </ClientLayout>
+        }
+      />
+      
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />

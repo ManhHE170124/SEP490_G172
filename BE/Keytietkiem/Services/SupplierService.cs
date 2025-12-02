@@ -167,15 +167,15 @@ public class SupplierService : ISupplierService
     {
         var supplier = await _context.Suppliers
             .Include(s => s.LicensePackages)
-                .ThenInclude(lp => lp.ProductVariant)
+                .ThenInclude(lp => lp.Variant)
             .FirstOrDefaultAsync(s => s.SupplierId == supplierId, cancellationToken);
 
         if (supplier == null)
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
         var activeProductCount = supplier.LicensePackages
-            .Where(pk => pk.ProductVariant != null)
-            .Select(pk => pk.ProductVariant.ProductId)
+            .Where(pk => pk.Variant != null)
+            .Select(pk => pk.Variant.ProductId)
             .Distinct()
             .Count();
 
@@ -233,7 +233,7 @@ public class SupplierService : ISupplierService
                 CreatedAt = s.CreatedAt,
                 Status = s.Status,
                 ActiveProductCount = s.LicensePackages
-                    .Select(pk => pk.ProductVariant.ProductId)
+                    .Select(pk => pk.Variant.ProductId)
                     .Distinct()
                     .Count()
             })
@@ -248,7 +248,7 @@ public class SupplierService : ISupplierService
     {
         var supplier = await _context.Suppliers
             .Include(s => s.LicensePackages)
-                .ThenInclude(pk => pk.ProductVariant)
+                .ThenInclude(pk => pk.Variant)
                     .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(s => s.SupplierId == supplierId, cancellationToken);
 
@@ -256,8 +256,8 @@ public class SupplierService : ISupplierService
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
         var activeProducts = supplier.LicensePackages
-            .Where(pk => pk.ProductVariant.Product.Status == "ACTIVE")
-            .Select(pk => pk.ProductVariant.Product.ProductName)
+            .Where(pk => pk.Variant.Product.Status == "ACTIVE")
+            .Select(pk => pk.Variant.Product.ProductName)
             .Distinct()
             .ToList();
 
@@ -420,7 +420,7 @@ public class SupplierService : ISupplierService
         var suppliers = await _context.Suppliers
             .Where(s => s.Status == nameof(SupplierStatus.Active))
             .Where(s =>
-                _context.LicensePackages.Any(lp => lp.SupplierId == s.SupplierId && lp.ProductVariant.ProductId == productId))
+                _context.LicensePackages.Any(lp => lp.SupplierId == s.SupplierId && lp.Variant.ProductId == productId))
             .OrderBy(s => s.Name)
             .Select(s => new SupplierListDto
             {
@@ -431,8 +431,8 @@ public class SupplierService : ISupplierService
                 CreatedAt = s.CreatedAt,
                 Status = s.Status,
                 ActiveProductCount = s.LicensePackages
-                    .Where(pk => pk.ProductVariant.ProductId == productId)
-                    .Select(pk => pk.ProductVariant.ProductId)
+                    .Where(pk => pk.Variant.ProductId == productId)
+                    .Select(pk => pk.Variant.ProductId)
                     .Distinct()
                     .Count()
             })

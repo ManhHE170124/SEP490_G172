@@ -113,6 +113,7 @@ public class UserInfoDto
     public string? AvatarUrl { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new();
+    public int SupportPriorityLevel { get; set; }
 }
 
 /// <summary>

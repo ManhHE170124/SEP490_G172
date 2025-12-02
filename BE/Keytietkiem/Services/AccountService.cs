@@ -687,7 +687,8 @@ public class AccountService : IAccountService
                 Address = user.Address,
                 AvatarUrl = user.AvatarUrl,
                 Status = user.Status,
-                Roles = roles
+                Roles = roles,
+                SupportPriorityLevel = user.SupportPriorityLevel
             }
         };
     }
