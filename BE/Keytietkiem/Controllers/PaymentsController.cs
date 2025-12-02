@@ -31,6 +31,14 @@ namespace Keytietkiem.Controllers
             _config = config;
         }
 
+        private Guid? GetCurrentUserIdOrNull()
+        {
+            var claim = User.FindFirst("uid") ?? User.FindFirst(ClaimTypes.NameIdentifier);
+            if (claim == null) return null;
+
+            return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
+        }
+
         // ===== API ADMIN: list payment với filter cơ bản =====
         // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT
         [HttpGet]
@@ -445,9 +453,17 @@ namespace Keytietkiem.Controllers
             var currentUserId = GetCurrentUserIdOrNull();
             if (currentUserId == null) return Unauthorized();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
+            // Lấy user hiện tại
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
             if (user == null) return Unauthorized();
 
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                return BadRequest(new { message = "Tài khoản của bạn chưa có email, không thể tạo thanh toán." });
+            }
+
+            // Lấy gói hỗ trợ
             var plan = await _context.SupportPlans
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p =>
@@ -469,6 +485,7 @@ namespace Keytietkiem.Controllers
             // Dùng UnixTimeSeconds làm orderCode đơn giản (giống Order Payment)
             var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
 
+            // Tạo bản ghi Payment Pending – bảng độc lập, TransactionType = SUPPORT_PLAN
             var payment = new Payment
             {
                 Amount = plan.Price,
@@ -500,10 +517,13 @@ namespace Keytietkiem.Controllers
             }
 
             var buyerEmail = user.Email;
-            var buyerName = user.FullName ?? user.Email ?? string.Empty;
+            var buyerName = string.IsNullOrWhiteSpace(user.FullName)
+                ? user.Email
+                : user.FullName!;
             var buyerPhone = user.Phone ?? string.Empty;
             var amountInt = (int)Math.Round(plan.Price, 0, MidpointRounding.AwayFromZero);
 
+            // Gọi PayOS để lấy checkoutUrl
             var paymentUrl = await _payOs.CreatePayment(
                 orderCode,
                 amountInt,
@@ -527,13 +547,6 @@ namespace Keytietkiem.Controllers
             };
 
             return Ok(resp);
-        }
-        private Guid? GetCurrentUserIdOrNull()
-        {
-            var claim = User.FindFirst("uid") ?? User.FindFirst(ClaimTypes.NameIdentifier);
-            if (claim == null) return null;
-
-            return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
         }
     }
 }
