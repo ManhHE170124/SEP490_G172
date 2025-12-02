@@ -72,7 +72,8 @@ public class ProductKeyService : IProductKeyService
                 Status = pk.Status,
                 Type = pk.Type,
                 UpdatedAt = pk.UpdatedAt,
-                ImportedAt = pk.ImportedAt
+                ImportedAt = pk.ImportedAt,
+                AssignToOrder = pk.AssignedToOrderId
             })
             .ToListAsync(cancellationToken);
 

@@ -44,6 +44,7 @@ const StorefrontCartPage = () => {
   const [updatingItemId, setUpdatingItemId] = useState(null);
   const [updatingEmail, setUpdatingEmail] = useState(false);
   const [localEmail, setLocalEmail] = useState("");
+  const [checkingOut, setCheckingOut] = useState(false); // NEW
 
   // Toast state
   const [toasts, setToasts] = useState([]);
@@ -277,6 +278,7 @@ const StorefrontCartPage = () => {
   };
 
   const handleProceedCheckout = async () => {
+    if (checkingOut) return; // tránh double click
     if (!cart || !cart.items || cart.items.length === 0) return;
 
     // email ưu tiên:
@@ -297,13 +299,14 @@ const StorefrontCartPage = () => {
       return;
     }
 
+    setCheckingOut(true);
     try {
       let checkoutCart = cart;
 
       if (customer) {
-        // User login: sync email nhận hàng lên server cart (cho đẹp)
+        // User login: sync email nhận hàng lên server cart
         await StorefrontCartApi.setReceiverEmail(effectiveEmail);
-        // Có thể reload lại cart từ API, nhưng ở đây cart state đã chuẩn nên dùng luôn
+        // cart server-side chỉ để hiển thị, không cần reload lại state
       } else {
         // Guest: lưu email vào guest cart local
         GuestCartService.setReceiverEmail(effectiveEmail);
@@ -315,21 +318,21 @@ const StorefrontCartPage = () => {
       const userId =
         customer?.userId ?? customer?.userID ?? customer?.id ?? null;
 
-      // Bước 1: gọi /api/orders/checkout để tạo Order Pending và trừ kho
+      // Bước 1: gọi /api/orders/checkout để tạo Order Pending
       const { orderId } = await StorefrontOrderApi.checkoutFromCart({
         userId,
         email: effectiveEmail,
         cart: checkoutCart,
       });
 
-      // Bước 2: gọi /api/payments/payos/create để tạo Payment + lấy PayOS checkoutUrl
+      // Bước 2: gọi /api/payments/payos/create để tạo Payment Pending + lấy PayOS checkoutUrl
       const { paymentUrl } = await StorefrontPaymentApi.createPayOSPayment(
         orderId
       );
 
       // Sau khi tạo Order + Payment thành công:
       //  - clear cart
-      //  - KHÔNG trả stock về kho (vì OrdersController đã trừ kho)
+      //  - KHÔNG trả stock về kho (vì stock đang gắn với Order)
       if (customer) {
         await StorefrontCartApi.clearCart({
           skipRestoreStock: true,
@@ -352,6 +355,8 @@ const StorefrontCartPage = () => {
         serverMsg ||
           "Không thể tạo đơn hàng hoặc phiên thanh toán. Vui lòng thử lại."
       );
+    } finally {
+      setCheckingOut(false);
     }
   };
 
@@ -426,7 +431,6 @@ const StorefrontCartPage = () => {
                     {cart.items.map((item) => {
                       const isUpdating = updatingItemId === item.variantId;
 
-                      // Giống bên product list: variantTitle + typeLabel
                       const variantTitle =
                         item.variantTitle ||
                         item.title ||
@@ -451,7 +455,6 @@ const StorefrontCartPage = () => {
                       const showOldPrice =
                         listPrice != null && listPrice > unitPrice;
 
-                      // ưu tiên discountPercent từ backend, nếu không có thì tự tính
                       let discountPercent = item.discountPercent ?? 0;
                       if (
                         (!discountPercent || discountPercent <= 0) &&
@@ -517,19 +520,16 @@ const StorefrontCartPage = () => {
                           </div>
 
                           <div className="sf-cart-item-right">
-                            {/* Giá bán hiện tại */}
                             <div className="sf-cart-item-price-now">
                               {formatCurrency(unitPrice)}
                             </div>
 
-                            {/* Giá niêm yết (nếu cao hơn giá bán) */}
                             {showOldPrice && (
                               <div className="sf-cart-item-price-old">
                                 {formatCurrency(listPrice)}
                               </div>
                             )}
 
-                            {/* % giảm giá */}
                             {discountPercent > 0 && (
                               <div className="sf-cart-item-discount-tag">
                                 Giảm {discountPercent}%
@@ -601,7 +601,6 @@ const StorefrontCartPage = () => {
                     </div>
 
                     {cart.accountEmail ? (
-                      // user đã đăng nhập -> show username + email, không cho sửa
                       <div className="sf-cart-email-readonly">
                         {cart.accountUserName && (
                           <div className="sf-cart-account-name">
@@ -616,7 +615,6 @@ const StorefrontCartPage = () => {
                         </div>
                       </div>
                     ) : (
-                      // Guest (không login) -> input + nút Lưu
                       <div className="sf-cart-email-input-row">
                         <input
                           type="email"
@@ -642,8 +640,11 @@ const StorefrontCartPage = () => {
                       type="button"
                       className="sf-btn sf-btn-primary sf-btn-lg"
                       onClick={handleProceedCheckout}
+                      disabled={checkingOut}
                     >
-                      Tiến hành thanh toán
+                      {checkingOut
+                        ? "Đang chuyển đến cổng thanh toán..."
+                        : "Tiến hành thanh toán"}
                     </button>
                   </div>
                 </>

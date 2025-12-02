@@ -65,7 +65,7 @@ namespace Keytietkiem.DTOs.Users
 
         // Theo UserStatus: Active | Locked | Disabled, cột Status NVARCHAR(12)
         [Required]
-        [RegularExpression("Active|Locked|Disabled", ErrorMessage = "Status must be Active, Locked or Disabled")]
+        [RegularExpression("Active|Locked|Disabled|Temp", ErrorMessage = "Status must be Active, Locked, Disabled or Temp")]
         public string Status { get; set; } = "Active";
 
         public string? RoleId { get; set; }

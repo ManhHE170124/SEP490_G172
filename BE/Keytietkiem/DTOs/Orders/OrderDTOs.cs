@@ -30,17 +30,6 @@ namespace Keytietkiem.DTOs.Orders
     }
 
     /// <summary>
-    /// DTO for Payment information
-    /// </summary>
-    public class PaymentDTO
-    {
-        public Guid PaymentId { get; set; }
-        public decimal Amount { get; set; }
-        public string Status { get; set; } = null!;
-        public DateTime CreatedAt { get; set; }
-    }
-
-    /// <summary>
     /// Full Order DTO for Order Detail page
     /// </summary>
     public class OrderDTO
@@ -65,9 +54,7 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
 
         public List<OrderDetailDTO> OrderDetails { get; set; } = new();
-        public List<PaymentDTO> Payments { get; set; } = new();
-
-        public string PaymentStatus { get; set; } = "Unpaid"; // Unpaid, Partial, Paid, Refunded
+        // Không embed danh sách payments nữa vì bảng Payments đã tách hoàn toàn
     }
 
     /// <summary>
@@ -90,7 +77,7 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
         public int ItemCount { get; set; }
 
-        public string PaymentStatus { get; set; } = "Unpaid";
+        // Không còn PaymentStatus vì Orders không gắn Payment nữa
     }
 
     /// <summary>
@@ -113,7 +100,7 @@ namespace Keytietkiem.DTOs.Orders
         public int ItemCount { get; set; }
 
         public List<string> ProductNames { get; set; } = new();
-        public string PaymentStatus { get; set; } = "Unpaid";
+        // Không còn PaymentStatus
     }
 
     /// <summary>
@@ -161,8 +148,8 @@ namespace Keytietkiem.DTOs.Orders
     }
 
     /// <summary>
-    /// DTO trả về cho FE khi gọi /api/orders/checkout:
-    /// chứa OrderId + PaymentUrl để FE redirect sang PayOS.
+    /// DTO trả về cho FE khi gọi /api/orders/checkout
+    /// (hiện tại mày đang trả { orderId } anonymous, có thể dùng DTO này sau nếu muốn).
     /// </summary>
     public class CheckoutOrderResponseDTO
     {

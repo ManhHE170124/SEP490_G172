@@ -1,19 +1,24 @@
 ﻿using System;
-using System.Collections.Generic;
 
-namespace Keytietkiem.Models;
-
-public partial class Payment
+namespace Keytietkiem.Models
 {
-    public Guid PaymentId { get; set; }
+    public partial class Payment
+    {
+        public Guid PaymentId { get; set; }
 
-    public Guid OrderId { get; set; }
+        public string? Email { get; set; }
 
-    public decimal Amount { get; set; }
+        public decimal Amount { get; set; }
 
-    public string Status { get; set; } = null!;
+        public string Status { get; set; } = null!;
 
-    public DateTime CreatedAt { get; set; }
+        public string TransactionType { get; set; } = null!;
 
-    public virtual Order Order { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+
+        public long? ProviderOrderCode { get; set; }
+
+        public string? Provider { get; set; }
+
+    }
 }

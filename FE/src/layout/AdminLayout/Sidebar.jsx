@@ -211,7 +211,7 @@ const Sidebar = () => {
         },
       ],
     },
-    {
+       {
       id: "product",
       title: "Quản lý sản phẩm",
       moduleCode: MODULE_CODES.PRODUCT_MANAGER,
@@ -264,6 +264,52 @@ const Sidebar = () => {
             </svg>
           ),
         },
+
+        // === THÊM MENU ĐƠN HÀNG & THANH TOÁN ===
+        {
+          id: "orders-admin",
+          label: "Đơn hàng & thanh toán",
+          to: "/admin/orders",
+          // currentPage ở trên lấy bằng location.pathname.substring(1)
+          // nên path "/admin/orders" => currentPage === "admin/orders"
+          isActive:
+            currentPage === "/admin/orders" ||
+            currentPage === "/admin/payments",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="16"
+                rx="2"
+                ry="2"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <path
+                d="M3 9h18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M8 13h4M8 17h3"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <circle
+                cx="17"
+                cy="15"
+                r="2"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
+
         {
           id: "faqs",
           label: "Câu hỏi thường gặp",
@@ -290,6 +336,7 @@ const Sidebar = () => {
         },
       ],
     },
+
     {
       id: "role",
       title: "Quản lý phân quyền",
@@ -529,6 +576,76 @@ const Sidebar = () => {
                 r="4"
                 stroke="currentColor"
                 strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
+        {
+          id: "support-chats",
+          label: "Quản lý hội thoại",
+          to: "/admin/support-chats",
+          isActive: currentPage === "/admin/support-chats",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="12"
+                cy="7"
+                r="4"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
+        {
+          id: "product-reports",
+          label: "Báo cáo sản phẩm",
+          to: "/reports",
+          isActive:
+            currentPage === "reports" || currentPage.startsWith("reports/"),
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M14 2v6h6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M16 13H8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M16 17H8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M10 9H8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </svg>
           ),

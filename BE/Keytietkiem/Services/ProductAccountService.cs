@@ -98,7 +98,8 @@ public class ProductAccountService : IProductAccountService
                 CogsPrice = pa.Variant.CogsPrice,
                 SellPrice = pa.Variant.SellPrice,
                 ExpiryDate = pa.ExpiryDate,
-                CreatedAt = pa.CreatedAt
+                CreatedAt = pa.CreatedAt,
+                OrderId = pa.ProductAccountCustomers.First(x=> x.OrderId.HasValue).OrderId
             })
             .ToListAsync(cancellationToken);
 
@@ -223,7 +224,7 @@ public class ProductAccountService : IProductAccountService
             AccountPassword = encryptedPassword,
             MaxUsers = variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT) ? 1 : createDto.MaxUsers,
             Status = nameof(ProductAccountStatus.Active),
-            ExpiryDate = createDto.ExpiryDate,
+            ExpiryDate = createDto.StartDate.AddDays(variant.DurationDays ?? 30),
             Notes = createDto.Notes,
             CreatedAt = now,
             CreatedBy = createdBy,
@@ -539,6 +540,106 @@ public class ProductAccountService : IProductAccountService
         if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
 
         return EncryptionHelper.Decrypt(account.AccountPassword, _encryptionKey);
+    }
+
+    public async Task<ProductAccountCustomerDto> AssignAccountToOrderAsync(
+        AssignAccountToOrderDto assignDto,
+        Guid assignedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _productAccountRepository.Query()
+            .Include(pa => pa.ProductAccountCustomers)
+            .Include(pa => pa.Variant)
+                .ThenInclude(v => v.Product)
+            .FirstOrDefaultAsync(pa => pa.ProductAccountId == assignDto.ProductAccountId, cancellationToken);
+
+        if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
+
+        // Check if account is active
+        if (account.Status != nameof(ProductAccountStatus.Active))
+            throw new InvalidOperationException("Tài khoản không ở trạng thái hoạt động");
+
+        // Check if account is expired
+        if (account.ExpiryDate.HasValue && account.ExpiryDate.Value < _clock.UtcNow)
+            throw new InvalidOperationException("Tài khoản đã hết hạn");
+
+        // Check if account is full
+        var currentActiveUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive);
+        if (currentActiveUsers >= account.MaxUsers)
+            throw new InvalidOperationException("Tài khoản đã đạt số lượng người dùng tối đa");
+
+        // Verify order exists
+        var order = await _context.Orders
+            .FirstOrDefaultAsync(o => o.OrderId == assignDto.OrderId, cancellationToken);
+
+        if (order == null) throw new KeyNotFoundException("Không tìm thấy đơn hàng");
+
+        // Check if user exists
+        var user = await _userRepository.GetByIdAsync(assignDto.UserId, cancellationToken);
+        if (user == null) throw new KeyNotFoundException("Không tìm thấy người dùng");
+
+        // Check if customer already exists
+        var existingCustomer = await _productAccountCustomerRepository.Query()
+            .FirstOrDefaultAsync(pac =>
+                    pac.ProductAccountId == assignDto.ProductAccountId &&
+                    pac.UserId == assignDto.UserId &&
+                    pac.IsActive,
+                cancellationToken);
+
+        if (existingCustomer != null) throw new InvalidOperationException("Người dùng đã được thêm vào tài khoản này");
+
+        var now = _clock.UtcNow;
+
+        var customer = new ProductAccountCustomer
+        {
+            ProductAccountId = assignDto.ProductAccountId,
+            UserId = assignDto.UserId,
+            AddedAt = now,
+            AddedBy = assignedBy,
+            IsActive = true,
+            OrderId =  assignDto.OrderId,
+            Notes = $"Assigned to order {assignDto.OrderId}"
+        };
+
+        await _productAccountCustomerRepository.AddAsync(customer, cancellationToken);
+
+        // Log history
+        var history = new ProductAccountHistory
+        {
+            ProductAccountId = assignDto.ProductAccountId,
+            UserId = assignDto.UserId,
+            Action = nameof(ProductAccountAction.Added),
+            ActionBy = assignedBy,
+            ActionAt = now,
+            Notes = $"Assigned to order {assignDto.OrderId}"
+        };
+
+        await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
+
+        // Update account status if now full
+        if (currentActiveUsers + 1 >= account.MaxUsers)
+        {
+            account.Status = nameof(ProductAccountStatus.Full);
+            account.UpdatedAt = now;
+            _productAccountRepository.Update(account);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var addedByUser = await _userRepository.GetByIdAsync(assignedBy, cancellationToken);
+
+        return new ProductAccountCustomerDto
+        {
+            ProductAccountCustomerId = customer.ProductAccountCustomerId,
+            UserId = customer.UserId,
+            UserEmail = user.Email,
+            UserFullName = user.FullName,
+            AddedAt = customer.AddedAt,
+            AddedBy = customer.AddedBy,
+            AddedByEmail = addedByUser?.Email,
+            IsActive = customer.IsActive,
+            Notes = customer.Notes
+        };
     }
 
     private static void ValidateProductAccountEntity(ProductAccount account, bool requireExpiryDate)

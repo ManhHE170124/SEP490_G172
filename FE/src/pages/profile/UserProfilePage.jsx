@@ -5,8 +5,8 @@ import "./UserProfilePage.css";
 
 const SECTION_ITEMS = [
   { id: "profile-overview", label: "Tổng quan" },
-  { id: "profile-orders", label: "Lịch sử đơn hàng" },
-  { id: "profile-transactions", label: "Lịch sử giao dịch" },
+  // { id: "profile-orders", label: "Lịch sử đơn hàng" },
+  // { id: "profile-transactions", label: "Lịch sử giao dịch" },
   { id: "profile-security", label: "Mật khẩu & Bảo mật" },
   { id: "profile-details", label: "Cập nhật thông tin" },
 ];
@@ -729,7 +729,7 @@ const UserProfilePage = () => {
               </div>
             </section>
 
-            <section id="profile-orders" className="profile-card">
+            {/* <section id="profile-orders" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Lịch sử đơn hàng</h3>
               <div className="profile-hint" style={{ marginBottom: 12 }}>
                 Hiển thị các đơn hàng sản phẩm bạn đã mua.
@@ -811,9 +811,9 @@ const UserProfilePage = () => {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </section> */}
 
-            <section id="profile-transactions" className="profile-card">
+            {/* <section id="profile-transactions" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Lịch sử giao dịch</h3>
               <div className="profile-hint" style={{ marginBottom: 12 }}>
                 Hiển thị tất cả giao dịch bạn đã thực hiện.
@@ -850,9 +850,9 @@ const UserProfilePage = () => {
                 >
                   Lọc
                 </button>
-              </div>
+              </div> */}
 
-              <div className="profile-table-wrapper">
+              {/* <div className="profile-table-wrapper">
                 <table className="profile-table" aria-label="Lịch sử giao dịch">
                   <thead>
                     <tr>
@@ -892,8 +892,8 @@ const UserProfilePage = () => {
                     )}
                   </tbody>
                 </table>
-              </div>
-            </section>
+              </div> */}
+            {/* </section> */}
 
             <section id="profile-security" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Mật khẩu & Bảo mật</h3>

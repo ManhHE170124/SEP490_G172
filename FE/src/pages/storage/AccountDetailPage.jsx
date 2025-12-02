@@ -8,6 +8,7 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
 import formatDateTime from "../../utils/formatDatetime";
+import { formatVietnameseDate } from "../../utils/formatDate";
 import { getAccountStatusLabel } from "../../utils/productAccountHelper";
 import "../admin/admin.css";
 
@@ -37,6 +38,7 @@ export default function AccountDetailPage() {
     maxUsers: "5",
     status: "Active",
     cogsPrice: "",
+    startDate: "",
     expiryDate: "",
     notes: "",
   });
@@ -223,20 +225,29 @@ export default function AccountDetailPage() {
 
   const handleRemoveUserFromAccount = useCallback(
     async (userId) => {
-      try {
-        await ProductAccountApi.removeCustomer(id, {
-          productAccountId: id,
-          userId,
-        });
-        showSuccess("Thành công", "Đã xóa người dùng khỏi tài khoản");
-        await loadProductAccount();
-        await loadHistory(true);
-      } catch (err) {
-        console.error("Remove user failed:", err);
-        const msg =
-          err.response?.data?.message || err.message || "Không thể xóa";
-        showError("Lỗi", msg);
-      }
+      setConfirmDialog({
+        isOpen: true,
+        title: "Xác nhận xóa người dùng",
+        message: "Bạn có chắc muốn xóa người dùng này khỏi tài khoản?",
+        type: "danger",
+        onConfirm: async () => {
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+          try {
+            await ProductAccountApi.removeCustomer(id, {
+              productAccountId: id,
+              userId,
+            });
+            showSuccess("Thành công", "Đã xóa người dùng khỏi tài khoản");
+            await loadProductAccount();
+            await loadHistory(true);
+          } catch (err) {
+            console.error("Remove user failed:", err);
+            const msg =
+              err.response?.data?.message || err.message || "Không thể xóa";
+            showError("Lỗi", msg);
+          }
+        },
+      });
     },
     [id, loadProductAccount, loadHistory, showSuccess, showError]
   );
@@ -327,10 +338,10 @@ export default function AccountDetailPage() {
       newErrors.cogsPrice = "Giá vốn không được âm";
     }
 
-    if (isNew && !formData.expiryDate) {
-      newErrors.expiryDate = "Ngày hết hạn là bắt buộc";
-    } else if (formData.expiryDate) {
-      const [y, m, d] = formData.expiryDate
+    if (isNew && !formData.startDate) {
+      newErrors.startDate = "Ngày bắt đầu là bắt buộc";
+    } else if (formData.startDate) {
+      const [y, m, d] = formData.startDate
         .split("-")
         .map((x) => parseInt(x, 10));
       const selected = new Date(y, m - 1, d);
@@ -363,7 +374,7 @@ export default function AccountDetailPage() {
         maxUsers: isPersonal ? 1 : parseInt(formData.maxUsers),
         cogsPrice:
           formData.cogsPrice === "" ? null : parseFloat(formData.cogsPrice),
-        expiryDate: formData.expiryDate || null,
+        startDate: formData.startDate || null,
         notes: formData.notes || null,
       };
 
@@ -441,6 +452,13 @@ export default function AccountDetailPage() {
     );
   }, [products, formData.productId]);
 
+  const selectedVariant = useMemo(() => {
+    const vid = formData.variantId?.toString?.() ?? formData.variantId;
+    return variants.find(
+      (v) => (v.variantId?.toString?.() ?? v.variantId) === vid
+    );
+  }, [variants, formData.variantId]);
+
   // If product type is PERSONAL_ACCOUNT, force maxUsers to 1
   useEffect(() => {
     if (selectedProduct?.productType === "PERSONAL_ACCOUNT") {
@@ -449,6 +467,22 @@ export default function AccountDetailPage() {
       );
     }
   }, [selectedProduct]);
+
+  useEffect(() => {
+    if (!isNew) return;
+    if (!formData.startDate) return;
+    const duration = parseInt(selectedVariant?.durationDays ?? 0, 10);
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    const [yyyy, mm, dd] = formData.startDate.split("-").map(Number);
+    if (!yyyy || !mm || !dd) return;
+    const expiryDate = new Date(yyyy, mm - 1, dd + duration);
+    const iso = `${expiryDate.getFullYear()}-${String(
+      expiryDate.getMonth() + 1
+    ).padStart(2, "0")}-${String(expiryDate.getDate()).padStart(2, "0")}`;
+    setFormData((prev) =>
+      prev.expiryDate === iso ? prev : { ...prev, expiryDate: iso }
+    );
+  }, [formData.startDate, selectedVariant, isNew]);
 
   // Today (local) for min date constraint
   const todayStr = useMemo(() => {
@@ -743,18 +777,40 @@ export default function AccountDetailPage() {
               </div>
             )}
 
+            {isNew && (
+              <div className="form-row">
+                <label>
+                  Ngày bắt đầu <span style={{ color: "red" }}>*</span>
+                </label>
+                <input
+                  className="input"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleChange("startDate", e.target.value)}
+                  min={todayStr}
+                  disabled={!isNew || !selectedVariant}
+                  required={isNew}
+                />
+                {errors.startDate && (
+                  <small style={{ color: "red" }}>{errors.startDate}</small>
+                )}
+              </div>
+            )}
+
             <div className="form-row">
               <label>
                 Ngày hết hạn <span style={{ color: "red" }}>*</span>
               </label>
               <input
                 className="input"
-                type="date"
-                value={formData.expiryDate}
-                onChange={(e) => handleChange("expiryDate", e.target.value)}
+                type={!isNew ? "text" : "date"}
+                value={
+                  !isNew
+                    ? formatVietnameseDate(formData.expiryDate)
+                    : formData.expiryDate
+                }
                 min={todayStr}
-                disabled={!isNew}
-                required={isNew}
+                disabled={true}
               />
               {errors.expiryDate && (
                 <small style={{ color: "red" }}>{errors.expiryDate}</small>
@@ -897,7 +953,7 @@ export default function AccountDetailPage() {
                 <h3 style={{ margin: 0, flex: 1 }}>
                   Người dùng trong tài khoản
                 </h3>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {/* <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input
                     className="input"
                     placeholder="Nhập email/tên để tìm kiếm"
@@ -934,7 +990,7 @@ export default function AccountDetailPage() {
                   >
                     Thêm
                   </button>
-                </div>
+                </div> */}
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="table">
@@ -969,7 +1025,7 @@ export default function AccountDetailPage() {
                                 fontSize: 12,
                               }}
                             >
-                              Dang dung
+                              Đang dùng
                             </span>
                           ) : (
                             <span
@@ -981,7 +1037,7 @@ export default function AccountDetailPage() {
                                 fontSize: 12,
                               }}
                             >
-                              Da go
+                              Đã gỡ
                             </span>
                           )}
                         </td>
@@ -995,7 +1051,7 @@ export default function AccountDetailPage() {
                                 handleRemoveUserFromAccount(c.userId)
                               }
                             >
-                              Xoa
+                              Xóa
                             </button>
                           ) : (
                             <span className="muted">-</span>

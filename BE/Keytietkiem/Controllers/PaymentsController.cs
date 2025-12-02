@@ -1,5 +1,4 @@
-﻿using Keytietkiem.DTOs.Orders;     // dùng PaymentDTO
-using Keytietkiem.DTOs.Payments;  // dùng PayOSWebhookModel
+﻿using Keytietkiem.DTOs.Payments;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +15,11 @@ namespace Keytietkiem.Controllers
         private readonly PayOSService _payOs;
         private readonly IConfiguration _config;
 
+        private static readonly string[] AllowedPaymentStatuses = new[]
+        {
+            "Pending", "Paid", "Success", "Completed", "Cancelled", "Failed", "Refunded"
+        };
+
         public PaymentsController(
             KeytietkiemDbContext context,
             PayOSService payOs,
@@ -26,45 +30,198 @@ namespace Keytietkiem.Controllers
             _config = config;
         }
 
-        // ===== DTO nội bộ cho PaymentController =====
-
-        public class CreatePayOSPaymentDTO
+        // ===== API ADMIN: list payment với filter cơ bản + sort =====
+        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT&sortBy=CreatedAt&sortDir=desc
+        [HttpGet]
+        public async Task<IActionResult> GetPayments(
+            [FromQuery] string? status,
+            [FromQuery] string? provider,
+            [FromQuery] string? email,
+            [FromQuery] string? transactionType,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir)
         {
-            public Guid OrderId { get; set; }
-        }
+            var query = _context.Payments.AsQueryable();
 
-        public class CreatePayOSPaymentResponseDTO
-        {
-            public Guid OrderId { get; set; }
-            public Guid PaymentId { get; set; }
-            public string PaymentUrl { get; set; } = null!;
-        }
-
-        // ===== API: Lấy danh sách payment của 1 order =====
-        // GET /api/payments/order/{orderId}
-        [HttpGet("order/{orderId:guid}")]
-        public async Task<IActionResult> GetPaymentsByOrder(Guid orderId)
-        {
-            var order = await _context.Orders
-                .Include(o => o.Payments)
-                .FirstOrDefaultAsync(o => o.OrderId == orderId);
-
-            if (order == null)
+            if (!string.IsNullOrWhiteSpace(status))
             {
-                return NotFound(new { message = "Đơn hàng không tồn tại" });
+                var normalized = status.Trim();
+                query = query.Where(p => p.Status == normalized);
             }
 
-            var payments = order.Payments?
-                .Select(p => new PaymentDTO
+            if (!string.IsNullOrWhiteSpace(provider))
+            {
+                var normalizedProvider = provider.Trim();
+                query = query.Where(p => p.Provider == normalizedProvider);
+            }
+
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                var normalizedEmail = email.Trim();
+                query = query.Where(p => p.Email == normalizedEmail);
+            }
+
+            if (!string.IsNullOrWhiteSpace(transactionType))
+            {
+                var normalizedType = transactionType.Trim();
+                query = query.Where(p => p.TransactionType == normalizedType);
+            }
+
+            // Sort phía server
+            var sortByNorm = (sortBy ?? "CreatedAt").Trim();
+            var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
+            var asc = sortDirNorm == "asc";
+
+            switch (sortByNorm.ToLowerInvariant())
+            {
+                case "paymentid":
+                    query = asc
+                        ? query.OrderBy(p => p.PaymentId)
+                        : query.OrderByDescending(p => p.PaymentId);
+                    break;
+
+                case "amount":
+                    query = asc
+                        ? query.OrderBy(p => p.Amount)
+                        : query.OrderByDescending(p => p.Amount);
+                    break;
+
+                case "status":
+                    query = asc
+                        ? query.OrderBy(p => p.Status)
+                        : query.OrderByDescending(p => p.Status);
+                    break;
+
+                case "provider":
+                    query = asc
+                        ? query.OrderBy(p => p.Provider)
+                        : query.OrderByDescending(p => p.Provider);
+                    break;
+
+                case "transactiontype":
+                    query = asc
+                        ? query.OrderBy(p => p.TransactionType)
+                        : query.OrderByDescending(p => p.TransactionType);
+                    break;
+
+                case "email":
+                    query = asc
+                        ? query.OrderBy(p => p.Email)
+                        : query.OrderByDescending(p => p.Email);
+                    break;
+
+                case "providerordercode":
+                    query = asc
+                        ? query.OrderBy(p => p.ProviderOrderCode)
+                        : query.OrderByDescending(p => p.ProviderOrderCode);
+                    break;
+
+                default: // CreatedAt
+                    query = asc
+                        ? query.OrderBy(p => p.CreatedAt)
+                        : query.OrderByDescending(p => p.CreatedAt);
+                    break;
+            }
+
+            var items = await query
+                .Select(p => new PaymentAdminListItemDTO
                 {
                     PaymentId = p.PaymentId,
                     Amount = p.Amount,
                     Status = p.Status,
-                    CreatedAt = p.CreatedAt
+                    CreatedAt = p.CreatedAt,
+                    Provider = p.Provider,
+                    ProviderOrderCode = p.ProviderOrderCode,
+                    Email = p.Email,
+                    TransactionType = p.TransactionType
                 })
-                .ToList() ?? new List<PaymentDTO>();
+                .ToListAsync();
 
-            return Ok(payments);
+            return Ok(items);
+        }
+
+        // ===== API ADMIN: xem chi tiết 1 payment =====
+        // GET /api/payments/{paymentId}
+        [HttpGet("{paymentId:guid}")]
+        public async Task<IActionResult> GetPaymentById(Guid paymentId)
+        {
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
+
+            if (payment == null)
+            {
+                return NotFound(new { message = "Payment không tồn tại" });
+            }
+
+            var dto = new PaymentDetailDTO
+            {
+                PaymentId = payment.PaymentId,
+                Amount = payment.Amount,
+                Status = payment.Status,
+                CreatedAt = payment.CreatedAt,
+                Provider = payment.Provider,
+                ProviderOrderCode = payment.ProviderOrderCode,
+                Email = payment.Email,
+                TransactionType = payment.TransactionType
+            };
+
+            return Ok(dto);
+        }
+
+        // ===== API ADMIN: đổi trạng thái payment bằng tay =====
+        // PUT /api/payments/{paymentId}/status
+        [HttpPut("{paymentId:guid}/status")]
+        public async Task<IActionResult> UpdatePaymentStatus(
+            Guid paymentId,
+            [FromBody] UpdatePaymentStatusDTO dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Status))
+            {
+                return BadRequest(new { message = "Trạng thái thanh toán không hợp lệ" });
+            }
+
+            var normalizedStatus = dto.Status.Trim();
+
+            if (!AllowedPaymentStatuses.Contains(normalizedStatus))
+            {
+                return BadRequest(new { message = "Trạng thái thanh toán không hợp lệ" });
+            }
+
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
+
+            if (payment == null)
+            {
+                return NotFound(new { message = "Payment không tồn tại" });
+            }
+
+            var currentStatus = payment.Status ?? "Pending";
+
+            // Nếu payment đã Paid hoặc Cancelled thì không cho chỉnh nữa
+            if (currentStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) ||
+                currentStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Không thể cập nhật trạng thái thanh toán khi đã ở trạng thái Paid hoặc Cancelled." });
+            }
+
+            // Chỉ cho phép chỉnh tay khi đang Pending hoặc Failed
+            if (!currentStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase) &&
+                !currentStatus.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Chỉ được phép chỉnh tay trạng thái thanh toán khi đang ở Pending hoặc Failed." });
+            }
+
+            // Chỉ cho phép chuyển sang Paid hoặc Cancelled
+            if (!normalizedStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) &&
+                !normalizedStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Chỉ được phép chuyển trạng thái thanh toán sang Paid hoặc Cancelled." });
+            }
+
+            payment.Status = normalizedStatus;
+
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
         // ===== API: Tạo Payment + PayOS checkoutUrl từ 1 Order =====
@@ -81,7 +238,6 @@ namespace Keytietkiem.Controllers
                 .Include(o => o.User)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == dto.OrderId);
 
             if (order == null)
@@ -94,50 +250,20 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Chỉ có thể thanh toán đơn hàng ở trạng thái Pending" });
             }
 
-            // Số tiền phải thanh toán
             var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
             if (finalAmount <= 0)
             {
                 return BadRequest(new { message = "Số tiền thanh toán không hợp lệ" });
             }
 
-            // Nếu sau này có partial payment thì trừ ra; hiện tại giả sử chưa có
-            var totalPaid = order.Payments?
-                .Where(p => p.Status == "Success" || p.Status == "Completed")
-                .Sum(p => p.Amount) ?? 0m;
-
-            if (totalPaid >= finalAmount)
-            {
-                return BadRequest(new { message = "Đơn hàng đã được thanh toán đủ" });
-            }
-
-            var amountToPay = finalAmount - totalPaid;
-            if (amountToPay <= 0)
-            {
-                return BadRequest(new { message = "Không còn số tiền phải thanh toán" });
-            }
-
             using var tx = await _context.Database.BeginTransactionAsync();
 
-            // Tạo Payment Pending
-            var payment = new Payment
-            {
-                OrderId = order.OrderId,
-                Amount = amountToPay,
-                Status = "Pending",
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Payments.Add(payment);
-            await _context.SaveChangesAsync();
-
-            // Chuẩn bị data gọi PayOS
-            // Mô tả gửi lên PayOS: encode OrderId thành chuỗi <= 25 ký tự
+            // description encode OrderId để webhook decode lại
             var description = EncodeOrderIdToDescription(order.OrderId);
 
-            // orderCode: int unique (tạm dùng timestamp)
+            // orderCode unique (int) – lưu vào Payment.ProviderOrderCode
             var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
 
-            // URL FE – đã có trong appsettings: PayOS:FrontendBaseUrl
             var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/')
                                   ?? "https://keytietkiem.com";
 
@@ -147,8 +273,22 @@ namespace Keytietkiem.Controllers
             var buyerEmail = order.Email;
             var buyerName = order.User?.FullName ?? order.Email;
             var buyerPhone = order.User?.Phone ?? "";
+            var amountInt = (int)Math.Round(finalAmount, 0, MidpointRounding.AwayFromZero);
 
-            var amountInt = (int)Math.Round(amountToPay, 0, MidpointRounding.AwayFromZero);
+            // Tạo Payment Pending – BẢNG ĐỘC LẬP, KHÔNG CÓ OrderId
+            var paymentNew = new Payment
+            {
+                Amount = finalAmount,
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow,
+                Provider = "PayOS",
+                ProviderOrderCode = orderCode,
+                Email = order.Email,
+                TransactionType = "ORDER_PAYMENT"
+            };
+
+            _context.Payments.Add(paymentNew);
+            await _context.SaveChangesAsync();
 
             // Gọi PayOS để lấy checkoutUrl
             var paymentUrl = await _payOs.CreatePayment(
@@ -167,7 +307,7 @@ namespace Keytietkiem.Controllers
             var resp = new CreatePayOSPaymentResponseDTO
             {
                 OrderId = order.OrderId,
-                PaymentId = payment.PaymentId,
+                PaymentId = paymentNew.PaymentId,
                 PaymentUrl = paymentUrl
             };
 
@@ -180,30 +320,68 @@ namespace Keytietkiem.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookModel payload)
         {
-            if (payload == null)
+            if (payload == null || payload.Data == null)
                 return BadRequest();
 
-            // Parse OrderId từ Description đã encode (Base64 rút gọn)
-            if (!TryDecodeOrderIdFromDescription(payload.Description, out var orderId) ||
-                orderId == Guid.Empty)
+            var data = payload.Data;
+
+            var topCode = (payload.Code ?? "").Trim();
+            var dataCode = (data.Code ?? "").Trim();
+
+            // TÌM PAYMENT THEO ProviderOrderCode
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p =>
+                    p.Provider == "PayOS" &&
+                    p.ProviderOrderCode == data.OrderCode
+                );
+
+            // Decode OrderId từ description
+            if (!TryDecodeOrderIdFromDescription(data.Description, out var orderId))
             {
-                // Không parse được thì bỏ qua (hoặc log sau)
+                // Không decode được OrderId => chỉ update payment (nếu có), không động tới Orders
+                if (payment != null)
+                {
+                    if (topCode == "00" && dataCode == "00")
+                    {
+                        payment.Status = "Paid";
+                        payment.Amount = data.Amount;
+                    }
+                    else if (payment.Status == "Pending")
+                    {
+                        payment.Status = "Cancelled";
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+
                 return Ok();
             }
 
             var order = await _context.Orders
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == orderId);
 
             if (order == null)
-                return NotFound();
+            {
+                // Không tìm thấy Order -> vẫn update payment nếu có
+                if (payment != null)
+                {
+                    if (topCode == "00" && dataCode == "00")
+                    {
+                        payment.Status = "Paid";
+                        payment.Amount = data.Amount;
+                    }
+                    else if (payment.Status == "Pending")
+                    {
+                        payment.Status = "Cancelled";
+                    }
 
-            // Payment mới nhất (pending)
-            var payment = order.Payments?
-                .OrderByDescending(p => p.CreatedAt)
-                .FirstOrDefault();
+                    await _context.SaveChangesAsync();
+                }
+
+                return Ok();
+            }
 
             // Nếu order không còn Pending thì thôi, tránh xử lý lại
             if (!string.Equals(order.Status, "Pending", StringComparison.OrdinalIgnoreCase))
@@ -211,113 +389,86 @@ namespace Keytietkiem.Controllers
                 return Ok();
             }
 
-            var status = (payload.Status ?? "").ToUpperInvariant();
-
-            if (status == "PAID")
+            if (topCode == "00" && dataCode == "00")
             {
                 // Thanh toán thành công
-                order.Status = "Paid";
+                var amountDecimal = (decimal)data.Amount;
 
                 if (payment != null)
                 {
-                    payment.Status = "Success";
+                    payment.Status = "Paid";
+                    payment.Amount = amountDecimal;
                 }
 
-                // FinalAmount set đúng bằng số thực tế trả
-                var amountDecimal = (decimal)payload.Amount;
-                order.FinalAmount = amountDecimal;
+                order.Status = "Paid";
 
-                // TODO: gắn key / account cho order (nếu bạn muốn làm sau)
+                if (!(order.FinalAmount.HasValue && order.FinalAmount.Value > 0))
+                {
+                    order.FinalAmount = amountDecimal;
+                }
 
                 await _context.SaveChangesAsync();
                 return Ok();
             }
 
-            // Các trạng thái coi như fail/cancel
-            if (status == "CANCELLED" || status == "FAILED" || status == "EXPIRED")
+            // Các trường hợp code != "00" (giao dịch thất bại / huỷ)
+            order.Status = "Cancelled";
+
+            if (payment != null && payment.Status == "Pending")
             {
-                order.Status = "Cancelled";
+                payment.Status = "Cancelled";
+            }
 
-                if (payment != null && payment.Status == "Pending")
+            // Hoàn kho
+            if (order.OrderDetails != null)
+            {
+                foreach (var od in order.OrderDetails)
                 {
-                    payment.Status = "Failed";
-                }
-
-                // Hoàn kho
-                if (order.OrderDetails != null)
-                {
-                    foreach (var od in order.OrderDetails)
+                    if (od.Variant != null)
                     {
-                        if (od.Variant != null)
-                        {
-                            od.Variant.StockQty += od.Quantity;
-                        }
+                        od.Variant.StockQty += od.Quantity;
                     }
                 }
-
-                await _context.SaveChangesAsync();
-                return Ok();
             }
 
-            // Trạng thái khác: kệ
+            await _context.SaveChangesAsync();
             return Ok();
         }
 
-        // ===== Helpers encode/decode OrderId ↔ description (<= 25 ký tự) =====
+        // ===== Helpers encode/decode OrderId =====
 
-        /// <summary>
-        /// Encode Guid OrderId thành chuỗi Base64 URL-safe, bỏ padding,
-        /// thêm tiền tố 'K' → độ dài luôn &lt;= 23 ký tự (thỏa điều kiện &lt;= 25).
-        /// </summary>
         private static string EncodeOrderIdToDescription(Guid orderId)
         {
             var bytes = orderId.ToByteArray();
 
-            // 16 bytes -> Base64 ~ 24 ký tự; bỏ '=' -> 22 ký tự
             var base64 = Convert.ToBase64String(bytes)
                 .TrimEnd('=')          // bỏ padding
                 .Replace('+', '-')     // URL-safe
                 .Replace('/', '_');    // URL-safe
 
-            // Thêm tiền tố 'K' cho dễ nhận diện → tổng ~ 23 ký tự
             return "K" + base64;
         }
 
-        /// <summary>
-        /// Decode chuỗi description (đã encode từ EncodeOrderIdToDescription) về lại Guid OrderId.
-        /// </summary>
-        private static bool TryDecodeOrderIdFromDescription(string? description, out Guid orderId)
+        private static bool TryDecodeOrderIdFromDescription(string description, out Guid orderId)
         {
             orderId = Guid.Empty;
 
-            if (string.IsNullOrWhiteSpace(description))
-            {
+            if (string.IsNullOrWhiteSpace(description) || !description.StartsWith("K"))
                 return false;
-            }
 
-            var encoded = description.Trim();
-
-            // Bỏ tiền tố 'K' nếu có
-            if (encoded.StartsWith("K"))
-            {
-                encoded = encoded.Substring(1);
-            }
-
-            // Đổi lại về Base64 "chuẩn"
-            encoded = encoded
+            var base64 = description.Substring(1)
                 .Replace('-', '+')
                 .Replace('_', '/');
 
-            // Thêm padding '=' cho đủ bội số của 4
-            var mod = encoded.Length % 4;
-            if (mod != 0)
+            switch (base64.Length % 4)
             {
-                encoded = encoded.PadRight(encoded.Length + (4 - mod), '=');
+                case 2: base64 += "=="; break;
+                case 3: base64 += "="; break;
             }
 
             try
             {
-                var bytes = Convert.FromBase64String(encoded);
+                var bytes = Convert.FromBase64String(base64);
                 if (bytes.Length != 16) return false;
 
                 orderId = new Guid(bytes);

@@ -6,6 +6,7 @@ import { ProductVariantsApi } from "../../services/productVariants";
 import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import { orderApi } from "../../services/orderApi";
 import useToast from "../../hooks/useToast";
 import formatDateTime from "../../utils/formatDatetime";
 import { getStatusLabel } from "../../utils/productKeyHepler";
@@ -22,6 +23,7 @@ export default function KeyDetailPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [keyInfo, setKeyInfo] = useState(null);
+  const [buyerInfo, setBuyerInfo] = useState(null);
   const [products, setProducts] = useState([]);
   const [variants, setVariants] = useState([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
@@ -133,6 +135,22 @@ export default function KeyDetailPage() {
     }
   }, []);
 
+  const loadBuyerInfo = useCallback(async (orderId) => {
+    if (!orderId) return;
+    try {
+      const order = await orderApi.get(orderId);
+      if (order) {
+        setBuyerInfo({
+          name: order.userFullName || order.userName || "Unknown",
+          email: order.userEmail || "Unknown",
+          orderId: order.orderId,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load buyer info:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadProducts();
     loadSuppliers();
@@ -140,6 +158,12 @@ export default function KeyDetailPage() {
       loadProductKey();
     }
   }, [isNew, loadProductKey, loadProducts, loadSuppliers]);
+
+  useEffect(() => {
+    if (keyInfo?.assignedToOrderId) {
+      loadBuyerInfo(keyInfo.assignedToOrderId);
+    }
+  }, [keyInfo, loadBuyerInfo]);
 
   // Load variants when product changes
   useEffect(() => {
@@ -557,18 +581,37 @@ export default function KeyDetailPage() {
                   <small className="muted">Người nhập:</small>
                   <div>{keyInfo.importedByEmail || "-"}</div>
                 </div>
-                {keyInfo.orderCode && (
-                  <div>
-                    <small className="muted">Gắn đơn:</small>
-                    <div>{keyInfo.orderCode}</div>
-                  </div>
-                )}
                 {keyInfo.updatedAt && (
                   <div>
                     <small className="muted">Cập nhật lần cuối:</small>
                     <div>{formatDateTime(keyInfo.updatedAt)}</div>
                   </div>
                 )}
+                {keyInfo.assignedToOrderId && (
+                  <>
+                    <div>
+                      <small className="muted">Người mua:</small>
+                      <div>{buyerInfo?.name || "-"}</div>
+                    </div>
+                    <div>
+                      <small className="muted">Email người mua:</small>
+                      <div>{buyerInfo?.email || "-"}</div>
+                    </div>
+                    <div>
+                      <small className="muted">Mã đơn hàng:</small>
+                      <div>
+                        {buyerInfo?.orderId ? (
+                          <Link to={`/orders/${buyerInfo.orderId}`}>
+                            {buyerInfo.orderId}
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+                
               </div>
             </div>
           )}

@@ -5,7 +5,7 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
-import formatDate from "../../utils/formatDate";
+import { formatDate } from "../../utils/formatDate";
 import "../admin/admin.css";
 
 export default function SuppliersPage() {
@@ -235,7 +235,10 @@ export default function SuppliersPage() {
               suppliers.map((supplier) => (
                 <tr key={supplier.supplierId}>
                   <td>
-                    <Link to={`/suppliers/${supplier.supplierId}`} title={supplier.name || "Không có tên"}>
+                    <Link
+                      to={`/suppliers/${supplier.supplierId}`}
+                      title={supplier.name || "Không có tên"}
+                    >
                       <ChunkedText
                         value={supplier.name}
                         fallback="(Không có tên)"

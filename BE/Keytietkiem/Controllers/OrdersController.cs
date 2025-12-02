@@ -1,33 +1,9 @@
-﻿/**
- * File: OrdersController.cs
- * Flow mới (sau khi tách Payment):
- *
- * - POST /api/orders/checkout
- *      + Validate dữ liệu giỏ hàng (variants, số lượng, tồn kho, tổng tiền)
- *      + Tạo Order (Status = "Pending")
- *      + Tạo OrderDetails, trừ kho (Variant.StockQty -= Quantity)
- *      + Tính FinalAmount = TotalAmount - DiscountAmount
- *      + Trả về { orderId }
- *      -> FE (hoặc backend khác) sẽ gọi tiếp /api/payments/payos/create để tạo Payment + PayOS checkoutUrl
- *
- * - POST /api/orders/{id}/cancel
- *      + Chỉ cho phép khi Order.Status == "Pending"
- *      + Đổi Status -> "Cancelled"
- *      + Trả lại số lượng về kho (Variant.StockQty += Quantity)
- *      + Các Payment Pending -> Failed
- *
- * - Các API khác:
- *      + GET  /api/orders                : danh sách đơn (admin)
- *      + GET  /api/orders/history        : lịch sử đơn của user
- *      + GET  /api/orders/{id}           : xem chi tiết đơn
- *      + GET  /api/orders/{id}/details   : xem line items
- *      + POST /api/orders                : tạo đơn (luồng admin / back-office)
- *      + PUT  /api/orders/{id}           : cập nhật trạng thái đơn
- *      + DELETE /api/orders/{id}         : xoá đơn (nếu chưa có payment)
- */
-
-using Keytietkiem.DTOs.Orders;
+﻿using Keytietkiem.DTOs.Orders;
+using Keytietkiem.DTOs.Payments;
+using Keytietkiem.DTOs.Products; // 👈 thêm
+using Keytietkiem.DTOs;
 using Keytietkiem.Models;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +14,11 @@ namespace Keytietkiem.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
+        private readonly IProductKeyService _productKeyService;
+        private readonly IProductAccountService _productAccountService;
+        private readonly IAccountService _accountService;
+        private readonly IEmailService _emailService;
+        private readonly ILogger<OrdersController> _logger;
 
         // CHỈ những trạng thái mà DB cho phép
         private static readonly string[] AllowedStatuses = new[]
@@ -45,25 +26,105 @@ namespace Keytietkiem.Controllers
             "Pending", "Paid", "Failed", "Cancelled"
         };
 
-        public OrdersController(KeytietkiemDbContext context)
+        public OrdersController(
+            KeytietkiemDbContext context,
+            IProductKeyService productKeyService,
+            IProductAccountService productAccountService,
+            IEmailService emailService,
+            ILogger<OrdersController> logger, 
+            IAccountService accountService)
         {
             _context = context;
+            _productKeyService = productKeyService;
+            _productAccountService = productAccountService;
+            _emailService = emailService;
+            _logger = logger;
+            _accountService = accountService;
         }
 
-        /// <summary>
-        /// List all orders (admin).
-        /// GET /api/orders
-        /// </summary>
+        // ========== CÁC API ==========
+
         [HttpGet]
-        public async Task<IActionResult> GetOrders()
+        public async Task<IActionResult> GetOrders(
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir)
         {
-            var orders = await _context.Orders
+            var query = _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
                         .ThenInclude(v => v.Product)
-                .Include(o => o.Payments)
-                .ToListAsync();
+                .AsQueryable();
+
+            // Sort phía server
+            var sortByNorm = (sortBy ?? "CreatedAt").Trim();
+            var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
+            var asc = sortDirNorm == "asc";
+
+            switch (sortByNorm.ToLowerInvariant())
+            {
+                case "orderid":
+                    query = asc
+                        ? query.OrderBy(o => o.OrderId)
+                        : query.OrderByDescending(o => o.OrderId);
+                    break;
+
+                case "customer":
+                case "username":
+                    if (asc)
+                    {
+                        query = query.OrderBy(o =>
+                            o.User != null
+                                ? (o.User.FullName ?? o.User.Email ?? o.Email)
+                                : o.Email);
+                    }
+                    else
+                    {
+                        query = query.OrderByDescending(o =>
+                            o.User != null
+                                ? (o.User.FullName ?? o.User.Email ?? o.Email)
+                                : o.Email);
+                    }
+                    break;
+
+                case "email":
+                    query = asc
+                        ? query.OrderBy(o => o.Email)
+                        : query.OrderByDescending(o => o.Email);
+                    break;
+
+                case "status":
+                    query = asc
+                        ? query.OrderBy(o => o.Status)
+                        : query.OrderByDescending(o => o.Status);
+                    break;
+
+                case "totalamount":
+                    query = asc
+                        ? query.OrderBy(o => o.TotalAmount)
+                        : query.OrderByDescending(o => o.TotalAmount);
+                    break;
+
+                case "finalamount":
+                    query = asc
+                        ? query.OrderBy(o => o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount))
+                        : query.OrderByDescending(o => o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount));
+                    break;
+
+                case "itemcount":
+                    query = asc
+                        ? query.OrderBy(o => o.OrderDetails.Count)
+                        : query.OrderByDescending(o => o.OrderDetails.Count);
+                    break;
+
+                default: // createdAt
+                    query = asc
+                        ? query.OrderBy(o => o.CreatedAt)
+                        : query.OrderByDescending(o => o.CreatedAt);
+                    break;
+            }
+
+            var orders = await query.ToListAsync();
 
             var orderList = orders.Select(o => new OrderListItemDTO
             {
@@ -78,20 +139,12 @@ namespace Keytietkiem.Controllers
                 FinalAmount = o.FinalAmount,
                 Status = o.Status,
                 CreatedAt = o.CreatedAt,
-                ItemCount = o.OrderDetails?.Count ?? 0,
-                PaymentStatus = ComputePaymentStatus(
-                    o.Payments,
-                    o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount)
-                )
+                ItemCount = o.OrderDetails?.Count ?? 0
             }).ToList();
 
             return Ok(orderList);
         }
 
-        /// <summary>
-        /// Get order history for a user.
-        /// GET /api/orders/history?userId={userId}
-        /// </summary>
         [HttpGet("history")]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {
@@ -105,7 +158,6 @@ namespace Keytietkiem.Controllers
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
                         .ThenInclude(v => v.Product)
-                .Include(o => o.Payments)
                 .ToListAsync();
 
             var orderHistory = orders.Select(o => new OrderHistoryItemDTO
@@ -126,20 +178,12 @@ namespace Keytietkiem.Controllers
                     .Where(n => !string.IsNullOrEmpty(n))
                     .Distinct()
                     .ToList()
-                    ?? new List<string>(),
-                PaymentStatus = ComputePaymentStatus(
-                    o.Payments,
-                    o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount)
-                )
+                    ?? new List<string>()
             }).ToList();
 
             return Ok(orderHistory);
         }
 
-        /// <summary>
-        /// Get single order by id.
-        /// GET /api/orders/{id}
-        /// </summary>
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetOrderById(Guid id)
         {
@@ -150,7 +194,6 @@ namespace Keytietkiem.Controllers
                         .ThenInclude(v => v.Product)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Key)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (order == null)
@@ -162,11 +205,6 @@ namespace Keytietkiem.Controllers
             return Ok(orderDto);
         }
 
-        /// <summary>
-        /// Create new order (admin / back-office).
-        /// KHÔNG dùng cho luồng checkout thanh toán online.
-        /// FE nên dùng /api/orders/checkout.
-        /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDTO createOrderDto)
         {
@@ -185,7 +223,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Danh sách sản phẩm không được để trống" });
             }
 
-            // Nếu có UserId thì validate user, nếu không thì cho phép null (guest)
             User? user = null;
             if (createOrderDto.UserId.HasValue && createOrderDto.UserId.Value != Guid.Empty)
             {
@@ -198,7 +235,6 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Validate Variants tồn tại
             var variantIds = createOrderDto.OrderDetails
                 .Select(od => od.VariantId)
                 .Distinct()
@@ -214,7 +250,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Một số gói sản phẩm (variant) không tồn tại" });
             }
 
-            // Validate Keys nếu có (luồng admin)
             var keyIds = createOrderDto.OrderDetails
                 .Where(od => od.KeyId.HasValue)
                 .Select(od => od.KeyId!.Value)
@@ -239,7 +274,6 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Validate số lượng
             foreach (var detail in createOrderDto.OrderDetails)
             {
                 if (detail.Quantity <= 0)
@@ -248,14 +282,14 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Check tổng tiền theo DTO (luồng admin)
-            var calculatedTotal = createOrderDto.OrderDetails.Sum(od => od.Quantity * od.UnitPrice);
-            if (Math.Abs(calculatedTotal - createOrderDto.TotalAmount) > 0.01m)
+            var calculatedFinal = createOrderDto.OrderDetails.Sum(od => od.Quantity * od.UnitPrice);
+            var expectedFinal = createOrderDto.TotalAmount - createOrderDto.DiscountAmount;
+
+            if (Math.Abs(calculatedFinal - expectedFinal) > 0.01m)
             {
                 return BadRequest(new { message = "Tổng tiền không khớp với chi tiết đơn hàng" });
             }
 
-            // Chuẩn hoá email lưu vào order
             var orderEmail = createOrderDto.Email.Trim();
             if (string.IsNullOrWhiteSpace(orderEmail) && user != null)
             {
@@ -267,7 +301,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Email đơn hàng không hợp lệ" });
             }
 
-            // Chuẩn hoá & kiểm tra Status theo AllowedStatuses
             var rawStatus = string.IsNullOrWhiteSpace(createOrderDto.Status)
                 ? "Pending"
                 : createOrderDto.Status.Trim();
@@ -279,18 +312,18 @@ namespace Keytietkiem.Controllers
 
             var newOrder = new Order
             {
-                UserId = user?.UserId, // có thể null
+                UserId = user?.UserId,
                 Email = orderEmail,
                 TotalAmount = createOrderDto.TotalAmount,
                 DiscountAmount = createOrderDto.DiscountAmount,
-                Status = rawStatus,
+                FinalAmount = expectedFinal,
+                Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
 
             _context.Orders.Add(newOrder);
             await _context.SaveChangesAsync();
 
-            // Tạo OrderDetails + update ProductKey nếu có
             foreach (var detailDto in createOrderDto.OrderDetails)
             {
                 var orderDetail = new OrderDetail
@@ -319,7 +352,6 @@ namespace Keytietkiem.Controllers
 
             await _context.SaveChangesAsync();
 
-            // Reload order đầy đủ
             var createdOrder = await _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.OrderDetails)
@@ -327,7 +359,6 @@ namespace Keytietkiem.Controllers
                         .ThenInclude(v => v.Product)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Key)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == newOrder.OrderId);
 
             var orderDto = MapToOrderDTO(createdOrder!);
@@ -335,12 +366,6 @@ namespace Keytietkiem.Controllers
             return CreatedAtAction(nameof(GetOrderById), new { id = createdOrder!.OrderId }, orderDto);
         }
 
-        /// <summary>
-        /// LUỒNG CHÍNH STORE FRONT:
-        /// Tạo order Pending và trả về OrderId.
-        /// Payment + PayOS sẽ do PaymentsController xử lý.
-        /// POST /api/orders/checkout
-        /// </summary>
         [HttpPost("checkout")]
         public async Task<IActionResult> Checkout([FromBody] CreateOrderDTO createOrderDto)
         {
@@ -359,7 +384,7 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Giỏ hàng trống" });
             }
 
-            // Nếu có UserId thì validate user (nhưng cho phép guest)
+            // ===== Load user nếu có =====
             User? user = null;
             if (createOrderDto.UserId.HasValue && createOrderDto.UserId.Value != Guid.Empty)
             {
@@ -371,7 +396,12 @@ namespace Keytietkiem.Controllers
                     return NotFound(new { message = "Người dùng không tồn tại" });
                 }
             }
+            else
+            {
+                user = await _accountService.GetUserAsync(createOrderDto.Email) ?? await _accountService.CreateTempUserAsync(createOrderDto.Email);
+            }
 
+            // ===== Validate variants + tồn kho =====
             var variantIds = createOrderDto.OrderDetails
                 .Select(od => od.VariantId)
                 .Distinct()
@@ -387,7 +417,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Một số gói sản phẩm (variant) không tồn tại" });
             }
 
-            // Check số lượng + tồn kho hiện tại
             foreach (var detail in createOrderDto.OrderDetails)
             {
                 if (detail.Quantity <= 0)
@@ -409,13 +438,20 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Tính lại tổng tiền dựa trên UnitPrice gửi lên
-            var calculatedTotal = createOrderDto.OrderDetails.Sum(od => od.Quantity * od.UnitPrice);
-            if (Math.Abs(calculatedTotal - createOrderDto.TotalAmount) > 0.01m)
+            // ===== Check tổng tiền: FINAL (sau giảm) =====
+            // calculatedFinal = Σ quantity * unitPrice (giá SELL)
+            var calculatedFinal = createOrderDto.OrderDetails
+                .Sum(od => od.Quantity * od.UnitPrice);
+
+            // expectedFinal = TotalAmount (gốc) - DiscountAmount
+            var expectedFinal = createOrderDto.TotalAmount - createOrderDto.DiscountAmount;
+
+            if (Math.Abs(calculatedFinal - expectedFinal) > 0.01m)
             {
                 return BadRequest(new { message = "Tổng tiền không khớp với chi tiết đơn hàng" });
             }
 
+            // ===== Chuẩn hoá email đơn hàng =====
             var orderEmail = createOrderDto.Email.Trim();
             if (string.IsNullOrWhiteSpace(orderEmail) && user != null)
             {
@@ -429,13 +465,13 @@ namespace Keytietkiem.Controllers
 
             using var tx = await _context.Database.BeginTransactionAsync();
 
-            // Tạo Order Pending
             var newOrder = new Order
             {
                 UserId = user?.UserId,
                 Email = orderEmail,
                 TotalAmount = createOrderDto.TotalAmount,
                 DiscountAmount = createOrderDto.DiscountAmount,
+                FinalAmount = expectedFinal,
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
@@ -443,47 +479,32 @@ namespace Keytietkiem.Controllers
             _context.Orders.Add(newOrder);
             await _context.SaveChangesAsync();
 
-            // Tạo OrderDetails, trừ kho (reserve)
             foreach (var detailDto in createOrderDto.OrderDetails)
             {
-                var variant = variants[detailDto.VariantId];
-
                 var orderDetail = new OrderDetail
                 {
                     OrderId = newOrder.OrderId,
                     VariantId = detailDto.VariantId,
                     Quantity = detailDto.Quantity,
                     UnitPrice = detailDto.UnitPrice,
-                    KeyId = null // chưa gắn key
+                    KeyId = null
                 };
 
                 _context.OrderDetails.Add(orderDetail);
-
-                // Trừ kho khi bắt đầu checkout
-                variant.StockQty -= detailDto.Quantity;
             }
-
-            // FinalAmount = Total - Discount
-            newOrder.FinalAmount = newOrder.TotalAmount - newOrder.DiscountAmount;
 
             await _context.SaveChangesAsync();
             await tx.CommitAsync();
 
-            // Checkout giờ chỉ trả về OrderId, phần tạo payment do PaymentsController xử lý
             return Ok(new { orderId = newOrder.OrderId });
         }
 
-        /// <summary>
-        /// Hủy đơn (user confirm khi quay lại / hủy thanh toán).
-        /// POST /api/orders/{id}/cancel
-        /// </summary>
         [HttpPost("{id:guid}/cancel")]
         public async Task<IActionResult> CancelOrder(Guid id)
         {
             var order = await _context.Orders
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (order == null)
@@ -498,9 +519,10 @@ namespace Keytietkiem.Controllers
 
             using var tx = await _context.Database.BeginTransactionAsync();
 
+            // 1. Cập nhật trạng thái đơn
             order.Status = "Cancelled";
 
-            // Trả hàng về kho
+            // 2. Hoàn kho như cũ
             if (order.OrderDetails != null)
             {
                 foreach (var od in order.OrderDetails)
@@ -512,14 +534,30 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Các payment Pending -> Failed
-            if (order.Payments != null)
+            // 3. Tìm các payment tương ứng và set Cancelled
+            //    Logic khớp với CreatePayOSPayment:
+            //    finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount)
+            var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
+
+            // Khoảng thời gian cho phép: ±1 phút quanh thời điểm tạo Order
+            var fromTime = order.CreatedAt.AddMinutes(-1);
+            var toTime = order.CreatedAt.AddMinutes(1);
+
+            var relatedPayments = await _context.Payments
+                .Where(p =>
+                    p.Provider == "PayOS" &&
+                    p.TransactionType == "ORDER_PAYMENT" &&
+                    p.Email == order.Email &&
+                    p.Status == "Pending" &&
+                    p.Amount == finalAmount &&
+                    p.CreatedAt >= fromTime &&
+                    p.CreatedAt <= toTime
+                )
+                .ToListAsync();
+
+            foreach (var payment in relatedPayments)
             {
-                foreach (var p in order.Payments
-                             .Where(p => p.Status == "Pending"))
-                {
-                    p.Status = "Failed";
-                }
+                payment.Status = "Cancelled";
             }
 
             await _context.SaveChangesAsync();
@@ -528,10 +566,6 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        /// <summary>
-        /// Update order.
-        /// PUT /api/orders/{id}
-        /// </summary>
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> UpdateOrder(Guid id, [FromBody] UpdateOrderDTO updateOrderDto)
         {
@@ -546,6 +580,7 @@ namespace Keytietkiem.Controllers
             }
 
             var existing = await _context.Orders
+                .Include(x=>x.OrderDetails)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (existing == null)
@@ -554,15 +589,50 @@ namespace Keytietkiem.Controllers
             }
 
             var normalizedStatus = updateOrderDto.Status.Trim();
+
             if (!AllowedStatuses.Contains(normalizedStatus))
             {
                 return BadRequest(new { message = "Trạng thái đơn hàng không hợp lệ" });
             }
 
+            var currentStatus = existing.Status ?? "Pending";
+
+            if (currentStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) ||
+                currentStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Không thể cập nhật trạng thái khi đơn đã ở trạng thái Paid hoặc Cancelled." });
+            }
+
+            if (!currentStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase) &&
+                !currentStatus.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Chỉ được phép chỉnh tay trạng thái đơn khi đang ở Pending hoặc Failed." });
+            }
+
+            if (!normalizedStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) &&
+                !normalizedStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Chỉ được phép chuyển trạng thái đơn sang Paid hoặc Cancelled." });
+            }
+
             existing.Status = normalizedStatus;
+            
+            //Xu ly gui mail + map pk/pa
+            if (normalizedStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                var variantIds = existing.OrderDetails.Select(x=> x.VariantId).Distinct();
+                var variants = await _context.ProductVariants
+                    .AsNoTracking()
+                    .Include(v => v.Product)
+                    .Where(x => variantIds.Contains(x.VariantId))
+                    .ToListAsync();
+
+                await ProcessVariants(variants, existing);
+            }
             if (updateOrderDto.DiscountAmount.HasValue)
             {
                 existing.DiscountAmount = updateOrderDto.DiscountAmount.Value;
+                existing.FinalAmount = existing.TotalAmount - existing.DiscountAmount;
             }
 
             _context.Orders.Update(existing);
@@ -571,25 +641,15 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        /// <summary>
-        /// Delete order.
-        /// DELETE /api/orders/{id}
-        /// </summary>
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> DeleteOrder(Guid id)
         {
             var existingOrder = await _context.Orders
-                .Include(o => o.Payments)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
 
             if (existingOrder == null)
             {
                 return NotFound(new { message = "Đơn hàng không được tìm thấy" });
-            }
-
-            if (existingOrder.Payments != null && existingOrder.Payments.Any())
-            {
-                return BadRequest(new { message = "Không thể xóa đơn hàng đã thanh toán" });
             }
 
             _context.Orders.Remove(existingOrder);
@@ -598,10 +658,6 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        /// <summary>
-        /// Get order details (lines).
-        /// GET /api/orders/{id}/details
-        /// </summary>
         [HttpGet("{id:guid}/details")]
         public async Task<IActionResult> GetOrderDetails(Guid id)
         {
@@ -639,42 +695,169 @@ namespace Keytietkiem.Controllers
 
         // ===== Helpers =====
 
-        private static string ComputePaymentStatus(ICollection<Payment>? payments, decimal finalAmount)
-        {
-            if (payments == null || !payments.Any())
-            {
-                return "Unpaid";
-            }
-
-            // Phòng khi sau này có status Refund
-            if (payments.Any(p => p.Status == "Refunded"))
-            {
-                return "Refunded";
-            }
-
-            // Status trong bảng Payment: Pending / Success / Failed / Completed ...
-            var totalPaid = payments
-                .Where(p => p.Status == "Success" || p.Status == "Completed")
-                .Sum(p => p.Amount);
-
-            if (totalPaid >= finalAmount)
-            {
-                return "Paid";
-            }
-
-            if (totalPaid > 0)
-            {
-                return "Partial";
-            }
-
-            return "Unpaid";
-        }
-
         private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
         {
             var dateStr = createdAt.ToString("yyyyMMdd");
             var orderIdStr = orderId.ToString().Replace("-", "").Substring(0, 4).ToUpperInvariant();
             return $"ORD-{dateStr}-{orderIdStr}";
+        }
+
+        private async Task ProcessVariants(List<ProductVariant> variants, Order order)
+        {
+            var systemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+            var userEmail = order.Email;
+
+            // Get the user ID from the order
+            if (!order.UserId.HasValue)
+            {
+                _logger.LogWarning("Order {OrderId} does not have a UserId, cannot assign products", order.OrderId);
+                return;
+            }
+
+            var userId = order.UserId.Value;
+
+            // Collect all products to send in a single email
+            var orderProducts = new List<OrderProductEmailDto>();
+
+            // Process PERSONAL_KEY type variants
+            var personalKeyVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_KEY).ToList();
+            foreach (var variant in personalKeyVariants)
+            {
+                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
+                if (orderDetail == null) continue;
+
+                var quantity = orderDetail.Quantity;
+
+                // Get available keys for this variant
+                var availableKeys = await _context.ProductKeys
+                    .AsNoTracking()
+                    .Where(pk => pk.VariantId == variant.VariantId &&
+                                 pk.Status == "Available")
+                    .Take(quantity)
+                    .ToListAsync();
+
+                if (availableKeys.Count < quantity)
+                {
+                    _logger.LogWarning("Not enough available keys for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                        variant.VariantId, quantity, availableKeys.Count);
+                    continue;
+                }
+
+                // Assign keys to order and collect for email
+                foreach (var key in availableKeys)
+                {
+                    try
+                    {
+                        // Assign key to order
+                        var assignDto = new AssignKeyToOrderDto
+                        {
+                            KeyId = key.KeyId,
+                            OrderId = order.OrderId
+                        };
+
+                        await _productKeyService.AssignKeyToOrderAsync(assignDto, systemUserId);
+
+                        // Add to products list for consolidated email
+                        orderProducts.Add(new OrderProductEmailDto
+                        {
+                            ProductName = variant.Product.ProductName,
+                            VariantTitle = variant.Title,
+                            ProductType = "KEY",
+                            KeyString = key.KeyString,
+                            ExpiryDate = key.ExpiryDate
+                        });
+
+                        _logger.LogInformation("Assigned key {KeyId} to order {OrderId}",
+                            key.KeyId, order.OrderId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to assign key {KeyId} to order {OrderId}", key.KeyId, order.OrderId);
+                    }
+                }
+            }
+
+            // Process PERSONAL_ACCOUNT type variants
+            var personalAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_ACCOUNT).ToList();
+            foreach (var variant in personalAccountVariants)
+            {
+                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
+                if (orderDetail == null) continue;
+
+                var quantity = orderDetail.Quantity;
+
+                // Get available personal accounts for this variant
+                var availableAccounts = await _context.ProductAccounts
+                    .AsNoTracking()
+                    .Where(pa => pa.VariantId == variant.VariantId &&
+                                 pa.Status == "Active" &&
+                                 pa.MaxUsers == 1) // Personal accounts have MaxUsers = 1
+                    .Include(pa => pa.ProductAccountCustomers)
+                    .Where(pa => !pa.ProductAccountCustomers.Any(pac => pac.IsActive)) // Not assigned to anyone
+                    .Take(quantity)
+                    .ToListAsync();
+
+                if (availableAccounts.Count < quantity)
+                {
+                    _logger.LogWarning("Not enough available personal accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                        variant.VariantId, quantity, availableAccounts.Count);
+                    continue;
+                }
+
+                // Assign accounts to order and collect for email
+                foreach (var account in availableAccounts)
+                {
+                    try
+                    {
+                        // Assign account to order
+                        var assignDto = new AssignAccountToOrderDto
+                        {
+                            ProductAccountId = account.ProductAccountId,
+                            OrderId = order.OrderId,
+                            UserId = userId
+                        };
+
+                        await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
+
+                        // Get decrypted password
+                        var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
+
+                        // Add to products list for consolidated email
+                        orderProducts.Add(new OrderProductEmailDto
+                        {
+                            ProductName = variant.Product.ProductName,
+                            VariantTitle = variant.Title,
+                            ProductType = "ACCOUNT",
+                            AccountEmail = account.AccountEmail,
+                            AccountUsername = account.AccountUsername,
+                            AccountPassword = decryptedPassword,
+                            ExpiryDate = account.ExpiryDate
+                        });
+
+                        _logger.LogInformation("Assigned account {AccountId} to order {OrderId}",
+                            account.ProductAccountId, order.OrderId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to assign account {AccountId} to order {OrderId}", account.ProductAccountId, order.OrderId);
+                    }
+                }
+            }
+
+            // Send a single consolidated email with all products
+            if (orderProducts.Any())
+            {
+                try
+                {
+                    await _emailService.SendOrderProductsEmailAsync(userEmail, orderProducts);
+                    _logger.LogInformation("Sent consolidated order email with {Count} products to {Email}",
+                        orderProducts.Count, userEmail);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send consolidated order email to {Email}", userEmail);
+                }
+            }
         }
 
         private OrderDTO MapToOrderDTO(Order order)
@@ -708,18 +891,7 @@ namespace Keytietkiem.Controllers
                     KeyId = od.KeyId,
                     KeyString = od.Key?.KeyString,
                     SubTotal = od.Quantity * od.UnitPrice
-                }).ToList() ?? new List<OrderDetailDTO>(),
-                Payments = order.Payments?.Select(p => new PaymentDTO
-                {
-                    PaymentId = p.PaymentId,
-                    Amount = p.Amount,
-                    Status = p.Status,
-                    CreatedAt = p.CreatedAt
-                }).ToList() ?? new List<PaymentDTO>(),
-                PaymentStatus = ComputePaymentStatus(
-                    order.Payments,
-                    order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount)
-                )
+                }).ToList() ?? new List<OrderDetailDTO>()
             };
         }
     }

@@ -56,8 +56,8 @@ const PaymentCancelPage = () => {
 
   const handleKeepOrder = () => {
     setConfirmOpen(false);
-    // Tuỳ bạn: chuyển về lịch sử đơn hoặc homepage
-    navigate("/orders");
+    // Giữ đơn ở trạng thái Pending, quay về homepage
+    navigate("/");
   };
 
   return (

@@ -32,7 +32,7 @@ public class CreateProductAccountDto
     [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
     public decimal? CogsPrice { get; set; }
 
-    public DateTime? ExpiryDate { get; set; }
+    public DateTime StartDate { get; set; }
 
     [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
     public string? Notes { get; set; }
@@ -113,6 +113,7 @@ public class ProductAccountListDto
     public decimal SellPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime CreatedAt { get; set; }
+    public Guid? OrderId { get; set; }
 }
 
 /// <summary>
@@ -218,4 +219,19 @@ public class ProductAccountListResponseDto
     public int TotalCount { get; set; }
     public int TotalPages { get; set; }
     public int CurrentPage { get; set; }
+}
+
+/// <summary>
+/// DTO for assigning product account to order
+/// </summary>
+public class AssignAccountToOrderDto
+{
+    [Required(ErrorMessage = "ID tài khoản sản phẩm là bắt buộc")]
+    public Guid ProductAccountId { get; set; }
+
+    [Required(ErrorMessage = "ID đơn hàng là bắt buộc")]
+    public Guid OrderId { get; set; }
+
+    [Required(ErrorMessage = "ID người dùng là bắt buộc")]
+    public Guid UserId { get; set; }
 }

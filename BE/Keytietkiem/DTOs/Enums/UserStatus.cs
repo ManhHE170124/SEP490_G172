@@ -1,6 +1,6 @@
 ﻿namespace Keytietkiem.DTOs.Enums
 {
-    public enum UserStatus { Active, Locked, Disabled }
+    public enum UserStatus { Active, Locked, Disabled, Temp }
 
     public static class UserStatusHelper
     {

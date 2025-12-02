@@ -2,6 +2,7 @@
 using Keytietkiem.DTOs.Cart;
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.Models;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -10,7 +11,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
+
 namespace Keytietkiem.Controllers
 {
     [ApiController]
@@ -21,15 +24,18 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IMemoryCache _cache;
+        private readonly IAccountService _accountService;
 
         private static readonly TimeSpan CartTtl = TimeSpan.FromMinutes(60);
 
         public StorefrontCartController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IAccountService accountService)
         {
             _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+            _accountService = accountService ?? throw new ArgumentNullException(nameof(accountService));
         }
 
         // ===== GET: /apistorefront/cart =====
@@ -138,8 +144,6 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<CartCheckoutResultDto>> Checkout()
         {
             var userId = GetCurrentUserId();
-            if (userId is null)
-                return Unauthorized(new { message = "Bạn cần đăng nhập để thanh toán." });
 
             var cart = GetOrCreateCart(userId.Value);
             if (cart.Items == null || cart.Items.Count == 0)
@@ -166,27 +170,47 @@ namespace Keytietkiem.Controllers
                 var unitPrice = item.UnitPrice;
                 if (unitPrice < 0) unitPrice = 0;
 
-                totalListAmount += listPrice * qty;
-                totalAmount += unitPrice * qty;
+                totalListAmount += listPrice * qty; // giá niêm yết
+                totalAmount += unitPrice * qty;     // giá sau giảm
             }
 
             var discountAmount = totalListAmount - totalAmount;
             if (discountAmount < 0) discountAmount = 0;
 
             // Round về 2 số lẻ cho khớp decimal(12,2) của Orders
+            totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
             totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
             discountAmount = Math.Round(discountAmount, 2, MidpointRounding.AwayFromZero);
+
+            // If user is not logged in, check if email exists and create temp user if needed
+            
+            if (!userId.HasValue)
+            { 
+                var user = await _accountService.GetUserAsync(email);
+                if (user != null)
+                {
+                    userId = user.UserId;
+                }
+                else
+                {
+                    userId = (await _accountService.CreateTempUserAsync(email)).UserId;
+                }
+            }
 
             try
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
 
+                //  - TotalAmount  = tổng giá niêm yết (totalListAmount)
+                //  - DiscountAmount = tổng giảm giá
+                //  - FinalAmount  = tổng giá sau giảm (totalAmount)
                 var order = new Order
                 {
                     UserId = userId.Value,
                     Email = email,
-                    TotalAmount = totalAmount,
+                    TotalAmount = totalListAmount,
                     DiscountAmount = discountAmount,
+                    FinalAmount = totalAmount,
                     Status = "Pending",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -211,7 +235,7 @@ namespace Keytietkiem.Controllers
 
                 await db.SaveChangesAsync();
 
-                // Clear cart
+                // Clear cart (không hoàn kho ở đây vì đã trừ khi AddItem)
                 var cacheKey = GetCacheKey(userId.Value);
                 _cache.Remove(cacheKey);
 
@@ -240,7 +264,6 @@ namespace Keytietkiem.Controllers
                 });
             }
         }
-
 
         // ===== PUT: /apistorefront/cart/items/{variantId} =====
         // Body: { "quantity": 3 }
@@ -340,7 +363,6 @@ namespace Keytietkiem.Controllers
             return Ok(ToDto(cart));
         }
 
-
         // ===== DELETE: /apistorefront/cart/items/{variantId} =====
         [HttpDelete("items/{variantId:guid}")]
         public async Task<ActionResult<StorefrontCartDto>> RemoveItem(Guid variantId)
@@ -379,7 +401,6 @@ namespace Keytietkiem.Controllers
             return Ok(ToDto(cart));
         }
 
-
         // ===== PUT: /apistorefront/cart/receiver-email =====
         // Body: { "receiverEmail": "abc@gmail.com" }
         [HttpPut("receiver-email")]
@@ -406,7 +427,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE: /apistorefront/cart =====
         [HttpDelete]
-        public async Task<IActionResult> ClearCart()
+        public async Task<IActionResult> ClearCart([FromQuery] bool skipRestoreStock = false)
         {
             var userId = GetCurrentUserId();
             if (userId is null)
@@ -416,7 +437,10 @@ namespace Keytietkiem.Controllers
 
             var cart = GetOrCreateCart(userId.Value);
 
-            if (cart.Items.Any())
+            // Nếu KHÔNG skipRestoreStock => hoàn kho như cũ (dùng cho nút "Xoá giỏ hàng").
+            // Nếu skipRestoreStock = true (dùng sau khi tạo Order từ cart) => KHÔNG hoàn kho nữa,
+            // vì tồn kho đã bị trừ ngay lúc AddItem/UpdateItem và sẽ chỉ cộng lại nếu đơn bị Cancel.
+            if (!skipRestoreStock && cart.Items.Any())
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -445,7 +469,6 @@ namespace Keytietkiem.Controllers
             var cacheKey = GetCacheKey(userId.Value);
             _cache.Remove(cacheKey);
 
-            // FE đang tự tạo emptyCart nên NoContent là OK
             return NoContent();
         }
 

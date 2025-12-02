@@ -55,6 +55,8 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<ProductKey> ProductKeys { get; set; }
 
+    public virtual DbSet<ProductReport> ProductReports { get; set; }
+
     public virtual DbSet<ProductReview> ProductReviews { get; set; }
 
     public virtual DbSet<ProductSection> ProductSections { get; set; }
@@ -308,20 +310,38 @@ public partial class KeytietkiemDbContext : DbContext
         {
             entity.HasKey(e => e.PaymentId).HasName("PK__Payments__9B556A38FD074B65");
 
-            entity.Property(e => e.PaymentId).HasDefaultValueSql("(newid())");
-            entity.Property(e => e.Amount).HasColumnType("decimal(12, 2)");
+            entity.Property(e => e.PaymentId)
+                .HasDefaultValueSql("(newid())");
+
+            entity.Property(e => e.Amount)
+                .HasColumnType("decimal(12, 2)");
+
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
+
             entity.Property(e => e.Status)
                 .HasMaxLength(15)
                 .IsUnicode(false);
 
-            entity.HasOne(d => d.Order).WithMany(p => p.Payments)
-                .HasForeignKey(d => d.OrderId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Payments_Order");
+            entity.Property(e => e.Email)
+                .HasMaxLength(254);
+
+            entity.Property(e => e.TransactionType)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Provider)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("PayOS");
+
+            entity.Property(e => e.ProviderOrderCode);
+
+            // Không cấu hình HasOne(d => d.Order) nữa
         });
+
+
 
         modelBuilder.Entity<PaymentGateway>(entity =>
         {
@@ -548,6 +568,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductAccountCustomers_User");
+                
+            entity.HasOne(d => d.Order).WithMany(p => p.ProductAccountCustomers)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccountCustomers_Order");
         });
 
         modelBuilder.Entity<ProductAccountHistory>(entity =>
@@ -633,6 +658,62 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasForeignKey(d => d.VariantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ProductKeys_Variant");
+        });
+
+        modelBuilder.Entity<ProductReport>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__ProductR__3214EC07A1B2C3D4");
+
+            entity.HasIndex(e => e.Status, "IX_ProductReports_Status");
+
+            entity.HasIndex(e => e.UserId, "IX_ProductReports_User");
+
+            entity.HasIndex(e => e.ProductVariantId, "IX_ProductReports_Variant");
+
+            entity.HasIndex(e => e.CreatedAt, "IX_ProductReports_CreatedAt").IsDescending();
+
+            entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("Pending");
+
+            entity.Property(e => e.Name).HasMaxLength(200);
+
+            entity.Property(e => e.Description).HasMaxLength(2000);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasCheckConstraint("CK_ProductReports_Status",
+                "[Status] IN ('Pending', 'Processing', 'Resolved')");
+
+            entity.HasOne(d => d.ProductKey)
+                .WithMany(x=> x.ProductReports)
+                .HasForeignKey(d => d.ProductKeyId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ProductReports_ProductKey");
+
+            entity.HasOne(d => d.ProductAccount)
+                .WithMany(x => x.ProductReports)
+                .HasForeignKey(d => d.ProductAccountId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ProductReports_ProductAccount");
+
+            entity.HasOne(d => d.ProductVariant)
+                .WithMany(x => x.ProductReports)
+                .HasForeignKey(d => d.ProductVariantId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductReports_ProductVariant");
+
+            entity.HasOne(d => d.User).WithMany(x=> x.ProductReports)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductReports_User");
         });
 
         modelBuilder.Entity<ProductReview>(entity =>

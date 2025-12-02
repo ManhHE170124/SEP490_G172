@@ -14,7 +14,6 @@ import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
-import HomePage from "../pages/home/HomePage";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 
 //Role Management Pages
@@ -34,8 +33,9 @@ import AdminUserManagement from "../pages/admin/admin-user-management";
 import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
-import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
+import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
 import AccessDenied from "../pages/errors/AccessDenied";
@@ -80,6 +80,13 @@ import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
 import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-management.jsx";
 
+import AdminSupportChatPage from "../pages/admin/admin-support-chat";
+import StaffSupportChatPage from "../pages/admin/staff-support-chat";
+
+// Product Report Pages
+import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";
+import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx";
+
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -115,7 +122,7 @@ export default function AppRoutes() {
     </ProtectedRoute>
   );
 
- return (
+  return (
     <Routes>
       {/* Default Access Routes */}
       <Route
@@ -185,7 +192,6 @@ export default function AppRoutes() {
         }
       />
       <Route path="/admin" element={<div />} />
-      <Route path="/admin/support-chats" element={<AdminSupportChatPage />} />
       <Route
         path="/admin/profile"
         element={
@@ -241,6 +247,22 @@ export default function AppRoutes() {
             </AdminLayout>
           </Suspense>
         }
+      />
+
+      {/* Product Reports */}
+      <Route
+        path="/reports"
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <ProductReportManagementPage />
+        )}
+      />
+      <Route
+        path="/reports/:id"
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <ProductReportDetailPage />
+        )}
       />
 
       {/* Customer tickets */}
@@ -322,6 +344,21 @@ export default function AppRoutes() {
         element={renderAdminPage(
           MODULE_CODES.PRODUCT_MANAGER,
           <CategoryPage />
+        )}
+      />
+      <Route
+        path="/admin/orders"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,   // có thể đổi sang module code khác nếu sau này tách quyền
+          <OrderPaymentPage />
+        )}
+      />
+      {/* Alias: /admin/payments cũng mở cùng page */}
+      <Route
+        path="/admin/payments"
+        element={renderAdminPage(
+          MODULE_CODES.PRODUCT_MANAGER,
+          <OrderPaymentPage />
         )}
       />
       {/* FAQs */}
@@ -485,14 +522,30 @@ export default function AppRoutes() {
           <WebsiteConfig />
         )}
       />
+      <Route
+        path="/admin/support-chats"
+        element={
+          <AdminLayout>
+            <AdminSupportChatPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/staff/support-chats"
+        element={
+          <AdminLayout>
+            <StaffSupportChatPage />
+          </AdminLayout>
+        }
+      />
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
-      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage  /></ClientLayout>} />
+      <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
-<Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
-  <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
-  <Route
+      <Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
+      <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
+      <Route
         path="/homepage"
         element={
           <ClientLayout>

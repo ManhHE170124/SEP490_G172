@@ -31,6 +31,8 @@ public partial class ProductKey
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
+    public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
+
     public virtual Supplier Supplier { get; set; } = null!;
 
     public virtual ProductVariant Variant { get; set; } = null!;
