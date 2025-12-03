@@ -84,11 +84,14 @@ import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import StaffSupportChatPage from "../pages/admin/staff-support-chat";
 
 // Subscription (Support Plan)
-import SupportPlanSubscriptionPage from "../pages/subcription/SupportPlanSubscriptionPage.jsx";
+import SupportPlanSubscriptionPage from "../pages/subscription/SupportPlanSubscriptionPage.jsx";
 
 // Product Report Pages
 import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";
 import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx";
+
+import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyaltyRulesPage.jsx";
+
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -550,7 +553,15 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
-      
+      <Route
+        path="/admin/support-priority-loyalty-rules"
+        element={
+          <AdminLayout>
+            <SupportPriorityLoyaltyRulesPage />
+          </AdminLayout>
+        }
+      />
+
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />

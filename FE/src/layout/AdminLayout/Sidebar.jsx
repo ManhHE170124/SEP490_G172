@@ -766,6 +766,26 @@ const Sidebar = () => {
             </svg>
           ),
         },
+        {
+          id: "support-priority-loyalty-rules",
+          label: "Cấu hình quy tắc hỗ trợ",
+          to: "/admin/support-priority-loyalty-rules",
+          isActive: currentPage === "admin/support-priority-loyalty-rules",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
+              <path
+                d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M19.4 15a7 7 0 0 0 0-6M4.6 15a7 7 0 0 1 0-6"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+            </svg>
+          ),
+        },
       ],
     },
   ];
