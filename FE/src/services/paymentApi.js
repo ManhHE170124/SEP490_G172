@@ -8,10 +8,4 @@ export const paymentApi = {
   list: (params = {}) => axiosClient.get(END.PAYMENTS, { params }),
 
   get: (id) => axiosClient.get(`${END.PAYMENTS}/${id}`),
-
-  getByOrder: (orderId) =>
-    axiosClient.get(`${END.PAYMENTS}/order/${orderId}`),
-
-  updateStatus: (id, status) =>
-    axiosClient.put(`${END.PAYMENTS}/${id}/status`, { status }),
 };

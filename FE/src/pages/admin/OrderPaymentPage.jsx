@@ -41,16 +41,6 @@ const renderSortIndicator = (current, key) => {
 };
 
 /**
- * Các trạng thái ĐƠN HÀNG
- */
-const ORDER_STATUS_OPTIONS = [
-  { value: "Pending", label: "Chờ xử lý" },
-  { value: "Paid", label: "Đã thanh toán" },
-  { value: "Failed", label: "Thất bại" },
-  { value: "Cancelled", label: "Đã hủy" },
-];
-
-/**
  * Trạng thái PAYMENT
  */
 const PAYMENT_STATUS_OPTIONS = [
@@ -65,24 +55,15 @@ const PAYMENT_STATUS_OPTIONS = [
 
 const PAYMENT_PROVIDER_OPTIONS = ["", "PayOS"];
 
-/* Loại thanh toán (transactionType) - TẤT CẢ LOẠI ở đầu */
+/* Loại thanh toán (transactionType) */
 const PAYMENT_TYPE_OPTIONS = [
-  { value: "", label: "Tất cả loại" },
-  { value: "ORDER_PAYMENT", label: "Thanh toán đơn hàng" },
-  { value: "DEPOSIT", label: "Nạp tiền" },
-  { value: "SERVICE_PAYMENT", label: "Thanh toán dịch vụ" },
+  { value: "", valueLabel: "ALL", label: "Tất cả loại" },
+  { value: "ORDER_CART", label: "Thanh toán giỏ hàng" },
+  { value: "ORDER_PAYMENT", label: "Thanh toán đơn hàng (cũ)" },
+  { value: "SUPPORT_PLAN", label: "Thanh toán gói hỗ trợ" },
 ];
 
-/* Map status -> class cho badge */
-const getOrderStatusClass = (status) => {
-  const s = (status || "").toLowerCase();
-  if (s === "pending") return "status-pill order-pending";
-  if (s === "paid") return "status-pill order-paid";
-  if (s === "cancelled" || s === "failed")
-    return "status-pill order-cancelled";
-  return "status-pill order-unknown";
-};
-
+/* Map status -> class cho badge (payment) */
 const getPaymentStatusClass = (status) => {
   const s = (status || "").toLowerCase();
   if (s === "pending" || s === "unpaid" || s === "partial")
@@ -95,23 +76,7 @@ const getPaymentStatusClass = (status) => {
   return "status-pill payment-unknown";
 };
 
-/* Map status -> label tiếng Việt */
-const getOrderStatusLabel = (status) => {
-  const s = (status || "").toLowerCase();
-  switch (s) {
-    case "pending":
-      return "Chờ xử lý";
-    case "paid":
-      return "Đã thanh toán";
-    case "failed":
-      return "Thất bại";
-    case "cancelled":
-      return "Đã hủy";
-    default:
-      return status || "Không xác định";
-  }
-};
-
+/* Map status -> label tiếng Việt (payment) */
 const getPaymentStatusLabel = (status) => {
   const s = (status || "").toLowerCase();
   switch (s) {
@@ -132,33 +97,16 @@ const getPaymentStatusLabel = (status) => {
   }
 };
 
-// Trạng thái tổng hợp thanh toán của ĐƠN HÀNG (Unpaid, Partial, Paid, Refunded)
-const getOrderPaymentStatusLabel = (status) => {
-  const s = (status || "").toLowerCase();
-  switch (s) {
-    case "unpaid":
-      return "Chưa thanh toán";
-    case "partial":
-      return "Thanh toán một phần";
-    case "paid":
-      return "Đã thanh toán";
-    case "refunded":
-      return "Đã hoàn tiền";
-    default:
-      return getPaymentStatusLabel(status);
-  }
-};
-
 // Label tiếng Việt cho loại thanh toán
 const getTransactionTypeLabel = (type) => {
   const t = (type || "").toUpperCase();
   switch (t) {
+    case "ORDER_CART":
+      return "Thanh toán giỏ hàng";
     case "ORDER_PAYMENT":
       return "Thanh toán đơn hàng";
-    case "DEPOSIT":
-      return "Nạp tiền";
-    case "SERVICE_PAYMENT":
-      return "Thanh toán dịch vụ";
+    case "SUPPORT_PLAN":
+      return "Thanh toán gói hỗ trợ";
     default:
       return type || "Không xác định";
   }
@@ -173,20 +121,11 @@ const PAYMENT_STATUS_FILTER_OPTIONS = [
   { value: "Refunded", label: getPaymentStatusLabel("Refunded") },
 ];
 
-/* ===== Modal: Order Detail + Update Status + Cancel ===== */
+/* ===== Modal: Order Detail (chỉ xem) ===== */
 
-function OrderDetailModal({
-  open,
-  orderId,
-  onClose,
-  onUpdated,
-  addToast,
-  openConfirm,
-}) {
+function OrderDetailModal({ open, orderId, onClose, addToast }) {
   const [loading, setLoading] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
   const [order, setOrder] = React.useState(null);
-  const [status, setStatus] = React.useState("");
 
   React.useEffect(() => {
     if (!open || !orderId) return;
@@ -197,7 +136,6 @@ function OrderDetailModal({
       .then((res) => {
         const data = res?.data ?? res;
         setOrder(data);
-        setStatus(data?.status || "");
       })
       .catch((err) => {
         console.error(err);
@@ -210,113 +148,22 @@ function OrderDetailModal({
       .finally(() => setLoading(false));
   }, [open, orderId, addToast]);
 
-  const currentStatus = (order?.status || "").toLowerCase();
-  const canManuallyChangeStatus =
-    currentStatus === "pending" || currentStatus === "failed";
-
-  const orderSelectOptions = ORDER_STATUS_OPTIONS.filter((opt) => {
-    const v = opt.value.toLowerCase();
-    if (!order) return false;
-
-    if (!canManuallyChangeStatus) {
-      return v === currentStatus;
-    }
-
-    if (v === currentStatus) return true;
-    return v === "paid" || v === "cancelled";
-  });
-
   if (!open) return null;
 
-  const handleSaveStatus = async () => {
-    if (!order || !status) return;
-    if (status === order.status) {
-      addToast?.("info", "Trạng thái không thay đổi.", "Không có thay đổi");
-      return;
-    }
-
-    const current = (order.status || "").toLowerCase();
-    const next = (status || "").toLowerCase();
-    const isFromPendingOrFailed =
-      current === "pending" || current === "failed";
-    const isTargetAllowed = next === "paid" || next === "cancelled";
-
-    if (!isFromPendingOrFailed) {
-      addToast?.(
-        "warning",
-        "Chỉ đơn đang ở trạng thái Chờ xử lý hoặc Thất bại mới được đổi trạng thái tay.",
-        "Không được phép"
-      );
-      return;
-    }
-
-    if (!isTargetAllowed) {
-      addToast?.(
-        "warning",
-        "Bạn chỉ được chuyển đơn từ Chờ xử lý/Thất bại sang Đã thanh toán hoặc Đã hủy.",
-        "Không được phép"
-      );
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await orderApi.update(order.orderId, { status });
-      addToast?.("success", "Đã cập nhật trạng thái đơn hàng.", "Thành công");
-      onUpdated?.();
-      onClose?.();
-    } catch (err) {
-      console.error(err);
-      addToast?.(
-        "error",
-        err?.response?.data?.message || "Cập nhật trạng thái thất bại.",
-        "Lỗi"
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCancelOrder = () => {
-    if (!order) return;
-    openConfirm?.({
-      title: "Hủy đơn hàng?",
-      message:
-        "Hủy đơn sẽ hoàn kho và hủy các thanh toán đang ở trạng thái chờ. Bạn có chắc chắn muốn tiếp tục?",
-      onConfirm: async () => {
-        try {
-          await orderApi.cancel(order.orderId);
-          addToast?.("success", "Đã hủy đơn hàng.", "Thành công");
-          onUpdated?.();
-          onClose?.();
-        } catch (err) {
-          console.error(err);
-          addToast?.(
-            "error",
-            err?.response?.data?.message || "Hủy đơn hàng thất bại.",
-            "Lỗi"
-          );
-        }
-      },
-    });
-  };
-
   const effectiveFinal =
-    order?.finalAmount ?? (order ? order.totalAmount - order.discountAmount : 0);
-
-  const canCancel =
-    order && (order.status || "").toLowerCase() === "pending";
+    order != null
+      ? order.finalAmount ??
+        (order.totalAmount != null && order.discountAmount != null
+          ? order.totalAmount - order.discountAmount
+          : order.totalAmount)
+      : 0;
 
   return (
     <div className="cat-modal-backdrop">
       <div className="cat-modal-card">
         <div className="cat-modal-header">
           <h3>Chi tiết đơn hàng</h3>
-          {order && (
-            <span className={getOrderStatusClass(order.status)}>
-              {getOrderStatusLabel(order.status)}
-            </span>
-          )}
+          {/* Không còn status badge vì Order hiện chỉ là log immutable */}
         </div>
 
         <div className="cat-modal-body">
@@ -331,10 +178,7 @@ function OrderDetailModal({
                     {order.orderId || ""}
                   </div>
 
-                  <div
-                    className="detail-label"
-                    style={{ marginTop: 6 }}
-                  >
+                  <div className="detail-label" style={{ marginTop: 6 }}>
                     Ngày tạo
                   </div>
                   <div className="detail-value">
@@ -348,10 +192,7 @@ function OrderDetailModal({
                     {order.userName || order.userEmail || order.email || "—"}
                   </div>
 
-                  <div
-                    className="detail-label"
-                    style={{ marginTop: 6 }}
-                  >
+                  <div className="detail-label" style={{ marginTop: 6 }}>
                     Email đơn hàng
                   </div>
                   <div className="detail-value">
@@ -393,56 +234,7 @@ function OrderDetailModal({
                 </div>
               </div>
 
-              {/* Status + PaymentStatus */}
-              <div className="detail-section-title">Trạng thái</div>
-              <div className="detail-section-box">
-                <div className="order-meta-grid">
-                  <div>
-                    <div className="detail-label">Trạng thái đơn</div>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                      style={{ marginTop: 4 }}
-                      disabled={!canManuallyChangeStatus}
-                    >
-                      {orderSelectOptions.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                    {!canManuallyChangeStatus && (
-                      <div
-                        style={{
-                          marginTop: 4,
-                          fontSize: 11,
-                          color: "var(--muted)",
-                        }}
-                      >
-                        Đơn đã ở trạng thái cuối (Đã thanh toán / Đã hủy),
-                        không thể chỉnh tay.
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="detail-label">
-                      Trạng thái thanh toán (tổng)
-                    </div>
-                    <div
-                      className={getPaymentStatusClass(
-                        order.paymentStatus
-                      )}
-                      style={{ marginTop: 6 }}
-                    >
-                      {order.paymentStatus
-                        ? getOrderPaymentStatusLabel(order.paymentStatus)
-                        : "Chưa thanh toán"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Items */}
+              {/* Sản phẩm */}
               <div className="detail-section-title">Sản phẩm</div>
               <div className="detail-section-box">
                 {order.orderDetails && order.orderDetails.length > 0 ? (
@@ -493,35 +285,12 @@ function OrderDetailModal({
         </div>
 
         <div className="cat-modal-footer">
-          {canCancel && (
-            <button
-              type="button"
-              className="btn"
-              style={{
-                borderColor: "var(--danger)",
-                color: "var(--danger)",
-              }}
-              onClick={handleCancelOrder}
-              disabled={saving}
-            >
-              Hủy đơn
-            </button>
-          )}
           <button
             type="button"
             className="btn ghost"
             onClick={onClose}
-            disabled={saving}
           >
             Đóng
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={handleSaveStatus}
-            disabled={saving || !order || !canManuallyChangeStatus}
-          >
-            {saving ? "Đang lưu…" : "Lưu trạng thái"}
           </button>
         </div>
       </div>
@@ -529,20 +298,18 @@ function OrderDetailModal({
   );
 }
 
-/* ===== Modal: Payment Detail ===== */
+/* ===== Modal: Payment Detail (chỉ xem, status auto) ===== */
 
 function PaymentDetailModal({
   open,
   paymentId,
   onClose,
-  onUpdated,
+  onUpdated,   // vẫn nhận props nhưng không dùng, để tránh lỗi chỗ gọi
   addToast,
-  openConfirm,
+  openConfirm, // vẫn nhận props nhưng không dùng
 }) {
   const [loading, setLoading] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
   const [payment, setPayment] = React.useState(null);
-  const [status, setStatus] = React.useState("");
 
   React.useEffect(() => {
     if (!open || !paymentId) return;
@@ -553,7 +320,6 @@ function PaymentDetailModal({
       .then((res) => {
         const data = res?.data ?? res;
         setPayment(data);
-        setStatus(data?.status || "");
       })
       .catch((err) => {
         console.error(err);
@@ -567,84 +333,7 @@ function PaymentDetailModal({
       .finally(() => setLoading(false));
   }, [open, paymentId, addToast]);
 
-  const currentStatus = (payment?.status || "").toLowerCase();
-  const canManuallyChangeStatus =
-    currentStatus === "pending" || currentStatus === "failed";
-
-  const paymentSelectOptions = PAYMENT_STATUS_OPTIONS.filter((s) => {
-    const v = s.toLowerCase();
-    if (!payment) return false;
-
-    if (!canManuallyChangeStatus) {
-      return v === currentStatus;
-    }
-
-    if (v === currentStatus) return true;
-    return v === "paid" || v === "cancelled";
-  });
-
   if (!open) return null;
-
-  const handleSaveStatus = () => {
-    if (!payment || !status) return;
-    if (status === payment.status) {
-      addToast?.("info", "Trạng thái không thay đổi.", "Không có thay đổi");
-      return;
-    }
-
-    const current = (payment.status || "").toLowerCase();
-    const next = (status || "").toLowerCase();
-    const isFromPendingOrFailed =
-      current === "pending" || current === "failed";
-    const isTargetAllowed = next === "paid" || next === "cancelled";
-
-    if (!isFromPendingOrFailed) {
-      addToast?.(
-        "warning",
-        "Chỉ các thanh toán đang ở trạng thái Chờ thanh toán hoặc Thất bại mới được chỉnh tay.",
-        "Không được phép"
-      );
-      return;
-    }
-
-    if (!isTargetAllowed) {
-      addToast?.(
-        "warning",
-        "Bạn chỉ được chuyển thanh toán từ Chờ thanh toán/Thất bại sang Đã thanh toán hoặc Đã hủy.",
-        "Không được phép"
-      );
-      return;
-    }
-
-    openConfirm?.({
-      title: "Cập nhật trạng thái thanh toán?",
-      message:
-        "Thao tác này chỉ nên dùng khi đối chiếu với log từ cổng thanh toán. Việc chỉnh tay có thể làm trạng thái đơn không khớp.\n\nBạn chắc chắn muốn cập nhật?",
-      onConfirm: async () => {
-        setSaving(true);
-        try {
-          await paymentApi.updateStatus(payment.paymentId, status);
-          addToast?.(
-            "success",
-            "Đã cập nhật trạng thái thanh toán.",
-            "Thành công"
-          );
-          onUpdated?.();
-          onClose?.();
-        } catch (err) {
-          console.error(err);
-          addToast?.(
-            "error",
-            err?.response?.data?.message ||
-              "Cập nhật trạng thái thanh toán thất bại.",
-            "Lỗi"
-          );
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
 
   return (
     <div className="cat-modal-backdrop">
@@ -662,6 +351,7 @@ function PaymentDetailModal({
           {loading && <span className="badge gray">Đang tải…</span>}
           {!loading && payment && (
             <>
+              {/* Meta chung */}
               <div className="payment-meta-grid">
                 <div className="detail-section-box">
                   <div className="detail-label">Mã thanh toán</div>
@@ -698,7 +388,7 @@ function PaymentDetailModal({
                 </div>
               </div>
 
-              {/* Thông tin tiền – CHỈ 1 KHỐI SỐ TIỀN THANH TOÁN */}
+              {/* Số tiền */}
               <div className="detail-section-title">Số tiền</div>
               <div className="detail-section-box">
                 <div className="detail-label">Số tiền thanh toán</div>
@@ -707,55 +397,30 @@ function PaymentDetailModal({
                 </div>
               </div>
 
-              {/* Provider + status chỉnh tay */}
-              <div className="detail-section-title">
-                Cổng thanh toán & trạng thái
-              </div>
-              <div className="detail-section-box payment-meta-grid">
-                <div>
-                  <div className="detail-label">Cổng thanh toán</div>
-                  <div className="detail-value">
-                    {payment.provider || "PayOS"}
+              {/* Cổng thanh toán (không còn khối trạng thái ở đây) */}
+              <div className="detail-section-title">Cổng thanh toán</div>
+              <div className="detail-section-box">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+                    gap: 16,
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <div className="detail-label">Cổng thanh toán</div>
+                    <div className="detail-value">
+                      {payment.provider || "PayOS"}
+                    </div>
                   </div>
-
-                  <div
-                    className="detail-label"
-                    style={{ marginTop: 6 }}
-                  >
-                    Mã giao dịch
-                  </div>
-                  <div className="detail-value mono">
-                    {payment.providerOrderCode != null
-                      ? payment.providerOrderCode
-                      : "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="detail-label">
-                    Trạng thái (chỉnh tay – hạn chế)
-                  </div>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    style={{ marginTop: 4 }}
-                    disabled={!canManuallyChangeStatus}
-                  >
-                    {paymentSelectOptions.map((s) => (
-                      <option key={s} value={s}>
-                        {getPaymentStatusLabel(s)}
-                      </option>
-                    ))}
-                  </select>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--muted)",
-                      marginTop: 4,
-                    }}
-                  >
-                    {canManuallyChangeStatus
-                      ? "Chỉ dùng khi đã đối chiếu với PayOS / log hệ thống. Chỉ được chuyển từ Chờ thanh toán / Thất bại sang Đã thanh toán hoặc Đã hủy."
-                      : "Giao dịch đã ở trạng thái cuối, không cho phép chỉnh tay."}
+                  <div>
+                    <div className="detail-label">Mã giao dịch</div>
+                    <div className="detail-value mono">
+                      {payment.providerOrderCode != null
+                        ? payment.providerOrderCode
+                        : "—"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -768,17 +433,8 @@ function PaymentDetailModal({
             type="button"
             className="btn ghost"
             onClick={onClose}
-            disabled={saving}
           >
             Đóng
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={handleSaveStatus}
-            disabled={saving || !payment || !canManuallyChangeStatus}
-          >
-            {saving ? "Đang lưu…" : "Lưu trạng thái"}
           </button>
         </div>
       </div>
@@ -824,7 +480,6 @@ export default function OrderPaymentPage() {
   const [orderLoading, setOrderLoading] = React.useState(false);
   const [orderFilter, setOrderFilter] = React.useState({
     keyword: "",
-    status: "",
   });
   const [orderSort, setOrderSort] = React.useState({
     sortBy: "createdAt",
@@ -867,7 +522,7 @@ export default function OrderPaymentPage() {
 
   React.useEffect(() => {
     setOrderPage(1);
-  }, [orderFilter.keyword, orderFilter.status]);
+  }, [orderFilter.keyword]);
 
   const filteredOrders = React.useMemo(() => {
     let list = Array.isArray(orders) ? orders : [];
@@ -888,10 +543,6 @@ export default function OrderPaymentPage() {
       });
     }
 
-    if (orderFilter.status) {
-      list = list.filter((o) => o.status === orderFilter.status);
-    }
-
     // Không sort lại ở FE – giữ nguyên thứ tự từ BE (đã sort)
     return list;
   }, [orders, orderFilter]);
@@ -908,29 +559,6 @@ export default function OrderPaymentPage() {
   const closeOrderDetail = () =>
     setOrderModal((m) => ({ ...m, open: false }));
 
-  const handleOrderCancelInline = (order) => {
-    if (!order) return;
-    openConfirm({
-      title: "Hủy đơn hàng?",
-      message:
-        "Hủy đơn sẽ hoàn kho và hủy các thanh toán đang ở trạng thái chờ. Tiếp tục?",
-      onConfirm: async () => {
-        try {
-          await orderApi.cancel(order.orderId);
-          addToast("success", "Đã hủy đơn hàng.", "Thành công");
-          loadOrders();
-        } catch (err) {
-          console.error(err);
-          addToast(
-            "error",
-            err?.response?.data?.message || "Hủy đơn hàng thất bại.",
-            "Lỗi"
-          );
-        }
-      },
-    });
-  };
-
   /* ===== Payments state ===== */
   const [payments, setPayments] = React.useState([]);
   const [paymentLoading, setPaymentLoading] = React.useState(false);
@@ -938,7 +566,7 @@ export default function OrderPaymentPage() {
     keyword: "",
     status: "",
     provider: "",
-    transactionType: "ORDER_PAYMENT", // default: chỉ xem thanh toán đơn hàng
+    transactionType: "", // mặc định: xem tất cả loại
   });
   const [paymentSort, setPaymentSort] = React.useState({
     sortBy: "createdAt",
@@ -1058,7 +686,7 @@ export default function OrderPaymentPage() {
             )}
           </div>
 
-          {/* Filters */}
+          {/* Filters đơn hàng */}
           <div className="order-filters input-group">
             <div
               className="group"
@@ -1076,30 +704,11 @@ export default function OrderPaymentPage() {
                 placeholder="Tìm theo mã đơn, email, tên khách…"
               />
             </div>
-            <div className="group" style={{ minWidth: 160 }}>
-              <span>Trạng thái</span>
-              <select
-                value={orderFilter.status}
-                onChange={(e) =>
-                  setOrderFilter((s) => ({
-                    ...s,
-                    status: e.target.value,
-                  }))
-                }
-              >
-                <option value="">Tất cả</option>
-                {ORDER_STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
             <button
               className="btn"
               type="button"
               onClick={() =>
-                setOrderFilter({ keyword: "", status: "" })
+                setOrderFilter({ keyword: "" })
               }
             >
               Đặt lại
@@ -1186,20 +795,6 @@ export default function OrderPaymentPage() {
                     className="table-sort-header"
                     onClick={() =>
                       setOrderSort((cur) =>
-                        toggleSortState(cur, "status")
-                      )
-                    }
-                  >
-                    Trạng thái
-                    {renderSortIndicator(orderSort, "status")}
-                  </button>
-                </th>
-                <th>
-                  <button
-                    type="button"
-                    className="table-sort-header"
-                    onClick={() =>
-                      setOrderSort((cur) =>
                         toggleSortState(cur, "createdAt")
                       )
                     }
@@ -1214,10 +809,7 @@ export default function OrderPaymentPage() {
             <tbody>
               {orderPageItems.map((o) => {
                 const effectiveFinal =
-                  o.finalAmount ??
-                  o.totalAmount - (o.discountAmount || 0);
-                const canCancel =
-                  (o.status || "").toLowerCase() === "pending";
+                  o.finalAmount ?? o.totalAmount;
                 return (
                   <tr key={o.orderId}>
                     <td>
@@ -1245,18 +837,13 @@ export default function OrderPaymentPage() {
                     <td className="text-right text-mono">
                       {effectiveFinal?.toLocaleString("vi-VN")} đ
                     </td>
-                    <td>
-                      <span className={getOrderStatusClass(o.status)}>
-                        {getOrderStatusLabel(o.status)}
-                      </span>
-                    </td>
                     <td>{formatVnDateTime(o.createdAt)}</td>
                     <td>
                       <div className="action-buttons">
                         <button
                           className="action-btn edit-btn"
                           type="button"
-                          title="Xem chi tiết / cập nhật trạng thái"
+                          title="Xem chi tiết đơn hàng"
                           onClick={() => openOrderDetail(o.orderId)}
                         >
                           <svg
@@ -1270,24 +857,6 @@ export default function OrderPaymentPage() {
                             <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
                           </svg>
                         </button>
-                        {canCancel && (
-                          <button
-                            className="action-btn delete-btn"
-                            type="button"
-                            title="Hủy đơn (Hoàn kho + Hủy thanh toán đang chờ)"
-                            onClick={() => handleOrderCancelInline(o)}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
-                            </svg>
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -1295,7 +864,7 @@ export default function OrderPaymentPage() {
               })}
               {orderPageItems.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: 12 }}>
+                  <td colSpan={7} style={{ padding: 12 }}>
                     Không có đơn hàng nào phù hợp bộ lọc.
                   </td>
                 </tr>
@@ -1404,10 +973,7 @@ export default function OrderPaymentPage() {
                 }
               >
                 {PAYMENT_TYPE_OPTIONS.map((t) => (
-                  <option
-                    key={t.value || "all"}
-                    value={t.value}
-                  >
+                  <option key={t.value || "all"} value={t.value}>
                     {t.label}
                   </option>
                 ))}
@@ -1421,7 +987,7 @@ export default function OrderPaymentPage() {
                   keyword: "",
                   status: "",
                   provider: "",
-                  transactionType: "ORDER_PAYMENT",
+                  transactionType: "",
                 })
               }
             >
@@ -1560,7 +1126,9 @@ export default function OrderPaymentPage() {
                         className="action-btn edit-btn"
                         type="button"
                         title="Xem chi tiết / đối chiếu"
-                        onClick={() => openPaymentDetail(p.paymentId)}
+                        onClick={() =>
+                          openPaymentDetail(p.paymentId)
+                        }
                       >
                         <svg
                           viewBox="0 0 24 24"
@@ -1619,21 +1187,17 @@ export default function OrderPaymentPage() {
         open={orderModal.open}
         orderId={orderModal.id}
         onClose={closeOrderDetail}
-        onUpdated={() => loadOrders()}
         addToast={addToast}
-        openConfirm={openConfirm}
       />
 
       <PaymentDetailModal
         open={paymentModal.open}
         paymentId={paymentModal.id}
         onClose={closePaymentDetail}
-        onUpdated={() => loadPayments()}
         addToast={addToast}
-        openConfirm={openConfirm}
       />
 
-      {/* Toast + ConfirmDialog */}
+      {/* Toast + ConfirmDialog (confirm hiện không dùng ở page này nhưng giữ để đồng bộ với ToastContainer) */}
       <ToastContainer
         toasts={toasts}
         onRemove={removeToast}

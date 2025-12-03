@@ -1,10 +1,14 @@
-﻿using Keytietkiem.DTOs.Payments;
+﻿// Keytietkiem/Controllers/PaymentsController.cs
+using Keytietkiem.DTOs.Cart;
+using Keytietkiem.DTOs.Payments;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
+using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
 
 namespace Keytietkiem.Controllers
 {
@@ -15,6 +19,7 @@ namespace Keytietkiem.Controllers
         private readonly KeytietkiemDbContext _context;
         private readonly PayOSService _payOs;
         private readonly IConfiguration _config;
+        private readonly IMemoryCache _cache;
 
         private static readonly string[] AllowedPaymentStatuses = new[]
         {
@@ -24,11 +29,13 @@ namespace Keytietkiem.Controllers
         public PaymentsController(
             KeytietkiemDbContext context,
             PayOSService payOs,
-            IConfiguration config)
+            IConfiguration config,
+            IMemoryCache cache)
         {
             _context = context;
             _payOs = payOs;
             _config = config;
+            _cache = cache;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -40,7 +47,7 @@ namespace Keytietkiem.Controllers
         }
 
         // ===== API ADMIN: list payment với filter cơ bản =====
-        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT
+        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_CART
         [HttpGet]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
@@ -177,154 +184,10 @@ namespace Keytietkiem.Controllers
             return Ok(dto);
         }
 
-        // ===== API ADMIN: đổi trạng thái payment bằng tay =====
-        // PUT /api/payments/{paymentId}/status
-        [HttpPut("{paymentId:guid}/status")]
-        public async Task<IActionResult> UpdatePaymentStatus(
-            Guid paymentId,
-            [FromBody] UpdatePaymentStatusDTO dto)
-        {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Status))
-            {
-                return BadRequest(new { message = "Trạng thái thanh toán không hợp lệ" });
-            }
-
-            var normalizedStatus = dto.Status.Trim();
-
-            if (!AllowedPaymentStatuses.Contains(normalizedStatus))
-            {
-                return BadRequest(new { message = "Trạng thái thanh toán không hợp lệ" });
-            }
-
-            var payment = await _context.Payments
-                .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
-
-            if (payment == null)
-            {
-                return NotFound(new { message = "Payment không tồn tại" });
-            }
-
-            var currentStatus = payment.Status ?? "Pending";
-
-            // Nếu payment đã Paid hoặc Cancelled thì không cho chỉnh nữa
-            if (currentStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) ||
-                currentStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { message = "Không thể cập nhật trạng thái thanh toán khi đã ở trạng thái Paid hoặc Cancelled." });
-            }
-
-            // Chỉ cho phép chỉnh tay khi đang Pending hoặc Failed
-            if (!currentStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase) &&
-                !currentStatus.Equals("Failed", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { message = "Chỉ được phép chỉnh tay trạng thái thanh toán khi đang ở Pending hoặc Failed." });
-            }
-
-            // Chỉ cho phép chuyển sang Paid hoặc Cancelled
-            if (!normalizedStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase) &&
-                !normalizedStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { message = "Chỉ được phép chuyển trạng thái thanh toán sang Paid hoặc Cancelled." });
-            }
-
-            payment.Status = normalizedStatus;
-
-            await _context.SaveChangesAsync();
-            return NoContent();
-        }
-
-        // ===== API: Tạo Payment + PayOS checkoutUrl từ 1 Order =====
-        // POST /api/payments/payos/create
-        [HttpPost("payos/create")]
-        public async Task<IActionResult> CreatePayOSPayment([FromBody] CreatePayOSPaymentDTO dto)
-        {
-            if (dto == null || dto.OrderId == Guid.Empty)
-            {
-                return BadRequest(new { message = "OrderId không hợp lệ" });
-            }
-
-            var order = await _context.Orders
-                .Include(o => o.User)
-                .Include(o => o.OrderDetails)
-                    .ThenInclude(od => od.Variant)
-                .FirstOrDefaultAsync(o => o.OrderId == dto.OrderId);
-
-            if (order == null)
-            {
-                return NotFound(new { message = "Đơn hàng không tồn tại" });
-            }
-
-            if (!string.Equals(order.Status, "Pending", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { message = "Chỉ có thể thanh toán đơn hàng ở trạng thái Pending" });
-            }
-
-            var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
-            if (finalAmount <= 0)
-            {
-                return BadRequest(new { message = "Số tiền thanh toán không hợp lệ" });
-            }
-
-            using var tx = await _context.Database.BeginTransactionAsync();
-
-            // description encode OrderId để webhook decode lại
-            var description = EncodeOrderIdToDescription(order.OrderId);
-
-            // orderCode unique (int) – lưu vào Payment.ProviderOrderCode
-            var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
-
-            var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/')
-                                  ?? "https://keytietkiem.com";
-
-            var returnUrl = $"{frontendBaseUrl}/payment-result?orderId={order.OrderId}";
-            var cancelUrl = $"{frontendBaseUrl}/payment-cancel?orderId={order.OrderId}";
-
-            var buyerEmail = order.Email;
-            var buyerName = order.User?.FullName ?? order.Email;
-            var buyerPhone = order.User?.Phone ?? "";
-            var amountInt = (int)Math.Round(finalAmount, 0, MidpointRounding.AwayFromZero);
-
-            // Tạo Payment Pending – BẢNG ĐỘC LẬP, KHÔNG CÓ OrderId
-            var paymentNew = new Payment
-            {
-                Amount = finalAmount,
-                Status = "Pending",
-                CreatedAt = DateTime.UtcNow,
-                Provider = "PayOS",
-                ProviderOrderCode = orderCode,
-                Email = order.Email,
-                TransactionType = "ORDER_PAYMENT"
-            };
-
-            _context.Payments.Add(paymentNew);
-            await _context.SaveChangesAsync();
-
-            // Gọi PayOS để lấy checkoutUrl
-            var paymentUrl = await _payOs.CreatePayment(
-                orderCode,
-                amountInt,
-                description,
-                returnUrl,
-                cancelUrl,
-                buyerPhone,
-                buyerName,
-                buyerEmail
-            );
-
-            await tx.CommitAsync();
-
-            var resp = new CreatePayOSPaymentResponseDTO
-            {
-                OrderId = order.OrderId,
-                PaymentId = paymentNew.PaymentId,
-                PaymentUrl = paymentUrl
-            };
-
-            return Ok(resp);
-        }
-
         // ===== Webhook PayOS =====
         // POST /api/payments/payos/webhook
+        // - ORDER_CART: dùng snapshot cart trong cache → Paid => tạo Order, Cancelled => hoàn kho.
+        // - SUPPORT_PLAN / các loại khác: chỉ cập nhật Payment.Status.
         [HttpPost("payos/webhook")]
         [AllowAnonymous]
         public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookModel payload)
@@ -344,150 +207,188 @@ namespace Keytietkiem.Controllers
                     p.ProviderOrderCode == data.OrderCode
                 );
 
-            // Decode OrderId từ description
-            if (!TryDecodeOrderIdFromDescription(data.Description, out var orderId))
+            if (payment == null)
             {
-                // Không decode được OrderId => chỉ update payment (nếu có), không động tới Orders
-                if (payment != null)
-                {
-                    if (topCode == "00" && dataCode == "00")
-                    {
-                        payment.Status = "Paid";
-                        payment.Amount = data.Amount;
-                    }
-                    else if (payment.Status == "Pending")
-                    {
-                        payment.Status = "Cancelled";
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
-
+                // Không có payment nào khớp orderCode -> bỏ qua
                 return Ok();
             }
 
-            var order = await _context.Orders
-                .Include(o => o.OrderDetails)
-                    .ThenInclude(od => od.Variant)
-                .FirstOrDefaultAsync(o => o.OrderId == orderId);
-
-            if (order == null)
+            // ===== 1. Payment tạo từ Cart (ORDER_CART) =====
+            if (string.Equals(payment.TransactionType, "ORDER_CART", StringComparison.OrdinalIgnoreCase))
             {
-                // Không tìm thấy Order -> vẫn update payment nếu có
-                if (payment != null)
-                {
-                    if (topCode == "00" && dataCode == "00")
-                    {
-                        payment.Status = "Paid";
-                        payment.Amount = data.Amount;
-                    }
-                    else if (payment.Status == "Pending")
-                    {
-                        payment.Status = "Cancelled";
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
-
+                await HandleCartPaymentWebhook(payment, topCode, dataCode, data.Amount);
                 return Ok();
             }
 
-            // Nếu order không còn Pending thì thôi, tránh xử lý lại
-            if (!string.Equals(order.Status, "Pending", StringComparison.OrdinalIgnoreCase))
-            {
-                return Ok();
-            }
+            // ===== 2. Các loại payment khác: SUPPORT_PLAN, ... =====
+            var isSuccess = topCode == "00" && dataCode == "00";
 
-            if (topCode == "00" && dataCode == "00")
+            if (isSuccess)
             {
-                // Thanh toán thành công
                 var amountDecimal = (decimal)data.Amount;
-
-                if (payment != null)
-                {
-                    payment.Status = "Paid";
-                    payment.Amount = amountDecimal;
-                }
-
-                order.Status = "Paid";
-
-                if (!(order.FinalAmount.HasValue && order.FinalAmount.Value > 0))
-                {
-                    order.FinalAmount = amountDecimal;
-                }
-
-                await _context.SaveChangesAsync();
-                return Ok();
+                payment.Status = "Paid";
+                payment.Amount = amountDecimal;
             }
-
-            // Các trường hợp code != "00" (giao dịch thất bại / huỷ)
-            order.Status = "Cancelled";
-
-            if (payment != null && payment.Status == "Pending")
+            else if (payment.Status == "Pending")
             {
                 payment.Status = "Cancelled";
-            }
-
-            // Hoàn kho
-            if (order.OrderDetails != null)
-            {
-                foreach (var od in order.OrderDetails)
-                {
-                    if (od.Variant != null)
-                    {
-                        od.Variant.StockQty += od.Quantity;
-                    }
-                }
             }
 
             await _context.SaveChangesAsync();
             return Ok();
         }
 
-        // ===== Helpers encode/decode OrderId =====
+        private static string GetCartPaymentItemsCacheKey(Guid paymentId)
+            => $"cart:payment:{paymentId:D}:items";
 
-        private static string EncodeOrderIdToDescription(Guid orderId)
+        private static string GetCartPaymentMetaCacheKey(Guid paymentId)
+            => $"cart:payment:{paymentId:D}:meta";
+
+        private (List<StorefrontCartItemDto>? Items, Guid? UserId, string? Email) GetCartSnapshot(Guid paymentId)
         {
-            var bytes = orderId.ToByteArray();
+            var itemsKey = GetCartPaymentItemsCacheKey(paymentId);
+            var metaKey = GetCartPaymentMetaCacheKey(paymentId);
 
-            var base64 = Convert.ToBase64String(bytes)
-                .TrimEnd('=')          // bỏ padding
-                .Replace('+', '-')     // URL-safe
-                .Replace('/', '_');    // URL-safe
+            _cache.TryGetValue(itemsKey, out List<StorefrontCartItemDto>? items);
+            _cache.TryGetValue(metaKey, out (Guid? UserId, string Email) meta);
 
-            return "K" + base64;
+            if (items == null || items.Count == 0)
+            {
+                return (null, null, null);
+            }
+
+            var email = string.IsNullOrWhiteSpace(meta.Email) ? null : meta.Email;
+            return (items, meta.UserId, email);
         }
 
-        private static bool TryDecodeOrderIdFromDescription(string description, out Guid orderId)
+        private void ClearCartSnapshot(Guid paymentId)
         {
-            orderId = Guid.Empty;
-
-            if (string.IsNullOrWhiteSpace(description) || !description.StartsWith("K"))
-                return false;
-
-            var base64 = description.Substring(1)
-                .Replace('-', '+')
-                .Replace('_', '/');
-
-            switch (base64.Length % 4)
-            {
-                case 2: base64 += "=="; break;
-                case 3: base64 += "="; break;
-            }
-
-            try
-            {
-                var bytes = Convert.FromBase64String(base64);
-                if (bytes.Length != 16) return false;
-
-                orderId = new Guid(bytes);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
+            _cache.Remove(GetCartPaymentItemsCacheKey(paymentId));
+            _cache.Remove(GetCartPaymentMetaCacheKey(paymentId));
         }
+
+        /// <summary>
+        /// Xử lý webhook cho Payment TransactionType = ORDER_CART:
+        /// - Success (00/00): Payment = Paid, tạo Order + OrderDetails từ snapshot, xoá snapshot.
+        /// - Ngược lại: Payment = Cancelled, hoàn kho theo snapshot, xoá snapshot.
+        /// </summary>
+        private async Task HandleCartPaymentWebhook(
+            Payment payment,
+            string topCode,
+            string dataCode,
+            long amountFromGateway)
+        {
+            var currentStatus = payment.Status ?? "Pending";
+            if (!string.Equals(currentStatus, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                // Đã xử lý trước đó
+                return;
+            }
+
+            var isSuccess = topCode == "00" && dataCode == "00";
+
+            if (isSuccess)
+            {
+                var (items, userId, email) = GetCartSnapshot(payment.PaymentId);
+                if (items == null || !items.Any() || string.IsNullOrWhiteSpace(email))
+                {
+                    // Không còn dữ liệu cart -> không thể tạo order; cancel payment để tránh treo.
+                    payment.Status = "Cancelled";
+                    await _context.SaveChangesAsync();
+                    ClearCartSnapshot(payment.PaymentId);
+                    return;
+                }
+
+                decimal totalListAmount = 0m;
+                decimal totalAmount = 0m;
+
+                foreach (var item in items)
+                {
+                    var qty = item.Quantity < 0 ? 0 : item.Quantity;
+
+                    var listPrice = item.ListPrice != 0 ? item.ListPrice : item.UnitPrice;
+                    if (listPrice < 0) listPrice = 0;
+
+                    var unitPrice = item.UnitPrice;
+                    if (unitPrice < 0) unitPrice = 0;
+
+                    totalListAmount += listPrice * qty;
+                    totalAmount += unitPrice * qty;
+                }
+
+                totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
+                totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+
+                var amountDecimal = (decimal)amountFromGateway;
+
+                payment.Status = "Paid";
+                payment.Amount = amountDecimal;
+
+                using var tx = await _context.Database.BeginTransactionAsync();
+
+                // Order tạo từ cart: không dùng Status, chỉ là log immutable
+                var order = new Order
+                {
+                    UserId = userId,
+                    Email = email!,
+                    TotalAmount = totalListAmount,
+                    DiscountAmount = totalListAmount - totalAmount,
+                    FinalAmount = totalAmount,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Orders.Add(order);
+                await _context.SaveChangesAsync();
+
+                foreach (var item in items)
+                {
+                    if (item.Quantity <= 0) continue;
+
+                    var orderDetail = new OrderDetail
+                    {
+                        OrderId = order.OrderId,
+                        VariantId = item.VariantId,
+                        Quantity = item.Quantity,
+                        UnitPrice = item.UnitPrice
+                    };
+
+                    _context.OrderDetails.Add(orderDetail);
+                }
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                ClearCartSnapshot(payment.PaymentId);
+                return;
+            }
+
+            // Các trường hợp còn lại: user huỷ, thất bại, hết hạn...
+            payment.Status = "Cancelled";
+
+            // Hoàn kho dựa trên snapshot
+            var (cancelItems, _, _) = GetCartSnapshot(payment.PaymentId);
+            if (cancelItems != null && cancelItems.Any())
+            {
+                var variantIds = cancelItems.Select(i => i.VariantId).Distinct().ToList();
+
+                var variants = await _context.ProductVariants
+                    .Where(v => variantIds.Contains(v.VariantId))
+                    .ToListAsync();
+
+                foreach (var snapshotItem in cancelItems)
+                {
+                    var variant = variants.FirstOrDefault(v => v.VariantId == snapshotItem.VariantId);
+                    if (variant != null && snapshotItem.Quantity > 0)
+                    {
+                        variant.StockQty += snapshotItem.Quantity;
+                    }
+                }
+            }
+
+            ClearCartSnapshot(payment.PaymentId);
+            await _context.SaveChangesAsync();
+        }
+
         // ===== API: Tạo Payment + PayOS checkoutUrl cho gói hỗ trợ (subscription 1 tháng) =====
         // POST /api/payments/payos/create-support-plan
         [HttpPost("payos/create-support-plan")]
@@ -532,10 +433,10 @@ namespace Keytietkiem.Controllers
 
             using var tx = await _context.Database.BeginTransactionAsync();
 
-            // Dùng UnixTimeSeconds làm orderCode đơn giản (giống Order Payment)
+            // Dùng UnixTimeSeconds làm orderCode đơn giản
             var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
 
-            // Tạo bản ghi Payment Pending – bảng độc lập, TransactionType = SUPPORT_PLAN
+            // Tạo bản ghi Payment Pending – TransactionType = SUPPORT_PLAN
             var payment = new Payment
             {
                 Amount = plan.Price,
