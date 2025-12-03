@@ -1,4 +1,4 @@
-/* File: src/styles/SupportPriorityLoyaltyRulesPage.css */
+/* File: src/styles/SupportPlansAdminPage.css */
 :root {
   --ink: #0b1220;
   --muted: #6b7280;
@@ -601,29 +601,4 @@ textarea:focus {
 .cat-modal-card .panel-body::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 999px;
-}
-/* ===== Filter row (filter + buttons cùng hàng) ===== */
-.filter-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  align-items: flex-start; /* các .group thẳng hàng theo đỉnh */
-}
-
-.filter-row .group {
-  min-width: 0;
-}
-
-/* Cụm Làm mới + Đặt lại + loading */
-.filter-actions-inner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Nút thêm nằm sát phải của hàng */
-.filter-add {
-  margin-left: auto;
 }
