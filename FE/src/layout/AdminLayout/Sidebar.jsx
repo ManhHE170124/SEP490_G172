@@ -211,7 +211,7 @@ const Sidebar = () => {
         },
       ],
     },
-       {
+    {
       id: "product",
       title: "Quản lý sản phẩm",
       moduleCode: MODULE_CODES.PRODUCT_MANAGER,
@@ -220,7 +220,9 @@ const Sidebar = () => {
           id: "products",
           label: "Quản lý sản phẩm",
           to: "/admin/products",
-          isActive: currentPage === "/admin/products",
+          isActive:
+            currentPage === "admin/products" ||
+            currentPage.startsWith("admin/products/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -244,7 +246,7 @@ const Sidebar = () => {
           id: "categories",
           label: "Quản lý danh mục",
           to: "/admin/categories",
-          isActive: currentPage === "/admin/categories",
+          isActive: currentPage === "admin/categories",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -265,7 +267,7 @@ const Sidebar = () => {
           ),
         },
 
-        // === THÊM MENU ĐƠN HÀNG & THANH TOÁN ===
+        // === Đơn hàng & thanh toán ===
         {
           id: "orders-admin",
           label: "Đơn hàng & thanh toán",
@@ -273,8 +275,8 @@ const Sidebar = () => {
           // currentPage ở trên lấy bằng location.pathname.substring(1)
           // nên path "/admin/orders" => currentPage === "admin/orders"
           isActive:
-            currentPage === "/admin/orders" ||
-            currentPage === "/admin/payments",
+            currentPage === "admin/orders" ||
+            currentPage === "admin/payments",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <rect
@@ -314,7 +316,7 @@ const Sidebar = () => {
           id: "faqs",
           label: "Câu hỏi thường gặp",
           to: "/admin/faqs",
-          isActive: currentPage === "/admin/faqs",
+          isActive: currentPage === "admin/faqs",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -516,10 +518,12 @@ const Sidebar = () => {
       moduleCode: MODULE_CODES.USER_MANAGER,
       items: [
         {
-          id: "user-management",
+          id: "users",
           label: "Quản lý người dùng",
-          to: "/admin-user-management",
-          isActive: currentPage === "admin-user-management",
+          to: "/admin/users",
+          isActive:
+            currentPage === "admin/users" ||
+            currentPage.startsWith("admin/users/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -560,7 +564,9 @@ const Sidebar = () => {
           id: "tickets",
           label: "Quản lý phiếu hỗ trợ",
           to: "/admin/tickets",
-          isActive: currentPage === "/admin/tickets",
+          isActive:
+            currentPage === "admin/tickets" ||
+            currentPage.startsWith("admin/tickets/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -584,7 +590,7 @@ const Sidebar = () => {
           id: "support-chats",
           label: "Quản lý chat hỗ trợ",
           to: "/admin/support-chats",
-          isActive: currentPage === "/admin/support-chats",
+          isActive: currentPage === "admin/support-chats",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -609,7 +615,8 @@ const Sidebar = () => {
           label: "Báo cáo sản phẩm",
           to: "/reports",
           isActive:
-            currentPage === "reports" || currentPage.startsWith("reports/"),
+            currentPage === "reports" ||
+            currentPage.startsWith("reports/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path

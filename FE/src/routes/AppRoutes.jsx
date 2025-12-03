@@ -390,7 +390,7 @@ export default function AppRoutes() {
         )}
       />
       <Route
-        path="/admin-user-management"
+        path="/admin/users"
         element={renderAdminPage(
           MODULE_CODES.USER_MANAGER,
           <AdminUserManagement />
