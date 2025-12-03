@@ -162,9 +162,9 @@ namespace Keytietkiem.Controllers
             }
 
             // Chỉ nhận payment dành cho gói hỗ trợ
-            if (!string.Equals(payment.TransactionType, "SUPPORT_PLAN", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(payment.TransactionType, "SERVICE_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
-                return BadRequest(new { message = "Payment không thuộc loại SUPPORT_PLAN" });
+                return BadRequest(new { message = "Payment không thuộc loại SERVICE_PAYMENT" });
             }
 
             // Chỉ chấp nhận khi đã Paid / Success / Completed
@@ -186,10 +186,10 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Gói hỗ trợ không tồn tại hoặc đã bị khóa." });
             }
 
-            // Bảo vệ: số tiền thanh toán phải khớp giá gói (1 tháng)
-            if (payment.Amount != plan.Price)
+            // Bảo vệ basic: số tiền phải > 0 (không check = Price vì có thể là AdjustedAmount)
+            if (payment.Amount <= 0)
             {
-                return BadRequest(new { message = "Số tiền thanh toán không khớp với giá gói hỗ trợ." });
+                return BadRequest(new { message = "Số tiền thanh toán không hợp lệ." });
             }
 
             // Bảo vệ: email payment phải trùng email user (nếu payment có email)
@@ -200,6 +200,9 @@ namespace Keytietkiem.Controllers
             }
 
             var nowUtc = DateTime.UtcNow;
+
+            // Dùng transaction để đảm bảo logic "chỉ 1 gói Active" nhất quán
+            await using var tx = await _db.Database.BeginTransactionAsync();
 
             // Idempotent: nếu đã có subscription gắn với payment này -> trả luôn
             var existing = await _db.UserSupportPlanSubscriptions
@@ -214,6 +217,28 @@ namespace Keytietkiem.Controllers
                 {
                     return BadRequest(new { message = "Payment đã được gán cho người dùng khác." });
                 }
+
+                // 🔐 Đảm bảo chỉ có subscription này là Active:
+                // Tất cả subscription khác của user đang Active sẽ bị đổi trạng thái (ví dụ: Cancelled)
+                var otherActiveSubs = await _db.UserSupportPlanSubscriptions
+                    .Where(s =>
+                        s.UserId == user.UserId &&
+                        s.Status == "Active" &&
+                        s.SubscriptionId != existing.SubscriptionId)
+                    .ToListAsync();
+
+                foreach (var sub in otherActiveSubs)
+                {
+                    sub.Status = "Cancelled";
+                    // tuỳ bạn muốn: sub.ExpiresAt = nowUtc; // nếu muốn cắt hạn luôn
+                }
+
+                if (otherActiveSubs.Count > 0)
+                {
+                    await _db.SaveChangesAsync();
+                }
+
+                await tx.CommitAsync();
 
                 // Priority hiệu lực cho response: dựa theo Users.SupportPriorityLevel,
                 // nhưng đảm bảo không thấp hơn PriorityLevel của gói
@@ -240,7 +265,19 @@ namespace Keytietkiem.Controllers
                 return Ok(existingDto);
             }
 
-            // Tạo subscription 1 tháng
+            // 🔐 Chưa có subscription cho Payment này -> tạo mới
+            // Trước khi tạo, phải chắc chắn không còn gói nào khác đang Active cho user
+            var oldActiveSubsForUser = await _db.UserSupportPlanSubscriptions
+                .Where(s => s.UserId == user.UserId && s.Status == "Active")
+                .ToListAsync();
+
+            foreach (var sub in oldActiveSubsForUser)
+            {
+                sub.Status = "Cancelled";
+                // tuỳ bạn muốn: sub.ExpiresAt = nowUtc;
+            }
+
+            // Tạo subscription 1 tháng cho gói vừa thanh toán
             var subscription = new UserSupportPlanSubscription
             {
                 UserId = user.UserId,
@@ -261,6 +298,7 @@ namespace Keytietkiem.Controllers
             }
 
             await _db.SaveChangesAsync();
+            await tx.CommitAsync();
 
             // Sau khi lưu, priority hiệu lực là Users.SupportPriorityLevel (ít nhất bằng plan.PriorityLevel)
             var effectivePriorityLevelNew = user.SupportPriorityLevel;
@@ -284,5 +322,6 @@ namespace Keytietkiem.Controllers
 
             return Ok(result);
         }
+
     }
 }

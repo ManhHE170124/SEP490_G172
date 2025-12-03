@@ -84,7 +84,7 @@ import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import StaffSupportChatPage from "../pages/admin/staff-support-chat";
 
 // Subscription (Support Plan)
-import SupportPlanSubscriptionPage from "../pages/subcription/SupportPlanSubscriptionPage.jsx";
+import SupportPlanSubscriptionPage from "../pages/subscription/SupportPlanSubscriptionPage.jsx";
 
 // Product Report Pages
 import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";

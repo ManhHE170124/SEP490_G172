@@ -7,11 +7,13 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  useRef, // ✅ thêm useRef
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import axiosClient from "../../api/axiosClient";
 import Toast from "../../components/Toast/Toast";
 import "./SupportPlanSubscriptionPage.css";
+import supportPlanPaymentApi from "../../api/supportPlanPaymentApi";
 
 // ===== Helpers chung =====
 
@@ -44,16 +46,33 @@ const formatDate = (value) => {
 };
 
 // Tính số ngày còn lại (ước tính) giữa hôm nay và expiresAt
+// Căn theo BE: (ExpiresAt.Date - Today.Date) trong khoảng 0..30
 const calcRemainingDays = (value) => {
   if (!value) return null;
   try {
     const exp = new Date(value);
     if (Number.isNaN(exp.getTime())) return null;
+
     const now = new Date();
-    const diffMs = exp.getTime() - now.getTime();
-    if (diffMs <= 0) return 0;
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    return Math.ceil(diffDays);
+
+    const expDate = new Date(
+      exp.getFullYear(),
+      exp.getMonth(),
+      exp.getDate()
+    );
+    const nowDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    const diffMs = expDate.getTime() - nowDate.getTime();
+    let diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) diffDays = 0;
+    if (diffDays > 30) diffDays = 30;
+
+    return diffDays;
   } catch {
     return null;
   }
@@ -146,6 +165,10 @@ const SupportPlanSubscriptionPage = () => {
   const [toasts, setToasts] = useState([]);
   const [customer] = useState(() => readCustomerFromStorage());
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ✅ Cờ chống chạy handleRedirect 2 lần cho cùng 1 lượt redirect
+  const redirectHandledRef = useRef(false);
 
   // PriorityLevel hiện tại luôn lấy từ BE (/supportplans/me/current)
   const currentPriorityLevel = currentSub
@@ -244,6 +267,8 @@ const SupportPlanSubscriptionPage = () => {
   ]);
 
   // Số tiền đã điều chỉnh để hiển thị trong popup (dùng cho gói trả phí)
+  // Công thức mới:
+  // Số tiền phải thanh toán = Giá gói được chọn - Giá gói ban đầu * (Số ngày còn lại / 30)
   const adjustedAmount = useMemo(() => {
     if (!previewPlan) return null;
     const newPrice = Number(
@@ -252,21 +277,21 @@ const SupportPlanSubscriptionPage = () => {
     if (!newPrice || newPrice <= 0) return 0;
 
     const { currentPrice, remainingDays } = paymentBaseInfo;
+    const daysInMonth = 30;
+
     if (
-      !currentPrice ||
-      !remainingDays ||
-      Number(remainingDays) <= 0
+      currentPrice &&
+      remainingDays &&
+      Number(remainingDays) > 0
     ) {
-      // Không có gói cũ hợp lệ → trả full giá
-      return newPrice;
+      const discount = (currentPrice * remainingDays) / daysInMonth;
+      let adjusted = newPrice - discount;
+      if (adjusted < 0) adjusted = 0;
+      return Math.round(adjusted);
     }
 
-    const daysInMonth = 30;
-    const remainingValue =
-      (currentPrice / daysInMonth) * remainingDays;
-    let adjusted = newPrice - remainingValue;
-    if (adjusted < 0) adjusted = 0;
-    return Math.round(adjusted);
+    // Không có gói cũ hợp lệ → trả full giá
+    return newPrice;
   }, [previewPlan, paymentBaseInfo]);
 
   // Toast helpers
@@ -339,6 +364,112 @@ const SupportPlanSubscriptionPage = () => {
     fetchData();
   }, [fetchData]);
 
+  // ===== Xử lý kết quả redirect từ PayOS sau khi thanh toán xong =====
+  useEffect(() => {
+    // Không có query -> reset cờ, để lần sau redirect còn chạy
+    if (!location?.search) {
+      redirectHandledRef.current = false;
+      return;
+    }
+
+    // Đã xử lý rồi thì bỏ qua (chống chạy 2 lần)
+    if (redirectHandledRef.current) {
+      return;
+    }
+    redirectHandledRef.current = true;
+
+    const searchParams = new URLSearchParams(location.search);
+    const code = searchParams.get("code");
+    const status = searchParams.get("status");
+    const cancelParam = searchParams.get("cancel");
+    const paymentId = searchParams.get("paymentId");
+    const supportPlanIdParam = searchParams.get("supportPlanId");
+
+    if (
+      !code &&
+      !status &&
+      !cancelParam &&
+      !paymentId &&
+      !supportPlanIdParam
+    ) {
+      return;
+    }
+
+    const cancel =
+      (cancelParam || "").toLowerCase() === "true" ||
+      (status || "").toUpperCase() === "CANCELLED";
+
+    const handleRedirect = async () => {
+      // Trường hợp user huỷ thanh toán trên PayOS
+      if (cancel) {
+        addToast(
+          "info",
+          "Thanh toán đã huỷ",
+          "Bạn đã huỷ giao dịch thanh toán gói hỗ trợ."
+        );
+        // Xoá query trên URL cho sạch
+        navigate("/support/subscription", { replace: true });
+        return;
+      }
+
+      const okCode = code === "00";
+      const okStatus = (status || "").toUpperCase() === "PAID";
+
+      // Thanh toán thành công → gọi BE xác nhận & tạo subscription
+      if (okCode && okStatus && paymentId && supportPlanIdParam) {
+        try {
+          const payload = {
+            paymentId,
+            supportPlanId: Number(supportPlanIdParam),
+          };
+
+          const resp =
+            await supportPlanPaymentApi.confirmSupportPlanPayment(
+              payload
+            );
+          const data = resp?.data ?? resp;
+
+          if (data) {
+            setCurrentSub(normalizeCurrentSubscription(data));
+          }
+
+          addToast(
+            "success",
+            "Đăng ký gói hỗ trợ thành công",
+            "Gói hỗ trợ của bạn đã được kích hoạt."
+          );
+        } catch (err) {
+          console.error("Failed to confirm support plan payment", err);
+          const msg =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Không thể xác nhận thanh toán gói hỗ trợ. Vui lòng liên hệ chăm sóc khách hàng nếu tiền đã bị trừ.";
+          addToast("error", "Lỗi xác nhận thanh toán", msg);
+        } finally {
+          // Luôn reload data cho chắc (priority level, subscription,...)
+          await fetchData();
+          // Xoá query trên URL
+          navigate("/support/subscription", { replace: true });
+        }
+        return;
+      }
+
+      // Các trường hợp code != 00 hoặc status khác PAID
+      if (code && code !== "00") {
+        addToast(
+          "error",
+          "Thanh toán thất bại",
+          "Giao dịch thanh toán với PayOS không thành công."
+        );
+      }
+
+      // Dọn query URL
+      navigate("/support/subscription", { replace: true });
+    };
+
+    handleRedirect();
+  }, [location.search, addToast, fetchData, navigate]);
+
   // Gọi BE tạo Payment + redirect sang PayOS
   const handleSelectPlan = useCallback(
     async (plan) => {
@@ -361,23 +492,19 @@ const SupportPlanSubscriptionPage = () => {
           "Cần đăng nhập",
           "Vui lòng đăng nhập để đăng ký gói hỗ trợ."
         );
-        const returnUrl = encodeURIComponent("/support/subscription");
+        const returnUrl = encodeURIComponent(
+          "/support/subscription"
+        );
         navigate(`/login?returnUrl=${returnUrl}`);
         return;
       }
 
       setCreatingPaymentPlanId(plan.supportPlanId);
       try {
-        const payload = {
-          supportPlanId: plan.supportPlanId,
-          // Nếu BE muốn nhận thêm adjustedAmount để đối chiếu có thể gửi kèm:
-          // adjustedAmount: adjustedAmount,
-        };
-
-        const resp = await axiosClient.post(
-          "/payments/payos/create-support-plan",
-          payload
-        );
+        const resp =
+          await supportPlanPaymentApi.createPayOSPayment(
+            plan.supportPlanId
+          );
         const data = resp?.data ?? resp;
         const paymentUrl = data.paymentUrl || data.PaymentUrl;
 
@@ -399,13 +526,34 @@ const SupportPlanSubscriptionPage = () => {
         setCreatingPaymentPlanId(null);
       }
     },
-    [addToast, customer, navigate, adjustedAmount]
+    [addToast, customer, navigate]
   );
 
   // mở popup preview khi chọn gói (thay vì gọi BE ngay)
   const handleOpenPreview = useCallback(
     (plan) => {
       if (!plan || !plan.supportPlanId) return;
+
+      const planLevel =
+        Number(
+          plan.priorityLevel ??
+            plan.PriorityLevel ??
+            0
+        ) || 0;
+
+      // Nếu đang có priority > 0 và gói này có level <= currentPriorityLevel => không cho chọn
+      if (
+        currentPriorityLevel > 0 &&
+        planLevel > 0 &&
+        planLevel <= currentPriorityLevel
+      ) {
+        addToast(
+          "info",
+          "Không thể chọn gói thấp hơn",
+          "Bạn đang ở gói có mức ưu tiên cao hơn. Chỉ có thể nâng cấp lên gói cao hơn hiện tại."
+        );
+        return;
+      }
 
       // Gói miễn phí vẫn giữ behavior cũ: báo note, không mở popup
       if (!plan.price || plan.price <= 0) {
@@ -420,7 +568,7 @@ const SupportPlanSubscriptionPage = () => {
       setPreviewPlan(plan);
       setIsPreviewOpen(true);
     },
-    [addToast]
+    [addToast, currentPriorityLevel]
   );
 
   const handleClosePreview = useCallback(() => {
@@ -455,8 +603,11 @@ const SupportPlanSubscriptionPage = () => {
           : "Bạn đang sử dụng gói hỗ trợ mặc định (Hỗ trợ tiêu chuẩn)."
         : null));
 
-  const { currentPrice: paymentCurrentPrice, remainingDays: paymentRemainingDays, source: paymentSource } =
-    paymentBaseInfo;
+  const {
+    currentPrice: paymentCurrentPrice,
+    remainingDays: paymentRemainingDays,
+    source: paymentSource,
+  } = paymentBaseInfo;
 
   return (
     <main className="sp-sub-page">
@@ -525,6 +676,13 @@ const SupportPlanSubscriptionPage = () => {
                   currentPriorityLevel > 0 &&
                   planLevel === currentPriorityLevel;
 
+                // Gói thấp hơn gói hiện tại (ví dụ đang VIP=2 mà gói này=1) -> không cho chọn
+                const isDowngradePlan =
+                  !isFree &&
+                  currentPriorityLevel > 0 &&
+                  planLevel > 0 &&
+                  planLevel < currentPriorityLevel;
+
                 const isHighlight =
                   planLevel >= 2 || (!isFree && planLevel === 1);
 
@@ -532,6 +690,7 @@ const SupportPlanSubscriptionPage = () => {
                   "sp-sub-plan-card",
                   isHighlight ? "sp-sub-plan-card--highlight" : "",
                   isCurrentPaidPlan ? "sp-sub-plan-card--current" : "",
+                  isDowngradePlan ? "sp-sub-plan-card--downgrade" : "",
                 ]
                   .filter(Boolean)
                   .join(" ");
@@ -539,10 +698,12 @@ const SupportPlanSubscriptionPage = () => {
                 // Disable rules:
                 // - Gói mặc định (free) luôn disable (gói default)
                 // - Gói hiện tại (1/2) disable
+                // - Gói thấp hơn gói hiện tại disable
                 // - Trong lúc đang tạo payment cho gói đó cũng disable
                 const disabled =
                   isFree ||
                   isCurrentPaidPlan ||
+                  isDowngradePlan ||
                   creatingPaymentPlanId === plan.supportPlanId;
 
                 let buttonLabel;
@@ -554,6 +715,8 @@ const SupportPlanSubscriptionPage = () => {
                   buttonLabel = "Đang chuyển đến thanh toán...";
                 } else if (isCurrentPaidPlan) {
                   buttonLabel = "Gói hiện tại";
+                } else if (isDowngradePlan) {
+                  buttonLabel = "Không thể chọn gói thấp hơn";
                 } else {
                   buttonLabel = "Chọn gói này";
                 }
