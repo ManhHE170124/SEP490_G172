@@ -555,8 +555,22 @@ export default function AppRoutes() {
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
-      <Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
-      <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
+      <Route
+   path="/cart/payment-cancel"
+   element={
+     <ClientLayout>
+       <PaymentCancelPage />
+     </ClientLayout>
+   }
+ />
+ <Route
+   path="/cart/payment-result"
+   element={
+     <ClientLayout>
+       <PaymentResultPage />
+     </ClientLayout>
+   }
+ />
       <Route
         path="/homepage"
         element={

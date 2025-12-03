@@ -46,8 +46,7 @@ namespace Keytietkiem.Controllers
             return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
         }
 
-        // ===== API ADMIN: list payment với filter cơ bản =====
-        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_CART
+        // ===== API ADMIN: list payment =====
         [HttpGet]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
@@ -185,8 +184,7 @@ namespace Keytietkiem.Controllers
         }
 
         // ===== Webhook PayOS =====
-        // POST /api/payments/payos/webhook
-        // - ORDER_CART: dùng snapshot cart trong cache → Paid => tạo Order, Cancelled => hoàn kho.
+        // - ORDER_PAYMENT (cart checkout): dùng snapshot cart → Paid/Cancelled + Order.
         // - SUPPORT_PLAN / các loại khác: chỉ cập nhật Payment.Status.
         [HttpPost("payos/webhook")]
         [AllowAnonymous]
@@ -213,14 +211,14 @@ namespace Keytietkiem.Controllers
                 return Ok();
             }
 
-            // ===== 1. Payment tạo từ Cart (ORDER_CART) =====
-            if (string.Equals(payment.TransactionType, "ORDER_CART", StringComparison.OrdinalIgnoreCase))
+            // 1. Payment từ Cart (ORDER_PAYMENT với snapshot cart)
+            if (string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleCartPaymentWebhook(payment, topCode, dataCode, data.Amount);
                 return Ok();
             }
 
-            // ===== 2. Các loại payment khác: SUPPORT_PLAN, ... =====
+            // 2. Các loại payment khác: SUPPORT_PLAN, ...
             var isSuccess = topCode == "00" && dataCode == "00";
 
             if (isSuccess)
@@ -237,6 +235,84 @@ namespace Keytietkiem.Controllers
             await _context.SaveChangesAsync();
             return Ok();
         }
+
+        // ===== API: FE xác nhận thanh toán Cart sau khi PayOS redirect (SUCCESS) =====
+        // POST /api/payments/cart/confirm-from-return
+        [HttpPost("cart/confirm-from-return")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ConfirmCartPaymentFromReturn(
+            [FromBody] ConfirmCartPaymentRequestDto dto)
+        {
+            if (dto == null || dto.PaymentId == Guid.Empty)
+            {
+                return BadRequest(new { message = "PaymentId không hợp lệ" });
+            }
+
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.PaymentId == dto.PaymentId);
+
+            if (payment == null)
+            {
+                return NotFound(new { message = "Payment không tồn tại" });
+            }
+
+            if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Payment không thuộc loại ORDER_PAYMENT (cart checkout)" });
+            }
+
+            // Nếu đã được webhook xử lý rồi thì không làm lại (idempotent)
+            if (!string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return Ok(new { message = "Payment đã được xử lý", status = payment.Status });
+            }
+
+            // Mặc định coi là success khi FE vào trang /cart/payment-result
+            // (có thể kiểm tra thêm dto.Code/dto.Status nếu muốn)
+            var amountFromGateway = (long)Math.Round(payment.Amount, 0, MidpointRounding.AwayFromZero);
+
+            await HandleCartPaymentWebhook(payment, "00", "00", amountFromGateway);
+
+            return Ok(new { message = "Đã xác nhận thanh toán thành công", status = payment.Status });
+        }
+
+        // ===== API: FE huỷ thanh toán Cart sau khi PayOS redirect (CANCEL) =====
+        // POST /api/payments/cart/cancel-from-return
+        [HttpPost("cart/cancel-from-return")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CancelCartPaymentFromReturn(
+            [FromBody] CancelCartPaymentRequestDto dto)
+        {
+            if (dto == null || dto.PaymentId == Guid.Empty)
+            {
+                return BadRequest(new { message = "PaymentId không hợp lệ" });
+            }
+
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.PaymentId == dto.PaymentId);
+
+            if (payment == null)
+            {
+                // Không tìm thấy payment -> coi như đã xử lý xong
+                return Ok(new { message = "Payment không tồn tại" });
+            }
+
+            if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
+            {
+                return Ok(new { message = "Không phải payment tạo từ cart" });
+            }
+
+            // Chỉ xử lý khi còn Pending
+            if (string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                // Gọi logic cancel: status = Cancelled + hoàn kho + clear snapshot
+                await HandleCartPaymentWebhook(payment, "XX", "XX", 0);
+            }
+
+            return Ok(new { message = "Cart payment cancelled", status = payment.Status });
+        }
+
+        // ===== Helpers cho snapshot Cart Payment =====
 
         private static string GetCartPaymentItemsCacheKey(Guid paymentId)
             => $"cart:payment:{paymentId:D}:items";
@@ -268,7 +344,6 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Xử lý webhook cho Payment TransactionType = ORDER_CART:
         /// - Success (00/00): Payment = Paid, tạo Order + OrderDetails từ snapshot, xoá snapshot.
         /// - Ngược lại: Payment = Cancelled, hoàn kho theo snapshot, xoá snapshot.
         /// </summary>
@@ -326,7 +401,7 @@ namespace Keytietkiem.Controllers
 
                 using var tx = await _context.Database.BeginTransactionAsync();
 
-                // Order tạo từ cart: không dùng Status, chỉ là log immutable
+                // Order tạo từ cart: chỉ là log immutable
                 var order = new Order
                 {
                     UserId = userId,
@@ -388,6 +463,8 @@ namespace Keytietkiem.Controllers
             ClearCartSnapshot(payment.PaymentId);
             await _context.SaveChangesAsync();
         }
+
+
 
         // ===== API: Tạo Payment + PayOS checkoutUrl cho gói hỗ trợ (subscription 1 tháng) =====
         // POST /api/payments/payos/create-support-plan

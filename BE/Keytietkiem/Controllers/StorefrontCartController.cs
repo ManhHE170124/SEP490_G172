@@ -153,7 +153,6 @@ namespace Keytietkiem.Controllers
         // ===== POST: /apistorefront/cart/checkout =====
         // Flow:
         //  - Tính tiền từ cart.
-        //  - Tạo Payment (Pending, TransactionType = "ORDER_CART") + ProviderOrderCode.
         //  - Gọi PayOS để lấy checkoutUrl.
         //  - Lưu snapshot cart (ẩn) vào cache key theo PaymentId.
         //  - Xoá cart đang hiển thị (cache cart theo user/anon).
@@ -256,7 +255,7 @@ namespace Keytietkiem.Controllers
                 Provider = "PayOS",
                 ProviderOrderCode = orderCode,
                 Email = email,
-                TransactionType = "ORDER_CART"
+                TransactionType = "ORDER_PAYMENT"
             };
 
             db.Payments.Add(payment);
@@ -586,21 +585,27 @@ namespace Keytietkiem.Controllers
             if (Request.Cookies.TryGetValue(AnonymousCartCookieName, out var existing) &&
                 !string.IsNullOrWhiteSpace(existing))
             {
+                // Browser đã có cookie ktk_anon_cart -> dùng lại ID cũ
                 return existing;
             }
 
             var newId = Guid.NewGuid().ToString("N");
+
+            
             var options = new CookieOptions
             {
                 HttpOnly = true,
                 IsEssential = true,
-                SameSite = SameSiteMode.Lax,
+                SameSite = SameSiteMode.None,       
+                Secure = true,                      
                 Expires = DateTimeOffset.UtcNow.Add(AnonymousCartTtl)
             };
 
             Response.Cookies.Append(AnonymousCartCookieName, newId, options);
             return newId;
         }
+
+
 
         private CartCacheModel GetOrCreateCart(string cacheKey, bool isAuthenticated)
         {
