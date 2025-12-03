@@ -582,7 +582,7 @@ const Sidebar = () => {
         },
         {
           id: "support-chats",
-          label: "Quản lý hội thoại",
+          label: "Quản lý chat hỗ trợ",
           to: "/admin/support-chats",
           isActive: currentPage === "/admin/support-chats",
           icon: (

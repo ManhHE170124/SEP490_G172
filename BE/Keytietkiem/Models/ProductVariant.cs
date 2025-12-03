@@ -39,6 +39,8 @@ public partial class ProductVariant
 
     public decimal CogsPrice { get; set; }
 
+    public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
+
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
     public virtual Product Product { get; set; } = null!;
@@ -52,5 +54,4 @@ public partial class ProductVariant
     public virtual ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
 
     public virtual ICollection<ProductSection> ProductSections { get; set; } = new List<ProductSection>();
-    public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
 }

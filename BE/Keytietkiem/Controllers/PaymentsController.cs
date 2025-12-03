@@ -4,6 +4,7 @@ using Keytietkiem.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Keytietkiem.Controllers
 {
@@ -30,8 +31,16 @@ namespace Keytietkiem.Controllers
             _config = config;
         }
 
-        // ===== API ADMIN: list payment với filter cơ bản + sort =====
-        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT&sortBy=CreatedAt&sortDir=desc
+        private Guid? GetCurrentUserIdOrNull()
+        {
+            var claim = User.FindFirst("uid") ?? User.FindFirst(ClaimTypes.NameIdentifier);
+            if (claim == null) return null;
+
+            return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
+        }
+
+        // ===== API ADMIN: list payment với filter cơ bản =====
+        // GET /api/payments?status=Paid&provider=PayOS&email=...&transactionType=ORDER_PAYMENT
         [HttpGet]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
@@ -478,6 +487,116 @@ namespace Keytietkiem.Controllers
             {
                 return false;
             }
+        }
+        // ===== API: Tạo Payment + PayOS checkoutUrl cho gói hỗ trợ (subscription 1 tháng) =====
+        // POST /api/payments/payos/create-support-plan
+        [HttpPost("payos/create-support-plan")]
+        [Authorize] // Customer phải đăng nhập
+        public async Task<IActionResult> CreateSupportPlanPayOSPayment(
+            [FromBody] CreateSupportPlanPayOSPaymentDTO dto)
+        {
+            if (dto == null || dto.SupportPlanId <= 0)
+            {
+                return BadRequest(new { message = "Gói hỗ trợ không hợp lệ" });
+            }
+
+            var currentUserId = GetCurrentUserIdOrNull();
+            if (currentUserId == null) return Unauthorized();
+
+            // Lấy user hiện tại
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
+            if (user == null) return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                return BadRequest(new { message = "Tài khoản của bạn chưa có email, không thể tạo thanh toán." });
+            }
+
+            // Lấy gói hỗ trợ
+            var plan = await _context.SupportPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.SupportPlanId == dto.SupportPlanId &&
+                    p.IsActive);
+
+            if (plan == null)
+            {
+                return BadRequest(new { message = "Gói hỗ trợ không tồn tại hoặc đã bị khóa." });
+            }
+
+            if (plan.Price <= 0)
+            {
+                return BadRequest(new { message = "Giá gói hỗ trợ không hợp lệ." });
+            }
+
+            using var tx = await _context.Database.BeginTransactionAsync();
+
+            // Dùng UnixTimeSeconds làm orderCode đơn giản (giống Order Payment)
+            var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
+
+            // Tạo bản ghi Payment Pending – bảng độc lập, TransactionType = SUPPORT_PLAN
+            var payment = new Payment
+            {
+                Amount = plan.Price,
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow,
+                Provider = "PayOS",
+                ProviderOrderCode = orderCode,
+                Email = user.Email,
+                TransactionType = "SUPPORT_PLAN"
+            };
+
+            _context.Payments.Add(payment);
+            await _context.SaveChangesAsync();
+
+            var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/')
+                                  ?? "https://keytietkiem.com";
+
+            // FE sẽ đọc paymentId/supportPlanId từ query để gọi /api/supportplans/confirm-payment
+            var returnUrl =
+                $"{frontendBaseUrl}/support-plan/payment-result?paymentId={payment.PaymentId}&supportPlanId={plan.SupportPlanId}";
+            var cancelUrl =
+                $"{frontendBaseUrl}/support-plan/payment-cancel?paymentId={payment.PaymentId}&supportPlanId={plan.SupportPlanId}";
+
+            // Description đơn giản, giới hạn <= 25 ký tự cho PayOS
+            var description = $"SP_{plan.SupportPlanId}";
+            if (description.Length > 25)
+            {
+                description = description.Substring(0, 25);
+            }
+
+            var buyerEmail = user.Email;
+            var buyerName = string.IsNullOrWhiteSpace(user.FullName)
+                ? user.Email
+                : user.FullName!;
+            var buyerPhone = user.Phone ?? string.Empty;
+            var amountInt = (int)Math.Round(plan.Price, 0, MidpointRounding.AwayFromZero);
+
+            // Gọi PayOS để lấy checkoutUrl
+            var paymentUrl = await _payOs.CreatePayment(
+                orderCode,
+                amountInt,
+                description,
+                returnUrl,
+                cancelUrl,
+                buyerPhone,
+                buyerName,
+                buyerEmail
+            );
+
+            await tx.CommitAsync();
+
+            var resp = new CreateSupportPlanPayOSPaymentResponseDTO
+            {
+                PaymentId = payment.PaymentId,
+                SupportPlanId = plan.SupportPlanId,
+                SupportPlanName = plan.Name,
+                Price = plan.Price,
+                PaymentUrl = paymentUrl
+            };
+
+            return Ok(resp);
         }
     }
 }

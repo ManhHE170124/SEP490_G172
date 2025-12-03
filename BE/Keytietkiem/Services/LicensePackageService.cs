@@ -128,13 +128,13 @@ public class LicensePackageService : ILicensePackageService
         if (package == null)
             throw new InvalidOperationException(PackageNotFoundMessage);
 
-        await _context.Entry(package).Reference(p => p.ProductVariant).LoadAsync(cancellationToken);
-        await _context.Entry(package.ProductVariant).Reference(v => v.Product).LoadAsync(cancellationToken);
+        await _context.Entry(package).Reference(p => p.Variant).LoadAsync(cancellationToken);
+        await _context.Entry(package.Variant).Reference(v => v.Product).LoadAsync(cancellationToken);
 
         var oldValues = new
         {
             package.Quantity,
-            PricePerUnit = package.ProductVariant.CogsPrice,
+            PricePerUnit = package.Variant.CogsPrice,
             package.Notes
         };
 
@@ -147,11 +147,11 @@ public class LicensePackageService : ILicensePackageService
         }
 
         if (updateDto.PricePerUnit is decimal newPrice &&
-            package.ProductVariant.CogsPrice != newPrice)
+            package.Variant.CogsPrice != newPrice)
         {
-            package.ProductVariant.CogsPrice = newPrice;
-            package.ProductVariant.UpdatedAt = _clock.UtcNow;
-            _context.ProductVariants.Update(package.ProductVariant);
+            package.Variant.CogsPrice = newPrice;
+            package.Variant.UpdatedAt = _clock.UtcNow;
+            _context.ProductVariants.Update(package.Variant);
         }
 
 
@@ -178,7 +178,7 @@ public class LicensePackageService : ILicensePackageService
                     NewValues = new
                     {
                         package.Quantity,
-                        PricePerUnit = package.ProductVariant.CogsPrice,
+                        PricePerUnit = package.Variant.CogsPrice,
                         package.Notes
                     }
                 },
@@ -206,7 +206,7 @@ public class LicensePackageService : ILicensePackageService
     {
         var package = await _context.LicensePackages
             .Include(lp => lp.Supplier)
-            .Include(lp => lp.ProductVariant)
+            .Include(lp => lp.Variant)
                 .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(lp => lp.PackageId == packageId, cancellationToken);
 
@@ -218,11 +218,11 @@ public class LicensePackageService : ILicensePackageService
             PackageId = package.PackageId,
             SupplierId = package.SupplierId,
             SupplierName = package.Supplier.Name,
-            VariantId = package.ProductVariant.VariantId,
-            ProductId = package.ProductVariant.ProductId,
-            ProductName = package.ProductVariant.Product.ProductName,
+            VariantId = package.Variant.VariantId,
+            ProductId = package.Variant.ProductId,
+            ProductName = package.Variant.Product.ProductName,
             Quantity = package.Quantity,
-            PricePerUnit = package.ProductVariant.CogsPrice,
+            PricePerUnit = package.Variant.CogsPrice,
             ImportedToStock = package.ImportedToStock,
             RemainingQuantity = package.Quantity - package.ImportedToStock,
             CreatedAt = package.CreatedAt,
@@ -239,7 +239,7 @@ public class LicensePackageService : ILicensePackageService
     {
         var query = _context.LicensePackages
             .Include(lp => lp.Supplier)
-            .Include(lp => lp.ProductVariant)
+            .Include(lp => lp.Variant)
                 .ThenInclude(v => v.Product)
             .AsQueryable();
 
@@ -248,7 +248,7 @@ public class LicensePackageService : ILicensePackageService
             query = query.Where(lp => lp.SupplierId == supplierId.Value);
 
         if (productId.HasValue)
-            query = query.Where(lp => lp.ProductVariant.ProductId == productId.Value);
+            query = query.Where(lp => lp.Variant.ProductId == productId.Value);
 
         var total = await query.CountAsync(cancellationToken);
 
@@ -260,10 +260,10 @@ public class LicensePackageService : ILicensePackageService
             {
                 PackageId = lp.PackageId,
                 SupplierName = lp.Supplier.Name,
-                VariantId = lp.ProductVariant.VariantId,
-                ProductName = lp.ProductVariant.Product.ProductName,
+                VariantId = lp.Variant.VariantId,
+                ProductName = lp.Variant.Product.ProductName,
                 Quantity = lp.Quantity,
-                PricePerUnit = lp.ProductVariant.CogsPrice,
+                PricePerUnit = lp.Variant.CogsPrice,
                 ImportedToStock = lp.ImportedToStock,
                 RemainingQuantity = lp.Quantity - lp.ImportedToStock
             })
@@ -338,8 +338,8 @@ public class LicensePackageService : ILicensePackageService
         if (package == null)
             throw new InvalidOperationException(PackageNotFoundMessage);
 
-        await _context.Entry(package).Reference(p => p.ProductVariant).LoadAsync(cancellationToken);
-        var variant = package.ProductVariant;
+        await _context.Entry(package).Reference(p => p.Variant).LoadAsync(cancellationToken);
+        var variant = package.Variant;
 
         if (package.ImportedToStock > 0)
             throw new InvalidOperationException(
@@ -395,7 +395,7 @@ public class LicensePackageService : ILicensePackageService
         ValidateExpiryDate(expiryDate);
 
         var package = await _context.LicensePackages
-            .Include(p => p.ProductVariant)
+            .Include(p => p.Variant)
                 .ThenInclude(v => v.Product)
             .Include(p => p.Supplier)
             .FirstOrDefaultAsync(p => p.PackageId == packageId, cancellationToken);
@@ -419,7 +419,7 @@ public class LicensePackageService : ILicensePackageService
             actorEmail,
             keyType,
             expiryDate,
-            package.ProductVariant.Product.ProductName,
+            package.Variant.Product.ProductName,
             package.Supplier.Name,
             false,
             cancellationToken);
@@ -716,7 +716,7 @@ public class LicensePackageService : ILicensePackageService
     {
         // Validate package exists and belongs to the supplier
         var package = await _context.LicensePackages
-            .Include(p => p.ProductVariant)
+            .Include(p => p.Variant)
                 .ThenInclude(v => v.Product)
             .Include(p => p.Supplier)
             .FirstOrDefaultAsync(p => p.PackageId == packageId, cancellationToken);
@@ -750,7 +750,7 @@ public class LicensePackageService : ILicensePackageService
         return new LicenseKeysListResponseDto
         {
             PackageId = package.PackageId,
-            ProductName = package.ProductVariant.Product.ProductName,
+            ProductName = package.Variant.Product.ProductName,
             SupplierName = package.Supplier.Name,
             TotalKeys = keys.Count,
             Keys = keys
