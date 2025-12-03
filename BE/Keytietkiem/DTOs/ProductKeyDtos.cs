@@ -9,8 +9,8 @@ namespace Keytietkiem.DTOs
     /// </summary>
     public class CreateProductKeyDto
     {
-        [Required(ErrorMessage = "ID sản phẩm là bắt buộc")]
-        public Guid ProductId { get; set; }
+        [Required(ErrorMessage = "ID biến thể sản phẩm là bắt buộc")]
+        public Guid VariantId { get; set; }
 
         [Required(ErrorMessage = "ID nhà cung cấp là bắt buộc")]
         public int SupplierId { get; set; }
@@ -20,6 +20,12 @@ namespace Keytietkiem.DTOs
         public string KeyString { get; set; } = string.Empty;
 
         public string Type { get; set; } = nameof(ProductKeyType.Individual);
+
+        /// <summary>
+        /// COGS price - will update the Variant's CogsPrice
+        /// </summary>
+        [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
+        public decimal? CogsPrice { get; set; }
 
         public DateTime? ExpiryDate { get; set; }
 
@@ -52,8 +58,12 @@ namespace Keytietkiem.DTOs
     {
         public Guid KeyId { get; set; }
         public Guid ProductId { get; set; }
+        public Guid VariantId { get; set; }
+        public string VariantTitle { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
         public string ProductCode { get; set; } = string.Empty;
+        public decimal CogsPrice { get; set; }
+        public decimal SellPrice { get; set; }
         public int SupplierId { get; set; }
         public string SupplierName { get; set; } = string.Empty;
         public string KeyString { get; set; } = string.Empty;
@@ -80,7 +90,7 @@ namespace Keytietkiem.DTOs
         public string KeyString { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string Type { get; set; }
-        public string? OrderCode { get; set; }
+        public Guid? AssignToOrder { get; set; }
         public DateTime? ImportedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
@@ -91,6 +101,7 @@ namespace Keytietkiem.DTOs
     public class ProductKeyFilterDto
     {
         public string? SearchTerm { get; set; } // Search by product name, SKU, key string
+        public Guid? VariantId { get; set; }
         public Guid? ProductId { get; set; }
         public int? SupplierId { get; set; }
         public string? Status { get; set; } // Available, Sold, Error, Recalled

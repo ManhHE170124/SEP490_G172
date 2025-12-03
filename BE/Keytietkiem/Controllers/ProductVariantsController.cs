@@ -1,4 +1,5 @@
-﻿// File: Controllers/ProductVariantsController.cs
+﻿// Controllers/ProductVariantsController.cs
+using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -14,57 +15,336 @@ namespace Keytietkiem.Controllers
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
 
+        private const int TitleMaxLength = 60;
+        private const int CodeMaxLength = 50;
+        private const decimal MaxPriceValue = 9999999999999999.99M; // decimal(18,2)
+
         public ProductVariantsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
         {
             _dbFactory = dbFactory;
             _clock = clock;
         }
 
-        private static async Task RecalcProductStatus(KeytietkiemDbContext db, Guid productId, string? desiredStatus = null)
+        private static string NormalizeStatus(string? s)
         {
-            var p = await db.Products.Include(x => x.ProductVariants).FirstAsync(x => x.ProductId == productId);
-            var totalStock = p.ProductVariants.Sum(v => v.StockQty);
-            if (totalStock <= 0) p.Status = "OUT_OF_STOCK";
-            else if (!string.IsNullOrWhiteSpace(desiredStatus) && ProductEnums.Statuses.Contains(desiredStatus))
-                p.Status = desiredStatus.ToUpperInvariant();
-            else p.Status = "ACTIVE";
-            p.UpdatedAt = DateTime.UtcNow;
+            var u = (s ?? "").Trim().ToUpperInvariant();
+            return ProductEnums.Statuses.Contains(u) ? u : "INACTIVE";
         }
 
-        // LIST
+        private static string ResolveStatusFromStock(int stockQty, string? desired)
+        {
+            if (stockQty <= 0) return "OUT_OF_STOCK";
+            var d = NormalizeStatus(desired);
+            return d == "OUT_OF_STOCK" ? "ACTIVE" : d;
+        }
+
+        private async Task RecalcProductStatus(KeytietkiemDbContext db, Guid productId, string? desiredStatus = null)
+        {
+            var p = await db.Products
+                            .Include(x => x.ProductVariants)
+                            .FirstAsync(x => x.ProductId == productId);
+
+            var totalStock = p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0;
+            if (totalStock <= 0)
+            {
+                p.Status = "OUT_OF_STOCK";
+            }
+            else if (!string.IsNullOrWhiteSpace(desiredStatus) &&
+                     ProductEnums.Statuses.Contains(desiredStatus.Trim().ToUpperInvariant()))
+            {
+                p.Status = desiredStatus!.Trim().ToUpperInvariant();
+            }
+            else
+            {
+                p.Status = "ACTIVE";
+            }
+
+            p.UpdatedAt = _clock.UtcNow;
+        }
+
+        private static string ToggleVisibility(string? current, int stock)
+        {
+            if (stock <= 0) return "OUT_OF_STOCK";
+            var cur = NormalizeStatus(current);
+            return cur == "ACTIVE" ? "INACTIVE" : "ACTIVE";
+        }
+
+        private static (bool IsValid, ActionResult? ErrorResult) ValidateCommonFields(
+            string title,
+            string variantCode,
+            int? durationDays,
+            int? warrantyDays)
+        {
+            // Tên biến thể
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "TITLE_REQUIRED",
+                    message = "Tên biến thể là bắt buộc."
+                }));
+            }
+
+            if (title.Length > TitleMaxLength)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "TITLE_TOO_LONG",
+                    message = $"Tên biến thể không được vượt quá {TitleMaxLength} ký tự."
+                }));
+            }
+
+            // Mã biến thể
+            if (string.IsNullOrWhiteSpace(variantCode))
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "CODE_REQUIRED",
+                    message = "Mã biến thể là bắt buộc."
+                }));
+            }
+
+            if (variantCode.Length > CodeMaxLength)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "CODE_TOO_LONG",
+                    message = $"Mã biến thể không được vượt quá {CodeMaxLength} ký tự."
+                }));
+            }
+
+            // Duration / Warranty: số nguyên >= 0, Duration > Warranty
+            if (durationDays.HasValue && durationDays.Value < 0)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "DURATION_INVALID",
+                    message = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0."
+                }));
+            }
+
+            if (warrantyDays.HasValue && warrantyDays.Value < 0)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "WARRANTY_INVALID",
+                    message = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0."
+                }));
+            }
+
+            if (durationDays.HasValue &&
+                warrantyDays.HasValue &&
+                durationDays.Value <= warrantyDays.Value)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "DURATION_LE_WARRANTY",
+                    message = "Thời lượng (ngày) phải lớn hơn số ngày bảo hành."
+                }));
+            }
+
+            return (true, null);
+        }
+
+        /// <summary>
+        /// Validate 2 giá chỉnh từ màn variant:
+        /// - SellPrice >= 0, ListPrice >= 0
+        /// - SellPrice <= ListPrice
+        /// - Nếu biết CogsPrice (giá vốn) thì ListPrice >= CogsPrice
+        /// </summary>
+        private (bool IsValid, ActionResult? ErrorResult) ValidatePriceFields(
+            decimal sellPrice,
+            decimal listPrice,
+            decimal? currentCogsPrice = null)
+        {
+            if (sellPrice < 0)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "SELL_PRICE_INVALID",
+                    message = "Giá bán phải lớn hơn hoặc bằng 0."
+                }));
+            }
+
+            if (listPrice < 0)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "LIST_PRICE_INVALID",
+                    message = "Giá niêm yết phải lớn hơn hoặc bằng 0."
+                }));
+            }
+
+            if (sellPrice > MaxPriceValue || listPrice > MaxPriceValue)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "PRICE_TOO_LARGE",
+                    message = "Giá không được vượt quá giới hạn cho phép (decimal 18,2)."
+                }));
+            }
+
+            // Giá bán không được lớn hơn giá niêm yết
+            if (sellPrice > listPrice)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "SELL_GT_LIST",
+                    message = "Giá bán không được lớn hơn giá niêm yết."
+                }));
+            }
+
+            // Nếu đã có giá vốn (CogsPrice) thì ListPrice không được nhỏ hơn giá vốn
+            if (currentCogsPrice.HasValue && currentCogsPrice.Value > 0 && listPrice < currentCogsPrice.Value)
+            {
+                return (false, new BadRequestObjectResult(new
+                {
+                    code = "LIST_LT_COGS",
+                    message = "Giá niêm yết không được nhỏ hơn giá vốn."
+                }));
+            }
+
+            return (true, null);
+        }
+
+        private static string NormalizeString(string? s)
+            => (s ?? string.Empty).Trim();
+
+        // ===== LIST =====
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductVariantListItemDto>>> List(Guid productId)
+        public async Task<ActionResult<PagedResult<ProductVariantListItemDto>>> List(
+            Guid productId,
+            [FromQuery] ProductVariantListQuery query)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
+
             var exists = await db.Products.AnyAsync(p => p.ProductId == productId);
             if (!exists) return NotFound();
 
-            var items = await db.ProductVariants
-                .Where(v => v.ProductId == productId)
-                .OrderBy(v => v.SortOrder)
+            var q = db.ProductVariants.AsNoTracking()
+                                      .Where(v => v.ProductId == productId);
+
+            if (!string.IsNullOrWhiteSpace(query.Q))
+            {
+                var s = query.Q.Trim();
+                q = q.Where(v =>
+                    EF.Functions.Like(v.Title, $"%{s}%") ||
+                    EF.Functions.Like(v.VariantCode ?? "", $"%{s}%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Status))
+            {
+                var st = query.Status.Trim().ToUpperInvariant();
+                q = q.Where(v => (v.Status ?? "").ToUpper() == st);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Dur))
+            {
+                switch (query.Dur)
+                {
+                    case "<=30":
+                        q = q.Where(v => (v.DurationDays ?? 0) <= 30);
+                        break;
+                    case "31-180":
+                        q = q.Where(v => (v.DurationDays ?? 0) >= 31 && (v.DurationDays ?? 0) <= 180);
+                        break;
+                    case ">180":
+                        q = q.Where(v => (v.DurationDays ?? 0) > 180);
+                        break;
+                }
+            }
+
+            if (query.MinPrice.HasValue)
+            {
+                q = q.Where(v => v.SellPrice >= query.MinPrice.Value);
+            }
+
+            if (query.MaxPrice.HasValue)
+            {
+                q = q.Where(v => v.SellPrice <= query.MaxPrice.Value);
+            }
+
+            var sort = (query.Sort ?? "created").Trim().ToLowerInvariant();
+            var desc = string.Equals(query.Dir, "desc", StringComparison.OrdinalIgnoreCase);
+
+            q = sort switch
+            {
+                "title" => desc ? q.OrderByDescending(v => v.Title) : q.OrderBy(v => v.Title),
+                "duration" => desc ? q.OrderByDescending(v => v.DurationDays) : q.OrderBy(v => v.DurationDays),
+                "stock" => desc ? q.OrderByDescending(v => v.StockQty) : q.OrderBy(v => v.StockQty),
+                "status" => desc ? q.OrderByDescending(v => v.Status) : q.OrderBy(v => v.Status),
+                "views" => desc ? q.OrderByDescending(v => v.ViewCount) : q.OrderBy(v => v.ViewCount),
+                "price" => desc ? q.OrderByDescending(v => v.SellPrice) : q.OrderBy(v => v.SellPrice),
+                _ => desc ? q.OrderByDescending(v => v.CreatedAt) : q.OrderBy(v => v.CreatedAt),
+            };
+
+            var page = Math.Max(1, query.Page);
+            var pageSize = Math.Clamp(query.PageSize, 1, 200);
+            var total = await q.CountAsync();
+
+            var items = await q
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(v => new ProductVariantListItemDto(
-                    v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                    v.OriginalPrice, v.Price, v.StockQty, v.Status, v.SortOrder))
+                    v.VariantId,
+                    v.VariantCode ?? "",
+                    v.Title,
+                    v.DurationDays,
+                    v.StockQty,
+                    v.Status,
+                    v.Thumbnail,
+                    v.ViewCount,
+                    v.SellPrice,
+                    v.ListPrice,
+                    v.CogsPrice  // show giá vốn để admin thấy nhưng không sửa qua API này
+                ))
                 .ToListAsync();
 
-            return Ok(items);
+            return Ok(new PagedResult<ProductVariantListItemDto>
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalItems = total,
+                Items = items
+            });
         }
 
-        // DETAIL
+        // ===== DETAIL =====
         [HttpGet("{variantId:guid}")]
         public async Task<ActionResult<ProductVariantDetailDto>> Get(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
             var v = await db.ProductVariants
-                .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
+                            .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
 
-            return Ok(new ProductVariantDetailDto(
-                v.VariantId, v.ProductId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                v.OriginalPrice, v.Price, v.StockQty, v.WarrantyDays, v.Status, v.SortOrder));
+            // Kiểm tra xem biến thể đang được dùng trong section hay chưa
+            var hasSections = await db.ProductSections
+                                      .AnyAsync(s => s.VariantId == variantId);
+
+            // Trả thêm cờ HasSections để FE disable sửa mã biến thể khi đã có section
+            return Ok(new
+            {
+                v.VariantId,
+                v.ProductId,
+                VariantCode = v.VariantCode ?? "",
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Thumbnail,
+                v.MetaTitle,
+                v.MetaDescription,
+                v.ViewCount,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice, // hiển thị giá vốn
+                HasSections = hasSections
+            });
         }
 
-        // CREATE
+        // ===== CREATE =====
         [HttpPost]
         public async Task<ActionResult<ProductVariantDetailDto>> Create(Guid productId, ProductVariantCreateDto dto)
         {
@@ -72,22 +352,94 @@ namespace Keytietkiem.Controllers
             var p = await db.Products.FirstOrDefaultAsync(x => x.ProductId == productId);
             if (p is null) return NotFound();
 
-            var nextSort = await db.ProductVariants.Where(x => x.ProductId == productId)
-                                                   .Select(x => (int?)x.SortOrder).MaxAsync() ?? -1;
+            var title = NormalizeString(dto.Title);
+            var variantCode = NormalizeString(dto.VariantCode);
+
+            var durationDays = dto.DurationDays;
+            var warrantyDays = dto.WarrantyDays;
+
+            var (isValid, errorResult) = ValidateCommonFields(title, variantCode, durationDays, warrantyDays);
+            if (!isValid) return errorResult!;
+
+            if (!dto.SellPrice.HasValue)
+            {
+                return BadRequest(new
+                {
+                    code = "SELL_PRICE_REQUIRED",
+                    message = "Giá bán là bắt buộc."
+                });
+            }
+
+            if (!dto.ListPrice.HasValue)
+            {
+                return BadRequest(new
+                {
+                    code = "LIST_PRICE_REQUIRED",
+                    message = "Giá niêm yết là bắt buộc."
+                });
+            }
+
+            var sellPrice = dto.SellPrice.Value;
+            var listPrice = dto.ListPrice.Value;
+
+            // Lúc tạo mới, CogsPrice sẽ để default (0) và sau này được cập nhật từ module nhập key
+            var (priceValid, priceError) = ValidatePriceFields(sellPrice, listPrice, currentCogsPrice: null);
+            if (!priceValid) return priceError!;
+
+            // Không cho trùng Title trong cùng một sản phẩm (case-insensitive)
+            var normalizedTitle = title.ToLower();
+            var titleExists = await db.ProductVariants.AnyAsync(v =>
+                v.ProductId == productId &&
+                v.Title != null &&
+                v.Title.ToLower() == normalizedTitle);
+
+            if (titleExists)
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_TITLE_DUPLICATE",
+                    message = "Tên biến thể đã tồn tại trong sản phẩm này."
+                });
+            }
+
+            // Không cho trùng Mã biến thể trong cùng sản phẩm
+            var normalizedCode = variantCode.ToLower();
+            var codeExists = await db.ProductVariants.AnyAsync(v =>
+                v.ProductId == productId &&
+                v.VariantCode != null &&
+                v.VariantCode.ToLower() == normalizedCode);
+
+            if (codeExists)
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_CODE_DUPLICATE",
+                    message = "Mã biến thể đã tồn tại trong sản phẩm này."
+                });
+            }
+
+            var stock = dto.StockQty;
+            if (stock < 0) stock = 0;
+
+            var status = ResolveStatusFromStock(stock, dto.Status);
 
             var v = new ProductVariant
             {
                 VariantId = Guid.NewGuid(),
                 ProductId = productId,
-                VariantCode = dto.VariantCode?.Trim(),
-                Title = dto.Title.Trim(),
-                DurationDays = dto.DurationDays,
-                OriginalPrice = dto.OriginalPrice is null ? null : Math.Round(dto.OriginalPrice.Value, 2),
-                Price = Math.Round(dto.Price, 2),
-                StockQty = dto.StockQty,
-                WarrantyDays = dto.WarrantyDays,
-                Status = string.IsNullOrWhiteSpace(dto.Status) ? "ACTIVE" : dto.Status!.Trim().ToUpperInvariant(),
-                SortOrder = dto.SortOrder ?? (nextSort + 1),
+                VariantCode = variantCode,
+                Title = title,
+                DurationDays = durationDays,
+                StockQty = stock,
+                WarrantyDays = warrantyDays,
+                Thumbnail = string.IsNullOrWhiteSpace(dto.Thumbnail) ? null : dto.Thumbnail!.Trim(),
+                MetaTitle = string.IsNullOrWhiteSpace(dto.MetaTitle) ? null : dto.MetaTitle!.Trim(),
+                MetaDescription = string.IsNullOrWhiteSpace(dto.MetaDescription) ? null : dto.MetaDescription!.Trim(),
+                ViewCount = 0,
+                Status = status,
+                SellPrice = sellPrice,
+                ListPrice = listPrice,
+                // CogsPrice KHÔNG set ở đây => để default 0, sau này module nhập key/account sẽ cập nhật
                 CreatedAt = _clock.UtcNow
             };
 
@@ -98,11 +450,26 @@ namespace Keytietkiem.Controllers
             await db.SaveChangesAsync();
 
             return CreatedAtAction(nameof(Get), new { productId, variantId = v.VariantId },
-                new ProductVariantDetailDto(v.VariantId, v.ProductId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                    v.OriginalPrice, v.Price, v.StockQty, v.WarrantyDays, v.Status, v.SortOrder));
+                new ProductVariantDetailDto(
+                    v.VariantId,
+                    v.ProductId,
+                    v.VariantCode ?? "",
+                    v.Title,
+                    v.DurationDays,
+                    v.StockQty,
+                    v.WarrantyDays,
+                    v.Thumbnail,
+                    v.MetaTitle,
+                    v.MetaDescription,
+                    v.ViewCount,
+                    v.Status,
+                    v.SellPrice,
+                    v.ListPrice,
+                    v.CogsPrice
+                ));
         }
 
-        // UPDATE
+        // ===== UPDATE =====
         [HttpPut("{variantId:guid}")]
         public async Task<IActionResult> Update(Guid productId, Guid variantId, ProductVariantUpdateDto dto)
         {
@@ -110,14 +477,90 @@ namespace Keytietkiem.Controllers
             var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
 
-            v.Title = dto.Title.Trim();
-            v.DurationDays = dto.DurationDays;
-            v.OriginalPrice = dto.OriginalPrice is null ? null : Math.Round(dto.OriginalPrice.Value, 2);
-            v.Price = Math.Round(dto.Price, 2);
+            var title = NormalizeString(dto.Title);
+            var variantCode = NormalizeString(dto.VariantCode ?? v.VariantCode ?? string.Empty);
+
+            var durationDays = dto.DurationDays;
+            var warrantyDays = dto.WarrantyDays;
+
+            var (isValid, errorResult) = ValidateCommonFields(title, variantCode, durationDays, warrantyDays);
+            if (!isValid) return errorResult!;
+
+            var newSellPrice = dto.SellPrice ?? v.SellPrice;
+            var newListPrice = dto.ListPrice ?? v.ListPrice;
+
+            // Validate giá: dùng giá vốn hiện tại của biến thể để đảm bảo ListPrice >= CogsPrice
+            var (priceValid, priceError) = ValidatePriceFields(newSellPrice, newListPrice, v.CogsPrice);
+            if (!priceValid) return priceError!;
+
+            // Check đang có section không
+            var hasSections = await db.ProductSections
+                                      .AnyAsync(s => s.VariantId == variantId);
+
+            // Nếu đang có section thì không cho đổi mã biến thể
+            if (hasSections &&
+                !string.IsNullOrWhiteSpace(v.VariantCode) &&
+                !string.Equals(v.VariantCode.Trim(), variantCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_CODE_IN_USE_SECTION",
+                    message = "Không thể thay đổi mã biến thể vì đang được sử dụng trong các section. Vui lòng cập nhật hoặc xoá các section liên quan trước."
+                });
+            }
+
+            // Không cho trùng Title trong cùng 1 sản phẩm (trừ chính nó)
+            var normalizedTitle = title.ToLower();
+            var titleExists = await db.ProductVariants.AnyAsync(x =>
+                x.ProductId == productId &&
+                x.VariantId != variantId &&
+                x.Title != null &&
+                x.Title.ToLower() == normalizedTitle);
+
+            if (titleExists)
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_TITLE_DUPLICATE",
+                    message = "Tên biến thể đã tồn tại trong sản phẩm này."
+                });
+            }
+
+            // Không cho trùng Mã biến thể trong cùng sản phẩm (trừ chính nó)
+            var normalizedCode = variantCode.ToLower();
+            var codeExists = await db.ProductVariants.AnyAsync(x =>
+                x.ProductId == productId &&
+                x.VariantId != variantId &&
+                x.VariantCode != null &&
+                x.VariantCode.ToLower() == normalizedCode);
+
+            if (codeExists)
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_CODE_DUPLICATE",
+                    message = "Mã biến thể đã tồn tại trong sản phẩm này."
+                });
+            }
+
+            v.Title = title;
+            v.DurationDays = durationDays;
             v.StockQty = dto.StockQty;
-            v.WarrantyDays = dto.WarrantyDays;
-            if (!string.IsNullOrWhiteSpace(dto.Status)) v.Status = dto.Status!.Trim().ToUpperInvariant();
-            if (dto.SortOrder.HasValue) v.SortOrder = dto.SortOrder.Value;
+            v.WarrantyDays = warrantyDays;
+            v.Thumbnail = string.IsNullOrWhiteSpace(dto.Thumbnail) ? null : dto.Thumbnail!.Trim();
+            v.MetaTitle = string.IsNullOrWhiteSpace(dto.MetaTitle) ? null : dto.MetaTitle!.Trim();
+            v.MetaDescription = string.IsNullOrWhiteSpace(dto.MetaDescription) ? null : dto.MetaDescription!.Trim();
+            v.SellPrice = newSellPrice;
+            v.ListPrice = newListPrice;
+            // CogsPrice giữ nguyên, không cho sửa ở API này
+
+            if (!hasSections)
+            {
+                v.VariantCode = variantCode;
+            }
+
+            var desired = string.IsNullOrWhiteSpace(dto.Status) ? null : dto.Status;
+            v.Status = ResolveStatusFromStock(v.StockQty, desired);
             v.UpdatedAt = _clock.UtcNow;
 
             await db.SaveChangesAsync();
@@ -127,13 +570,29 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        // DELETE
+        // ===== DELETE =====
         [HttpDelete("{variantId:guid}")]
         public async Task<IActionResult> Delete(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
+
+            var v = await db.ProductVariants
+                            .FirstOrDefaultAsync(x => x.ProductId == productId &&
+                                                      x.VariantId == variantId);
             if (v is null) return NotFound();
+
+            var hasSections = await db.ProductSections
+                                      .AnyAsync(s => s.VariantId == variantId);
+            if (hasSections)
+            {
+                return Conflict(new
+                {
+                    code = "VARIANT_IN_USE_SECTION",
+                    message = "Không thể xoá biến thể này vì đang được sử dụng trong các section. " +
+                              "Vui lòng xoá hoặc cập nhật các section liên quan trước."
+                });
+            }
+
             db.ProductVariants.Remove(v);
             await db.SaveChangesAsync();
 
@@ -143,22 +602,32 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        // REORDER
-        [HttpPost("reorder")]
-        public async Task<IActionResult> Reorder(Guid productId, VariantReorderDto dto)
+        // ===== TOGGLE =====
+        [HttpPatch("{variantId:guid}/toggle")]
+        public async Task<IActionResult> Toggle(Guid productId, Guid variantId)
         {
-            await using var db = await _dbFactory.CreateDbContextAsync();
-            var list = await db.ProductVariants.Where(x => x.ProductId == productId).ToListAsync();
-
-            var pos = 0;
-            foreach (var id in dto.VariantIdsInOrder)
+            try
             {
-                var found = list.FirstOrDefault(x => x.VariantId == id);
-                if (found != null) found.SortOrder = pos++;
-            }
+                await using var db = await _dbFactory.CreateDbContextAsync();
+                var v = await db.ProductVariants
+                                .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
+                if (v is null) return NotFound();
 
-            await db.SaveChangesAsync();
-            return NoContent();
+                v.Status = ToggleVisibility(v.Status, v.StockQty);
+                v.UpdatedAt = _clock.UtcNow;
+
+                await db.SaveChangesAsync();
+                await RecalcProductStatus(db, productId);
+                await db.SaveChangesAsync();
+
+                return Ok(new { VariantId = v.VariantId, Status = v.Status });
+            }
+            catch (Exception ex)
+            {
+                return Problem(title: "Toggle variant status failed",
+                               detail: ex.Message,
+                               statusCode: StatusCodes.Status500InternalServerError);
+            }
         }
     }
 }

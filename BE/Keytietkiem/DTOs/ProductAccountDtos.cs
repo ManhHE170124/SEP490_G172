@@ -7,8 +7,8 @@ namespace Keytietkiem.DTOs;
 /// </summary>
 public class CreateProductAccountDto
 {
-    [Required(ErrorMessage = "ID sản phẩm là bắt buộc")]
-    public Guid ProductId { get; set; }
+    [Required(ErrorMessage = "ID biến thể sản phẩm là bắt buộc")]
+    public Guid VariantId { get; set; }
 
     [Required(ErrorMessage = "Email tài khoản là bắt buộc")]
     [EmailAddress(ErrorMessage = "Email không hợp lệ")]
@@ -26,7 +26,13 @@ public class CreateProductAccountDto
     [Range(1, 100, ErrorMessage = "Số lượng người dùng phải từ 1 đến 100")]
     public int MaxUsers { get; set; }
 
-    public DateTime? ExpiryDate { get; set; }
+    /// <summary>
+    /// COGS price - will update the Variant's CogsPrice
+    /// </summary>
+    [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
+    public decimal? CogsPrice { get; set; }
+
+    public DateTime StartDate { get; set; }
 
     [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
     public string? Notes { get; set; }
@@ -69,6 +75,8 @@ public class ProductAccountResponseDto
 {
     public Guid ProductAccountId { get; set; }
     public Guid ProductId { get; set; }
+    public Guid VariantId { get; set; }
+    public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string AccountEmail { get; set; } = string.Empty;
     public string? AccountUsername { get; set; }
@@ -76,6 +84,8 @@ public class ProductAccountResponseDto
     public int MaxUsers { get; set; }
     public int CurrentUsers { get; set; }
     public string Status { get; set; } = string.Empty;
+    public decimal CogsPrice { get; set; }
+    public decimal SellPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -91,14 +101,19 @@ public class ProductAccountResponseDto
 public class ProductAccountListDto
 {
     public Guid ProductAccountId { get; set; }
+    public Guid VariantId { get; set; }
+    public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string AccountEmail { get; set; } = string.Empty;
     public string? AccountUsername { get; set; }
     public int MaxUsers { get; set; }
     public int CurrentUsers { get; set; }
     public string Status { get; set; } = string.Empty;
+    public decimal CogsPrice { get; set; }
+    public decimal SellPrice { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public DateTime CreatedAt { get; set; }
+    public Guid? OrderId { get; set; }
 }
 
 /// <summary>
@@ -185,6 +200,7 @@ public class ProductAccountHistoryResponseDto
 public class ProductAccountFilterDto
 {
     public string? SearchTerm { get; set; }
+    public Guid? VariantId { get; set; }
     public Guid? ProductId { get; set; }
     public string? Status { get; set; }
     // Filter by product type of the linked Product (e.g., SHARED_ACCOUNT, PERSONAL_ACCOUNT)
@@ -203,4 +219,19 @@ public class ProductAccountListResponseDto
     public int TotalCount { get; set; }
     public int TotalPages { get; set; }
     public int CurrentPage { get; set; }
+}
+
+/// <summary>
+/// DTO for assigning product account to order
+/// </summary>
+public class AssignAccountToOrderDto
+{
+    [Required(ErrorMessage = "ID tài khoản sản phẩm là bắt buộc")]
+    public Guid ProductAccountId { get; set; }
+
+    [Required(ErrorMessage = "ID đơn hàng là bắt buộc")]
+    public Guid OrderId { get; set; }
+
+    [Required(ErrorMessage = "ID người dùng là bắt buộc")]
+    public Guid UserId { get; set; }
 }

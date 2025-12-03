@@ -1,0 +1,352 @@
+:root {
+  --hp-ink: #0b1220;
+  --hp-muted: #6b7280;
+  --hp-line: #e5e7eb;
+  --hp-page: #f8fafc;
+  --hp-card: #ffffff;
+  --hp-primary: #2563eb;
+  --hp-primary-ink: #ffffff;
+  --hp-radius: 16px;
+  --hp-shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
+}
+
+.hp-page {
+  background: var(--hp-page);
+  color: var(--hp-ink);
+}
+
+.hp-section {
+  padding: 32px 0;
+}
+
+.hp-section-alt {
+  background: #fff;
+}
+
+.hp-hero {
+  background: linear-gradient(180deg, #ffffff, #f3f6fb);
+}
+
+.hp-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.hp-grid-hero {
+  grid-template-columns: 1.1fr 0.9fr;
+}
+
+.hp-banner-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--hp-card);
+  border: 1px solid var(--hp-line);
+  box-shadow: var(--hp-shadow);
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.hp-banner-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+}
+
+.hp-banner-card.primary .hp-banner-cta {
+  background: var(--hp-primary);
+  color: var(--hp-primary-ink);
+}
+
+.hp-banner-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.hp-banner-desc {
+  margin: 0 0 16px;
+  color: var(--hp-muted);
+}
+
+.hp-banner-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hp-line);
+  background: #fff;
+  font-weight: 600;
+}
+
+.hp-banner-card.ghost .hp-banner-cta {
+  background: transparent;
+}
+
+.hp-banner-art {
+  position: absolute;
+  inset: auto 0 0 auto;
+  width: 48%;
+  height: 70%;
+  opacity: 0.15;
+  background-image: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(15, 23, 42, 0.3));
+  border-top-left-radius: 24px;
+}
+
+.hp-filter-card {
+  background: var(--hp-card);
+  border: 1px solid var(--hp-line);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--hp-shadow);
+}
+
+.hp-filter-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.hp-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.hp-chip-btn {
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--hp-line);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.hp-chip-btn:hover {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.hp-chip-btn.outline {
+  background: transparent;
+}
+
+.hp-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.hp-section-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.hp-section-header p {
+  margin: 0;
+  color: var(--hp-muted);
+}
+
+.hp-btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--hp-line);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+
+.hp-btn:hover {
+  background: #f1f5f9;
+}
+
+.hp-grid-products {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.hp-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  border: 1px solid var(--hp-line);
+  background: var(--hp-card);
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.03);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.hp-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+}
+
+.hp-card .media {
+  min-height: 160px;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  border-radius: 16px 16px 0 0;
+  padding: 12px;
+  position: relative;
+}
+
+.hp-card .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hp-card .tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.hp-card .tag.primary {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.hp-card .tag.secondary {
+  background: #eef2ff;
+  color: #312e81;
+}
+
+.hp-card .tag.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.hp-card .body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hp-card .body h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.hp-card .meta {
+  font-size: 14px;
+  color: var(--hp-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hp-card .meta .dot {
+  width: 4px;
+  height: 4px;
+  background: var(--hp-muted);
+  border-radius: 50%;
+}
+
+.hp-card .price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.hp-card .price .now {
+  font-size: 20px;
+}
+
+.hp-card .price .old {
+  font-size: 14px;
+  color: var(--hp-muted);
+  text-decoration: line-through;
+}
+
+.hp-services-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.hp-service-card {
+  border-radius: 16px;
+  border: 1px solid var(--hp-line);
+  background: var(--hp-card);
+  padding: 20px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.hp-service-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+}
+
+.hp-service-card .svc-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.hp-service-card .svc-desc {
+  color: var(--hp-muted);
+  margin-bottom: 12px;
+}
+
+.hp-service-card .svc-action {
+  font-weight: 600;
+  color: var(--hp-primary);
+}
+
+.hp-status {
+  padding: 16px 0;
+  color: var(--hp-muted);
+}
+
+.hp-status.error {
+  color: #b91c1c;
+}
+
+@media (max-width: 1024px) {
+  .hp-grid-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hp-chip-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .hp-grid-products {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .hp-services-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .hp-section {
+    padding: 24px 0;
+  }
+
+  .hp-chip-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hp-grid-products {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hp-services-grid {
+    grid-template-columns: 1fr;
+  }
+}

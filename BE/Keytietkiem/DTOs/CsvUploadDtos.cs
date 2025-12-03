@@ -42,3 +42,34 @@ public class CsvUploadResultDto
     public List<string> Errors { get; set; } = new();
     public string Message { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Request DTO for importing product keys directly from storage monitor
+/// </summary>
+public class ImportProductKeysFromCsvDto
+{
+    [Required(ErrorMessage = "ID biến thể sản phẩm là bắt buộc")]
+    public Guid VariantId { get; set; }
+
+    [Required(ErrorMessage = "ID nhà cung cấp là bắt buộc")]
+    public int SupplierId { get; set; }
+
+    [Required(ErrorMessage = "File CSV là bắt buộc")]
+    public IFormFile File { get; set; } = null!;
+
+    /// <summary>
+    /// Key type to apply to all imported keys
+    /// </summary>
+    public string KeyType { get; set; } = nameof(ProductKeyType.Individual);
+
+    /// <summary>
+    /// COGS price - will update the Variant's CogsPrice
+    /// </summary>
+    [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
+    public decimal? CogsPrice { get; set; }
+
+    /// <summary>
+    /// Optional expiry date applied to every imported key
+    /// </summary>
+    public DateTime? ExpiryDate { get; set; }
+}

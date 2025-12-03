@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
+import { ProductVariantsApi } from "../../services/productVariants";
 import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
+import { orderApi } from "../../services/orderApi";
 import useToast from "../../hooks/useToast";
 import formatDateTime from "../../utils/formatDatetime";
 import { getStatusLabel } from "../../utils/productKeyHepler";
@@ -21,14 +23,19 @@ export default function KeyDetailPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [keyInfo, setKeyInfo] = useState(null);
+  const [buyerInfo, setBuyerInfo] = useState(null);
   const [products, setProducts] = useState([]);
+  const [variants, setVariants] = useState([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [formData, setFormData] = useState({
     productId: "",
+    variantId: "",
     supplierId: "",
     keyString: "",
     type: "Individual",
     status: "Available",
+    cogsPrice: "",
     expiryDate: "",
     notes: "",
   });
@@ -41,6 +48,11 @@ export default function KeyDetailPage() {
     type: "warning",
   });
 
+  const minExpiryDate = useMemo(
+    () => new Date().toISOString().split("T")[0],
+    []
+  );
+
   const loadProductKey = useCallback(async () => {
     if (!id || id === "add") return;
 
@@ -50,10 +62,15 @@ export default function KeyDetailPage() {
       setKeyInfo(data);
       setFormData({
         productId: data.productId,
+        variantId: data.variantId || "",
         supplierId: data.supplierId,
         keyString: data.keyString,
         type: data.type,
         status: data.status,
+        cogsPrice:
+          data.cogsPrice !== undefined && data.cogsPrice !== null
+            ? data.cogsPrice.toString()
+            : "",
         expiryDate: data.expiryDate
           ? new Date(data.expiryDate).toISOString().split("T")[0]
           : "",
@@ -98,6 +115,42 @@ export default function KeyDetailPage() {
     }
   }, []);
 
+  const loadVariantsForProduct = useCallback(async (productId) => {
+    if (!productId) {
+      setVariants([]);
+      return;
+    }
+    setLoadingVariants(true);
+    try {
+      const data = await ProductVariantsApi.list(productId, {
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setVariants(data.items || []);
+    } catch (err) {
+      console.error("Failed to load variants:", err);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
+    }
+  }, []);
+
+  const loadBuyerInfo = useCallback(async (orderId) => {
+    if (!orderId) return;
+    try {
+      const order = await orderApi.get(orderId);
+      if (order) {
+        setBuyerInfo({
+          name: order.userFullName || order.userName || "Unknown",
+          email: order.userEmail || "Unknown",
+          orderId: order.orderId,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load buyer info:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadProducts();
     loadSuppliers();
@@ -106,11 +159,28 @@ export default function KeyDetailPage() {
     }
   }, [isNew, loadProductKey, loadProducts, loadSuppliers]);
 
+  useEffect(() => {
+    if (keyInfo?.assignedToOrderId) {
+      loadBuyerInfo(keyInfo.assignedToOrderId);
+    }
+  }, [keyInfo, loadBuyerInfo]);
+
+  // Load variants when product changes
+  useEffect(() => {
+    if (formData.productId) {
+      loadVariantsForProduct(formData.productId);
+    }
+  }, [formData.productId, loadVariantsForProduct]);
+
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.productId) {
       newErrors.productId = "Sản phẩm là bắt buộc";
+    }
+
+    if (!formData.variantId) {
+      newErrors.variantId = "Biến thể sản phẩm là bắt buộc";
     }
 
     if (!formData.supplierId) {
@@ -127,10 +197,35 @@ export default function KeyDetailPage() {
       newErrors.notes = "Ghi chú không được vượt quá 1000 ký tự";
     }
 
+    const parsedCogs = parseFloat(formData.cogsPrice);
+    if (isNew) {
+      if (formData.cogsPrice === "" || Number.isNaN(parsedCogs)) {
+        newErrors.cogsPrice = "Giá vốn (COGS) là bắt buộc";
+      } else if (parsedCogs < 0) {
+        newErrors.cogsPrice = "Giá vốn không được âm";
+      }
+    } else if (
+      formData.cogsPrice &&
+      (Number.isNaN(parsedCogs) || parsedCogs < 0)
+    ) {
+      newErrors.cogsPrice = "Giá vốn không được âm";
+    }
+
+    if (isNew && formData.expiryDate) {
+      const [year, month, day] = formData.expiryDate
+        .split("-")
+        .map((value) => parseInt(value, 10));
+      const selectedDate = new Date(year, month - 1, day);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        newErrors.expiryDate = "Ngày hết hạn không được trong quá khứ";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -142,9 +237,11 @@ export default function KeyDetailPage() {
     setSaving(true);
     try {
       if (isNew) {
+        const cogsPriceValue = parseFloat(formData.cogsPrice);
         await ProductKeyApi.create({
           ...formData,
           expiryDate: formData.expiryDate || null,
+          cogsPrice: Number.isNaN(cogsPriceValue) ? null : cogsPriceValue,
         });
         showSuccess("Thành công", "Key đã được tạo thành công");
         navigate("/keys");
@@ -191,7 +288,13 @@ export default function KeyDetailPage() {
   };
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      // Reset variant when product changes
+      if (field === "productId" && value !== prev.productId) {
+        return { ...prev, [field]: value, variantId: "" };
+      }
+      return { ...prev, [field]: value };
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -291,6 +394,36 @@ export default function KeyDetailPage() {
 
             <div className="form-row">
               <label>
+                Biến thể <span style={{ color: "red" }}>*</span>
+              </label>
+              <div>
+                <select
+                  className="input"
+                  value={formData.variantId}
+                  onChange={(e) => handleChange("variantId", e.target.value)}
+                  disabled={!isNew || !formData.productId || loadingVariants}
+                >
+                  <option value="">
+                    {loadingVariants
+                      ? "Đang tải..."
+                      : !formData.productId
+                      ? "Chọn sản phẩm trước"
+                      : "Chọn biến thể"}
+                  </option>
+                  {variants.map((variant) => (
+                    <option key={variant.variantId} value={variant.variantId}>
+                      {variant.title}
+                    </option>
+                  ))}
+                </select>
+                {errors.variantId && (
+                  <small style={{ color: "red" }}>{errors.variantId}</small>
+                )}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label>
                 Nhà cung cấp <span style={{ color: "red" }}>*</span>
               </label>
               <div>
@@ -367,17 +500,42 @@ export default function KeyDetailPage() {
               </div>
             )}
 
+            {isNew && (
+              <div className="form-row">
+                <label>Giá vốn (COGS)</label>
+                <div>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.cogsPrice}
+                    onChange={(e) => handleChange("cogsPrice", e.target.value)}
+                    placeholder="Nhập giá vốn (COGS)"
+                  />
+                  {errors.cogsPrice && (
+                    <small style={{ color: "red" }}>{errors.cogsPrice}</small>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="form-row">
               <label>Ngày hết hạn</label>
-              <input
-                className="input"
-                type="date"
-                value={formData.expiryDate}
-                onChange={(e) => handleChange("expiryDate", e.target.value)}
-                disabled={!isNew}
-              />
+              <div>
+                <input
+                  className="input"
+                  type="date"
+                  min={minExpiryDate}
+                  value={formData.expiryDate}
+                  onChange={(e) => handleChange("expiryDate", e.target.value)}
+                  disabled={!isNew}
+                />
+                {errors.expiryDate && (
+                  <small style={{ color: "red" }}>{errors.expiryDate}</small>
+                )}
+              </div>
             </div>
-
             <div className="form-row" style={{ gridColumn: "1 / -1" }}>
               <label>Ghi chú</label>
               <div>
@@ -423,18 +581,37 @@ export default function KeyDetailPage() {
                   <small className="muted">Người nhập:</small>
                   <div>{keyInfo.importedByEmail || "-"}</div>
                 </div>
-                {keyInfo.orderCode && (
-                  <div>
-                    <small className="muted">Gắn đơn:</small>
-                    <div>{keyInfo.orderCode}</div>
-                  </div>
-                )}
                 {keyInfo.updatedAt && (
                   <div>
                     <small className="muted">Cập nhật lần cuối:</small>
                     <div>{formatDateTime(keyInfo.updatedAt)}</div>
                   </div>
                 )}
+                {keyInfo.assignedToOrderId && (
+                  <>
+                    <div>
+                      <small className="muted">Người mua:</small>
+                      <div>{buyerInfo?.name || "-"}</div>
+                    </div>
+                    <div>
+                      <small className="muted">Email người mua:</small>
+                      <div>{buyerInfo?.email || "-"}</div>
+                    </div>
+                    <div>
+                      <small className="muted">Mã đơn hàng:</small>
+                      <div>
+                        {buyerInfo?.orderId ? (
+                          <Link to={`/orders/${buyerInfo.orderId}`}>
+                            {buyerInfo.orderId}
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+                
               </div>
             </div>
           )}

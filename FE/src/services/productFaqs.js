@@ -1,20 +1,57 @@
-// Product FAQs service – theo ProductFaqsController (đường dẫn /api/products/{productId}/faqs)
+// services/productFaqs.js
+// FAQ chung – khớp với FaqsController (Route: api/faqs)
+
 import axiosClient from "../api/axiosClient";
 
 export const ProductFaqsApi = {
-  list: (productId) =>
-    axiosClient.get(`products/${productId}/faqs`),
+  /**
+   * Lấy danh sách FAQ theo trang + filter/search/sort.
+   * params: { keyword, active, sort, direction, page, pageSize }
+   * sort: question|sortOrder|active|created|updated ; direction: asc|desc
+   * Trả: { items, total, page, pageSize }
+   */
+  listPaged: (params = {}) =>
+    axiosClient.get("faqs", { params }),
 
-  // dto: { question, answer, sortOrder, isActive }
-  create: (productId, dto) =>
-    axiosClient.post(`products/${productId}/faqs`, dto),
+  /** Lấy chi tiết 1 FAQ */
+  getById: (faqId) =>
+    axiosClient.get(`faqs/${faqId}`),
 
-  // dto: { question, answer, sortOrder, isActive }
-  update: (productId, faqId, dto) =>
-    axiosClient.put(`products/${productId}/faqs/${faqId}`, dto),
+  /**
+   * Tạo mới FAQ:
+   * dto = {
+   *   question,
+   *   answer,
+   *   sortOrder?,
+   *   isActive?,
+   *   categoryIds?: number[],
+   *   productIds?: string[] (GUID)
+   * }
+   */
+  create: (dto) =>
+    axiosClient.post("faqs", dto),
 
-  remove: (productId, faqId) =>
-    axiosClient.delete(`products/${productId}/faqs/${faqId}`),
+  /**
+   * Cập nhật FAQ:
+   * dto = {
+   *   question,
+   *   answer,
+   *   sortOrder,
+   *   isActive,
+   *   categoryIds?: number[],
+   *   productIds?: string[]
+   * }
+   */
+  update: (faqId, dto) =>
+    axiosClient.put(`faqs/${faqId}`, dto),
+
+  /** Xóa FAQ */
+  remove: (faqId) =>
+    axiosClient.delete(`faqs/${faqId}`),
+
+  /** Đổi trạng thái IsActive */
+  toggle: (faqId) =>
+    axiosClient.patch(`faqs/${faqId}/toggle`),
 };
 
 export default ProductFaqsApi;

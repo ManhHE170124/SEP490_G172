@@ -1,4 +1,5 @@
 using Keytietkiem.DTOs;
+using Keytietkiem.Models;
 
 namespace Keytietkiem.Services.Interfaces;
 
@@ -53,6 +54,14 @@ public interface IAccountService
     Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates a temporary user with the specified email if it doesn't exist
+    /// </summary>
+    /// <param name="email">Email for the temporary user</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>UserId of the created or existing temp user</returns>
+    Task<User> CreateTempUserAsync(string email, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Sends an OTP code to the specified email address for registration verification
     /// </summary>
     /// <param name="sendOtpDto">Email to send OTP to</param>
@@ -96,4 +105,29 @@ public interface IAccountService
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task SeedDataAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy thông tin hồ sơ tài khoản đang đăng nhập
+    /// </summary>
+    /// <param name="accountId">AccountId từ token</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>Thông tin hồ sơ kèm vai trò</returns>
+    Task<AccountProfileDto> GetProfileAsync(Guid accountId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cập nhật thông tin hồ sơ cho tài khoản đang đăng nhập
+    /// </summary>
+    /// <param name="accountId">AccountId từ token</param>
+    /// <param name="updateDto">Thông tin cần cập nhật</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>Thông tin hồ sơ sau khi cập nhật</returns>
+    Task<AccountProfileDto> UpdateProfileAsync(Guid accountId, UpdateAccountProfileDto updateDto, CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Get user by email
+    /// </summary>
+    /// <param name="email">User email</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task<User?> GetUserAsync(string email, CancellationToken cancellationToken = default);
 }

@@ -9,7 +9,7 @@ public partial class OrderDetail
 
     public Guid OrderId { get; set; }
 
-    public Guid ProductId { get; set; }
+    public Guid VariantId { get; set; }
 
     public int Quantity { get; set; }
 
@@ -21,7 +21,5 @@ public partial class OrderDetail
 
     public virtual Order Order { get; set; } = null!;
 
-    public virtual Product Product { get; set; } = null!;
-
-    public virtual ICollection<WarrantyClaim> WarrantyClaims { get; set; } = new List<WarrantyClaim>();
+    public virtual ProductVariant Variant { get; set; } = null!;
 }

@@ -16,8 +16,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
-using Keytietkiem.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.DTOs.Roles;
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
@@ -29,14 +29,14 @@ namespace Keytietkiem.Controllers
         {
             _context = context;
         }
-        // GET: api/<ModulesController>
-        [HttpGet]
+
         /**
         * Summary: Retrieve all modules.
         * Route: GET /api/modules
         * Params: none
         * Returns: 200 OK with list of modules
         */
+        [HttpGet]
         public async Task<IActionResult> GetModules()
         {
             var modules = await _context.Modules
@@ -44,6 +44,7 @@ namespace Keytietkiem.Controllers
                 {
                     ModuleId = m.ModuleId,
                     ModuleName = m.ModuleName,
+                    Code = m.Code,
                     Description = m.Description,
                     CreatedAt = m.CreatedAt,
                     UpdatedAt = m.UpdatedAt
@@ -51,7 +52,7 @@ namespace Keytietkiem.Controllers
                 .ToListAsync();
             return Ok(modules);
         }
-        // GET api/<ModulesController>/5
+
         /**
          * Summary: Retrieve a module by id.
          * @Route: GET /api/modules/{id}
@@ -72,6 +73,7 @@ namespace Keytietkiem.Controllers
             {
                 ModuleId = module.ModuleId,
                 ModuleName = module.ModuleName,
+                Code = module.Code,
                 Description = module.Description,
                 CreatedAt = module.CreatedAt,
                 UpdatedAt = module.UpdatedAt
@@ -79,32 +81,50 @@ namespace Keytietkiem.Controllers
 
             return Ok(moduleDto);
         }
-        // POST api/<ModulesController>
-        [HttpPost]
+
         /**
          * Summary: Create a new module.
          * Route: POST /api/modules
          * Body: Module newModule
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
+        [HttpPost]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
-            if (createModuleDto == null || string.IsNullOrWhiteSpace(createModuleDto.ModuleName))
+            if (createModuleDto == null)
             {
-                return BadRequest("Module name is required.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleName == createModuleDto.ModuleName);
             if (existing != null)
             {
-                return Conflict(new { message = "Module name already exists." });
+                return Conflict(new { message = "Tên module đã tồn tại." });
+            }
+
+            // Check if Code is unique (if provided)
+            if (!string.IsNullOrWhiteSpace(createModuleDto.Code))
+            {
+                var existingCode = await _context.Modules
+                    .FirstOrDefaultAsync(m => m.Code == createModuleDto.Code);
+                if (existingCode != null)
+                {
+                    return Conflict(new { message = "Mã module đã tồn tại." });
+                }
             }
 
             var newModule = new Module
             {
                 ModuleName = createModuleDto.ModuleName,
+                Code = createModuleDto.Code,
                 Description = createModuleDto.Description,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Modules.Add(newModule);
@@ -136,6 +156,7 @@ namespace Keytietkiem.Controllers
             {
                 ModuleId = newModule.ModuleId,
                 ModuleName = newModule.ModuleName,
+                Code = newModule.Code,
                 Description = newModule.Description,
                 CreatedAt = newModule.CreatedAt,
                 UpdatedAt = newModule.UpdatedAt
@@ -143,8 +164,7 @@ namespace Keytietkiem.Controllers
 
             return CreatedAtAction(nameof(GetModuleById), new { id = newModule.ModuleId }, moduleDto);
         }
-        // PUT api/<ModulesController>/5
-        [HttpPut("{id}")]
+
         /**
          * Summary: Update an existing module by id.
          * Route: PUT /api/modules/{id}
@@ -152,11 +172,18 @@ namespace Keytietkiem.Controllers
          * Body: Module updatedModule
          * Returns: 204 No Content, 400/404 on errors
          */
+        [HttpPut("{id}")]
         public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
             if (updateModuleDto == null)
             {
-                return BadRequest("Invalid module data.");
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
@@ -164,21 +191,33 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
+            // Check if Code is unique (if provided and changed)
+            if (!string.IsNullOrWhiteSpace(updateModuleDto.Code) && existing.Code != updateModuleDto.Code)
+            {
+                var existingCode = await _context.Modules
+                    .FirstOrDefaultAsync(m => m.Code == updateModuleDto.Code && m.ModuleId != id);
+                if (existingCode != null)
+                {
+                    return Conflict(new { message = "Mã module đã tồn tại." });
+                }
+            }
+
             existing.ModuleName = updateModuleDto.ModuleName;
+            existing.Code = updateModuleDto.Code;
             existing.Description = updateModuleDto.Description;
-            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedAt = DateTime.Now;
             _context.Modules.Update(existing);
             await _context.SaveChangesAsync();
             return NoContent();
         }
-        // DELETE api/<ModulesController>/5
-        [HttpDelete("{id}")]
+
         /**
          * Summary: Delete a module by id and cascade remove related role-permissions.
          * Route: DELETE /api/modules/{id}
          * Params: id (long)
          * Returns: 204 No Content, 404 if not found
          */
+        [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules

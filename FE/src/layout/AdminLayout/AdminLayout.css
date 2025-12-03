@@ -1,0 +1,78 @@
+/* ========== Admin Layout ========== */
+.al-admin-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Desktop: sidebar full 280px */
+.al-admin-content {
+  margin-left: 280px;            /* chừa chỗ cho sidebar */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  transition: margin-left 0.2s ease;
+}
+
+body.sb-collapsed .al-admin-content {
+  margin-left: 96px;
+}
+
+.al-admin-main {
+  flex: 1;
+  padding: 2rem;
+  background: var(--page);
+  overflow-y: auto;
+}
+
+/* Responsive behavior for mobile */
+@media (max-width: 1024px) {
+  .al-admin-content {
+    margin-left: 0; /* Remove sidebar margin on mobile */
+  }
+  
+  body.sb-collapsed .al-admin-content {
+    margin-left: 0;
+  }
+  
+  .al-sb-sidebar {
+    transform: translateX(-100%); /* Hide sidebar on mobile */
+    transition: transform 0.3s ease;
+  }
+  
+  .al-sb-sidebar.open {
+    transform: translateX(0); /* Show sidebar when open */
+  }
+}
+
+/* ========== Responsive / Mobile ========== */
+@media (max-width: 1024px) {
+  .al-admin-layout {
+    display: block;              /* cho content chiếm full chiều ngang */
+  }
+
+  .al-admin-content {
+    margin-left: 0;              /* không chừa chỗ sidebar trên mobile */
+  }
+
+  /* Sidebar thành dạng overlay kéo từ trái ra */
+  .sb-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+  }
+
+  /* Lúc isOpen = true -> Sidebar.jsx thêm class `open` */
+  .sb-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Trên mobile, dù body có sidebar-collapsed cũng không đẩy content */
+  body.sidebar-collapsed .al-admin-content {
+    margin-left: 0;
+  }
+}

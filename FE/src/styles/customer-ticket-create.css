@@ -1,0 +1,284 @@
+/* File: src/styles/customer-ticket-create.css */
+
+/* Kế thừa phong cách card/shadow tương tự admin-ticket-detail */
+:root {
+  --card: #ffffff;
+  --line: #e5e7eb;
+  --radius: 12px;
+  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --ink: #0b2130;
+  --muted: #6b7280;
+  --primary: #0d6efd;
+}
+
+/* Trang tạo ticket khách hàng */
+.ctc-page {
+  padding: 24px;
+  min-height: calc(100vh - 120px); /* chừa vùng cho header/footer layout chung */
+  background: #f3f4f6;
+}
+
+/* Header trên cùng */
+.ctc-header {
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ctc-header-left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ctc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  margin-bottom: 6px;
+}
+
+.ctc-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.ctc-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.ctc-header-right {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ctc-back-btn {
+  margin-top: 4px;
+}
+
+/* Layout 2 cột */
+.ctc-content {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr);
+  gap: 24px;
+}
+
+.ctc-left,
+.ctc-right {
+  min-width: 0;
+}
+
+/* Card chung */
+.ctc-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 16px 16px 18px;
+  color: var(--ink);
+}
+
+.ctc-card-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+
+.ctc-card-body {
+  font-size: 14px;
+}
+
+/* Footer note */
+.ctc-footer-note {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Footer helper dưới field */
+.ctc-field-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  gap: 8px;
+}
+
+.ctc-field-footer small {
+  font-size: 11px;
+}
+
+/* Hàng chọn template + severity */
+.ctc-template-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ctc-template-row .form-select {
+  flex: 1 1 auto;
+}
+
+/* Badge severity */
+.ctc-severity-pill {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ctc-severity-low {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.ctc-severity-medium {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.ctc-severity-high {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.ctc-severity-critical {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+/* Tiêu đề đã chọn (read-only) */
+.ctc-selected-title {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5f5;
+  background: #f9fafb;
+}
+
+.ctc-selected-title-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.ctc-selected-title-text {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* Textarea mô tả chi tiết: không cho resize ngang, không tràn khung */
+.ctc-card textarea {
+  width: 100%;
+  max-width: 100%;
+  resize: vertical; /* chỉ cho kéo dọc, không cho kéo ngang */
+  box-sizing: border-box;
+}
+
+/* Focus input/select */
+.ctc-card .form-control:focus,
+.ctc-card .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.18rem rgba(37, 99, 235, 0.16);
+}
+
+/* Nút submit */
+.ctc-submit-btn {
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  letter-spacing: 0.01em;
+}
+
+.ctc-submit-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+/* Card tips bên phải */
+.ctc-tips-card {
+  font-size: 13px;
+}
+
+.ctc-tips-list {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 4px 0 10px;
+}
+
+.ctc-tips-list li {
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
+.ctc-sla-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .ctc-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ctc-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ctc-header-right {
+    align-items: flex-start;
+    text-align: left;
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 576px) {
+  .ctc-page {
+    padding: 16px;
+  }
+
+  .ctc-header {
+    padding: 16px 14px;
+  }
+
+  .ctc-card {
+    padding: 14px 12px 16px;
+  }
+
+  .ctc-title {
+    font-size: 18px;
+  }
+
+  .ctc-subtitle {
+    font-size: 12px;
+  }
+}

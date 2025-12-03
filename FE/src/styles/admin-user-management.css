@@ -111,6 +111,13 @@
   border-color: var(--primary-hover);
 }
 
+/* Disabled button (dùng cho nút Lưu khi form lỗi) */
+.kt-admin .btn:disabled,
+.kt-admin .btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Table Styles */
 .kt-admin .table {
   width: 100%;
@@ -304,6 +311,12 @@
   cursor: not-allowed;
 }
 
+/* Đánh dấu input lỗi (gắn class .error từ JSX) */
+.kt-admin .form-input.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
 /* Password Input Group */
 .password-input-group {
   position: relative;
@@ -455,6 +468,7 @@
   margin-top: 4px;
 }
 
+/* (class cũ dùng chung, vẫn giữ) */
 .kt-admin .control input.error,
 .kt-admin .control select.error {
   border-color: var(--danger);

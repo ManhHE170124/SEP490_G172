@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
@@ -13,7 +14,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Configuration
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
 // ===== Connection string =====
 var connStr = builder.Configuration.GetConnectionString("MyCnn");
 
@@ -21,7 +24,6 @@ var connStr = builder.Configuration.GetConnectionString("MyCnn");
 // Dùng DbContextFactory để dễ test và control scope
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
     opt.UseSqlServer(connStr));
-
 // ===== Configuration Options =====
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
@@ -29,6 +31,7 @@ builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("Clien
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<PayOSService>();
 
 // ===== Repositories =====
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -36,11 +39,17 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 // ===== Services =====
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IPhotoService, CloudinaryService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ILicensePackageService, LicensePackageService>();
 builder.Services.AddScoped<IProductKeyService, ProductKeyService>();
 builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
+builder.Services.AddScoped<IProductReportService, ProductReportService>();
+builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
+builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
+builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
+builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -54,6 +63,9 @@ builder.Services.AddControllers()
         // Nếu dùng DateOnly/TimeOnly => thêm converter custom ở đây
         // o.JsonSerializerOptions.Converters.Add(new DateOnlyJsonConverter());
     });
+
+// ===== SignalR cho realtime Ticket chat =====
+builder.Services.AddSignalR();
 
 // ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -149,6 +161,12 @@ app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ===== Endpoint mapping =====
 app.MapControllers();
+
+// Hub realtime cho ticket chat (chỉ dùng cho khung chat)
+app.MapHub<TicketHub>("/hubs/tickets");
+app.MapHub<SupportChatHub>("/hubs/support-chat");
+
 
 app.Run();

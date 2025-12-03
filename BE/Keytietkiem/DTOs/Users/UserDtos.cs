@@ -17,52 +17,72 @@ namespace Keytietkiem.DTOs.Users
     public class UserDetailDto
     {
         public Guid UserId { get; set; }
+
         public string FirstName { get; set; } = "";
         public string LastName { get; set; } = "";
         public string FullName { get; set; } = "";
         public string Email { get; set; } = "";
         public string? Phone { get; set; }
         public string? Address { get; set; }
+
         public string Status { get; set; } = "Active";
         public DateTime? LastLoginAt { get; set; }
         public string? RoleId { get; set; }
         public bool HasAccount { get; set; }
 
-        // NEW: phản ánh Account.Username để FE cho phép tạo/sửa username
+        // Phản ánh Account.Username để FE cho phép tạo/sửa username
         [StringLength(60)]
         public string Username { get; set; } = "";
-        // ĐÃ BỎ: PasswordPlain
+        // Không có passwordPlain vì mật khẩu băm 1 chiều.
     }
 
     public class UserCreateDto
     {
-        [Required, StringLength(100)]
+        // Theo DB: FirstName NVARCHAR(80)
+        [Required]
+        [StringLength(80)]
         public string FirstName { get; set; } = "";
 
-        [Required, StringLength(100)]
+        // Theo DB: LastName NVARCHAR(80)
+        [Required]
+        [StringLength(80)]
         public string LastName { get; set; } = "";
 
-        [Required, EmailAddress, StringLength(255)]
+        // Theo DB: Email NVARCHAR(254) UNIQUE
+        [Required]
+        [EmailAddress]
+        [StringLength(254)]
         public string Email { get; set; } = "";
 
-        [Phone, StringLength(30)]
+        // Theo DB: Phone NVARCHAR(32)
+        [Phone]
+        [StringLength(32)]
         public string? Phone { get; set; }
 
-        [StringLength(500)]
+        // Theo DB: Address NVARCHAR(300)
+        [StringLength(300)]
         public string? Address { get; set; }
 
-        [Required, RegularExpression("Active|Locked|Disabled", ErrorMessage = "Status must be Active, Locked or Disabled")]
+        // Theo UserStatus: Active | Locked | Disabled, cột Status NVARCHAR(12)
+        [Required]
+        [RegularExpression("Active|Locked|Disabled|Temp", ErrorMessage = "Status must be Active, Locked, Disabled or Temp")]
         public string Status { get; set; } = "Active";
 
         public string? RoleId { get; set; }
 
-        // NEW: cho phép nhập username ngay khi tạo (nếu để trống sẽ dùng email)
+        // Theo Account.Username NVARCHAR(60) UNIQUE
         [StringLength(60)]
         public string? Username { get; set; }
 
-        // Nếu có => tạo Account + băm 1 chiều
-        [StringLength(200)]
-        public string? NewPassword { get; set; }
+        /// <summary>
+        /// Mật khẩu khi tạo tài khoản:
+        /// - BẮT BUỘC (không được để trống).
+        /// - Ít nhất 6 ký tự.
+        /// - Giới hạn 200 ký tự để tránh input quá dài (hash lưu vào PasswordHash max 256 bytes).
+        /// </summary>
+        [Required]
+        [StringLength(200, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters.")]
+        public string NewPassword { get; set; } = "";
     }
 
     public class UserUpdateDto
@@ -70,32 +90,42 @@ namespace Keytietkiem.DTOs.Users
         [Required]
         public Guid UserId { get; set; }
 
-        [Required, StringLength(100)]
+        // Giống constraint của Create
+        [Required]
+        [StringLength(80)]
         public string FirstName { get; set; } = "";
 
-        [Required, EmailAddress, StringLength(255)]
+        [Required]
+        [EmailAddress]
+        [StringLength(254)]
         public string Email { get; set; } = "";
 
-        [Required, StringLength(100)]
+        [Required]
+        [StringLength(80)]
         public string LastName { get; set; } = "";
 
-        [Phone, StringLength(30)]
+        [Phone]
+        [StringLength(32)]
         public string? Phone { get; set; }
 
-        [StringLength(500)]
+        [StringLength(300)]
         public string? Address { get; set; }
 
-        [Required, RegularExpression("Active|Locked|Disabled", ErrorMessage = "Status must be Active, Locked or Disabled")]
+        [Required]
+        [RegularExpression("Active|Locked|Disabled", ErrorMessage = "Status must be Active, Locked or Disabled")]
         public string Status { get; set; } = "Active";
 
         public string? RoleId { get; set; }
 
-        // NEW: cho phép đổi username trong quá trình cập nhật
         [StringLength(60)]
         public string? Username { get; set; }
 
-        // Nếu có => reset password (băm 1 chiều)
-        [StringLength(200)]
+        /// <summary>
+        /// Mật khẩu mới khi update:
+        /// - TÙY CHỌN (cho phép null/empty).
+        /// - Nếu có giá trị thì phải ≥ 6 ký tự, tối đa 200 ký tự.
+        /// </summary>
+        [StringLength(200, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters.")]
         public string? NewPassword { get; set; }
     }
 }

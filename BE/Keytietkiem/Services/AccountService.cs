@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Enums;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
@@ -24,6 +26,7 @@ public class AccountService : IAccountService
     private const int OtpExpiryMinutes = 5;
     private const int VerificationTokenExpiryMinutes = 30;
     private const string Admin = "admin";
+    private const string AccountNotFoundMessage = "Tài khoản không tồn tại";
     private readonly IGenericRepository<Account> _accountRepository;
     private readonly IMemoryCache _cache;
     private readonly IClock _clock;
@@ -33,6 +36,8 @@ public class AccountService : IAccountService
     private readonly ClientConfig _clientConfig;
     private readonly IGenericRepository<User> _userRepository;
 
+    [SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters",
+        Justification = "Constructor injection requires these dependencies")]
     public AccountService(
         KeytietkiemDbContext context,
         IGenericRepository<Account> accountRepository,
@@ -78,20 +83,47 @@ public class AccountService : IAccountService
         if (customerRole == null)
             throw new InvalidOperationException("Customer role không tồn tại. Vui lòng kiểm tra cấu hình hệ thống");
 
-        // Create User entity
-        var user = new User
+        // Check if a temp user exists with this email
+        var existingTempUser = await _userRepository.FirstOrDefaultAsync(
+            u => u.Email == registerDto.Email && u.Status == "Temp",
+            cancellationToken);
+
+        User user;
+        bool isNewUser = false;
+
+        if (existingTempUser != null)
         {
-            UserId = Guid.NewGuid(),
-            FirstName = registerDto.FirstName,
-            LastName = registerDto.LastName,
-            FullName = $"{registerDto.FirstName} {registerDto.LastName}",
-            Email = registerDto.Email,
-            Phone = registerDto.Phone,
-            Address = registerDto.Address,
-            Status = "Active",
-            EmailVerified = true, // Email verified via OTP
-            CreatedAt = _clock.UtcNow
-        };
+            // Update existing temp user to active user
+            user = existingTempUser;
+            user.FirstName = registerDto.FirstName;
+            user.LastName = registerDto.LastName;
+            user.FullName = $"{registerDto.FirstName} {registerDto.LastName}";
+            user.Phone = registerDto.Phone;
+            user.Address = registerDto.Address;
+            user.Status = "Active";
+            user.EmailVerified = true; // Email verified via OTP
+            user.UpdatedAt = _clock.UtcNow;
+
+            _userRepository.Update(user);
+        }
+        else
+        {
+            // Create new User entity
+            user = new User
+            {
+                UserId = Guid.NewGuid(),
+                FirstName = registerDto.FirstName,
+                LastName = registerDto.LastName,
+                FullName = $"{registerDto.FirstName} {registerDto.LastName}",
+                Email = registerDto.Email,
+                Phone = registerDto.Phone,
+                Address = registerDto.Address,
+                Status = "Active",
+                EmailVerified = true, // Email verified via OTP
+                CreatedAt = _clock.UtcNow
+            };
+            isNewUser = true;
+        }
 
         // Add Customer role to user
         user.Roles.Add(customerRole);
@@ -111,7 +143,12 @@ public class AccountService : IAccountService
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            await _userRepository.AddAsync(user, cancellationToken);
+            if (isNewUser)
+            {
+                await _userRepository.AddAsync(user, cancellationToken);
+            }
+            // If updating existing temp user, Update was already called above
+
             await _accountRepository.AddAsync(account, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -206,12 +243,101 @@ public class AccountService : IAccountService
         return GenerateLoginResponse(account, user);
     }
 
+    public async Task<AccountProfileDto> GetProfileAsync(Guid accountId, CancellationToken cancellationToken = default)
+    {
+        var account = await _context.Accounts
+            .Include(a => a.User)
+            .ThenInclude(u => u.Roles)
+            .FirstOrDefaultAsync(a => a.AccountId == accountId, cancellationToken);
+
+        if (account == null)
+            throw new InvalidOperationException(AccountNotFoundMessage);
+
+        var user = account.User;
+        var roles = user.Roles.Select(r => r.RoleId).ToList();
+
+        return new AccountProfileDto
+        {
+            UserId = user.UserId,
+            AccountId = account.AccountId,
+            Username = account.Username,
+            Email = user.Email,
+            FullName = user.FullName ?? string.Empty,
+            Phone = user.Phone,
+            Address = user.Address,
+            AvatarUrl = user.AvatarUrl,
+            Status = user.Status,
+            Roles = roles
+        };
+    }
+
+    public async Task<AccountProfileDto> UpdateProfileAsync(Guid accountId, UpdateAccountProfileDto updateDto,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _context.Accounts
+            .Include(a => a.User)
+            .ThenInclude(u => u.Roles)
+            .FirstOrDefaultAsync(a => a.AccountId == accountId, cancellationToken);
+
+        if (account == null)
+            throw new InvalidOperationException(AccountNotFoundMessage);
+
+        var user = account.User ?? throw new InvalidOperationException("Người dùng không tồn tại");
+
+        var trimmedFullName = updateDto.FullName?.Trim() ?? string.Empty;
+        user.FullName = trimmedFullName;
+
+        if (!string.IsNullOrWhiteSpace(trimmedFullName))
+        {
+            var nameParts = trimmedFullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (nameParts.Length == 1)
+            {
+                user.FirstName = nameParts[0];
+                user.LastName = nameParts[0];
+            }
+            else
+            {
+                user.FirstName = nameParts[^1];
+                user.LastName = string.Join(' ', nameParts[..^1]);
+            }
+        }
+
+        user.Phone = updateDto.Phone;
+        user.Address = updateDto.Address;
+        user.AvatarUrl = updateDto.AvatarUrl;
+        user.UpdatedAt = _clock.UtcNow;
+
+        _userRepository.Update(user);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var roles = user.Roles.Select(r => r.RoleId).ToList();
+
+        return new AccountProfileDto
+        {
+            UserId = user.UserId,
+            AccountId = account.AccountId,
+            Username = account.Username,
+            Email = user.Email,
+            FullName = user.FullName ?? string.Empty,
+            Phone = user.Phone,
+            Address = user.Address,
+            AvatarUrl = user.AvatarUrl,
+            Status = user.Status,
+            Roles = roles
+        };
+    }
+
+    public async Task<User?> GetUserAsync(string email, CancellationToken cancellationToken = default)
+    {
+        return await _userRepository.FirstOrDefaultAsync(a => a.Email == email, cancellationToken);
+    }
+
     public async Task ChangePasswordAsync(Guid accountId, ChangePasswordDto changePasswordDto,
         CancellationToken cancellationToken = default)
     {
         var account = await _accountRepository.GetByIdAsync(accountId, cancellationToken);
 
-        if (account == null) throw new InvalidOperationException("Tài khoản không tồn tại");
+        if (account == null) throw new InvalidOperationException(AccountNotFoundMessage);
 
         // Verify current password
         if (!VerifyPassword(changePasswordDto.CurrentPassword, account.PasswordHash))
@@ -232,7 +358,35 @@ public class AccountService : IAccountService
 
     public async Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _userRepository.AnyAsync(u => u.Email == email, cancellationToken);
+        return await _userRepository.AnyAsync(u => u.Email == email && u.Status != "Temp", cancellationToken);
+    }
+
+    public async Task<User> CreateTempUserAsync(string email, CancellationToken cancellationToken = default)
+    {
+        // Check if temp user already exists
+        var existingTempUser = await _userRepository.FirstOrDefaultAsync(
+            u => u.Email == email && u.Status == "Temp",
+            cancellationToken);
+
+        if (existingTempUser != null)
+        {
+            return existingTempUser;
+        }
+
+        // Create new temp user
+        var tempUser = new User
+        {
+            UserId = Guid.NewGuid(),
+            Email = email,
+            Status = "Temp",
+            EmailVerified = false,
+            CreatedAt = _clock.UtcNow
+        };
+
+        await _userRepository.AddAsync(tempUser, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return tempUser;
     }
 
     public async Task<string> SendOtpAsync(SendOtpDto sendOtpDto, CancellationToken cancellationToken = default)
@@ -346,7 +500,7 @@ public class AccountService : IAccountService
             cancellationToken);
 
         if (account == null)
-            throw new InvalidOperationException("Tài khoản không tồn tại");
+            throw new InvalidOperationException(AccountNotFoundMessage);
 
         // Update password
         account.PasswordHash = HashPassword(resetPasswordDto.NewPassword);
@@ -370,8 +524,8 @@ public class AccountService : IAccountService
         // Validate both tokens
         try
         {
-            var accessPrincipal = ValidateToken(revokeTokenDto.AccessToken);
-            var refreshPrincipal = ValidateToken(revokeTokenDto.RefreshToken);
+            _ = ValidateToken(revokeTokenDto.AccessToken);
+            _ = ValidateToken(revokeTokenDto.RefreshToken);
 
             // Get token JTI (unique identifier) from access token
             var accessTokenHandler = new JwtSecurityTokenHandler();
@@ -530,9 +684,11 @@ public class AccountService : IAccountService
                 Email = user.Email,
                 FullName = user.FullName ?? string.Empty,
                 Phone = user.Phone,
+                Address = user.Address,
                 AvatarUrl = user.AvatarUrl,
                 Status = user.Status,
-                Roles = roles
+                Roles = roles,
+                SupportPriorityLevel = user.SupportPriorityLevel
             }
         };
     }

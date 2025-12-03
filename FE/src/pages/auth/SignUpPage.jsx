@@ -1,8 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useModal } from "../../components/common/ModalProvider";
-import PublicFooter from "../../components/public/PublicFooter";
-import PublicHeader from "../../components/public/PublicHeader";
 import { AuthService } from "../../services/authService";
 import "./Auth.css";
 
@@ -287,6 +285,10 @@ export default function SignUpPage() {
       localStorage.setItem("access_token", response.accessToken);
       localStorage.setItem("refresh_token", response.refreshToken);
       localStorage.setItem("user", JSON.stringify(response.user));
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("profile-updated"));
+      }
 
       // Show success modal and redirect
       await modal.showSuccess(
@@ -629,8 +631,6 @@ export default function SignUpPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
-
       <section className="container section auth-wrap">
         <div className="auth-card" role="form" aria-labelledby="signUpTitle">
           <h1 id="signUpTitle">{getStepTitle()}</h1>
@@ -678,8 +678,6 @@ export default function SignUpPage() {
           )}
         </div>
       </section>
-
-      <PublicFooter />
     </div>
   );
 }

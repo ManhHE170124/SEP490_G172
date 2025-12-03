@@ -125,6 +125,27 @@ textarea {
   border-radius: 12px;
   background: #fff;
 }
+.chunk-text {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.chunk-text--block {
+  display: block;
+}
+.chunk-text--muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.chunk-text--cell {
+  max-width: 220px;
+}
+.chunk-text--wide {
+  max-width: 100%;
+}
 textarea {
   min-height: 110px;
 }
@@ -534,4 +555,408 @@ table .row select {
   line-height: 1;
   font-weight: 600;
   border: none;
+}
+/* ====== Responsive container & form grid ====== */
+.page > .card {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: 10px;
+}
+
+.grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: clamp(10px, 2vw, 16px);
+}
+
+/* breakpoint: tablet dọc */
+@media (max-width: 1024px) {
+  .grid.cols-2 {
+    grid-template-columns: 1fr;
+  }
+  .panel-body {
+    max-height: 260px;
+  }
+}
+
+/* breakpoint: mobile lớn */
+@media (max-width: 640px) {
+  .btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+  .panel {
+    padding: 6px;
+  }
+  .panel-header {
+    padding: 6px;
+  }
+}
+
+/* Input/Select chiều cao mềm bằng clamp để “chảy” theo viewport */
+.main .group input,
+.main .group select,
+.input-group .group input,
+.input-group .group select {
+  height: clamp(38px, 5.2cqw, 42px);
+  /* cqw = container query width fallback: hoạt động như vw trong nhiều trình duyệt mới.
+     Nếu không muốn mạo hiểm, cứ để clamp(38px, 2.5vw, 42px). */
+}
+
+/* Label & heading mượt hơn */
+label {
+  font-size: clamp(12px, 1.4vw, 13px);
+}
+.card h2 {
+  font-size: clamp(18px, 2.2vw, 22px);
+}
+
+/* ====== Bảng “Biến thể thời gian” – table thật + responsive ====== */
+.variants-wrap {
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.variants-scroller {
+  overflow-x: auto;
+}
+
+/* Min-width để các cột không “gãy hàng” */
+.variants-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.variants-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.variants-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.variants-table tbody tr:hover {
+  background: #fafbff;
+}
+
+/* Căn phải cho số */
+.td-right {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Nhỏ gọn cột thao tác */
+.td-actions {
+  width: 160px;
+  text-align: right;
+}
+.td-actions .btn {
+  padding: 8px 10px;
+}
+
+/* Badge trạng thái trong bảng */
+.badge.status-active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+.badge.status-inactive {
+  background: #f3f4f6;
+  color: #374151;
+}
+.badge.status-oo-stock {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.variants-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap; /* luôn 1 hàng trên desktop */
+}
+.variants-toolbar input {
+  max-width: 240px;
+}
+.variants-toolbar select {
+  width: 150px;
+}
+.variants-toolbar button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .variants-toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+/* Phân trang gọn */
+.variants-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+}
+/* Ba cột nhỏ gọn cho hàng Loại/Danh mục/Nhãn */
+.grid.cols-3 {
+  grid-template-columns: 0.8fr 1.1fr 1.1fr; /* Loại hẹp, 2 panel rộng hơn */
+  gap: clamp(10px, 1.6vw, 16px);
+}
+@media (max-width: 1100px) {
+  .grid.cols-3 {
+    grid-template-columns: 1fr;
+  } /* rơi về 1 cột khi hẹp */
+}
+.variants-wrap {
+  margin-top: 8px;
+} /* sát tiêu đề hơn */
+.variants-table {
+  margin-top: 0;
+} /* thẳng hàng với "Biến thể thời gian" */
+.td-actions .action-btn {
+  width: 32px;
+  height: 32px;
+}
+/* ===== Spacing hàng bảng: đỡ sát hơn ===== */
+.variants-table thead th {
+  padding: 12px 14px; /* tăng padding */
+}
+.variants-table tbody td {
+  padding: 14px; /* tăng padding hàng dữ liệu */
+  line-height: 1.35;
+}
+.variants-table tbody tr + tr td {
+  border-top: 1px solid var(--line);
+}
+
+/* Căn trái tiêu đề & ô thao tác */
+.td-actions {
+  width: 180px;
+}
+.td-left {
+  text-align: left;
+}
+
+/* Ô tìm kiếm/combobox trong toolbar – đồng bộ format */
+.variants-toolbar .ctl {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  outline: none;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.variants-toolbar .ctl:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Giãn khoảng cách hàng tổng thể một chút khi hover */
+.variants-table tbody tr:hover {
+  background: #fafbff;
+}
+
+/* Badge trạng thái */
+.badge.status-active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+.badge.status-inactive {
+  background: #f3f4f6;
+  color: #374151;
+}
+.badge.status-oo-stock {
+  background: #fff7ed;
+  color: #9a3412;
+}
+/* Modal topbar: tiêu đề trái, switch phải */
+.modal-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 0 0; /* nhẹ nhàng, không đè header mặc định */
+}
+@media (max-width: 640px) {
+  .modal-topbar {
+    gap: 8px;
+  }
+  .modal-topbar .row {
+    margin-left: auto;
+  }
+}
+/* Bảng biến thể: dữ liệu căn trái như tiêu đề */
+.variants-table thead th {
+  text-align: left;
+}
+.variants-table tbody td {
+  text-align: left;
+} /* ghi đè mọi class cũ */
+.variants-area {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Gói table + footer theo cột */
+.variants-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* để flex con có thể overflow */
+}
+
+/* Vùng bảng: cho phép cuộn, tạo khoảng đệm đáy để không chạm footer */
+.variants-scroller {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+
+/* Footer không dính body: có viền, nền, khoảng đệm và cách ra phía trên */
+.variants-footer {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border-top: 1px solid var(--line, #e5e7eb);
+}
+
+/* (Tuỳ chọn) “neo” footer khi cuộn bảng dài */
+.variants-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1; /* nổi trên table */
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* (Tuỳ chọn) căn chữ, nút trong footer thẳng hàng hơn ở màn nhỏ */
+@media (max-width: 768px) {
+  .variants-footer {
+    gap: 8px;
+  }
+}
+/* Chỉ áp dụng cho khối biến thể, tránh ảnh hưởng trang khác */
+.panel-body .variants-wrap {
+  display: block; /* bỏ flex column */
+}
+
+.panel-body .variants-scroller {
+  overflow: visible !important; /* KHÔNG cuộn */
+  max-height: none !important; /* KHÔNG giới hạn chiều cao */
+  padding-bottom: 0 !important; /* bỏ đệm dưới nếu có */
+}
+
+/* Nếu trước đó bạn dùng sticky footer -> tắt để footer không đè bảng */
+.panel-body .variants-footer {
+  position: static !important;
+  box-shadow: none !important;
+  margin-top: 12px; /* cách bảng 1 chút cho thoáng */
+}
+
+/* Một số template set overflow cho panel-body, ta mở khóa luôn */
+.panel .panel-body {
+  overflow: visible !important;
+  max-height: none !important;
+}
+.input-readonly {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+.grid {
+  display: grid;
+  gap: 14px; /* tăng nhẹ so với 12px để các field không sát nhau */
+}
+
+/* Nhóm input chung – tăng khoảng cách hàng */
+.input-group {
+  row-gap: 18px; /* khoảng cách dọc giữa các group trong cùng form */
+}
+
+/* Group trong form: thêm khoảng margin dưới */
+.input-group .group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px; /* tách nhẹ giữa các hàng */
+}
+
+/* Input lỗi */
+.input-error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35);
+}
+.field-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #dc2626;
+}
+/* Input readonly (không được sửa) */
+.input-readonly {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+/* Panel hover “động khi chỉ vào” giống card sản phẩm */
+.panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+/* Nếu còn .panel:hover cũ thì ghi đè lại như này để panel đứng yên */
+.panel:hover {
+  box-shadow: none;
+  transform: none;
+}
+/* ====== Hàng trong Biến thể & FAQ (bảng variants-table) ====== */
+.variants-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px; /* khoảng cách dọc giữa các biến thể/FAQ */
+}
+
+/* mỗi hàng là một “thẻ” riêng, có shadow */
+.variants-table tbody tr {
+  background: #fff;
+  box-shadow: var(--shadow);
+  transition: transform 0.05s ease, box-shadow 0.2s ease;
+}
+
+/* hover động trên từng biến thể/FAQ */
+.variants-table tbody tr:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* viền trên/dưới cho row */
+.variants-table tbody td {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+/* bo góc trái/phải cho mỗi row */
+.variants-table tbody td:first-child {
+  border-left: 1px solid var(--line);
+  border-radius: 10px 0 0 10px;
+}
+.variants-table tbody td:last-child {
+  border-right: 1px solid var(--line);
+  border-radius: 0 10px 10px 0;
 }

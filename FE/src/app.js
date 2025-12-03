@@ -1,22 +1,25 @@
 /**
  * File: app.js
- * Purpose: Application routes for Keytietkiem admin panel.
- * Notes: Routes the User Management page at /admin/users.
+ * Author: Keytietkiem Team
+ * Created: 18/10/2025
+ * Last Updated: 25/10/2025
+ * Version: 1.0.0
+ * Purpose: Application root component.
  */
-import Sidebar from "./layout/Sidebar.jsx";
-import Header from "./layout/Header.jsx";
+import React from "react";
 import AppRoutes from "./routes/AppRoutes";
+import { PermissionProvider } from "./context/PermissionContext";
 import "./App.css";
 
+/**
+ * @summary: Root application component.
+ * @returns {JSX.Element} - The AppRoutes component wrapped in the application
+ */
 const App = () => {
   return (
-    <div className="app">
-      <div className="content">
-        <Header />
-        <Sidebar />
-        <AppRoutes />
-      </div>
-    </div>
+    <PermissionProvider>
+      <AppRoutes />
+    </PermissionProvider>
   );
 };
 

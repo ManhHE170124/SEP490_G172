@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import PublicFooter from "../../components/public/PublicFooter";
-import PublicHeader from "../../components/public/PublicHeader";
 import { AuthService } from "../../services/authService";
 import "./Auth.css";
 
@@ -56,10 +54,12 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
-
       <section className="container section auth-wrap">
-        <div className="auth-card" role="form" aria-labelledby="forgotPasswordTitle">
+        <div
+          className="auth-card"
+          role="form"
+          aria-labelledby="forgotPasswordTitle"
+        >
           <h1 id="forgotPasswordTitle">Quên mật khẩu?</h1>
           <p className="helper" style={{ textAlign: "center" }}>
             Nhập email đã đăng ký để nhận liên kết đặt lại mật khẩu.
@@ -126,8 +126,6 @@ export default function ForgotPasswordPage() {
           </form>
         </div>
       </section>
-
-      <PublicFooter />
     </div>
   );
 }

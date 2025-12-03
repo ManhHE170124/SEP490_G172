@@ -15,15 +15,9 @@ public partial class ProductVariant
 
     public int? DurationDays { get; set; }
 
-    public decimal Price { get; set; }
-
-    public decimal? OriginalPrice { get; set; }
-
     public int? WarrantyDays { get; set; }
 
     public string Status { get; set; } = null!;
-
-    public int SortOrder { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -31,7 +25,31 @@ public partial class ProductVariant
 
     public int StockQty { get; set; }
 
+    public string? Thumbnail { get; set; }
+
+    public string? MetaTitle { get; set; }
+
+    public string? MetaDescription { get; set; }
+
+    public int ViewCount { get; set; }
+
+    public decimal SellPrice { get; set; }
+
+    public decimal ListPrice { get; set; }
+
+    public decimal CogsPrice { get; set; }
+
+    public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
+
+    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+
     public virtual Product Product { get; set; } = null!;
+
+    public virtual ICollection<ProductAccount> ProductAccounts { get; set; } = new List<ProductAccount>();
+
+    public virtual ICollection<ProductKey> ProductKeys { get; set; } = new List<ProductKey>();
+
+    public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
 
     public virtual ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
 

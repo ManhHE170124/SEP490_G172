@@ -35,7 +35,6 @@ public record CategoryListItemDto(
     string CategoryCode,
     string CategoryName,
     bool IsActive,
-    int DisplayOrder,
     int ProductCount
 );
 
@@ -45,30 +44,31 @@ public record CategoryDetailDto(
     string CategoryName,
     string? Description,
     bool IsActive,
-    int DisplayOrder,
-      int ProductCount
+    int ProductCount
 );
+
+
 
 public record CategoryCreateDto(
     string CategoryCode,
     string CategoryName,
     string? Description,
-    bool IsActive = true,
-    int DisplayOrder = 0
+    bool IsActive = true
 );
 
 public record CategoryUpdateDto(
     string CategoryName,
+
     string? Description,
     bool IsActive,
-    int DisplayOrder
+   string? CategoryCode
+
 );
 
 public record CategoryUpsertItem(
     string CategoryCode,
     string CategoryName,
     bool IsActive,
-    int DisplayOrder,
     string? Description
 );
 

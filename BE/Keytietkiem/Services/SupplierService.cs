@@ -166,14 +166,16 @@ public class SupplierService : ISupplierService
         CancellationToken cancellationToken = default)
     {
         var supplier = await _context.Suppliers
-            .Include(s => s.ProductKeys)
+            .Include(s => s.LicensePackages)
+                .ThenInclude(lp => lp.Variant)
             .FirstOrDefaultAsync(s => s.SupplierId == supplierId, cancellationToken);
 
         if (supplier == null)
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
-        var activeProductCount = supplier.ProductKeys
-            .Select(pk => pk.ProductId)
+        var activeProductCount = supplier.LicensePackages
+            .Where(pk => pk.Variant != null)
+            .Select(pk => pk.Variant.ProductId)
             .Distinct()
             .Count();
 
@@ -199,7 +201,7 @@ public class SupplierService : ISupplierService
         CancellationToken cancellationToken = default)
     {
         var query = _context.Suppliers
-            .Include(s => s.ProductKeys)
+            .Include(s => s.LicensePackages)
             .AsQueryable();
 
         // Apply search filter
@@ -230,7 +232,10 @@ public class SupplierService : ISupplierService
                 ContactPhone = s.ContactPhone,
                 CreatedAt = s.CreatedAt,
                 Status = s.Status,
-                ActiveProductCount = s.ProductKeys.Select(pk => pk.ProductId).Distinct().Count()
+                ActiveProductCount = s.LicensePackages
+                    .Select(pk => pk.Variant.ProductId)
+                    .Distinct()
+                    .Count()
             })
             .ToListAsync(cancellationToken);
 
@@ -242,16 +247,17 @@ public class SupplierService : ISupplierService
         CancellationToken cancellationToken = default)
     {
         var supplier = await _context.Suppliers
-            .Include(s => s.ProductKeys)
-            .ThenInclude(pk => pk.Product)
+            .Include(s => s.LicensePackages)
+                .ThenInclude(pk => pk.Variant)
+                    .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(s => s.SupplierId == supplierId, cancellationToken);
 
         if (supplier == null)
             throw new InvalidOperationException("Nhà cung cấp không tồn tại");
 
-        var activeProducts = supplier.ProductKeys
-            .Where(pk => pk.Status == nameof(ProductKeyStatus.Available))
-            .Select(pk => pk.Product.ProductName)
+        var activeProducts = supplier.LicensePackages
+            .Where(pk => pk.Variant.Product.Status == "ACTIVE")
+            .Select(pk => pk.Variant.Product.ProductName)
             .Distinct()
             .ToList();
 
@@ -405,6 +411,34 @@ public class SupplierService : ISupplierService
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
+    }
+
+    public async Task<IEnumerable<SupplierListDto>> GetSuppliersByProductAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        var suppliers = await _context.Suppliers
+            .Where(s => s.Status == nameof(SupplierStatus.Active))
+            .Where(s =>
+                _context.LicensePackages.Any(lp => lp.SupplierId == s.SupplierId && lp.Variant.ProductId == productId))
+            .OrderBy(s => s.Name)
+            .Select(s => new SupplierListDto
+            {
+                SupplierId = s.SupplierId,
+                Name = s.Name,
+                ContactEmail = s.ContactEmail,
+                ContactPhone = s.ContactPhone,
+                CreatedAt = s.CreatedAt,
+                Status = s.Status,
+                ActiveProductCount = s.LicensePackages
+                    .Where(pk => pk.Variant.ProductId == productId)
+                    .Select(pk => pk.Variant.ProductId)
+                    .Distinct()
+                    .Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        return suppliers;
     }
 
     public async Task<bool> IsSupplierNameExistsAsync(

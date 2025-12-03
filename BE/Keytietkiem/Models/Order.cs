@@ -7,7 +7,9 @@ public partial class Order
 {
     public Guid OrderId { get; set; }
 
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+
+    public string Email { get; set; } = null!;
 
     public decimal TotalAmount { get; set; }
 
@@ -15,15 +17,11 @@ public partial class Order
 
     public decimal? FinalAmount { get; set; }
 
-    public string Status { get; set; } = null!;
-
     public DateTime CreatedAt { get; set; }
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
 
-    public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
+    public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
 
-    public virtual ICollection<RefundRequest> RefundRequests { get; set; } = new List<RefundRequest>();
-
-    public virtual User User { get; set; } = null!;
+    public virtual User? User { get; set; }
 }

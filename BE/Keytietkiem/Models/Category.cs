@@ -13,8 +13,6 @@ public partial class Category
 
     public string? Description { get; set; }
 
-    public int DisplayOrder { get; set; }
-
     public bool IsActive { get; set; }
 
     public DateTime CreatedAt { get; set; }
@@ -24,6 +22,8 @@ public partial class Category
     public DateTime? UpdatedAt { get; set; }
 
     public Guid? UpdatedBy { get; set; }
+
+    public virtual ICollection<Faq> Faqs { get; set; } = new List<Faq>();
 
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 }

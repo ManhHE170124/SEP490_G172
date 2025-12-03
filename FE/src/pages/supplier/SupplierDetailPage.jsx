@@ -3,12 +3,14 @@ import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { SupplierApi } from "../../services/suppliers";
 import { LicensePackageApi } from "../../services/licensePackages";
 import { ProductApi } from "../../services/products";
+import { ProductVariantsApi } from "../../services/productVariants";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import CsvUploadModal from "../../components/Modal/CsvUploadModal";
 import ViewKeysModal from "../../components/Modal/ViewKeysModal";
+import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
-import formatDate from "../../utils/formatDate";
+import { formatDate } from "../../utils/formatDate";
 import "../admin/admin.css";
 
 export default function SupplierDetailPage() {
@@ -41,9 +43,12 @@ export default function SupplierDetailPage() {
   // License Package states
   const [packages, setPackages] = useState([]);
   const [products, setProducts] = useState([]);
+  const [variants, setVariants] = useState([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [packageForm, setPackageForm] = useState({
     productId: "",
+    variantId: "",
     quantity: "",
     pricePerUnit: "",
     effectiveDate: "",
@@ -184,6 +189,8 @@ export default function SupplierDetailPage() {
 
   const validateForm = () => {
     const newErrors = {};
+    const email = (formData.contactEmail || "").trim();
+    const phone = (formData.contactPhone || "").trim();
 
     if (!formData.name.trim()) {
       newErrors.name = "Tên nhà cung cấp là bắt buộc";
@@ -191,18 +198,19 @@ export default function SupplierDetailPage() {
       newErrors.name = "Tên không được vượt quá 100 ký tự";
     }
 
-    if (
-      formData.contactEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)
-    ) {
-      newErrors.contactEmail = "Email không hợp lệ";
+    if (!email) {
+      newErrors.contactEmail = "Email liên hệ là bắt buộc";
+    } else {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        newErrors.contactEmail = "Email không hợp lệ";
+      } else if (email.length > 254) {
+        newErrors.contactEmail = "Email không được vượt quá 254 ký tự";
+      }
     }
 
-    if (formData.contactEmail && formData.contactEmail.length > 254) {
-      newErrors.contactEmail = "Email không được vượt quá 254 ký tự";
-    }
-
-    if (formData.contactPhone && formData.contactPhone.length > 32) {
+    if (!phone) {
+      newErrors.contactPhone = "Số điện thoại là bắt buộc";
+    } else if (phone.length > 32) {
       newErrors.contactPhone = "Số điện thoại không được vượt quá 32 ký tự";
     }
 
@@ -305,7 +313,11 @@ export default function SupplierDetailPage() {
 
   const handleProductSelect = (product) => {
     setSelectedProduct(product);
-    setPackageForm((prev) => ({ ...prev, productId: product.productId }));
+    setPackageForm((prev) => ({
+      ...prev,
+      productId: product.productId,
+      variantId: "",
+    }));
     setShowProductDropdown(false);
     setProductSearch("");
   };
@@ -327,11 +339,40 @@ export default function SupplierDetailPage() {
     }
   };
 
+  const loadVariantsForProduct = useCallback(async (productId) => {
+    if (!productId) {
+      setVariants([]);
+      return;
+    }
+    setLoadingVariants(true);
+    try {
+      const data = await ProductVariantsApi.list(productId, {
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setVariants(data.items || data.data || []);
+    } catch (err) {
+      console.error("Failed to load variants:", err);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (packageForm.productId) {
+      loadVariantsForProduct(packageForm.productId);
+    } else {
+      setVariants([]);
+    }
+  }, [packageForm.productId, loadVariantsForProduct]);
+
   const handleAddPackage = async (e) => {
     e.preventDefault();
 
     if (
       !packageForm.productId ||
+      !packageForm.variantId ||
       !packageForm.quantity ||
       !packageForm.pricePerUnit
     ) {
@@ -345,7 +386,7 @@ export default function SupplierDetailPage() {
     try {
       await LicensePackageApi.create({
         supplierId: parseInt(id),
-        productId: packageForm.productId,
+        productId: packageForm.variantId, // backend expects variant id
         quantity: parseInt(packageForm.quantity),
         pricePerUnit: parseFloat(packageForm.pricePerUnit),
         effectiveDate: packageForm.effectiveDate || null,
@@ -354,11 +395,13 @@ export default function SupplierDetailPage() {
       showSuccess("Thành công", "Gói license đã được thêm thành công");
       setPackageForm({
         productId: "",
+        variantId: "",
         quantity: "",
         pricePerUnit: "",
         effectiveDate: "",
       });
       setSelectedProduct(null);
+      setVariants([]);
       setProductSearch("");
       loadLicensePackages();
     } catch (err) {
@@ -396,11 +439,25 @@ export default function SupplierDetailPage() {
       return;
     }
 
+    const variantId =
+      selectedPackageForImport.variantId ||
+      selectedPackageForImport.productVariantId ||
+      selectedPackageForImport.productId;
+
+    if (!variantId) {
+      showError(
+        "Thiếu thông tin",
+        "Không tìm thấy biến thể cho gói license này. Vui lòng tải lại dữ liệu."
+      );
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", csvFile);
       formData.append("packageId", selectedPackageForImport.packageId);
+      formData.append("variantId", variantId);
       formData.append("supplierId", id);
 
       // Add keyType
@@ -506,9 +563,19 @@ export default function SupplierDetailPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>
-            {isNew
-              ? "Thêm nhà cung cấp mới"
-              : `Chi tiết nhà cung cấp — ${formData.name}`}
+            {isNew ? (
+              "Thêm nhà cung cấp mới"
+            ) : (
+              <>
+                Chi tiết nhà cung cấp —{" "}
+                <ChunkedText
+                  value={formData.name}
+                  fallback="(Không có tên)"
+                  chunkSize={32}
+                  className="chunk-text--wide chunk-text--block"
+                />
+              </>
+            )}
           </h1>
           <Link className="btn" to="/suppliers">
             Quay lại
@@ -541,7 +608,9 @@ export default function SupplierDetailPage() {
             </div>
 
             <div className="form-row">
-              <label>Email liên hệ</label>
+              <label>
+                Email liên hệ <span style={{ color: "red" }}>*</span>
+              </label>
               <div>
                 <input
                   className="input"
@@ -549,6 +618,7 @@ export default function SupplierDetailPage() {
                   value={formData.contactEmail}
                   onChange={(e) => handleChange("contactEmail", e.target.value)}
                   placeholder="email@example.com"
+                  required
                 />
                 {errors.contactEmail && (
                   <small style={{ color: "red" }}>{errors.contactEmail}</small>
@@ -557,7 +627,9 @@ export default function SupplierDetailPage() {
             </div>
 
             <div className="form-row">
-              <label>Số điện thoại</label>
+              <label>
+                Số điện thoại <span style={{ color: "red" }}>*</span>
+              </label>
               <div>
                 <input
                   className="input"
@@ -565,6 +637,7 @@ export default function SupplierDetailPage() {
                   value={formData.contactPhone}
                   onChange={(e) => handleChange("contactPhone", e.target.value)}
                   placeholder="0123456789"
+                  required
                 />
                 {errors.contactPhone && (
                   <small style={{ color: "red" }}>{errors.contactPhone}</small>
@@ -620,6 +693,33 @@ export default function SupplierDetailPage() {
                   gap: 12,
                 }}
               >
+                <div>
+                  <small className="muted">Tên hiển thị:</small>
+                  <ChunkedText
+                    value={formData.name}
+                    fallback="(Không có tên)"
+                    chunkSize={32}
+                    className="chunk-text--wide chunk-text--block"
+                  />
+                </div>
+                <div>
+                  <small className="muted">Email liên hệ:</small>
+                  <ChunkedText
+                    value={formData.contactEmail}
+                    fallback="Chưa cập nhật"
+                    chunkSize={32}
+                    className="chunk-text--wide chunk-text--block"
+                  />
+                </div>
+                <div>
+                  <small className="muted">Số điện thoại:</small>
+                  <ChunkedText
+                    value={formData.contactPhone}
+                    fallback="Chưa cập nhật"
+                    chunkSize={24}
+                    className="chunk-text--wide chunk-text--block"
+                  />
+                </div>
                 <div>
                   <small className="muted">Trạng thái:</small>
                   <div>
@@ -842,6 +942,34 @@ export default function SupplierDetailPage() {
               </div>
             </div>
             <div className="form-row">
+              <label>Biến thể</label>
+              <select
+                className="input"
+                value={packageForm.variantId}
+                onChange={(e) =>
+                  handlePackageFormChange("variantId", e.target.value)
+                }
+                disabled={
+                  supplierInfo?.status !== "Active" ||
+                  !packageForm.productId ||
+                  loadingVariants
+                }
+              >
+                <option value="">
+                  {loadingVariants
+                    ? "Đang tải..."
+                    : !packageForm.productId
+                    ? "Chọn sản phẩm trước"
+                    : "Chọn biến thể"}
+                </option>
+                {variants.map((variant) => (
+                  <option key={variant.variantId} value={variant.variantId}>
+                    {variant.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row">
               <label>Số lượng gói</label>
               <input
                 className="input"
@@ -868,18 +996,6 @@ export default function SupplierDetailPage() {
               />
             </div>
             <div className="form-row">
-              <label>Ngày hiệu lực</label>
-              <input
-                className="input"
-                type="date"
-                value={packageForm.effectiveDate}
-                onChange={(e) =>
-                  handlePackageFormChange("effectiveDate", e.target.value)
-                }
-                disabled={supplierInfo?.status !== "Active"}
-              />
-            </div>
-            <div className="form-row">
               <label>&nbsp;</label>
               <button
                 className="btn primary"
@@ -898,7 +1014,6 @@ export default function SupplierDetailPage() {
                 <th>Sản phẩm</th>
                 <th>Số lượng</th>
                 <th>Giá/gói</th>
-                <th>Hiệu lực</th>
                 <th>Đã nhập kho</th>
                 <th>Còn lại</th>
                 <th>Thao tác</th>
@@ -925,7 +1040,6 @@ export default function SupplierDetailPage() {
                     <td>{pkg.productName}</td>
                     <td>{pkg.quantity}</td>
                     <td>{pkg.pricePerUnit.toLocaleString("vi-VN")}</td>
-                    <td>{formatDate(pkg.effectiveDate)}</td>
                     <td>{pkg.importedToStock}</td>
                     <td>{pkg.remainingQuantity}</td>
                     <td>

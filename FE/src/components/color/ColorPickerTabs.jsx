@@ -125,7 +125,7 @@ function SpectrumPicker({ value, onChange }) {
         onPointerDown={onPointerDown}
         style={{
           position: "relative",
-          width: "100%", height: 280, borderRadius: 10, cursor: "crosshair",
+          width: "100%", height: 200, borderRadius: 10, cursor: "crosshair",
           background: `
             linear-gradient(to top, #000, rgba(0,0,0,0)),
             linear-gradient(to right, #fff, hsl(${h} 100% 50%))
@@ -160,12 +160,12 @@ function SamplerGrid({ value, onChange }) {
 
   return (
     <div style={{ display: "flex", gap: 12 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 24px)", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 20px)", gap: 4 }}>
         {grays.map((hex) => (
           <button
             key={`g-${hex}`} type="button" onClick={() => onChange(hex)} title={hex}
             style={{
-              width: 24, height: 24, borderRadius: 4,
+              width: 20, height: 20, borderRadius: 4,
               border: value === hex ? "2px solid var(--primary)" : "1px solid var(--line)",
               background: hex
             }}
@@ -178,7 +178,7 @@ function SamplerGrid({ value, onChange }) {
               <button
                 key={`${ri}-${h}`} type="button" onClick={() => onChange(hex)} title={hex}
                 style={{
-                  width: 24, height: 24, borderRadius: 4,
+                  width: 20, height: 20, borderRadius: 4,
                   border: value === hex ? "2px solid var(--primary)" : "1px solid var(--line)",
                   background: hex
                 }}
@@ -187,7 +187,7 @@ function SamplerGrid({ value, onChange }) {
           })
         )}
       </div>
-      <div style={{ flex: 1, minHeight: 280, borderRadius: 10, background: value, border: "1px solid var(--line)" }} />
+      <div style={{ flex: 1, minHeight: 200, borderRadius: 10, background: value, border: "1px solid var(--line)" }} />
     </div>
   );
 }

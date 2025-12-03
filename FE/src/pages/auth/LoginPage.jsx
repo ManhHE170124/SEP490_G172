@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useModal } from "../../components/common/ModalProvider";
-import PublicFooter from "../../components/public/PublicFooter";
-import PublicHeader from "../../components/public/PublicHeader";
 import { AuthService } from "../../services/authService";
 import "./Auth.css";
 
@@ -59,6 +57,10 @@ export default function LoginPage() {
       localStorage.setItem("refresh_token", response.refreshToken);
       localStorage.setItem("user", JSON.stringify(response.user));
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("profile-updated"));
+      }
+
       // Store username if remember me is checked
       if (formData.rememberMe) {
         localStorage.setItem("remembered_username", formData.username);
@@ -74,15 +76,21 @@ export default function LoginPage() {
 
       // Redirect based on user role
       const userRoles = response.user.roles || [];
-      if (userRoles.includes("Admin") || userRoles.includes("Manager")) {
-        navigate("/admin");
-      } else {
-        navigate("/");
+      switch (userRoles[0]) {
+        case "Admin":
+        case "Storage Staff":
+          navigate("/key-monitor");
+          break;
+        default:
+          navigate("/");
+          break;
       }
     } catch (error) {
       const responseData = error?.response?.data;
       const apiErrorMessage =
-        (typeof responseData === 'string' ? responseData : responseData?.message) ||
+        (typeof responseData === "string"
+          ? responseData
+          : responseData?.message) ||
         error?.message ||
         "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
       setErrorMessage(apiErrorMessage);
@@ -105,8 +113,6 @@ export default function LoginPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
-
       <section className="container section auth-wrap">
         <div className="auth-card" role="form" aria-labelledby="loginTitle">
           <h1 id="loginTitle">Đăng nhập</h1>
@@ -242,8 +248,6 @@ export default function LoginPage() {
           </form>
         </div>
       </section>
-
-      <PublicFooter />
     </div>
   );
 }

@@ -1,14 +1,62 @@
+// src/pages/admin/ProductDetail.jsx
 import React from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ProductApi } from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
+import VariantsPanel from "../admin/VariantsPanel";
+import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
+
+// ====== CONST & HELPERS ======
+const MAX_PRODUCT_NAME = 200; // TODO: chỉnh lại cho khớp DB (VD: 150)
+const MAX_PRODUCT_CODE = 64;
+
+// Chuẩn hoá mã định danh: trim + bỏ dấu + chỉ A-Z0-9_ + uppercase
+const normalizeProductCode = (raw) => {
+  if (typeof raw !== "string") return "";
+  let s = raw.trim();
+  if (!s) return "";
+  try {
+    s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  } catch {
+    // ignore
+  }
+  s = s.replace(/[^A-Za-z0-9]+/g, "_");
+  s = s.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return s.toUpperCase();
+};
+
+// Helpers: Required + FieldError
+const RequiredMark = () => (
+  <span style={{ color: "#dc2626", marginLeft: 4 }}>*</span>
+);
+
+const FieldError = ({ message }) =>
+  !message ? null : (
+    <div
+      style={{
+        color: "#dc2626",
+        fontSize: 12,
+        marginTop: 4,
+      }}
+    >
+      {message}
+    </div>
+  );
 
 export default function ProductDetail() {
   const { id } = useParams();
   const productId = id;
   const nav = useNavigate();
+
+  const normalizeList = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.result)) return data.result;
+    return [];
+  };
 
   // loading/ui
   const [loading, setLoading] = React.useState(true);
@@ -18,36 +66,86 @@ export default function ProductDetail() {
   // meta
   const [cats, setCats] = React.useState([]);
   const [badges, setBadges] = React.useState([]);
-  const [showCats, setShowCats] = React.useState(true);
-  const [showBadgesPanel, setShowBadgesPanel] = React.useState(true);
+  // panels mặc định đóng theo yêu cầu
+  const [showCats, setShowCats] = React.useState(false);
+  const [showBadgesPanel, setShowBadgesPanel] = React.useState(false);
 
-  const [images, setImages] = React.useState([]);
-  const [newFiles, setNewFiles] = React.useState([]);
-  const [newPreviews, setNewPreviews] = React.useState([]);
-  const [deleteImageIds, setDeleteImageIds] = React.useState([]);
-  const [primaryIndex, setPrimaryIndex] = React.useState(null);
+  const catsList = React.useMemo(() => normalizeList(cats), [cats]);
+  const badgesList = React.useMemo(() => normalizeList(badges), [badges]);
 
-
-
-  // form
+  // form (đúng với DTO BE: ProductDetailDto / ProductUpdateDto)
   const [form, setForm] = React.useState({
     productCode: "",
     productName: "",
-    supplierId: 1,
     productType: "PERSONAL_KEY",
-    costPrice: 0,
-    salePrice: 0,
-    stockQty: 0,                    // CHỈ HIỂN THỊ (không cho sửa)
-    warrantyDays: 0,
-    expiryDate: "",
-    autoDelivery: false,
-    status: "ACTIVE",
-    description: "",
-    shortDesc: "",
-    badgeCodes: [],
+    status: "INACTIVE",
+    badges: [],
     categoryIds: [],
-    categoryId: null,
   });
+
+  // lỗi validation
+  const [errors, setErrors] = React.useState({});
+
+  // để render tổng tồn kho từ variants
+  const [variants, setVariants] = React.useState([]);
+
+  const [hasVariants, setHasVariants] = React.useState(false);
+  const lockIdentity = hasVariants 
+
+  const [showSubPanels, setShowSubPanels] = React.useState(true);
+  const editTimerRef = React.useRef(null);
+
+  const markEditing = React.useCallback(() => {
+    setShowSubPanels(false);
+    if (editTimerRef.current) {
+      clearTimeout(editTimerRef.current);
+    }
+    editTimerRef.current = setTimeout(() => {
+      setShowSubPanels(true);
+    }, 1500); // 3 giây sau khi ngừng sửa thì mới hiện lại sub-panel
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (editTimerRef.current) {
+        clearTimeout(editTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Toast
+  const [toasts, setToasts] = React.useState([]);
+  const removeToast = React.useCallback(
+    (id) => setToasts((ts) => ts.filter((t) => t.id !== id)),
+    []
+  );
+  const addToast = React.useCallback(
+    (type, title, message) => {
+      const id = `${Date.now()}-${Math.random()}`;
+      setToasts((ts) => [...ts, { id, type, title, message }]);
+      setTimeout(() => removeToast(id), 3500);
+    },
+    [removeToast]
+  );
+
+  // Confirm dialog giống ProductsPage
+  const [confirmDialog, setConfirmDialog] = React.useState(null);
+
+  const openConfirm = React.useCallback(({ title, message, onConfirm }) => {
+    setConfirmDialog({
+      title,
+      message,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        await onConfirm?.();
+      },
+      onCancel: () => setConfirmDialog(null),
+    });
+  }, []);
+
+  // snapshot form ban đầu để detect dirty
+  const initialFormRef = React.useRef(null);
+
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
   const getBadgeName = (b) =>
@@ -63,7 +161,11 @@ export default function ProductDetail() {
     b?.colorHex || b?.color || b?.colorhex || b?.ColorHex || "#1e40af";
 
   const statusClass = (s) =>
-    s === "ACTIVE" ? "badge green" : s === "OUT_OF_STOCK" ? "badge warning" : "badge gray";
+    s === "ACTIVE"
+      ? "badge green"
+      : s === "OUT_OF_STOCK"
+      ? "badge warning"
+      : "badge gray";
 
   const load = React.useCallback(async () => {
     try {
@@ -76,50 +178,34 @@ export default function ProductDetail() {
         BadgesApi.list({ active: true }),
       ]);
 
-      setCats(catList || []);
-      setBadges(badgeList || []);
+      setCats(normalizeList(catList));
+      setBadges(normalizeList(badgeList));
 
       if (!dto) {
         setNotFound(true);
         return;
       }
 
-      const ids =
-        dto.categoryIds && dto.categoryIds.length
-          ? dto.categoryIds
-          : dto.categoryId
-          ? [dto.categoryId]
-          : [];
-
-      setForm((s) => ({
-        ...s,
+      const nextForm = {
         productCode: dto.productCode || "",
         productName: dto.productName || "",
-        supplierId: dto.supplierId ?? 1,
         productType: dto.productType || "PERSONAL_KEY",
-        costPrice: dto.costPrice ?? 0,
-        salePrice: dto.salePrice ?? 0,
-        stockQty: dto.stockQty ?? 0,              // chỉ hiển thị
-        warrantyDays: dto.warrantyDays ?? 0,
-        expiryDate: dto.expiryDate || "",
-        autoDelivery: !!dto.autoDelivery,
         status: dto.status || "INACTIVE",
-        description: dto.description || "",
-        shortDesc: dto.shortDesc || "",
-        badgeCodes: dto.badgeCodes ?? [],
-        categoryIds: ids,
-        categoryId: dto.categoryId ?? null,
-      }));
+        badges: dto.badges ?? [],
+        categoryIds: dto.categoryIds ?? [],
+      };
 
-      const imgs = (dto.images || []).map((i) => ({
-        imageId: i.imageId ?? i.ImageId,
-        url: i.url ?? i.Url,
-        sortOrder: i.sortOrder ?? i.SortOrder,
-        isPrimary: i.isPrimary ?? i.IsPrimary,
-      }));
-      setImages(imgs);
-      const prim = imgs.findIndex((x) => x.isPrimary);
-      setPrimaryIndex(prim >= 0 ? prim : imgs.length > 0 ? 0 : null);
+      setForm(nextForm);
+      setVariants(Array.isArray(dto.variants) ? dto.variants : []);
+
+      setHasVariants((dto.variants ?? []).length > 0);
+
+      setErrors({});
+
+      // snapshot lần đầu sau khi load xong
+      if (!initialFormRef.current) {
+        initialFormRef.current = nextForm;
+      }
     } catch (e) {
       setNotFound(true);
     } finally {
@@ -131,54 +217,152 @@ export default function ProductDetail() {
     load();
   }, [load]);
 
+  const isDirty = React.useMemo(() => {
+    if (!initialFormRef.current) return false;
+    return JSON.stringify(form) !== JSON.stringify(initialFormRef.current);
+  }, [form]);
+
   React.useEffect(() => {
-    return () => {
-      newPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+    const handler = (e) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
     };
-  }, [newPreviews]);
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  const handleBack = () => {
+    if (!isDirty) {
+      nav("/admin/products");
+      return;
+    }
+
+    openConfirm({
+      title: "Rời khỏi trang?",
+      message:
+        "Bạn có các thay đổi chưa lưu. Rời khỏi trang sẽ làm mất các thay đổi này.",
+      onConfirm: () => {
+      nav("/admin/products");
+      },
+    });
+  };
+
+  const handleCodeBlur = () => {
+    if (lockIdentity) return;
+    setForm((prev) => ({
+      ...prev,
+      productCode: normalizeProductCode(prev.productCode || ""),
+    }));
+  };
+
+  // validate (edit: cả tên + mã đều bắt buộc + giới hạn độ dài + chuẩn hoá mã)
+  const validate = () => {
+    const e = {};
+    const rawName = form.productName ?? "";
+    const rawCode = form.productCode ?? "";
+    const name = rawName.trim();
+    const code = rawCode.trim();
+
+    if (!name) {
+      e.productName = "Tên sản phẩm là bắt buộc.";
+    } else if (name.length > MAX_PRODUCT_NAME) {
+      e.productName = `Tên sản phẩm không được vượt quá ${MAX_PRODUCT_NAME} ký tự.`;
+    }
+
+    if (!code) {
+      e.productCode = "Mã định danh sản phẩm là bắt buộc.";
+    } else {
+      const normalized = normalizeProductCode(code);
+      if (!normalized) {
+        e.productCode =
+          "Mã định danh sản phẩm không hợp lệ. Vui lòng chỉ dùng chữ, số và dấu gạch dưới.";
+      } else if (normalized.length > MAX_PRODUCT_CODE) {
+        e.productCode = `Mã định danh sản phẩm không được vượt quá ${MAX_PRODUCT_CODE} ký tự.`;
+      }
+    }
+
+    setErrors(e);
+
+    if (Object.keys(e).length > 0) {
+      const detailMessage = Object.values(e).join(" ");
+
+      addToast(
+        "error",
+        "Dữ liệu không hợp lệ",
+        detailMessage || "Vui lòng kiểm tra lại các trường được đánh dấu đỏ."
+      );
+      return false;
+    }
+    return true;
+  };
 
   // save
   const save = async () => {
+    if (!validate()) return;
+
     try {
       setSaving(true);
-      const payload = { ...form };
+      const trimmedName = (form.productName ?? "").trim();
+      const normalizedCode = normalizeProductCode(form.productCode ?? "");
 
-      if (!payload.categoryIds || payload.categoryIds.length === 0) {
-        payload.categoryIds = payload.categoryId ? [payload.categoryId] : [];
-      }
-      payload.badgeCodes = payload.badgeCodes ?? [];
-      if (!payload.expiryDate) payload.expiryDate = null;
+      const payload = {
+        productName: trimmedName,
+        productType: form.productType,
+        status: form.status,
+        badges: form.badges ?? [],
+        categoryIds: form.categoryIds ?? [],
+        productCode: normalizedCode,
+      };
+      await ProductApi.update(productId, payload);
 
-      // giữ cost/sale nếu BE cần, ở đây không chỉnh vì không có input
-      const apiPrimary =
-        primaryIndex !== null && primaryIndex !== undefined
-          ? primaryIndex
-          : null;
-
-      if (
-        (newFiles && newFiles.length > 0) ||
-        (deleteImageIds && deleteImageIds.length > 0) ||
-        apiPrimary !== null
-      ) {
-        await ProductApi.updateWithImages(
-          productId,
-          payload,
-          newFiles,
-          apiPrimary,
-          deleteImageIds
+      // Sau khi update xong → quay lại danh sách hiện tại (giữ bộ lọc & trang)
+      // và hiển thị toast qua sessionStorage
+      try {
+        window.sessionStorage.setItem(
+          "products:toast",
+          JSON.stringify({
+            type: "success",
+            title: "Cập nhật sản phẩm thành công",
+            message: "Thông tin sản phẩm đã được lưu.",
+          })
         );
-      } else {
-        await ProductApi.update(productId, payload);
+      } catch {
+        // ignore
       }
 
-      alert("Đã lưu thay đổi sản phẩm.");
-      setNewFiles([]);
-      newPreviews.forEach((p) => URL.revokeObjectURL(p.url));
-      setNewPreviews([]);
-      setDeleteImageIds([]);
-      await load();
+      nav("/admin/products");
     } catch (e) {
-      alert(e?.response?.data?.message || e.message);
+      const msg = e?.response?.data?.message || e.message;
+
+      // Trùng mã
+      if (
+        e?.response?.status === 409 ||
+        (typeof msg === "string" &&
+          msg.toLowerCase().includes("productcode already exists"))
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          productCode: "Mã định danh này đã tồn tại. Vui lòng chọn mã khác.",
+        }));
+      }
+
+      // Trùng tên
+      if (
+        typeof msg === "string" &&
+        msg.toLowerCase().includes("productname already exists")
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          productName: "Tên sản phẩm này đã tồn tại. Vui lòng dùng tên khác.",
+        }));
+      }
+
+      addToast(
+        "error",
+        "Cập nhật sản phẩm thất bại",
+        msg || "Đã xảy ra lỗi khi lưu sản phẩm."
+      );
     } finally {
       setSaving(false);
     }
@@ -187,9 +371,9 @@ export default function ProductDetail() {
   const statusText = React.useMemo(() => {
     switch (form.status) {
       case "ACTIVE":
-        return "Đang hiển thị";
+        return "Hiển thị";
       case "INACTIVE":
-        return "Đang ẩn";
+        return "Ẩn";
       case "OUT_OF_STOCK":
         return "Hết hàng";
       default:
@@ -198,24 +382,31 @@ export default function ProductDetail() {
   }, [form.status]);
 
   const toggleActive = async () => {
-    const next =
-      form.status === "ACTIVE"
-        ? "INACTIVE"
-        : form.status === "INACTIVE"
-        ? "ACTIVE"
-        : "ACTIVE";
+    markEditing();
     try {
-      await ProductApi.changeStatus(productId, next);
-      set("status", next);
-    } catch (e) {
-      try {
-        await ProductApi.toggle(productId);
-        set("status", next);
-      } catch (err) {
-        alert(err?.response?.data?.message || err.message);
-      }
+      const res = await ProductApi.toggle(productId);
+      const next = (res?.status || res?.Status || "").toUpperCase();
+      if (next) set("status", next);
+    } catch (err) {
+      addToast(
+        "error",
+        "Đổi trạng thái thất bại",
+        err?.response?.data?.message || err.message
+      );
     }
   };
+
+  const totalStock = React.useMemo(
+    () =>
+      (variants || []).reduce(
+        (sum, v) => sum + (Number(v.stockQty) || 0),
+        0
+      ),
+    [variants]
+  );
+
+  const selectedCatCount = (form.categoryIds || []).length;
+  const selectedBadgeCount = (form.badges || []).length;
 
   if (loading) {
     return (
@@ -243,499 +434,291 @@ export default function ProductDetail() {
   }
 
   return (
-    <div className="page">
-      <div className="card">
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 10,
-          }}
-        >
-          <h2>Chi tiết sản phẩm</h2>
+    <>
+      <div className="page">
+        <div className="card">
+          {/* Header */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <h2>Chi tiết sản phẩm</h2>
 
-          <div className="row" style={{ gap: 10, alignItems: "center" }}>
-            <span className="badge gray">Tồn kho: {form.stockQty}</span>
+            <div className="row" style={{ gap: 10, alignItems: "center" }}>
+              <span className="badge gray">Tồn kho: {totalStock}</span>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className="switch" title="Bật/Tắt hiển thị">
-                <input
-                  type="checkbox"
-                  checked={form.status === "ACTIVE"}
-                  onChange={toggleActive}
-                  aria-label="Bật/Tắt hiển thị sản phẩm"
-                />
-                <span className="slider" />
-              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label className="switch" title="Bật/Tắt hiển thị">
+                  <input
+                    type="checkbox"
+                    checked={form.status === "ACTIVE"}
+                    onChange={toggleActive}
+                    aria-label="Bật/Tắt hiển thị sản phẩm"
+                  />
+                  <span className="slider" />
+                </label>
 
-              <span
-                className={statusClass(form.status)}
-                style={{ textTransform: "none" }}
-              >
-                {statusText}
+                <span
+                  className={statusClass(form.status)}
+                  style={{ textTransform: "none" }}
+                >
+                  {statusText}
+                </span>
+              </div>
+
+              <button className="btn ghost" onClick={handleBack}>
+                ⬅ Quay lại
+              </button>
+            </div>
+          </div>
+
+          {/* Hàng thông tin cơ bản */}
+          <div
+            className="grid cols-3 input-group"
+            style={{ gridColumn: "1 / 3", marginBottom: 18 }}
+          >
+            <div className="group">
+              <span>
+                Tên sản phẩm <RequiredMark />
               </span>
+              <input
+                value={form.productName}
+                onChange={(e) => {
+                  markEditing();
+                  set("productName", e.target.value);
+                }}
+                placeholder="VD: Microsoft 365 Family"
+                maxLength={MAX_PRODUCT_NAME}
+                disabled={lockIdentity}
+                className={
+                  lockIdentity
+                    ? "input-readonly"
+                    : errors.productName
+                    ? "input-error"
+                    : ""
+                }
+              />
+              <FieldError message={errors.productName} />
             </div>
 
-            <button
-              className="btn ghost"
-              onClick={() => nav("/admin/products")}
-            >
-              ⬅ Quay lại
-            </button>
-          </div>
-        </div>
+            <div className="group">
+              <span>
+                Mã định danh sản phẩm <RequiredMark />
+              </span>
+              <input
+                value={form.productCode}
+                onChange={(e) => {
+                  markEditing();
+                  set("productCode", e.target.value);
+                }}
+                onBlur={handleCodeBlur}
+                placeholder="VD: OFF_365_FAM"
+                maxLength={MAX_PRODUCT_CODE}
+                disabled={lockIdentity}
+                title={
+                  lockIdentity
+                    ? "Không cho phép đổi mã khi sản phẩm đã có biến thể"
+                    : "Mã duy nhất cho sản phẩm"
+                }
+                className={
+                  lockIdentity
+                    ? "mono input-readonly"
+                    : `mono ${errors.productCode ? "input-error" : ""}`
+                }
+              />
+              <FieldError message={errors.productCode} />
+            </div>
 
-        {/* GRID 2 cột */}
-        <div className="grid cols-2 input-group">
-          {/* HÀNG 1: Tên + Mã */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Tên sản phẩm</span>
-            <input
-              value={form.productName}
-              onChange={(e) => set("productName", e.target.value)}
-              placeholder="VD: Microsoft 365 Family"
-            />
-          </div>
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Mã định danh sản phẩm</span>
-            <input
-              value={form.productCode}
-              onChange={(e) => set("productCode", e.target.value)}
-              placeholder="VD: OFF_365_FAM"
-            />
-          </div>
-
-          {/* HÀNG 2: Loại + Bảo hành */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Loại</span>
-            <select
-              value={form.productType}
-              onChange={(e) => set("productType", e.target.value)}
-            >
-              <option value="PERSONAL_KEY">Mã cá nhân</option>
-              <option value="SHARED_KEY">Mã dùng chung</option>
-              <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
-              <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
-            </select>
-          </div>
-
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Bảo hành (ngày)</span>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={form.warrantyDays}
-              onChange={(e) =>
-                set("warrantyDays", Number(e.target.value) || 0)
-              }
-              placeholder="VD: 365"
-            />
-          </div>
-
-          {/* HÀNG 3: Danh mục + Nhãn */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <div className={`panel ${!showCats ? "collapsed" : ""}`}>
-              <div
-                className="panel-header"
-                onClick={() => setShowCats((s) => !s)}
+            <div className="group">
+              <span>Loại</span>
+              <select
+                value={form.productType}
+                onChange={(e) => {
+                  markEditing();
+                  set("productType", e.target.value);
+                }}
               >
-                <h4>
-                  Danh mục sản phẩm{" "}
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--muted)",
-                      marginLeft: 8,
-                    }}
-                  >
-                    ({cats.length})
-                  </span>
-                </h4>
-                <div className="caret">▾</div>
-              </div>
-              {showCats && (
-                <div className="panel-body">
-                  {cats.map((c) => (
-                    <div key={c.categoryId} className="list-row">
-                      <div className="left">
-                        {c.thumbnailUrl ? (
-                          <img src={c.thumbnailUrl} alt="" />
-                        ) : (
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              background: "#f3f4f6",
-                              borderRadius: 6,
-                            }}
-                          />
-                        )}
-                        <div>{c.categoryName}</div>
-                      </div>
-                      <div>
-                        <label className="switch">
-                          <input
-                            type="checkbox"
-                            checked={(form.categoryIds || []).includes(
-                              c.categoryId
-                            )}
-                            onChange={(e) => {
-                              const prev = form.categoryIds || [];
-                              if (e.target.checked)
-                                set(
-                                  "categoryIds",
-                                  Array.from(
-                                    new Set([...prev, c.categoryId])
-                                  )
-                                );
-                              else
-                                set(
-                                  "categoryIds",
-                                  prev.filter((x) => x !== c.categoryId)
-                                );
-                            }}
-                          />
-                          <span className="slider" />
-                        </label>
-                      </div>
-                    </div>
-                  ))}
+                <option value="PERSONAL_KEY">Mã cá nhân</option>
+                <option value="SHARED_KEY">Mã dùng chung</option>
+                <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
+                <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Danh mục + Nhãn */}
+          <div
+            className="grid cols-2 input-group"
+            style={{ gridColumn: "1 / 3", marginBottom: 20 }}
+          >
+            {/* Danh mục */}
+            <div className="group">
+              <div className={`panel ${!showCats ? "collapsed" : ""}`}>
+                <div
+                  className="panel-header"
+                  onClick={() => setShowCats((s) => !s)}
+                >
+                  <h4>
+                    Danh mục sản phẩm{" "}
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "var(--muted)",
+                        marginLeft: 8,
+                      }}
+                    >
+                      ({selectedCatCount}/{catsList.length} đã chọn)
+                    </span>
+                  </h4>
+                  <div className="caret">▾</div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <div className={`panel ${!showBadgesPanel ? "collapsed" : ""}`}>
-              <div
-                className="panel-header"
-                onClick={() => setShowBadgesPanel((s) => !s)}
-              >
-                <h4>
-                  Nhãn sản phẩm{" "}
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--muted)",
-                      marginLeft: 8,
-                    }}
-                  >
-                    ({badges.length})
-                  </span>
-                </h4>
-                <div className="caret">▾</div>
-              </div>
-
-              {showBadgesPanel && (
-                <div className="panel-body">
-                  {badges.map((b) => {
-                    const color = getBadgeColor(b);
-                    const name = getBadgeName(b);
-                    const code = b?.badgeCode ?? name;
-                    return (
-                      <div key={code} className="list-row">
+                {showCats && (
+                  <div className="panel-body">
+                    {catsList.map((c) => (
+                      <div key={c.categoryId} className="list-row">
                         <div className="left">
-                          <span
-                            className="label-chip"
-                            style={{
-                              backgroundColor: color,
-                              color: "#fff",
-                              padding: "4px 10px",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              display: "inline-block",
-                            }}
-                            title={name}
-                          >
-                            {name}
-                          </span>
+                          <div>{c.categoryName}</div>
                         </div>
                         <div>
                           <label className="switch">
                             <input
                               type="checkbox"
-                              checked={(form.badgeCodes || []).includes(
-                                code
+                              checked={(form.categoryIds || []).includes(
+                                c.categoryId
                               )}
                               onChange={(e) => {
-                                const prev = form.badgeCodes || [];
-                                if (e.target.checked)
-                                  set(
-                                    "badgeCodes",
-                                    Array.from(new Set([...prev, code]))
-                                  );
-                                else
-                                  set(
-                                    "badgeCodes",
-                                    prev.filter((x) => x !== code)
-                                  );
+                                markEditing();
+                                const prev = form.categoryIds || [];
+                                set(
+                                  "categoryIds",
+                                  e.target.checked
+                                    ? Array.from(
+                                        new Set([...prev, c.categoryId])
+                                      )
+                                    : prev.filter((x) => x !== c.categoryId)
+                                );
                               }}
                             />
                             <span className="slider" />
                           </label>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* KHÔNG CÒN INPUT GIÁ BÁN */}
-
-          {/* Mô tả ngắn + dài */}
-          <div className="group" style={{ gridColumn: "1 / 2" }}>
-            <span>Mô tả ngắn</span>
-            <textarea
-              value={form.shortDesc || ""}
-              onChange={(e) => set("shortDesc", e.target.value)}
-              placeholder="Hiển thị trong danh sách…"
-            />
-          </div>
-          <div className="group" style={{ gridColumn: "2 / 3" }}>
-            <span>Mô tả chi tiết</span>
-            <textarea
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Nội dung landing sản phẩm…"
-            />
-          </div>
-
-          {/* Ảnh sản phẩm */}
-          <div className="group" style={{ gridColumn: "1 / 3" }}>
-            <span>Ảnh sản phẩm</span>
-
-            {images.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  marginBottom: 8,
-                }}
-              >
-                {images.map((img, idx) => (
-                  <div
-                    key={img.imageId || img.url}
-                    style={{
-                      border:
-                        primaryIndex === idx
-                          ? "2px solid var(--primary)"
-                          : "1px solid var(--line)",
-                      borderRadius: 10,
-                      padding: 6,
-                      background: "#fff",
-                      position: "relative",
-                    }}
-                  >
-                    <img
-                      src={img.url}
-                      alt=""
-                      style={{
-                        width: 160,
-                        height: 110,
-                        objectFit: "cover",
-                        display: "block",
-                        borderRadius: 6,
-                      }}
-                    />
-                    <div
-                      style={{
-                        marginTop: 6,
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                      }}
-                    >
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="primary"
-                          checked={primaryIndex === idx}
-                          onChange={() => setPrimaryIndex(idx)}
-                        />
-                        <span style={{ fontSize: 12 }}>
-                          Chọn làm ảnh chính
-                        </span>
-                      </label>
-                      <button
-                        className="btn"
-                        onClick={() => {
-                          setDeleteImageIds((prev) =>
-                            Array.from(
-                              new Set([...prev, img.imageId])
-                            )
-                          );
-                          setImages((prev) =>
-                            prev.filter(
-                              (x) => x.imageId !== img.imageId
-                            )
-                          );
-                          setPrimaryIndex((pi) => {
-                            if (pi == null) return pi;
-                            if (pi === idx) return 0;
-                            return pi > idx ? pi - 1 : pi;
-                          });
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
+            </div>
 
-            <div className="file-upload">
-              <input
-                id="prodImages"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (!files.length) return;
-                  setNewFiles(files);
-                  const urls = files.map((f) => ({
-                    name: f.name,
-                    url: URL.createObjectURL(f),
-                  }));
-                  newPreviews.forEach((p) =>
-                    URL.revokeObjectURL(p.url)
-                  );
-                  setNewPreviews(urls);
-                  if (primaryIndex == null)
-                    setPrimaryIndex(images.length > 0 ? 0 : 0);
-                }}
-              />
-              <label
-                htmlFor="prodImages"
-                className="btn btn-upload"
-              >
-                Chọn ảnh
-              </label>
-              <span className="file-name">
-                {newFiles.length
-                  ? `${newFiles.length} ảnh đã chọn`
-                  : "Chưa chọn ảnh"}
-              </span>
+            {/* Nhãn */}
+            <div className="group">
+              <div className={`panel ${!showBadgesPanel ? "collapsed" : ""}`}>
+                <div
+                  className="panel-header"
+                  onClick={() => setShowBadgesPanel((s) => !s)}
+                >
+                  <h4>
+                    Nhãn sản phẩm{" "}
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "var(--muted)",
+                        marginLeft: 8,
+                      }}
+                    >
+                      ({selectedBadgeCount}/{badgesList.length} đã chọn)
+                    </span>
+                  </h4>
+                  <div className="caret">▾</div>
+                </div>
+                {showBadgesPanel && (
+                  <div className="panel-body">
+                    {badgesList.map((b) => {
+                      const color = getBadgeColor(b);
+                      const name = getBadgeName(b);
+                      const code = b?.badgeCode ?? name;
+                      return (
+                        <div key={code} className="list-row">
+                          <div className="left">
+                            <span
+                              className="label-chip"
+                              style={{
+                                backgroundColor: color,
+                                color: "#fff",
+                                padding: "4px 10px",
+                                borderRadius: 8,
+                                fontSize: 12,
+                              }}
+                            >
+                              {name}
+                            </span>
+                          </div>
+                          <div>
+                            <label className="switch">
+                              <input
+                                type="checkbox"
+                                checked={(form.badges || []).includes(code)}
+                                onChange={(e) => {
+                                  markEditing();
+                                  const prev = form.badges || [];
+                                  set(
+                                    "badges",
+                                    e.target.checked
+                                      ? Array.from(new Set([...prev, code]))
+                                      : prev.filter((x) => x !== code)
+                                  );
+                                }}
+                              />
+                              <span className="slider" />
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="group" style={{ gridColumn: "1 / 3" }}>
-            {newPreviews.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 4,
-                  flexWrap: "wrap",
-                  alignItems: "stretch",
-                }}
-              >
-                {newPreviews.map((p, nidx) => {
-                  const overallIndex = images.length + nidx;
-                  return (
-                    <div
-                      key={p.url}
-                      style={{
-                        border:
-                          primaryIndex === overallIndex
-                            ? "2px solid var(--primary)"
-                            : "1px solid var(--line)",
-                        padding: 8,
-                        borderRadius: 10,
-                        background: "#fff",
-                      }}
-                    >
-                      <img
-                        src={p.url}
-                        alt={p.name}
-                        style={{
-                          width: 160,
-                          height: 110,
-                          objectFit: "cover",
-                          display: "block",
-                        }}
-                      />
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginTop: 6,
-                        }}
-                      >
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="primary"
-                            checked={primaryIndex === overallIndex}
-                            onChange={() =>
-                              setPrimaryIndex(overallIndex)
-                            }
-                          />
-                          <span style={{ fontSize: 12 }}>
-                            {overallIndex === 0
-                              ? "Ảnh mặc định"
-                              : `Ảnh ${overallIndex + 1}`}
-                          </span>
-                        </label>
-                        <button
-                          className="btn"
-                          onClick={() => {
-                            setNewFiles((prev) =>
-                              prev.filter((_, i) => i !== nidx)
-                            );
-                            setNewPreviews((prev) => {
-                              const toRevoke = prev[nidx];
-                              if (toRevoke)
-                                URL.revokeObjectURL(toRevoke.url);
-                              return prev.filter(
-                                (_, i) => i !== nidx
-                              );
-                            });
-                            setPrimaryIndex((pi) => {
-                              if (pi == null) return pi;
-                              if (pi === overallIndex) return 0;
-                              return pi > overallIndex ? pi - 1 : pi;
-                            });
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+          {/* Variants & FAQs */}
+          {showSubPanels && (
+            <div
+              className="group"
+              style={{
+                gridColumn: "1 / 3",
+                marginTop: 8,
+                display: "flex",
+                flexDirection: "column",
+                gap: 24,
+              }}
+            >
+              <VariantsPanel
+                productId={productId}
+                productName={form.productName}
+                productCode={form.productCode}
+                onTotalChange={(total) => setHasVariants(total > 0)}
+              />
+            </div>
+          )}
 
-        {/* ACTIONS */}
-        <div className="row" style={{ marginTop: 12 }}>
-          <button className="btn primary" disabled={saving} onClick={save}>
-            {saving ? "Đang lưu…" : "Lưu thay đổi"}
-          </button>
+          {/* ACTIONS */}
+          <div className="row" style={{ marginTop: 16 }}>
+            <button className="btn primary" disabled={saving} onClick={save}>
+              {saving ? "Đang lưu…" : "Lưu thay đổi"}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      <ToastContainer
+        toasts={toasts}
+        onRemove={removeToast}
+        confirmDialog={confirmDialog}
+      />
+    </>
   );
 }

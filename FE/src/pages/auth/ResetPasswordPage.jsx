@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "../../components/common/ModalProvider";
-import PublicFooter from "../../components/public/PublicFooter";
-import PublicHeader from "../../components/public/PublicHeader";
 import { AuthService } from "../../services/authService";
 import "./Auth.css";
 
@@ -93,10 +91,12 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="public-page">
-      <PublicHeader />
-
       <section className="container section auth-wrap">
-        <div className="auth-card" role="form" aria-labelledby="resetPasswordTitle">
+        <div
+          className="auth-card"
+          role="form"
+          aria-labelledby="resetPasswordTitle"
+        >
           <h1 id="resetPasswordTitle">Đặt lại mật khẩu</h1>
           <p className="helper" style={{ textAlign: "center" }}>
             Nhập mật khẩu mới cho tài khoản của bạn.
@@ -112,7 +112,9 @@ export default function ResetPasswordPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.newPassword}
-                  onChange={(e) => handleInputChange("newPassword", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("newPassword", e.target.value)
+                  }
                   required
                   autoFocus
                   style={{ paddingRight: "45px" }}
@@ -221,8 +223,6 @@ export default function ResetPasswordPage() {
           </form>
         </div>
       </section>
-
-      <PublicFooter />
     </div>
   );
 }

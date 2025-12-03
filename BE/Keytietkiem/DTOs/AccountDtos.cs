@@ -109,9 +109,49 @@ public class UserInfoDto
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? Address { get; set; }
     public string? AvatarUrl { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new();
+    public int SupportPriorityLevel { get; set; }
+}
+
+/// <summary>
+/// Response DTO for account profile
+/// </summary>
+public class AccountProfileDto
+{
+    public Guid UserId { get; set; }
+    public Guid AccountId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Address { get; set; }
+    public string? AvatarUrl { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public List<string> Roles { get; set; } = new();
+}
+
+/// <summary>
+/// Request DTO for updating current user's profile information
+/// </summary>
+public class UpdateAccountProfileDto
+{
+    [Required(ErrorMessage = "FullName là bắt buộc")]
+    [StringLength(160, ErrorMessage = "FullName tối đa 160 ký tự")]
+    public string FullName { get; set; } = string.Empty;
+
+    [Phone(ErrorMessage = "Số điện thoại không hợp lệ")]
+    [StringLength(32)]
+    public string? Phone { get; set; }
+
+    [StringLength(300)]
+    public string? Address { get; set; }
+
+    [Url(ErrorMessage = "AvatarUrl phải là một URL hợp lệ")]
+    [StringLength(500)]
+    public string? AvatarUrl { get; set; }
 }
 
 /// <summary>
