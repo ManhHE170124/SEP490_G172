@@ -786,6 +786,29 @@ const Sidebar = () => {
             </svg>
           ),
         },
+        {
+          id: "support-plans-admin",
+          label: "Cấu hình gói hỗ trợ",
+          to: "/admin/support-plans",
+          isActive: currentPage === "admin/support-plans",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
+              <path
+                d="M5 7h14M5 12h9M5 17h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <circle
+                cx="17.5"
+                cy="17.5"
+                r="2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+          ),
+        },
       ],
     },
   ];

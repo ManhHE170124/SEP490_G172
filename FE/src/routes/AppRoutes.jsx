@@ -91,7 +91,7 @@ import ProductReportManagementPage from "../pages/report/ProductReportManagement
 import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx";
 
 import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyaltyRulesPage.jsx";
-
+import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -558,6 +558,14 @@ export default function AppRoutes() {
         element={
           <AdminLayout>
             <SupportPriorityLoyaltyRulesPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/support-plans"
+        element={
+          <AdminLayout>
+            <SupportPlansAdminPage />
           </AdminLayout>
         }
       />
