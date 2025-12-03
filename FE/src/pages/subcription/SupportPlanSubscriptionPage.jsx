@@ -1,18 +1,13 @@
-// src/pages/subcription/SupportPlanSubscriptionPage.jsx
 /**
  * Màn khách hàng chọn gói hỗ trợ (Support Plan Subscription)
- * - Lấy danh sách gói từ: GET /api/supportplans/active
- * - Lấy mức ưu tiên/gói hiện tại của user: GET /api/supportplans/me/current
- *   + PriorityLevel trong DTO được tính từ Users.SupportPriorityLevel (BE),
- *     kết hợp với subscription active (nếu có).
- * - Khi chọn gói có trả phí:
- *      -> POST /api/payments/payos/create-support-plan
- *      -> Redirect sang PayOS PaymentUrl trả về
- *
- * Path FE: /support/subscription
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axiosClient from "../../api/axiosClient";
 import Toast from "../../components/Toast/Toast";
@@ -45,6 +40,22 @@ const formatDate = (value) => {
     });
   } catch {
     return "";
+  }
+};
+
+// Tính số ngày còn lại (ước tính) giữa hôm nay và expiresAt
+const calcRemainingDays = (value) => {
+  if (!value) return null;
+  try {
+    const exp = new Date(value);
+    if (Number.isNaN(exp.getTime())) return null;
+    const now = new Date();
+    const diffMs = exp.getTime() - now.getTime();
+    if (diffMs <= 0) return 0;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    return Math.ceil(diffDays);
+  } catch {
+    return null;
   }
 };
 
@@ -128,6 +139,10 @@ const SupportPlanSubscriptionPage = () => {
   const [error, setError] = useState("");
   const [creatingPaymentPlanId, setCreatingPaymentPlanId] = useState(null);
 
+  // popup preview state
+  const [previewPlan, setPreviewPlan] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
   const [toasts, setToasts] = useState([]);
   const [customer] = useState(() => readCustomerFromStorage());
   const navigate = useNavigate();
@@ -145,6 +160,114 @@ const SupportPlanSubscriptionPage = () => {
   const isStatusNone =
     currentSub &&
     (currentSub.status || "").toLowerCase() === "none";
+
+  const currentSubRemainingDays =
+    currentSub && currentSub.expiresAt
+      ? calcRemainingDays(currentSub.expiresAt)
+      : null;
+
+  // ===== Base info để tính tiền theo note (bao gồm case Loyalty level 1) =====
+  const paymentBaseInfo = useMemo(() => {
+    const daysInMonth = 30;
+
+    if (!previewPlan) {
+      return {
+        currentPrice: null,
+        remainingDays: null,
+        source: "none", // subscription | loyalty_base | none
+      };
+    }
+
+    const previewLevel =
+      Number(previewPlan.priorityLevel ?? previewPlan.PriorityLevel ?? 0) || 0;
+
+    // Case 1: đang có gói hỗ trợ trả phí ACTIVE → dùng số ngày còn lại thực tế
+    if (
+      currentSub &&
+      (currentSub.status || "").toLowerCase() === "active" &&
+      currentSubRemainingDays != null &&
+      currentSubRemainingDays > 0 &&
+      Number(currentSub.price ?? currentSub.Price ?? 0) > 0 &&
+      previewLevel > (Number(currentSub.priorityLevel ?? currentSub.PriorityLevel ?? 0) || 0)
+    ) {
+      return {
+        currentPrice:
+          Number(currentSub.price ?? currentSub.Price ?? 0) || null,
+        remainingDays: currentSubRemainingDays,
+        source: "subscription",
+      };
+    }
+
+    // Case 2: Base priority = 1 (loyalty), không có gói trả phí đang active,
+    // nâng lên gói level 2:
+    // → luôn coi số ngày còn lại = full kỳ (30 ngày) của gói level 1.
+    const statusLower = (currentSub?.status || "").toLowerCase();
+    const hasPaidPlanActive =
+      currentSub &&
+      statusLower === "active" &&
+      Number(currentSub.price ?? currentSub.Price ?? 0) > 0;
+
+    if (
+      !hasPaidPlanActive &&
+      currentPriorityLevel === 1 &&
+      previewLevel > 1
+    ) {
+      // tìm giá gói level 1 trong danh sách plans
+      const lv1Plan = (plans || []).find(
+        (p) =>
+          Number(p.priorityLevel ?? p.PriorityLevel ?? 0) === 1 &&
+          Number(p.price ?? p.Price ?? 0) > 0
+      );
+
+      if (lv1Plan) {
+        return {
+          currentPrice:
+            Number(lv1Plan.price ?? lv1Plan.Price ?? 0) || null,
+          remainingDays: daysInMonth, // full 30 ngày như trong note
+          source: "loyalty_base",
+        };
+      }
+    }
+
+    // Mặc định: không có "gói cũ" để trừ
+    return {
+      currentPrice: null,
+      remainingDays: null,
+      source: "none",
+    };
+  }, [
+    previewPlan,
+    currentSub,
+    currentSubRemainingDays,
+    currentPriorityLevel,
+    plans,
+  ]);
+
+  // Số tiền đã điều chỉnh để hiển thị trong popup (dùng cho gói trả phí)
+  const adjustedAmount = useMemo(() => {
+    if (!previewPlan) return null;
+    const newPrice = Number(
+      previewPlan.price ?? previewPlan.Price ?? 0
+    );
+    if (!newPrice || newPrice <= 0) return 0;
+
+    const { currentPrice, remainingDays } = paymentBaseInfo;
+    if (
+      !currentPrice ||
+      !remainingDays ||
+      Number(remainingDays) <= 0
+    ) {
+      // Không có gói cũ hợp lệ → trả full giá
+      return newPrice;
+    }
+
+    const daysInMonth = 30;
+    const remainingValue =
+      (currentPrice / daysInMonth) * remainingDays;
+    let adjusted = newPrice - remainingValue;
+    if (adjusted < 0) adjusted = 0;
+    return Math.round(adjusted);
+  }, [previewPlan, paymentBaseInfo]);
 
   // Toast helpers
   const removeToast = useCallback((id) => {
@@ -216,6 +339,7 @@ const SupportPlanSubscriptionPage = () => {
     fetchData();
   }, [fetchData]);
 
+  // Gọi BE tạo Payment + redirect sang PayOS
   const handleSelectPlan = useCallback(
     async (plan) => {
       if (!plan || !plan.supportPlanId) return;
@@ -246,6 +370,8 @@ const SupportPlanSubscriptionPage = () => {
       try {
         const payload = {
           supportPlanId: plan.supportPlanId,
+          // Nếu BE muốn nhận thêm adjustedAmount để đối chiếu có thể gửi kèm:
+          // adjustedAmount: adjustedAmount,
         };
 
         const resp = await axiosClient.post(
@@ -273,12 +399,47 @@ const SupportPlanSubscriptionPage = () => {
         setCreatingPaymentPlanId(null);
       }
     },
-    [addToast, customer, navigate]
+    [addToast, customer, navigate, adjustedAmount]
   );
+
+  // mở popup preview khi chọn gói (thay vì gọi BE ngay)
+  const handleOpenPreview = useCallback(
+    (plan) => {
+      if (!plan || !plan.supportPlanId) return;
+
+      // Gói miễn phí vẫn giữ behavior cũ: báo note, không mở popup
+      if (!plan.price || plan.price <= 0) {
+        addToast(
+          "info",
+          "Gói miễn phí",
+          "Gói hỗ trợ này là gói mặc định, bạn không cần thanh toán."
+        );
+        return;
+      }
+
+      setPreviewPlan(plan);
+      setIsPreviewOpen(true);
+    },
+    [addToast]
+  );
+
+  const handleClosePreview = useCallback(() => {
+    setIsPreviewOpen(false);
+    setPreviewPlan(null);
+  }, []);
+
+  // user confirm trong popup -> lúc này mới tạo Payment & redirect
+  const handleConfirmPreview = useCallback(async () => {
+    if (!previewPlan) return;
+    const planToConfirm = previewPlan;
+    setIsPreviewOpen(false);
+    setPreviewPlan(null);
+    await handleSelectPlan(planToConfirm);
+  }, [previewPlan, handleSelectPlan]);
 
   const hasPlans = plans && plans.length > 0;
 
-  // Tên & mô tả hiển thị ở block "Mức hỗ trợ hiện tại"
+  // Tên hiển thị hiện tại (nếu sau này cần) — ưu tiên tên từ BE, fallback mức ưu tiên
   const displayPlanName =
     currentSub &&
     (currentSub.planName && !isStatusNone
@@ -291,8 +452,11 @@ const SupportPlanSubscriptionPage = () => {
       (isStatusNone
         ? currentPriorityLevel > 0
           ? "Bạn đang được hưởng mức ưu tiên hỗ trợ theo tài khoản hiện tại."
-          : "Bạn đang sử dụng gói hỗ trợ mặc định (Standard Support)."
+          : "Bạn đang sử dụng gói hỗ trợ mặc định (Hỗ trợ tiêu chuẩn)."
         : null));
+
+  const { currentPrice: paymentCurrentPrice, remainingDays: paymentRemainingDays, source: paymentSource } =
+    paymentBaseInfo;
 
   return (
     <main className="sp-sub-page">
@@ -383,18 +547,24 @@ const SupportPlanSubscriptionPage = () => {
 
                 let buttonLabel;
                 if (isFree) {
-                  // Gói mặc định không phụ thuộc current plan, luôn là "Gói mặc định"
                   buttonLabel = "Gói mặc định";
                 } else if (
                   creatingPaymentPlanId === plan.supportPlanId
                 ) {
                   buttonLabel = "Đang chuyển đến thanh toán...";
                 } else if (isCurrentPaidPlan) {
-                  // User đang ở level 1 hoặc 2 tương ứng
                   buttonLabel = "Gói hiện tại";
                 } else {
                   buttonLabel = "Chọn gói này";
                 }
+
+                // Hiển thị số ngày còn lại trên card CHỈ khi thật sự có gói trả phí active
+                const showRemainingOnCard =
+                  isCurrentPaidPlan &&
+                  currentSub &&
+                  (currentSub.status || "").toLowerCase() === "active" &&
+                  currentSubRemainingDays != null &&
+                  currentSubRemainingDays > 0;
 
                 return (
                   <article
@@ -403,7 +573,10 @@ const SupportPlanSubscriptionPage = () => {
                   >
                     <div className="sp-sub-plan-header">
                       <div className="sp-sub-plan-name-wrap">
-                        <h2 className="sp-sub-plan-name">{plan.name}</h2>
+                        {/* Tên gói lấy từ database */}
+                        <h2 className="sp-sub-plan-name">
+                          {plan.name}
+                        </h2>
                         <span
                           className={getPriorityBadgeClass(
                             plan.priorityLevel
@@ -414,8 +587,18 @@ const SupportPlanSubscriptionPage = () => {
                       </div>
 
                       {isCurrentPaidPlan && (
-                        <div className="sp-sub-plan-current-badge">
-                          Gói hiện tại của bạn
+                        <div className="sp-sub-plan-current-inline">
+                          <span className="sp-sub-plan-current-badge">
+                            Gói hiện tại của bạn
+                          </span>
+                          {showRemainingOnCard && (
+                            <span className="sp-sub-plan-current-days">
+                              Còn{" "}
+                              <strong>
+                                {currentSubRemainingDays} ngày
+                              </strong>
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -442,7 +625,9 @@ const SupportPlanSubscriptionPage = () => {
                     <ul className="sp-sub-plan-features">
                       <li>
                         Mức ưu tiên:{" "}
-                        <strong>{getPriorityLabel(plan.priorityLevel)}</strong>
+                        <strong>
+                          {getPriorityLabel(plan.priorityLevel)}
+                        </strong>
                       </li>
                       <li>
                         Hỗ trợ qua ticket/email, ưu tiên xử lý theo{" "}
@@ -457,7 +642,8 @@ const SupportPlanSubscriptionPage = () => {
                       )}
                       {isFree && (
                         <li>
-                          Gói mặc định cho tất cả tài khoản Keytietkiem.
+                          Gói mặc định cho tất cả tài khoản
+                          Keytietkiem.
                         </li>
                       )}
                     </ul>
@@ -466,15 +652,16 @@ const SupportPlanSubscriptionPage = () => {
                       type="button"
                       className="sf-btn sf-btn-primary sp-sub-plan-cta"
                       disabled={disabled}
-                      onClick={() => handleSelectPlan(plan)}
+                      onClick={() => handleOpenPreview(plan)}
                     >
                       {buttonLabel}
                     </button>
 
                     {isFree && (
                       <div className="sp-sub-plan-note">
-                        Nếu bạn không đăng ký gói trả phí, hệ thống sẽ áp dụng{" "}
-                        <strong>Standard Support</strong> mặc định.
+                        Nếu bạn không đăng ký gói trả phí, hệ thống sẽ
+                        áp dụng{" "}
+                        <strong>Hỗ trợ tiêu chuẩn</strong> mặc định.
                       </div>
                     )}
                   </article>
@@ -484,6 +671,237 @@ const SupportPlanSubscriptionPage = () => {
           )}
         </section>
       </div>
+
+      {/* Popup xác nhận gói hỗ trợ trước khi chuyển sang màn thanh toán */}
+      {isPreviewOpen && previewPlan && (
+        <div className="sp-sub-modal-backdrop">
+          <div className="sp-sub-modal">
+            <div className="sp-sub-modal-header">
+              <h2 className="sp-sub-modal-title">
+                Xác nhận đăng ký gói hỗ trợ
+              </h2>
+              <button
+                type="button"
+                className="sp-sub-modal-close"
+                onClick={handleClosePreview}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="sp-sub-modal-body">
+              <p className="sp-sub-modal-intro">
+                Hệ thống sẽ sử dụng các thông tin dưới đây để tạo{" "}
+                <strong>đơn thanh toán</strong> cho gói hỗ trợ của bạn.
+                Vui lòng kiểm tra kỹ trước khi tiếp tục.
+              </p>
+
+              {/* 1. Gói bạn chọn */}
+              <section className="sp-sub-modal-section">
+                <h3 className="sp-sub-modal-section-title">
+                  1. Gói bạn chọn
+                </h3>
+                <div className="sp-sub-modal-plan">
+                  <div className="sp-sub-modal-plan-main">
+                    <div>
+                      <div className="sp-sub-modal-plan-name">
+                        {/* Tên gói lấy từ database */}
+                        {previewPlan.name}
+                      </div>
+                      <div className="sp-sub-modal-plan-priority">
+                        <span
+                          className={getPriorityBadgeClass(
+                            previewPlan.priorityLevel
+                          )}
+                        >
+                          {getPriorityLabel(previewPlan.priorityLevel)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="sp-sub-modal-plan-price">
+                      <span className="sp-sub-modal-plan-price-amount">
+                        {formatCurrency(previewPlan.price)}
+                      </span>
+                      <span className="sp-sub-modal-plan-price-unit">
+                        / tháng
+                      </span>
+                    </div>
+                  </div>
+
+                  {previewPlan.description && (
+                    <p className="sp-sub-modal-plan-desc">
+                      {previewPlan.description}
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {/* 2. Mức ưu tiên & thời hạn */}
+              <section className="sp-sub-modal-section">
+                <h3 className="sp-sub-modal-section-title">
+                  2. Mức ưu tiên & thời hạn
+                </h3>
+                <div className="sp-sub-modal-grid">
+                  <div className="sp-sub-modal-col">
+                    <div className="sp-sub-modal-label">
+                      Trước khi đăng ký
+                    </div>
+                    <p>
+                      Mức ưu tiên hiện tại:{" "}
+                      <strong>
+                        {getPriorityLabel(currentPriorityLevel)}
+                      </strong>
+                    </p>
+                    {currentSub ? (
+                      <>
+                        {!isStatusNone && (
+                          <p>
+                            Gói hỗ trợ hiện tại:{" "}
+                            <strong>
+                              {currentSub.planName ||
+                                getPriorityLabel(
+                                  currentSub.priorityLevel
+                                )}
+                            </strong>
+                          </p>
+                        )}
+                        <p>
+                          Trạng thái gói hiện tại:{" "}
+                          <strong>
+                            {getSubscriptionStatusLabel(
+                              currentSub.status
+                            )}
+                          </strong>
+                        </p>
+                        {currentSubRemainingDays != null && (
+                          <p>
+                            Số ngày còn lại (ước tính):{" "}
+                            <strong>{currentSubRemainingDays}</strong>{" "}
+                            ngày
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p>
+                        Hiện tại bạn chưa đăng ký gói hỗ trợ trả phí
+                        nào.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="sp-sub-modal-col">
+                    <div className="sp-sub-modal-label">
+                      Sau khi đăng ký
+                    </div>
+                    <p>
+                      Mức ưu tiên dự kiến:{" "}
+                      <strong>
+                        {getPriorityLabel(previewPlan.priorityLevel)}
+                      </strong>
+                    </p>
+                    <p>
+                      Thời hạn gói:{" "}
+                      <strong>1 tháng</strong> kể từ khi thanh toán
+                      thành công.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 3. Số tiền đã điều chỉnh (thực sự phải thanh toán) */}
+              {adjustedAmount != null && (
+                <section className="sp-sub-modal-section sp-sub-modal-section-summary">
+                  <div className="sp-sub-modal-summary-row">
+                    {/* Bên trái: thông tin gói cũ & số ngày còn lại */}
+                    <div className="sp-sub-modal-summary-left">
+                      <div className="sp-sub-modal-summary-label">
+                        Gói hiện tại
+                      </div>
+                      {paymentCurrentPrice &&
+                      paymentRemainingDays != null &&
+                      paymentRemainingDays > 0 ? (
+                        <>
+                          <div className="sp-sub-modal-summary-text">
+                            <strong>
+                              {currentSub &&
+                              Number(
+                                currentSub.price ??
+                                  currentSub.Price ??
+                                  0
+                              ) > 0 &&
+                              (currentSub.status || "")
+                                .toLowerCase() === "active"
+                                ? currentSub.planName ||
+                                  getPriorityLabel(
+                                    currentSub.priorityLevel
+                                  )
+                                : getPriorityLabel(1)}
+                            </strong>
+                          </div>
+                          <div className="sp-sub-modal-summary-meta">
+                            Còn khoảng{" "}
+                            <strong>
+                              {paymentRemainingDays} ngày
+                            </strong>{" "}
+                            trong chu kỳ.
+                            {paymentSource === "loyalty_base" && (
+                              <>
+                                {" "}
+                                (tính theo quyền lợi{" "}
+                                <strong>Hỗ trợ ưu tiên</strong>{" "}
+                                vĩnh viễn)
+                              </>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="sp-sub-modal-summary-text">
+                          Không có gói cũ còn thời hạn.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bên phải: số tiền phải thanh toán (highlight) */}
+                    <div className="sp-sub-modal-summary-right">
+                      <div className="sp-sub-modal-summary-label">
+                        Số tiền phải thanh toán
+                      </div>
+                      <div className="sp-sub-modal-summary-amount">
+                        {formatCurrency(adjustedAmount)}
+                      </div>
+                      <div className="sp-sub-modal-summary-note">
+                        Số tiền sau khi đã điều chỉnh theo gói hiện tại
+                        (nếu có).
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <div className="sp-sub-modal-footer">
+              <button
+                type="button"
+                className="sf-btn sf-btn-outline sp-sub-modal-btn"
+                onClick={handleClosePreview}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="sf-btn sf-btn-primary sp-sub-modal-btn"
+                disabled={
+                  creatingPaymentPlanId ===
+                  (previewPlan && previewPlan.supportPlanId)
+                }
+                onClick={handleConfirmPreview}
+              >
+                Xác nhận & chuyển đến thanh toán
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

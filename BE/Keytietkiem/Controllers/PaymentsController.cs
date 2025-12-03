@@ -555,9 +555,9 @@ namespace Keytietkiem.Controllers
 
             // FE sẽ đọc paymentId/supportPlanId từ query để gọi /api/supportplans/confirm-payment
             var returnUrl =
-                $"{frontendBaseUrl}/support-plan/payment-result?paymentId={payment.PaymentId}&supportPlanId={plan.SupportPlanId}";
+                $"{frontendBaseUrl}/support-plan/subscription";
             var cancelUrl =
-                $"{frontendBaseUrl}/support-plan/payment-cancel?paymentId={payment.PaymentId}&supportPlanId={plan.SupportPlanId}";
+                $"{frontendBaseUrl}/support-plan/subscription";
 
             // Description đơn giản, giới hạn <= 25 ký tự cho PayOS
             var description = $"SP_{plan.SupportPlanId}";
