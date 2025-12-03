@@ -75,7 +75,7 @@ export default function VariantsPanel({
   const [size, setSize] = React.useState(10);
 
   const [showModal, setShowModal] = React.useState(false);
-  const [editing, setEditing] = React.useState(null);
+  const [editing] = React.useState(null); // hiện tại modal chỉ dùng để tạo mới
   const [modalErrors, setModalErrors] = React.useState({});
   const fileInputRef = React.useRef(null);
 
@@ -152,17 +152,37 @@ export default function VariantsPanel({
           minPrice: priceMin || undefined,
           maxPrice: priceMax || undefined,
         });
+
         const list = res.items || [];
         setItems(list);
         setTotal(res.totalItems || 0);
         setTotalPages(res.totalPages || 1);
 
-        if (typeof onTotalChange === "function" && Array.isArray(list)) {
-          const sum = list.reduce(
-            (acc, v) => acc + (Number(v.stockQty) || 0),
-            0
-          );
-          onTotalChange(sum);
+        if (typeof onTotalChange === "function") {
+          // ưu tiên lấy tổng tồn kho & tổng biến thể từ response nếu BE có trả
+          const totalStockFromRes =
+            typeof res.totalStock === "number"
+              ? res.totalStock
+              : typeof res.TotalStock === "number"
+              ? res.TotalStock
+              : Array.isArray(list)
+              ? list.reduce(
+                  (acc, v) => acc + (Number(v.stockQty) || 0),
+                  0
+                )
+              : 0;
+
+          const variantCountFromRes =
+            typeof res.totalItems === "number"
+              ? res.totalItems
+              : Array.isArray(list)
+              ? list.length
+              : 0;
+
+          onTotalChange({
+            totalStock: totalStockFromRes,
+            variantCount: variantCountFromRes,
+          });
         }
       } catch (e) {
         console.error(e);
@@ -175,7 +195,20 @@ export default function VariantsPanel({
         setLoading(false);
       }
     },
-    [productId, q, status, dur, sort, dir, page, size, priceMin, priceMax, onTotalChange, addToast]
+    [
+      productId,
+      q,
+      status,
+      dur,
+      sort,
+      dir,
+      page,
+      size,
+      priceMin,
+      priceMax,
+      onTotalChange,
+      addToast,
+    ]
   );
 
   React.useEffect(() => {
@@ -199,15 +232,13 @@ export default function VariantsPanel({
   };
 
   const openCreate = () => {
-    setEditing(null);
+    // hiện chỉ dùng để tạo mới – editing = null
     setThumbPreview(null);
     setThumbUrl(null);
     setModalErrors({});
     setModalStatus("ACTIVE");
     setShowModal(true);
   };
-
-  const openEdit = (v) => goDetail(v);
 
   // Upload helpers
   const urlToFile = async (url) => {
@@ -305,7 +336,7 @@ export default function VariantsPanel({
         const f = await urlToFile(text);
         await uploadThumbnailFile(f);
       } catch {
-        addToast("error", "Không thể tải ảnh từ URL này");
+        addToast("error", "Không thể tải ảnh từ URL này", "");
       }
     }
   };
@@ -326,7 +357,7 @@ export default function VariantsPanel({
               const f = await urlToFile(text);
               await uploadThumbnailFile(f);
             } catch {
-              addToast("error", "Không thể tải ảnh từ URL này");
+              addToast("error", "Không thể tải ảnh từ URL này", "");
             }
           }
         });
@@ -385,7 +416,6 @@ export default function VariantsPanel({
     const lowerCode = variantCode.toLowerCase();
 
     items.forEach((v) => {
-      if (editing && v.variantId === editing.variantId) return;
       if ((v.title || "").trim().toLowerCase() === lowerTitle) {
         errors.title = "Tên biến thể đã tồn tại trong sản phẩm này.";
       }
@@ -395,12 +425,16 @@ export default function VariantsPanel({
     });
 
     // Thời lượng / Bảo hành
-    if (durationDays != null && durationDays < 0) {
+    if (durationDays == null) {
+      errors.durationDays = "Thời lượng (ngày) là bắt buộc.";
+    } else if (durationDays < 0) {
       errors.durationDays = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0.";
     }
+
     if (warrantyDays != null && warrantyDays < 0) {
       errors.warrantyDays = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0.";
     }
+
     if (
       durationDays != null &&
       warrantyDays != null &&
@@ -682,9 +716,9 @@ export default function VariantsPanel({
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "12%" }} /> {/* Giá bán */}
                     <col style={{ width: "12%" }} /> {/* Giá niêm yết */}
-                    <col style={{ width: "8%" }} />  {/* Trạng thái */}
-                    <col style={{ width: "7%" }} />  {/* Lượt xem */}
-                    <col style={{ width: "7%" }} />  {/* Thao tác */}
+                    <col style={{ width: "8%" }} /> {/* Trạng thái */}
+                    <col style={{ width: "7%" }} /> {/* Lượt xem */}
+                    <col style={{ width: "7%" }} /> {/* Thao tác */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -959,7 +993,7 @@ export default function VariantsPanel({
         </div>
       </div>
 
-      {/* MODAL CREATE / EDIT */}
+      {/* MODAL CREATE */}
       {showModal && (
         <div className="modal-backdrop">
           <div
@@ -972,9 +1006,7 @@ export default function VariantsPanel({
             }}
           >
             <div className="modal-topbar">
-              <h3 style={{ margin: 0 }}>
-                {editing ? "Sửa biến thể" : "Thêm biến thể"}
-              </h3>
+              <h3 style={{ margin: 0 }}>Thêm biến thể</h3>
               <div className="row" style={{ gap: 8, alignItems: "center" }}>
                 <label className="switch" title="Bật/Tắt hiển thị">
                   <input
@@ -1009,7 +1041,7 @@ export default function VariantsPanel({
                   </span>
                   <input
                     name="title"
-                    defaultValue={editing?.title ?? productName ?? ""}
+                    defaultValue={productName ?? ""}
                     maxLength={TITLE_MAX}
                     className={modalErrors.title ? "input-error" : ""}
                   />
@@ -1023,7 +1055,7 @@ export default function VariantsPanel({
                   </span>
                   <input
                     name="variantCode"
-                    defaultValue={editing?.variantCode ?? productCode ?? ""}
+                    defaultValue={productCode ?? ""}
                     maxLength={CODE_MAX}
                     className={modalErrors.variantCode ? "input-error" : ""}
                   />
@@ -1046,7 +1078,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1}
                     name="durationDays"
-                    defaultValue={editing?.durationDays ?? 0}
+                    defaultValue={0}
                     className={modalErrors.durationDays ? "input-error" : ""}
                   />
                   {modalErrors.durationDays && (
@@ -1062,7 +1094,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1}
                     name="warrantyDays"
-                    defaultValue={editing?.warrantyDays ?? 0}
+                    defaultValue={0}
                     className={modalErrors.warrantyDays ? "input-error" : ""}
                   />
                   {modalErrors.warrantyDays && (
@@ -1084,7 +1116,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1000}
                     name="listPrice"
-                    defaultValue={editing?.listPrice ?? 0}
+                    defaultValue={0}
                     className={modalErrors.listPrice ? "input-error" : ""}
                   />
                   {modalErrors.listPrice && (
@@ -1100,7 +1132,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1000}
                     name="sellPrice"
-                    defaultValue={editing?.sellPrice ?? 0}
+                    defaultValue={0}
                     className={modalErrors.sellPrice ? "input-error" : ""}
                   />
                   {modalErrors.sellPrice && (
@@ -1184,7 +1216,7 @@ export default function VariantsPanel({
                   Hủy
                 </button>
                 <button type="submit" className="btn primary">
-                  {editing ? "Lưu" : "Thêm"}
+                  Thêm
                 </button>
               </div>
             </form>
