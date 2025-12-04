@@ -213,9 +213,12 @@ const StorefrontProductDetailPage = () => {
   };
 
   // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
-  const isOutOfStock = detail
-    ? detail.isOutOfStock || (detail.stockQty ?? 0) <= 0
-    : false;
+const isOutOfStock = detail
+  ? !!(
+      detail.isOutOfStock ||
+      (detail.status || "").toString().toUpperCase() === "OUT_OF_STOCK"
+    )
+  : false;
 
   const typeLabel = detail
     ? StorefrontProductApi.typeLabelOf(detail.productType)

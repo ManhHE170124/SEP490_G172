@@ -17,7 +17,7 @@ export default function ProductsPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const addToast = (type, message, title) => {
+  const addToast = (type, title, message) => {
     const id = toastIdRef.current++;
     setToasts((prev) => [
       ...prev,
@@ -51,7 +51,7 @@ export default function ProductsPage() {
       if (raw) {
         const t = JSON.parse(raw);
         if (t && t.message) {
-          addToast(t.type || "success", t.message, t.title);
+          addToast(t.type || "success", t.title, t.message);
         }
         window.sessionStorage.removeItem("products:toast");
       }
@@ -139,8 +139,8 @@ export default function ProductsPage() {
       console.error(err);
       addToast(
         "error",
-        err?.response?.data?.message || "Không tải được sản phẩm.",
-        "Lỗi"
+        "Lỗi",
+        err?.response?.data?.message || "Không tải được sản phẩm."
       );
     } finally {
       setLoading(false);
@@ -181,8 +181,7 @@ export default function ProductsPage() {
     setQuery((q) => ({
       ...q,
       sort: key,
-      direction:
-        q.sort === key && q.direction === "asc" ? "desc" : "asc",
+      direction: q.sort === key && q.direction === "asc" ? "desc" : "asc",
     }));
   };
 
@@ -197,8 +196,8 @@ export default function ProductsPage() {
       if (!next) {
         addToast(
           "success",
-          "Đã cập nhật trạng thái sản phẩm.",
-          "Thành công"
+          "Thành công",
+          "Đã cập nhật trạng thái sản phẩm."
         );
         return;
       }
@@ -206,14 +205,14 @@ export default function ProductsPage() {
       if (next === "ACTIVE") {
         addToast(
           "success",
-          `Sản phẩm "${p.productName}" đã được bật hiển thị.`,
-          "Trạng thái hiển thị"
+          "Trạng thái hiển thị",
+          `Sản phẩm "${p.productName}" đã được bật hiển thị.`
         );
       } else if (next === "INACTIVE") {
         addToast(
           "info",
-          `Sản phẩm "${p.productName}" đã được ẩn khỏi trang bán.`,
-          "Trạng thái hiển thị"
+          "Trạng thái hiển thị",
+          `Sản phẩm "${p.productName}" đã được ẩn khỏi trang bán.`
         );
       } else if (next === "OUT_OF_STOCK") {
         const totalStock = p.totalStock ?? 0;
@@ -221,20 +220,20 @@ export default function ProductsPage() {
           totalStock <= 0
             ? `Không thể bật hiển thị vì sản phẩm "${p.productName}" đang hết hàng. Hãy nhập tồn kho trước khi bật hiển thị.`
             : `Trạng thái sản phẩm "${p.productName}" đang là "Hết hàng".`;
-        addToast("warning", msg, "Không thể bật hiển thị");
+        addToast("warning", "Không thể bật hiển thị", msg);
       } else {
         addToast(
           "success",
-          "Đã cập nhật trạng thái sản phẩm.",
-          "Thành công"
+          "Thành công",
+          "Đã cập nhật trạng thái sản phẩm."
         );
       }
     } catch (e) {
       console.error(e);
       addToast(
         "error",
-        e?.response?.data?.message || "Đổi trạng thái thất bại.",
-        "Lỗi"
+        "Lỗi",
+        e?.response?.data?.message || "Đổi trạng thái thất bại."
       );
     }
   };
@@ -288,8 +287,8 @@ export default function ProductsPage() {
 
       addToast(
         "error",
-        `Không thể xoá sản phẩm "${p.productName}" ${reasonText}. Vui lòng ẩn sản phẩm (tắt hiển thị) thay vì xoá vĩnh viễn để tránh mất dữ liệu.`,
-        "Không thể xoá sản phẩm"
+        "Không thể xoá sản phẩm",
+        `Không thể xoá sản phẩm "${p.productName}" ${reasonText}. Vui lòng ẩn sản phẩm (tắt hiển thị) thay vì xoá vĩnh viễn để tránh mất dữ liệu.`
       );
       return;
     }
@@ -300,20 +299,19 @@ export default function ProductsPage() {
       onConfirm: async () => {
         try {
           await ProductApi.remove(p.productId);
-          addToast("success", "Đã xoá sản phẩm.", "Thành công");
+          addToast("success", "Thành công", "Đã xoá sản phẩm.");
           await load();
         } catch (e) {
           console.error(e);
           addToast(
             "error",
-            e?.response?.data?.message || "Xoá sản phẩm thất bại.",
-            "Lỗi"
+            "Lỗi",
+            e?.response?.data?.message || "Xoá sản phẩm thất bại."
           );
         }
       },
     });
   };
-
 
   return (
     <>
@@ -333,10 +331,7 @@ export default function ProductsPage() {
           </div>
 
           {/* Filters */}
-          <div
-            className="filter-inline input-group"
-            style={{ marginTop: 12 }}
-          >
+          <div className="filter-inline input-group" style={{ marginTop: 12 }}>
             <div className="group">
               <span>Tìm kiếm</span>
               <input
@@ -364,10 +359,7 @@ export default function ProductsPage() {
               >
                 <option value="">Tất cả</option>
                 {categories.map((c) => (
-                  <option
-                    key={c.categoryId}
-                    value={c.categoryId}
-                  >
+                  <option key={c.categoryId} value={c.categoryId}>
                     {c.categoryName}
                   </option>
                 ))}
@@ -428,18 +420,13 @@ export default function ProductsPage() {
               >
                 <option value="">Tất cả</option>
                 {badges.map((b) => (
-                  <option
-                    key={b.badgeCode}
-                    value={b.badgeCode}
-                  >
+                  <option key={b.badgeCode} value={b.badgeCode}>
                     {b.displayName || b.badgeCode}
                   </option>
                 ))}
               </select>
             </div>
-            {loading && (
-              <span className="badge gray">Đang tải…</span>
-            )}
+            {loading && <span className="badge gray">Đang tải…</span>}
             <button
               className="btn"
               onClick={() =>
@@ -541,61 +528,51 @@ export default function ProductsPage() {
                     <td>{fmtType(p.productType)}</td>
 
                     {/* Tổng tồn kho */}
-                    <td className="mono">
-                      {p.totalStock ?? 0}
-                    </td>
+                    <td className="mono">{p.totalStock ?? 0}</td>
 
                     {/* Danh mục */}
                     <td style={{ maxWidth: 360 }}>
                       {(p.categoryIds ?? []).length === 0
                         ? "—"
-                        : (p.categoryIds ?? []).map(
-                            (cid, idx, arr) => {
-                              const name =
-                                categoriesDict[cid] ??
-                                `#${cid}`;
-                              return (
-                                <React.Fragment
-                                  key={cid}
-                                >
-                                  <span className="chip">
-                                    {name}
-                                  </span>
-                                  {idx <
-                                  arr.length - 1 ? (
-                                    <span>,&nbsp;</span>
-                                  ) : null}
-                                </React.Fragment>
-                              );
-                            }
-                          )}
+                        : (p.categoryIds ?? []).map((cid, idx, arr) => {
+                            const name =
+                              categoriesDict[cid] ?? `#${cid}`;
+                            return (
+                              <React.Fragment key={cid}>
+                                <span className="chip">{name}</span>
+                                {idx < arr.length - 1 ? (
+                                  <span>,&nbsp;</span>
+                                ) : null}
+                              </React.Fragment>
+                            );
+                          })}
                     </td>
 
-                   {/* Nhãn */}
-<td style={{ maxWidth: 360 }}>
-  {(p.badges ?? []).map((code) => {
-    const meta = badgesDict[code];
+                    {/* Nhãn */}
+                    <td style={{ maxWidth: 360 }}>
+                      {(p.badges ?? []).map((code) => {
+                        const meta = badgesDict[code];
 
-    // Nếu badge không có trong dict (tức đã bị ẩn / không tồn tại) -> không hiển thị
-    if (!meta) return null;
+                        // Nếu badge không có trong dict (tức đã bị ẩn / không tồn tại) -> không hiển thị
+                        if (!meta) return null;
 
-    return (
-      <span
-        key={code}
-        className="label-chip"
-        style={{
-          background: meta.color,
-          color: "#fff",
-          marginRight: 6,
-          marginBottom: 4,
-        }}
-        title={meta.name}
-      >
-        {meta.name}
-      </span>
-    );
-  })}
-</td>
+                        return (
+                          <span
+                            key={code}
+                            className="label-chip"
+                            style={{
+                              background: meta.color,
+                              color: "#fff",
+                              marginRight: 6,
+                              marginBottom: 4,
+                            }}
+                            title={meta.name}
+                          >
+                            {meta.name}
+                          </span>
+                        );
+                      })}
+                    </td>
                     <td className="col-status">
                       <span
                         className={statusBadge(p.status)}
@@ -650,9 +627,7 @@ export default function ProductsPage() {
                         <input
                           type="checkbox"
                           checked={p.status === "ACTIVE"}
-                          onChange={() =>
-                            toggleStatus(p)
-                          }
+                          onChange={() => toggleStatus(p)}
                         />
                         <span className="slider" />
                       </label>
@@ -666,15 +641,11 @@ export default function ProductsPage() {
           <div className="pager">
             <button
               disabled={page <= 1}
-              onClick={() =>
-                setPage((x) => Math.max(1, x - 1))
-              }
+              onClick={() => setPage((x) => Math.max(1, x - 1))}
             >
               Trước
             </button>
-            <span style={{ padding: "0 8px" }}>
-              Trang {page}
-            </span>
+            <span style={{ padding: "0 8px" }}>Trang {page}</span>
             <button
               disabled={page * pageSize >= total}
               onClick={() => setPage((x) => x + 1)}

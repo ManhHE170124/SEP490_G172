@@ -1,15 +1,15 @@
 // src/pages/admin/ProductAdd.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ProductApi } from "../../services/products";
+import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
 
 // ====== CONST & HELPERS ======
-const MAX_PRODUCT_NAME = 100; // TODO: chỉnh lại cho khớp DB
-const MAX_PRODUCT_CODE = 50;  // TODO: chỉnh lại cho khớp DB
+const MAX_PRODUCT_NAME = 100;
+const MAX_PRODUCT_CODE = 50;
 
 // Chuẩn hoá mã định danh: trim + bỏ dấu + chỉ A-Z0-9_ + uppercase
 const normalizeProductCode = (raw) => {
@@ -327,15 +327,17 @@ export default function ProductAdd() {
           productCode: "Mã định danh này đã tồn tại. Vui lòng chọn mã khác.",
         }));
       }
- if (
-    typeof msg === "string" &&
-    msg.toLowerCase().includes("productname already exists")
-  ) {
-    setErrors((prev) => ({
-      ...prev,
-      productName: "Tên sản phẩm này đã tồn tại. Vui lòng dùng tên khác.",
-    }));
-  }
+
+      // Nếu trùng tên
+      if (
+        typeof msg === "string" &&
+        msg.toLowerCase().includes("productname already exists")
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          productName: "Tên sản phẩm này đã tồn tại. Vui lòng dùng tên khác.",
+        }));
+      }
 
       addToast(
         "error",
