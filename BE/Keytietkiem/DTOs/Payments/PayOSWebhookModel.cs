@@ -105,4 +105,19 @@ namespace Keytietkiem.DTOs.Payments
     {
         public string Status { get; set; } = null!;
     }
+    public class ConfirmCartPaymentRequestDto
+    {
+        public Guid PaymentId { get; set; }
+        public string? Code { get; set; }
+        public string? Status { get; set; }
+    }
+
+    public class CancelCartPaymentRequestDto
+    {
+        public Guid PaymentId { get; set; }
+
+        // Có thể dùng để log thêm nếu cần
+        public string? Code { get; set; }
+        public string? Status { get; set; }
+    }
 }

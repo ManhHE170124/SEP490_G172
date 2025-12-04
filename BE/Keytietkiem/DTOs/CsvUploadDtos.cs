@@ -63,7 +63,7 @@ public class ImportProductKeysFromCsvDto
     public string KeyType { get; set; } = nameof(ProductKeyType.Individual);
 
     /// <summary>
-    /// COGS price - will update the ProductVariant's CogsPrice
+    /// COGS price - will update the Variant's CogsPrice
     /// </summary>
     [Range(0, double.MaxValue, ErrorMessage = "Giá vốn phải lớn hơn hoặc bằng 0")]
     public decimal? CogsPrice { get; set; }

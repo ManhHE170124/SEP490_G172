@@ -213,9 +213,12 @@ const StorefrontProductDetailPage = () => {
   };
 
   // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
-  const isOutOfStock = detail
-    ? detail.isOutOfStock || (detail.stockQty ?? 0) <= 0
-    : false;
+const isOutOfStock = detail
+  ? !!(
+      detail.isOutOfStock ||
+      (detail.status || "").toString().toUpperCase() === "OUT_OF_STOCK"
+    )
+  : false;
 
   const typeLabel = detail
     ? StorefrontProductApi.typeLabelOf(detail.productType)
@@ -252,7 +255,7 @@ const StorefrontProductDetailPage = () => {
     });
   };
 
-  // ====== Add to cart / Buy now ======
+   // ====== Add to cart / Buy now ======
   const handleAddToCart = async () => {
     if (!detail || !detail.variantId) return;
     if (quantity <= 0) return;
@@ -270,27 +273,17 @@ const StorefrontProductDetailPage = () => {
     setAddingToCart(true);
     try {
       if (customer) {
-        // Đã đăng nhập -> dùng cart server-side
+        // Đã đăng nhập -> dùng cart server-side (userId)
         await StorefrontCartApi.addItem({
           variantId: detail.variantId,
           quantity,
         });
-        // Sau khi BE cập nhật tồn kho, CART_UPDATED_EVENT sẽ bắn ra,
-        // effect phía trên sẽ tự loadDetail lại.
       } else {
-        // Guest -> dùng cart frontend (localStorage)
-        GuestCartService.addItem({
+        // Guest -> dùng cart server-side qua cookie ẩn ktk_anon_cart
+        await GuestCartService.addItem({
           variantId: detail.variantId,
-          productId: detail.productId,
-          productName: detail.productName,
-          productType: detail.productType,
-          variantTitle: detail.variantTitle || detail.title,
-          thumbnail: detail.thumbnail,
-          listPrice: detail.listPrice,
-          unitPrice: detail.sellPrice,
           quantity,
         });
-        // GuestCartService cũng bắn CART_UPDATED_EVENT -> sẽ loadDetail lại.
       }
 
       addToast(
@@ -313,7 +306,7 @@ const StorefrontProductDetailPage = () => {
     }
   };
 
-  const handleBuyNow = async () => {
+   const handleBuyNow = async () => {
     if (!detail || !detail.variantId) return;
     if (quantity <= 0) return;
 
@@ -335,15 +328,8 @@ const StorefrontProductDetailPage = () => {
           quantity,
         });
       } else {
-        GuestCartService.addItem({
+        await GuestCartService.addItem({
           variantId: detail.variantId,
-          productId: detail.productId,
-          productName: detail.productName,
-          productType: detail.productType,
-          variantTitle: detail.variantTitle || detail.title,
-          thumbnail: detail.thumbnail,
-          listPrice: detail.listPrice,
-          unitPrice: detail.sellPrice,
           quantity,
         });
       }
@@ -365,6 +351,7 @@ const StorefrontProductDetailPage = () => {
       setAddingToCart(false);
     }
   };
+
 
   // Chuẩn hoá dữ liệu sections & FAQ cho an toàn
   const sections = detail?.sections || detail?.detailSections || [];

@@ -37,7 +37,7 @@ public class ProductReportService : IProductReportService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        // Validate ProductVariant exists
+        // Validate Variant exists
         var variantExists = await _context.ProductVariants
             .AnyAsync(v => v.VariantId == createDto.ProductVariantId, cancellationToken);
 

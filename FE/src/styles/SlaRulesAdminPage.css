@@ -1,0 +1,511 @@
+/* File: src/styles/SlaRulesAdminPage.css */
+:root {
+  --ink: #0b1220;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --page: #f3f6fa;
+  --card: #ffffff;
+  --primary: #2563eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Arial, sans-serif;
+}
+
+/* ===== Text helpers ===== */
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ===== Layout & card ===== */
+.page {
+  min-height: 100vh;
+  padding: 24px 16px 40px;
+  background: var(--page);
+}
+
+.page > .card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  padding: 20px 20px 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.card-header .left h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.card-header .left p {
+  margin: 0;
+}
+
+/* ===== SLA rules helper note ===== */
+.sla-rules-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  font-size: 12px;
+  color: #1e3a8a;
+}
+
+.sla-rules-note-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sla-rules-note ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.sla-rules-note li {
+  margin-bottom: 2px;
+}
+
+/* ===== Flex helpers ===== */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Một group field (label + input) */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.group > span {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ===== Form controls ===== */
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* ===== Buttons ===== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.02s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: #f3f4ff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  transform: translateY(-0.5px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Variants */
+.btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.btn.secondary {
+  background: #eff6ff;
+  border-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.btn.secondary:hover:not(:disabled) {
+  background: #e0ebff;
+}
+
+.btn.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.btn.status-btn {
+  padding: 2px 8px;
+}
+
+/* ===== Badge ===== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.badge.green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.badge.gray {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badge.level-priority {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.badge.level-vip {
+  background: rgba(129, 140, 248, 0.16);
+  color: #4c1d95;
+}
+
+.badge.level-other {
+  background: rgba(55, 65, 81, 0.12);
+  color: #111827;
+}
+
+/* Severity colors */
+.badge.sev-low {
+  background: rgba(16, 185, 129, 0.12);
+  color: #15803d;
+}
+
+.badge.sev-medium {
+  background: rgba(234, 179, 8, 0.18);
+  color: #92400e;
+}
+
+.badge.sev-high {
+  background: rgba(249, 115, 22, 0.18);
+  color: #b45309;
+}
+
+.badge.sev-critical {
+  background: #7f1d1d;
+  color: #fee2e2;
+}
+
+/* ===== Table ===== */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table thead th {
+  background: #f9fafb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ===== Pager ===== */
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.pager-left,
+.pager-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  font-size: 13px;
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.pager-btn:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: #e0e7ff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.pager-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+.pager-info {
+  white-space: nowrap;
+}
+
+/* ===== Modal (cat-modal-*) ===== */
+
+.cat-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.cat-modal-card {
+  width: 100%;
+  max-width: 720px;
+  background: #ffffff;
+  border-radius: var(--radius);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.cat-modal-header {
+  padding: 16px 20px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cat-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.cat-modal-body {
+  padding: 16px 20px 20px;
+}
+
+.cat-modal-body.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cat-modal-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Ghi chú trong modal */
+.sla-modal-note {
+  font-size: 11.5px;
+  line-height: 1.4;
+  max-width: 480px;
+}
+
+.sla-modal-note strong {
+  font-weight: 600;
+}
+
+/* ===== Switch (toggle) ===== */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.switch input {
+  display: none;
+}
+
+.slider {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  transition: background-color 0.15s ease;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.switch input:checked + .slider {
+  background: #22c55e;
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+.switch-label {
+  font-size: 13px;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px 10px 32px;
+  }
+
+  .page > .card {
+    padding: 16px 14px 20px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pager {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

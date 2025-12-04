@@ -1,8 +1,6 @@
-// src/pages/storefront/PaymentCancelPage.jsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import axiosClient from "../../api/axiosClient";
-import ConfirmDialog from "../../components/Toast/ConfirmDialog";
 import Toast from "../../components/Toast/Toast";
 
 const PaymentCancelPage = () => {
@@ -10,10 +8,10 @@ const PaymentCancelPage = () => {
   const navigate = useNavigate();
 
   const searchParams = new URLSearchParams(location.search);
-  const orderId = searchParams.get("orderId");
+  const paymentId = searchParams.get("paymentId");  // flow Cart
+  const payStatus = searchParams.get("status");
+  const payCode = searchParams.get("code");
 
-  const [confirmOpen, setConfirmOpen] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
 
   const addToast = useCallback((type, title, message) => {
@@ -25,40 +23,40 @@ const PaymentCancelPage = () => {
     );
   }, []);
 
-  const handleCancelOrder = async () => {
-    if (!orderId) {
-      navigate("/");
-      return;
-    }
+  // ===== Flow Cart: có paymentId =====
+  useEffect(() => {
+    // Không có paymentId -> chỉ hiển thị lỗi, không gọi API
+    if (!paymentId) return;
 
-    setLoading(true);
-    try {
-      await axiosClient.post(`/orders/${orderId}/cancel`);
-      addToast(
-        "success",
-        "Đã huỷ đơn hàng",
-        "Đơn hàng đã được huỷ và sản phẩm đã được trả lại kho."
-      );
-      navigate("/");
-    } catch (err) {
-      console.error("Cancel order failed:", err);
-      const msg = err?.response?.data?.message;
-      addToast(
-        "error",
-        "Huỷ đơn thất bại",
-        msg || "Không thể huỷ đơn hàng. Vui lòng thử lại."
-      );
-      navigate("/");
-    } finally {
-      setLoading(false);
-    }
-  };
+    let cancelled = false;
 
-  const handleKeepOrder = () => {
-    setConfirmOpen(false);
-    // Giữ đơn ở trạng thái Pending, quay về homepage
-    navigate("/");
-  };
+    const run = async () => {
+      try {
+        await axiosClient.post("/payments/cart/cancel-from-return", {
+          paymentId,
+          code: payCode,
+          status: payStatus,
+        });
+      } catch (err) {
+        console.error("Cancel cart payment failed:", err);
+        addToast(
+          "error",
+          "Huỷ thanh toán thất bại",
+          "Không thể huỷ thanh toán. Vui lòng kiểm tra lại sau."
+        );
+      } finally {
+        if (!cancelled) {
+          navigate("/");
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentId, payCode, payStatus, navigate, addToast]);
 
   return (
     <main className="sf-cart-page">
@@ -68,26 +66,21 @@ const PaymentCancelPage = () => {
         ))}
       </div>
 
-      {/* Nếu thiếu orderId thì báo lỗi đơn giản */}
-      {!orderId && (
+      {/* Flow Cart: đang xử lý huỷ paymentId */}
+      {paymentId && (
         <div style={{ padding: 24, textAlign: "center" }}>
-          <p>Không tìm thấy mã đơn hàng. Quay lại trang chủ.</p>
+          <p>Đang huỷ thanh toán, vui lòng chờ...</p>
+        </div>
+      )}
+
+      {/* Không có paymentId */}
+      {!paymentId && (
+        <div style={{ padding: 24, textAlign: "center" }}>
+          <p>Không tìm thấy thông tin thanh toán. Quay lại trang chủ.</p>
           <Link to="/" className="sf-btn sf-btn-primary">
             Về trang chủ
           </Link>
         </div>
-      )}
-
-      {orderId && (
-        <ConfirmDialog
-          isOpen={confirmOpen}
-          title="Huỷ thanh toán và huỷ đơn hàng?"
-          message="Bạn đã rời khỏi trang thanh toán. Bạn có muốn huỷ luôn đơn hàng này và trả sản phẩm về kho?"
-          onConfirm={handleCancelOrder}
-          onCancel={handleKeepOrder}
-          confirmText={loading ? "Đang huỷ..." : "Huỷ đơn hàng"}
-          cancelText="Giữ đơn"
-        />
       )}
     </main>
   );

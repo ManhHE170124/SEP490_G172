@@ -231,29 +231,66 @@ public class BadgesController : ControllerBase
                 return BadRequest(new { message = "ColorHex must be a valid hex color, e.g. #1e40af" });
         }
 
+        // Cập nhật info chung
         e.DisplayName = name;
         e.ColorHex = color;
         e.Icon = dto.Icon?.Trim();
         e.IsActive = dto.IsActive;
 
-        if (codeChanged)
+        // Nếu KHÔNG đổi mã -> chỉ update metadata
+        if (!codeChanged)
         {
-            // Cập nhật ProductBadges liên quan
-            var related = await db.ProductBadges
-                .Where(pb => pb.Badge == e.BadgeCode)
-                .ToListAsync();
-
-            foreach (var pb in related)
-            {
-                pb.Badge = newCode;
-            }
-
-            e.BadgeCode = newCode;
+            await db.SaveChangesAsync();
+            return NoContent();
         }
+
+        // ========== ĐỔI MÃ NHÃN (BadgeCode) ==========
+
+        var oldCode = e.BadgeCode;
+
+        // 1) Tạo badge mới với mã mới (copy metadata)
+        var newBadge = new Badge
+        {
+            BadgeCode = newCode,
+            DisplayName = e.DisplayName,
+            ColorHex = e.ColorHex,
+            Icon = e.Icon,
+            IsActive = e.IsActive,
+            CreatedAt = e.CreatedAt
+        };
+        db.Badges.Add(newBadge);
+
+        // 2) Lấy tất cả ProductBadges dùng oldCode
+        var related = await db.ProductBadges
+            .Where(pb => pb.Badge == oldCode)
+            .ToListAsync();
+
+        if (related.Count > 0)
+        {
+            // Tạo các ProductBadge mới với Badge = newCode
+            var newProductBadges = related.Select(pb => new ProductBadge
+            {
+                ProductId = pb.ProductId,
+                Badge = newCode,
+                CreatedAt = pb.CreatedAt
+            }).ToList();
+
+            db.ProductBadges.AddRange(newProductBadges);
+
+            // Xoá các ProductBadge cũ (Badge = oldCode)
+            db.ProductBadges.RemoveRange(related);
+        }
+
+        // 3) Xoá badge cũ
+        db.Badges.Remove(e);
 
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+
+
+
 
     [HttpDelete("{code}")]
     public async Task<IActionResult> Delete(string code)

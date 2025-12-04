@@ -22,12 +22,12 @@ public partial class ProductAccountCustomer
     public bool IsActive { get; set; }
 
     public string? Notes { get; set; }
-    
+
     public Guid? OrderId { get; set; }
+
+    public virtual Order? Order { get; set; }
 
     public virtual ProductAccount ProductAccount { get; set; } = null!;
 
     public virtual User User { get; set; } = null!;
-    
-    public virtual Order? Order { get; set; }
 }
