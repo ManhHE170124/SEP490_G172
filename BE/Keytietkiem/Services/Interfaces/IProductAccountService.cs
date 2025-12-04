@@ -58,4 +58,14 @@ public interface IProductAccountService
     /// Assign a product account to an order by adding the user as a customer
     /// </summary>
     Task<ProductAccountCustomerDto> AssignAccountToOrderAsync(AssignAccountToOrderDto assignDto, Guid assignedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Extend the expiry date of a product account
+    /// </summary>
+    Task<ProductAccountResponseDto> ExtendExpiryDateAsync(ExtendExpiryDateDto extendDto, Guid extendedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get product accounts expiring within specified days
+    /// </summary>
+    Task<List<ProductAccountResponseDto>> GetAccountsExpiringSoonAsync(int days = 5, CancellationToken cancellationToken = default);
 }

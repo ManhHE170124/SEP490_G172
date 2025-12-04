@@ -160,4 +160,48 @@ public class ProductAccountController : ControllerBase
         var response = await _productAccountService.GetHistoryAsync(id);
         return Ok(response);
     }
+
+    /// <summary>
+    /// Extend expiry date of a product account
+    /// </summary>
+    [HttpPost("{id}/extend-expiry")]
+    public async Task<IActionResult> ExtendExpiryDate(Guid id, [FromBody] ExtendExpiryDateDto extendDto)
+    {
+        if (id != extendDto.ProductAccountId)
+        {
+            return BadRequest(new { message = "ID không khớp" });
+        }
+
+        try
+        {
+            var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+            var response = await _productAccountService.ExtendExpiryDateAsync(extendDto, accountId);
+            return Ok(response);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get product accounts expiring within specified days (default 5)
+    /// </summary>
+    [HttpGet("expiring-soon")]
+    public async Task<IActionResult> GetAccountsExpiringSoon([FromQuery] int days = 5)
+    {
+        try
+        {
+            var response = await _productAccountService.GetAccountsExpiringSoonAsync(days);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

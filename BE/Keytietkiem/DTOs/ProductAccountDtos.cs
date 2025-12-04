@@ -172,8 +172,8 @@ public class ProductAccountHistoryDto
 {
     public long HistoryId { get; set; }
     public Guid ProductAccountId { get; set; }
-    public Guid UserId { get; set; }
-    public string UserEmail { get; set; } = string.Empty;
+    public Guid? UserId { get; set; }
+    public string? UserEmail { get; set; }
     public string? UserFullName { get; set; }
     public string Action { get; set; } = string.Empty;
     public Guid ActionBy { get; set; }
@@ -234,4 +234,21 @@ public class AssignAccountToOrderDto
 
     [Required(ErrorMessage = "ID người dùng là bắt buộc")]
     public Guid UserId { get; set; }
+}
+
+/// <summary>
+/// DTO for extending expiry date of product account
+/// </summary>
+public class ExtendExpiryDateDto
+{
+    [Required(ErrorMessage = "ID tài khoản sản phẩm là bắt buộc")]
+    public Guid ProductAccountId { get; set; }
+
+    /// <summary>
+    /// Number of days to extend (optional). If not provided, will use DurationDays from ProductVariant.
+    /// </summary>
+    [Range(1, 3650, ErrorMessage = "Số ngày gia hạn phải từ 1 đến 3650 (10 năm)")]
+    public int? DaysToExtend { get; set; }
+
+    public string? Notes { get; set; }
 }

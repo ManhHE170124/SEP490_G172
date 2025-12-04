@@ -906,6 +906,94 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            // Process SHARED_ACCOUNT type variants
+            var sharedAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.SHARED_ACCOUNT).ToList();
+            foreach (var variant in sharedAccountVariants)
+            {
+                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
+                if (orderDetail == null) continue;
+
+                var quantity = orderDetail.Quantity;
+
+                // Get available shared accounts for this variant (not full)
+                var availableAccounts = await _context.ProductAccounts
+                    .AsNoTracking()
+                    .Where(pa => pa.VariantId == variant.VariantId &&
+                                 pa.Status == "Active" &&
+                                 pa.MaxUsers > 1) // Shared accounts have MaxUsers > 1
+                    .Include(pa => pa.ProductAccountCustomers)
+                    .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers) // Not full
+                    .Take(quantity)
+                    .ToListAsync();
+
+                if (availableAccounts.Count < quantity)
+                {
+                    _logger.LogWarning("Not enough available shared accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                        variant.VariantId, quantity, availableAccounts.Count);
+                    continue;
+                }
+
+                // Add customer to shared accounts and collect for email
+                foreach (var account in availableAccounts)
+                {
+                    try
+                    {
+                        // Add customer to shared account
+                        var assignDto = new AssignAccountToOrderDto
+                        {
+                            ProductAccountId = account.ProductAccountId,
+                            OrderId = order.OrderId,
+                            UserId = userId
+                        };
+
+                        await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
+
+                        // Get decrypted password
+                        var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
+
+                        // Clear change tracker to prevent tracking conflicts
+                        _context.ChangeTracker.Clear();
+
+                        // Reload account to get current slot information
+                        var accountWithCustomers = await _context.ProductAccounts
+                            .AsNoTracking()
+                            .Include(pa => pa.ProductAccountCustomers)
+                            .FirstOrDefaultAsync(pa => pa.ProductAccountId == account.ProductAccountId);
+
+                        var currentSlots = accountWithCustomers?.ProductAccountCustomers.Count(pac => pac.IsActive) ?? 0;
+                        var maxSlots = account.MaxUsers;
+
+                        // Build note with slot information
+                        var slotNote = $"Đây là tài khoản chia sẻ. Slot hiện tại: {currentSlots}/{maxSlots}.";
+                        if (!string.IsNullOrWhiteSpace(account.Notes))
+                        {
+                            slotNote += $" Lưu ý: {account.Notes}";
+                        }
+
+                        // Add to products list for consolidated email
+                        orderProducts.Add(new OrderProductEmailDto
+                        {
+                            ProductName = variant.Product.ProductName,
+                            VariantTitle = variant.Title,
+                            ProductType = "SHARED_ACCOUNT",
+                            AccountEmail = account.AccountEmail,
+                            AccountUsername = account.AccountUsername,
+                            AccountPassword = decryptedPassword,
+                            ExpiryDate = account.ExpiryDate,
+                            Notes = slotNote
+                        });
+
+                        _logger.LogInformation("Added customer to shared account {AccountId} for order {OrderId}",
+                            account.ProductAccountId, order.OrderId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to add customer to shared account {AccountId} for order {OrderId}",
+                            account.ProductAccountId, order.OrderId);
+                    }
+                }
+            }
+
             // Send a single consolidated email with all products
             if (orderProducts.Any())
             {

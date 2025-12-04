@@ -52,6 +52,11 @@ export default function AccountDetailPage() {
     type: "warning",
   });
 
+  const [extendDialog, setExtendDialog] = useState({
+    isOpen: false,
+    newExpiryDate: "",
+  });
+
   // History state (for in-page paging and sort)
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -251,6 +256,39 @@ export default function AccountDetailPage() {
     },
     [id, loadProductAccount, loadHistory, showSuccess, showError]
   );
+
+  const handleExtendExpiry = useCallback(async () => {
+    if (!extendDialog.newExpiryDate) {
+      showWarning("Dữ liệu không hợp lệ", "Vui lòng chọn ngày hết hạn mới");
+      return;
+    }
+
+    try {
+      await ProductAccountApi.extendExpiry(id, {
+        productAccountId: id,
+        newExpiryDate: extendDialog.newExpiryDate,
+      });
+      showSuccess("Thành công", "Đã gia hạn tài khoản thành công");
+      setExtendDialog({ isOpen: false, newExpiryDate: "" });
+      await loadProductAccount();
+      await loadHistory(true);
+    } catch (err) {
+      console.error("Extend expiry failed:", err);
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Không thể gia hạn tài khoản";
+      showError("Lỗi", msg);
+    }
+  }, [
+    id,
+    extendDialog.newExpiryDate,
+    loadProductAccount,
+    loadHistory,
+    showSuccess,
+    showError,
+    showWarning,
+  ]);
 
   useEffect(() => {
     loadProducts();
@@ -518,6 +556,89 @@ export default function AccountDetailPage() {
         onConfirm={confirmDialog.onConfirm}
         onCancel={closeConfirmDialog}
       />
+
+      {/* Extend Expiry Dialog */}
+      {extendDialog.isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setExtendDialog({ isOpen: false, newExpiryDate: "" })}
+        >
+          <div
+            className="card"
+            style={{
+              minWidth: 400,
+              maxWidth: 500,
+              padding: 24,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0 }}>Gia hạn tài khoản</h2>
+            <p style={{ color: "#6b7280", marginBottom: 16 }}>
+              Chọn ngày hết hạn mới cho tài khoản này
+            </p>
+            <div className="form-row">
+              <label>
+                Ngày hết hạn hiện tại
+              </label>
+              <input
+                className="input"
+                type="text"
+                value={formatVietnameseDate(formData.expiryDate)}
+                disabled
+              />
+            </div>
+            <div className="form-row">
+              <label>
+                Ngày hết hạn mới <span style={{ color: "red" }}>*</span>
+              </label>
+              <input
+                className="input"
+                type="date"
+                value={extendDialog.newExpiryDate}
+                onChange={(e) =>
+                  setExtendDialog((prev) => ({
+                    ...prev,
+                    newExpiryDate: e.target.value,
+                  }))
+                }
+                min={formData.expiryDate || todayStr}
+              />
+              <small style={{ color: "#6b7280", marginTop: 4 }}>
+                Ngày mới phải sau ngày hết hạn hiện tại
+              </small>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={handleExtendExpiry}
+              >
+                Xác nhận
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() =>
+                  setExtendDialog({ isOpen: false, newExpiryDate: "" })
+                }
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="card ">
         <div
@@ -801,17 +922,35 @@ export default function AccountDetailPage() {
               <label>
                 Ngày hết hạn <span style={{ color: "red" }}>*</span>
               </label>
-              <input
-                className="input"
-                type={!isNew ? "text" : "date"}
-                value={
-                  !isNew
-                    ? formatVietnameseDate(formData.expiryDate)
-                    : formData.expiryDate
-                }
-                min={todayStr}
-                disabled={true}
-              />
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  className="input"
+                  type={!isNew ? "text" : "date"}
+                  value={
+                    !isNew
+                      ? formatVietnameseDate(formData.expiryDate)
+                      : formData.expiryDate
+                  }
+                  min={todayStr}
+                  disabled={true}
+                  style={{ flex: 1 }}
+                />
+                {!isNew && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() =>
+                      setExtendDialog({
+                        isOpen: true,
+                        newExpiryDate: formData.expiryDate || "",
+                      })
+                    }
+                    title="Gia hạn tài khoản"
+                  >
+                    Gia hạn
+                  </button>
+                )}
+              </div>
               {errors.expiryDate && (
                 <small style={{ color: "red" }}>{errors.expiryDate}</small>
               )}
