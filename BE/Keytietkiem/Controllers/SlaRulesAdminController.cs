@@ -1,5 +1,7 @@
 ﻿// File: Controllers/SlaRulesAdminController.cs
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.SlaRules;
 using Keytietkiem.Models;
@@ -23,6 +25,46 @@ namespace Keytietkiem.Controllers
             "Critical"
         };
 
+        // Dùng để đánh rank độ nghiêm trọng: Low < Medium < High < Critical (cho in-memory)
+        private static readonly string[] SeverityOrder = new[]
+        {
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+        };
+
+        // Data mặc định cho đủ matrix Severity x PriorityLevel (0=Standard,1=Priority,2=VIP)
+        private sealed class DefaultSlaRuleDefinition
+        {
+            public string Severity { get; init; } = "";
+            public int PriorityLevel { get; init; }
+            public string Name { get; init; } = "";
+            public int FirstResponseMinutes { get; init; }
+            public int ResolutionMinutes { get; init; }
+        }
+
+        private static readonly DefaultSlaRuleDefinition[] DefaultSlaRulesMatrix = new[]
+        {
+            // Standard (0)
+            new DefaultSlaRuleDefinition { Severity = "Low",      PriorityLevel = 0, Name = "Standard - Low",      FirstResponseMinutes = 480, ResolutionMinutes = 7200 },
+            new DefaultSlaRuleDefinition { Severity = "Medium",   PriorityLevel = 0, Name = "Standard - Medium",   FirstResponseMinutes = 240, ResolutionMinutes = 4320 },
+            new DefaultSlaRuleDefinition { Severity = "High",     PriorityLevel = 0, Name = "Standard - High",     FirstResponseMinutes = 120, ResolutionMinutes = 1440 },
+            new DefaultSlaRuleDefinition { Severity = "Critical", PriorityLevel = 0, Name = "Standard - Critical", FirstResponseMinutes =  60, ResolutionMinutes =  720 },
+
+            // Priority (1)
+            new DefaultSlaRuleDefinition { Severity = "Low",      PriorityLevel = 1, Name = "Priority - Low",      FirstResponseMinutes = 240, ResolutionMinutes = 4320 },
+            new DefaultSlaRuleDefinition { Severity = "Medium",   PriorityLevel = 1, Name = "Priority - Medium",   FirstResponseMinutes = 120, ResolutionMinutes = 1440 },
+            new DefaultSlaRuleDefinition { Severity = "High",     PriorityLevel = 1, Name = "Priority - High",     FirstResponseMinutes =  60, ResolutionMinutes =  480 },
+            new DefaultSlaRuleDefinition { Severity = "Critical", PriorityLevel = 1, Name = "Priority - Critical", FirstResponseMinutes =  30, ResolutionMinutes =  240 },
+
+            // VIP (2)
+            new DefaultSlaRuleDefinition { Severity = "Low",      PriorityLevel = 2, Name = "VIP - Low",           FirstResponseMinutes = 120, ResolutionMinutes = 1440 },
+            new DefaultSlaRuleDefinition { Severity = "Medium",   PriorityLevel = 2, Name = "VIP - Medium",        FirstResponseMinutes =  60, ResolutionMinutes =  480 },
+            new DefaultSlaRuleDefinition { Severity = "High",     PriorityLevel = 2, Name = "VIP - High",          FirstResponseMinutes =  30, ResolutionMinutes =  240 },
+            new DefaultSlaRuleDefinition { Severity = "Critical", PriorityLevel = 2, Name = "VIP - Critical",      FirstResponseMinutes =  15, ResolutionMinutes =  120 },
+        };
+
         public SlaRulesAdminController(IDbContextFactory<KeytietkiemDbContext> dbFactory)
         {
             _dbFactory = dbFactory;
@@ -31,7 +73,9 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// GET: /api/sla-rules-admin
         /// List SlaRule có filter + paging.
-        /// Sort cố định: Severity -> PriorityLevel -> FirstResponseMinutes.
+        /// Sort cố định: PriorityLevel -> SeverityRank -> FirstResponseMinutes -> ResolutionMinutes.
+        /// Khi vào màn quản lý, nếu thiếu combo (Severity, PriorityLevel) trong matrix mặc định
+        /// thì tự động insert thêm rule IsActive = false cho đủ.
         /// </summary>
         [HttpGet]
         public async Task<ActionResult<PagedResult<SlaRuleAdminListItemDto>>> List(
@@ -45,6 +89,9 @@ namespace Keytietkiem.Controllers
             [FromQuery] int pageSize = 20)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
+
+            // Đảm bảo luôn có đủ matrix mặc định trong DB (ở trạng thái IsActive=false nếu được auto thêm)
+            await EnsureDefaultSlaRulesAsync(db);
 
             var q = db.SlaRules
                       .AsNoTracking()
@@ -78,10 +125,22 @@ namespace Keytietkiem.Controllers
                 q = q.Where(r => r.IsActive == active.Value);
             }
 
-            // Sort cố định: Severity -> PriorityLevel -> FirstResponseMinutes
-            q = q.OrderBy(r => r.Severity)
-                 .ThenBy(r => r.PriorityLevel)
-                 .ThenBy(r => r.FirstResponseMinutes);
+            // Sort cố định: PriorityLevel -> SeverityRank -> FirstResponseMinutes -> ResolutionMinutes
+            // Dùng biểu thức ? : để EF dịch được, tránh gọi method C#
+            q = q
+                .OrderBy(r => r.PriorityLevel)
+                .ThenBy(r =>
+                    r.Severity == "Low"
+                        ? 0
+                        : r.Severity == "Medium"
+                            ? 1
+                            : r.Severity == "High"
+                                ? 2
+                                : r.Severity == "Critical"
+                                    ? 3
+                                    : 4)
+                .ThenBy(r => r.FirstResponseMinutes)
+                .ThenBy(r => r.ResolutionMinutes);
 
             // Paging giống style ở các controller khác
             if (page < 1) page = 1;
@@ -150,6 +209,8 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// POST: /api/sla-rules-admin
         /// Tạo mới 1 SlaRule.
+        /// Cho phép trùng (Severity, PriorityLevel).
+        /// Ràng buộc chỉ áp dụng khi ACTIVE.
         /// </summary>
         [HttpPost]
         public async Task<ActionResult<SlaRuleAdminDetailDto>> Create(
@@ -230,18 +291,8 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            // Không cho trùng cặp (Severity, PriorityLevel)
-            var duplicate = await db.SlaRules.AnyAsync(r =>
-                r.Severity == normalizedSeverity &&
-                r.PriorityLevel == dto.PriorityLevel);
-
-            if (duplicate)
-            {
-                return BadRequest(new
-                {
-                    message = "Đã tồn tại SLA rule khác với cùng Severity và PriorityLevel. Vui lòng chọn kết hợp khác."
-                });
-            }
+            // Cho phép trùng (Severity, PriorityLevel).
+            // Ràng buộc "1 ACTIVE / cặp & SLA monotonic" xử lý khi IsActive = true.
 
             var entity = new SlaRule
             {
@@ -254,9 +305,15 @@ namespace Keytietkiem.Controllers
                 CreatedAt = DateTime.UtcNow
             };
 
-            // Nếu tạo rule đang ACTIVE → tắt các rule khác cùng (Severity, PriorityLevel)
+            // Nếu tạo rule đang ACTIVE → phải pass constraint SLA & đảm bảo 1 active/cặp
             if (entity.IsActive)
             {
+                var error = await ValidateSlaConstraintsAsync(db, entity, willBeActive: true);
+                if (error != null)
+                {
+                    return BadRequest(new { message = error });
+                }
+
                 await EnsureSingleActivePerSeverityAndPriority(db, entity);
             }
 
@@ -281,6 +338,7 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// PUT: /api/sla-rules-admin/{slaRuleId}
         /// Cập nhật 1 SlaRule.
+        /// Cho phép trùng (Severity, PriorityLevel) với rule khác, chỉ ràng buộc khi ACTIVE.
         /// </summary>
         [HttpPut("{slaRuleId:int}")]
         public async Task<IActionResult> Update(
@@ -363,19 +421,8 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            // Không cho trùng cặp (Severity, PriorityLevel) trừ chính nó
-            var duplicate = await db.SlaRules.AnyAsync(r =>
-                r.SlaRuleId != slaRuleId &&
-                r.Severity == normalizedSeverity &&
-                r.PriorityLevel == dto.PriorityLevel);
-
-            if (duplicate)
-            {
-                return BadRequest(new
-                {
-                    message = "Đã tồn tại SLA rule khác với cùng Severity và PriorityLevel. Vui lòng chọn kết hợp khác."
-                });
-            }
+            // Cho phép trùng cặp (Severity, PriorityLevel) với rule khác.
+            // Ràng buộc chỉ áp dụng khi ACTIVE.
 
             // Cập nhật giá trị
             entity.Name = trimmedName;
@@ -386,9 +433,15 @@ namespace Keytietkiem.Controllers
             entity.IsActive = dto.IsActive;
             entity.UpdatedAt = DateTime.UtcNow;
 
-            // Nếu sau update rule đang ACTIVE → tắt các rule cùng (Severity, PriorityLevel)
+            // Nếu sau update rule đang ACTIVE → phải pass constraint SLA & đảm bảo 1 active/cặp
             if (entity.IsActive)
             {
+                var error = await ValidateSlaConstraintsAsync(db, entity, willBeActive: true);
+                if (error != null)
+                {
+                    return BadRequest(new { message = error });
+                }
+
                 await EnsureSingleActivePerSeverityAndPriority(db, entity);
             }
 
@@ -432,7 +485,11 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// PATCH: /api/sla-rules-admin/{slaRuleId}/toggle
         /// Bật / tắt IsActive cho SlaRule.
-        /// - Khi bật: đảm bảo không có rule nào khác cùng Severity + PriorityLevel đang active.
+        /// - Khi bật:
+        ///   + Đảm bảo không có rule nào khác cùng Severity + PriorityLevel đang active.
+        ///   + Đảm bảo toàn bộ rule đang ACTIVE thoả constraint:
+        ///       * Cùng Severity: PriorityLevel cao hơn phải có thời gian phản hồi / xử lý ngắn hơn.
+        ///       * Cùng PriorityLevel: Severity nghiêm trọng hơn phải có thời gian phản hồi / xử lý ngắn hơn.
         /// - Khi tắt: chỉ tắt rule hiện tại.
         /// </summary>
         [HttpPatch("{slaRuleId:int}/toggle")]
@@ -447,7 +504,14 @@ namespace Keytietkiem.Controllers
 
             if (!entity.IsActive)
             {
-                // Đang tắt -> chuẩn bị bật lên: tắt các rule khác cùng (Severity, PriorityLevel)
+                // Chuẩn bị bật rule => validate constraint SLA
+                var error = await ValidateSlaConstraintsAsync(db, entity, willBeActive: true);
+                if (error != null)
+                {
+                    return BadRequest(new { message = error });
+                }
+
+                // Đảm bảo 1 ACTIVE / (Severity, PriorityLevel)
                 await EnsureSingleActivePerSeverityAndPriority(db, entity);
                 entity.IsActive = true;
             }
@@ -499,6 +563,189 @@ namespace Keytietkiem.Controllers
             foreach (var other in sameGroupActive)
             {
                 other.IsActive = false;
+            }
+        }
+
+        /// <summary>
+        /// Lấy rank độ nghiêm trọng của Severity (Low &lt; Medium &lt; High &lt; Critical).
+        /// Dùng cho so sánh logic "nghiêm trọng hơn" trong in-memory LINQ.
+        /// </summary>
+        private static int GetSeverityRank(string severity)
+        {
+            for (var i = 0; i < SeverityOrder.Length; i++)
+            {
+                if (string.Equals(severity, SeverityOrder[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return SeverityOrder.Length; // Unknown -> lớn nhất (coi như ít quan trọng nhất)
+        }
+
+        /// <summary>
+        /// Validate toàn bộ tập SLA rule đang ACTIVE (sau khi giả lập bật/tắt).
+        /// - Cùng Severity: PriorityLevel cao hơn phải có FirstResponse & Resolution nhỏ hơn.
+        /// - Cùng PriorityLevel: Severity nghiêm trọng hơn phải có FirstResponse & Resolution nhỏ hơn.
+        /// Trả về null nếu OK, hoặc message lỗi nếu vi phạm.
+        /// </summary>
+        private static string? ValidateSlaMonotonicity(List<SlaRule> activeRules)
+        {
+            if (activeRules == null || activeRules.Count == 0) return null;
+
+            // 1) Cùng Severity: PriorityLevel tăng -> thời gian giảm
+            foreach (var group in activeRules.GroupBy(r => r.Severity, StringComparer.OrdinalIgnoreCase))
+            {
+                var ordered = group
+                    .OrderBy(r => r.PriorityLevel)
+                    .ToList();
+
+                for (int i = 1; i < ordered.Count; i++)
+                {
+                    var lowerPriority = ordered[i - 1]; // Priority thấp hơn
+                    var higherPriority = ordered[i];    // Priority cao hơn
+
+                    // PriorityLevel cao hơn phải có thời gian nhỏ hơn
+                    if (!(lowerPriority.FirstResponseMinutes > higherPriority.FirstResponseMinutes &&
+                          lowerPriority.ResolutionMinutes > higherPriority.ResolutionMinutes))
+                    {
+                        return
+                            $"Với cùng Severity = {group.Key}, PriorityLevel {higherPriority.PriorityLevel} (ưu tiên cao hơn) " +
+                            $"phải có thời gian phản hồi và xử lý ngắn hơn PriorityLevel {lowerPriority.PriorityLevel}.";
+                    }
+                }
+            }
+
+            // 2) Cùng PriorityLevel: Severity nghiêm trọng hơn -> thời gian giảm
+            foreach (var group in activeRules.GroupBy(r => r.PriorityLevel))
+            {
+                var ordered = group
+                    .OrderBy(r => GetSeverityRank(r.Severity))
+                    .ToList();
+
+                for (int i = 1; i < ordered.Count; i++)
+                {
+                    var lessSevere = ordered[i - 1]; // ít nghiêm trọng hơn
+                    var moreSevere = ordered[i];     // nghiêm trọng hơn
+
+                    var lessRank = GetSeverityRank(lessSevere.Severity);
+                    var moreRank = GetSeverityRank(moreSevere.Severity);
+
+                    if (moreRank <= lessRank)
+                    {
+                        continue; // Không phải "nghiêm trọng hơn" thực sự, bỏ qua
+                    }
+
+                    if (!(lessSevere.FirstResponseMinutes > moreSevere.FirstResponseMinutes &&
+                          lessSevere.ResolutionMinutes > moreSevere.ResolutionMinutes))
+                    {
+                        return
+                            $"Với cùng PriorityLevel = {group.Key}, Severity {moreSevere.Severity} (nghiêm trọng hơn) " +
+                            $"phải có thời gian phản hồi và xử lý ngắn hơn Severity {lessSevere.Severity}.";
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Helper validate constraint SLA:
+        /// - Lấy tất cả rule ACTIVE hiện tại từ DB.
+        /// - Thay thế/giả lập candidate sẽ ACTIVE.
+        /// - Bỏ các rule khác cùng (Severity, PriorityLevel) với candidate (vì sẽ bị tắt khi bật candidate).
+        /// - Chạy ValidateSlaMonotonicity trên tập active mới.
+        /// </summary>
+        private static async Task<string?> ValidateSlaConstraintsAsync(
+            KeytietkiemDbContext db,
+            SlaRule candidate,
+            bool willBeActive)
+        {
+            // Lấy tất cả rule đang ACTIVE hiện tại
+            var active = await db.SlaRules
+                .Where(r => r.IsActive)
+                .AsNoTracking()
+                .ToListAsync();
+
+            // Xoá bản cũ của candidate (nếu đã tồn tại)
+            if (candidate.SlaRuleId != 0)
+            {
+                active.RemoveAll(r => r.SlaRuleId == candidate.SlaRuleId);
+            }
+
+            if (willBeActive)
+            {
+                // Nếu candidate sẽ được bật:
+                //   - Bỏ các rule khác cùng (Severity, PriorityLevel) (vì bật cái này sẽ tắt cái kia)
+                active.RemoveAll(r =>
+                    r.Severity == candidate.Severity &&
+                    r.PriorityLevel == candidate.PriorityLevel);
+
+                //   - Thêm candidate (ACTIVE) vào snapshot
+                active.Add(new SlaRule
+                {
+                    SlaRuleId = candidate.SlaRuleId,
+                    Name = candidate.Name,
+                    Severity = candidate.Severity,
+                    PriorityLevel = candidate.PriorityLevel,
+                    FirstResponseMinutes = candidate.FirstResponseMinutes,
+                    ResolutionMinutes = candidate.ResolutionMinutes,
+                    IsActive = true,
+                    CreatedAt = candidate.CreatedAt,
+                    UpdatedAt = candidate.UpdatedAt
+                });
+            }
+
+            if (active.Count == 0)
+            {
+                return null;
+            }
+
+            return ValidateSlaMonotonicity(active);
+        }
+
+        /// <summary>
+        /// Đảm bảo luôn có đủ 12 rule mặc định (Standard/Priority/VIP x Low/Medium/High/Critical).
+        /// - Nếu thiếu cặp (Severity, PriorityLevel) nào thì tự động thêm rule mới IsActive=false.
+        /// - Không đụng vào các rule đã có (kể cả đã chỉnh Name/timeout).
+        /// </summary>
+        private static async Task EnsureDefaultSlaRulesAsync(KeytietkiemDbContext db)
+        {
+            var existingPairs = await db.SlaRules
+                .Select(r => new { r.Severity, r.PriorityLevel })
+                .Distinct()
+                .ToListAsync();
+
+            var existingSet = new HashSet<(string Severity, int PriorityLevel)>(
+                existingPairs.Select(e => (e.Severity, e.PriorityLevel)));
+
+            var now = DateTime.UtcNow;
+            var hasChanges = false;
+
+            foreach (var def in DefaultSlaRulesMatrix)
+            {
+                var key = (def.Severity, def.PriorityLevel);
+                if (!existingSet.Contains(key))
+                {
+                    db.SlaRules.Add(new SlaRule
+                    {
+                        Name = def.Name,
+                        Severity = def.Severity,
+                        PriorityLevel = def.PriorityLevel,
+                        FirstResponseMinutes = def.FirstResponseMinutes,
+                        ResolutionMinutes = def.ResolutionMinutes,
+                        IsActive = false,
+                        CreatedAt = now
+                    });
+
+                    existingSet.Add(key);
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges)
+            {
+                await db.SaveChangesAsync();
             }
         }
     }

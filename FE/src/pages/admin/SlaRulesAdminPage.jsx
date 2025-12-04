@@ -87,11 +87,42 @@ const priorityBadgeClass = (level) => {
   }
 };
 
+const severityBadgeClass = (severity) => {
+  const v = String(severity || "").toLowerCase();
+  switch (v) {
+    case "low":
+      return "badge sev-low";
+    case "medium":
+      return "badge sev-medium";
+    case "high":
+      return "badge sev-high";
+    case "critical":
+      return "badge sev-critical";
+    default:
+      return "badge";
+  }
+};
+
+// Hiển thị phút + nếu >= 60 thì hiển thị thêm giờ, làm tròn 1 chữ số sau thập phân khi lẻ
 const formatMinutes = (value) => {
   if (value === null || value === undefined) return "";
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
-  return `${n.toLocaleString("vi-VN")} phút`;
+
+  if (n < 60) {
+    return `${n.toLocaleString("vi-VN")} phút`;
+  }
+
+  const hours = n / 60;
+  const rounded = Math.round(hours * 10) / 10;
+  const hoursStr = Number.isInteger(rounded)
+    ? rounded.toLocaleString("vi-VN")
+    : rounded.toLocaleString("vi-VN", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      });
+
+  return `${n.toLocaleString("vi-VN")} phút (${hoursStr} giờ)`;
 };
 
 /* ============ Modal: SLA Rule (Add / Edit) ============ */
@@ -174,7 +205,9 @@ function SlaRuleModal({
     if (!severityRaw) {
       nextErrors.severity = "Mức độ (Severity) không được để trống.";
     } else if (
-      !SEVERITY_OPTIONS.some((o) => o.value.toLowerCase() === severityRaw.toLowerCase())
+      !SEVERITY_OPTIONS.some(
+        (o) => o.value.toLowerCase() === severityRaw.toLowerCase()
+      )
     ) {
       nextErrors.severity =
         "Mức độ (Severity) không hợp lệ. Chỉ được chọn Low / Medium / High / Critical.";
@@ -278,9 +311,18 @@ function SlaRuleModal({
                   {form.isActive ? "Đang bật" : "Đang tắt"}
                 </span>
               </label>
-              <span className="muted">
-                Chỉ 1 SLA rule hoạt động cho mỗi cặp Severity + PriorityLevel.
-              </span>
+              <div className="muted sla-modal-note">
+                <strong>Quy tắc khi bật SLA rule:</strong>
+                <div>- Mỗi cặp Severity + PriorityLevel chỉ có 1 rule đang bật.</div>
+                <div>
+                  - Cùng Severity: PriorityLevel cao hơn phải có thời gian phản hồi /
+                  xử lý <b>ngắn hơn</b> PriorityLevel thấp hơn.
+                </div>
+                <div>
+                  - Cùng PriorityLevel: Severity nghiêm trọng hơn (Low → Medium → High
+                  → Critical) phải có thời gian phản hồi / xử lý <b>ngắn hơn</b>.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -345,7 +387,7 @@ function SlaRuleModal({
                 </span>
                 <input
                   type="number"
-                  min={1}
+                  min={5}
                   step={5}
                   value={form.firstResponseMinutes}
                   onChange={(e) =>
@@ -362,7 +404,7 @@ function SlaRuleModal({
                 </span>
                 <input
                   type="number"
-                  min={1}
+                  min={10}
                   step={5}
                   value={form.resolutionMinutes}
                   onChange={(e) =>
@@ -447,7 +489,7 @@ export default function SlaRulesAdminPage() {
   const [rules, setRules] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(10);
+  const [pageSize, setPageSize] = React.useState(12);
   const [total, setTotal] = React.useState(0);
 
   const loadRules = React.useCallback(() => {
@@ -623,6 +665,33 @@ export default function SlaRulesAdminPage() {
             </div>
           </div>
 
+          {/* Ghi chú luật SLA */}
+          <div className="sla-rules-note">
+            <div className="sla-rules-note-title">
+              Luật khi tạo & bật SLA rule:
+            </div>
+            <ul>
+              <li>
+                Cho phép lưu nhiều rule trùng <b>Severity + PriorityLevel</b>,
+                nhưng mỗi cặp chỉ có <b>1 rule đang bật</b>. Khi bật rule mới,
+                các rule khác cùng cặp sẽ tự tắt.
+              </li>
+              <li>
+                Cùng <b>Severity</b>: PriorityLevel cao hơn phải có thời gian phản
+                hồi / giải quyết <b>ngắn hơn</b> PriorityLevel thấp hơn.
+              </li>
+              <li>
+                Cùng <b>PriorityLevel</b>: Severity nghiêm trọng hơn (Low → Medium
+                → High → Critical) phải có thời gian phản hồi / giải quyết{" "}
+                <b>ngắn hơn</b> mức ít nghiêm trọng hơn.
+              </li>
+              <li>
+                Các rule đang <b>tắt</b> không bị ràng buộc bởi luật thời gian; hệ
+                thống chỉ kiểm tra khi lưu / bật rule ở trạng thái hoạt động.
+              </li>
+            </ul>
+          </div>
+
           {/* Hàng filter + nút */}
           <div
             className="row"
@@ -715,7 +784,7 @@ export default function SlaRulesAdminPage() {
                 </button>
 
                 <button
-                  className="btn"
+                  className="btn secondary"
                   onClick={resetFilters}
                   title="Xoá bộ lọc"
                 >
@@ -772,9 +841,12 @@ export default function SlaRulesAdminPage() {
                     </div>
                   </td>
                   <td>
-                    <EllipsisCell maxWidth={140} title={severityLabel(r.severity)}>
+                    <span
+                      className={severityBadgeClass(r.severity)}
+                      title={severityLabel(r.severity)}
+                    >
                       {severityLabel(r.severity)}
-                    </EllipsisCell>
+                    </span>
                   </td>
                   <td>
                     <span className={priorityBadgeClass(r.priorityLevel)}>
@@ -893,11 +965,11 @@ export default function SlaRulesAdminPage() {
               <select
                 value={pageSize}
                 onChange={(e) => {
-                  setPageSize(Number(e.target.value) || 10);
+                  setPageSize(Number(e.target.value) || 12);
                   setPage(1);
                 }}
               >
-                {[10, 20, 50, 100].map((s) => (
+                {[12, 20, 50, 100].map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>

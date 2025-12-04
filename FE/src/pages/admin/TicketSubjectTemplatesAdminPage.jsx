@@ -884,8 +884,8 @@ export default function TicketSubjectTemplatesAdminPage() {
                 ‹ Trước
               </button>
 
-              <span className="pager-info">
-                Trang {page} / {totalPages}{" "}
+              <span className="pager-current">
+                Trang <b>{page}</b> / {totalPages}{" "}
                 {total > 0 && (
                   <span className="muted">
                     (Tổng {total.toLocaleString("vi-VN")} template)
@@ -896,17 +896,16 @@ export default function TicketSubjectTemplatesAdminPage() {
               <button
                 className="pager-btn"
                 disabled={page >= totalPages}
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 Sau ›
               </button>
             </div>
 
             <div className="pager-right">
-              <span className="muted">Mỗi trang:</span>
+              <span className="pager-page-size-label">Mỗi trang:</span>
               <select
+                className="pager-page-size"
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value) || 10);

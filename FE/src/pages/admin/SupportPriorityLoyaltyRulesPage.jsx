@@ -99,8 +99,7 @@ function RuleModal({
   React.useEffect(() => {
     if (open) {
       const base =
-        initial ||
-        {
+        initial || {
           minTotalSpend: "",
           priorityLevel: "",
           isActive: false,
@@ -207,9 +206,12 @@ function RuleModal({
       <div className="cat-modal-card">
         <div className="cat-modal-header">
           <h3>{isEdit ? "Chỉnh sửa rule ưu tiên" : "Thêm rule ưu tiên"}</h3>
-          {/* Trạng thái */}
+          {/* Trạng thái + luật ngay cạnh */}
           <div className="group" style={{ marginTop: 8 }}>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
+            <div
+              className="row"
+              style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}
+            >
               <label className="switch" title="Bật/Tắt rule">
                 <input
                   type="checkbox"
@@ -224,6 +226,26 @@ function RuleModal({
               >
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
+
+              <div className="muted support-priority-modal-note">
+                <strong>Quy tắc khi bật rule:</strong>
+                <div>
+                  - Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>1 rule đang bật</b>.
+                </div>
+                <div>
+                  - Rule ở PriorityLevel <b>cao hơn</b> phải có{" "}
+                  <b>ngưỡng chi tiêu</b> (Tổng chi tiêu tối thiểu){" "}
+                  <b>cao hơn</b> các rule đang bật ở level thấp hơn.
+                </div>
+                <div>
+                  - Rule ở PriorityLevel <b>thấp hơn</b> phải có ngưỡng chi tiêu{" "}
+                  <b>thấp hơn</b> các rule đang bật ở level cao hơn.
+                </div>
+                <div>
+                  - Các rule đang tắt không bị ràng buộc; hệ thống chỉ kiểm tra
+                  khi <b>lưu / bật</b> rule.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -267,7 +289,7 @@ function RuleModal({
           <div className="cat-modal-footer">
             <button
               type="button"
-              className="btn ghost"
+              className="btn"
               onClick={handleClose}
               disabled={submitting}
             >
@@ -486,7 +508,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
     <>
       <div className="page">
         <div className="card">
-          {/* Header chỉ còn tiêu đề */}
+          {/* Header */}
           <div
             style={{
               display: "flex",
@@ -504,6 +526,31 @@ export default function SupportPriorityLoyaltyRulesPage() {
             vào các rule đang bật để tự động xác định mức ưu tiên hỗ trợ cho
             khách hàng.
           </p>
+
+          {/* Ghi chú luật rule ưu tiên */}
+          <div className="support-priority-rules-note">
+            <div className="support-priority-rules-note-title">
+              Luật khi tạo & bật rule ưu tiên:
+            </div>
+            <ul>
+              <li>
+                Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>01 rule đang bật</b>.
+              </li>
+              <li>
+                Rule ở PriorityLevel <b>cao hơn</b> phải có{" "}
+                <b>ngưỡng chi tiêu tối thiểu</b> (Tổng chi tiêu){" "}
+                <b>cao hơn</b> tất cả các rule đang bật ở level thấp hơn.
+              </li>
+              <li>
+                Rule ở PriorityLevel <b>thấp hơn</b> phải có ngưỡng chi tiêu{" "}
+                <b>thấp hơn</b> các rule đang bật ở level cao hơn.
+              </li>
+              <li>
+                Các rule ở trạng thái <b>tắt</b> không bị ràng buộc; hệ thống
+                chỉ kiểm tra khi <b>lưu / bật</b> rule.
+              </li>
+            </ul>
+          </div>
 
           {/* Bộ lọc + nút trên cùng một hàng */}
           <div className="input-group filter-row">
@@ -546,12 +593,17 @@ export default function SupportPriorityLoyaltyRulesPage() {
               <div className="filter-actions-inner">
                 {loading && <span className="badge gray">Đang tải…</span>}
 
-                <button className="btn" onClick={loadRules}>
+                <button
+                  className="btn ghost"
+                  onClick={loadRules}
+                  disabled={loading}
+                  title="Làm mới dữ liệu với bộ lọc hiện tại"
+                >
                   Làm mới
                 </button>
 
                 <button
-                  className="btn"
+                  className="btn secondary"
                   onClick={() =>
                     setQuery({
                       priorityLevel: "",
@@ -667,7 +719,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
                 <th
                   style={{
                     width: 180,
-                    textAlign: "right", // căn phải giống màn TicketSubjectTemplates
+                    textAlign: "right",
                     paddingRight: 10,
                   }}
                 >
@@ -763,9 +815,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
               <button
                 className="pager-btn"
                 disabled={page >= totalPages}
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 Sau ›
               </button>

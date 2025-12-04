@@ -261,9 +261,22 @@ function SupportPlanModal({
                   {form.isActive ? "Đang bật" : "Đang tắt"}
                 </span>
               </label>
-              <span className="muted">
-                Trạng thái gói (chỉ 1 gói hoạt động cho mỗi mức ưu tiên)
-              </span>
+              <div className="muted support-plan-modal-note">
+                <strong>Quy tắc khi bật gói:</strong>
+                <div>- Mỗi PriorityLevel chỉ có tối đa 1 gói đang bật.</div>
+                <div>
+                  - Gói ở PriorityLevel <b>cao hơn</b> phải có giá{" "}
+                  <b>cao hơn</b> tất cả các gói đang bật ở level thấp hơn.
+                </div>
+                <div>
+                  - Gói ở PriorityLevel <b>thấp hơn</b> phải có giá{" "}
+                  <b>thấp hơn</b> tất cả các gói đang bật ở level cao hơn.
+                </div>
+                <div>
+                  - Các gói đang tắt không bị ràng buộc về giá; hệ thống chỉ
+                  kiểm tra khi lưu / bật gói ở trạng thái hoạt động.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -337,7 +350,7 @@ function SupportPlanModal({
           <div className="cat-modal-footer">
             <button
               type="button"
-              className="btn ghost"
+              className="btn"
               onClick={handleClose}
               disabled={submitting}
             >
@@ -574,13 +587,42 @@ export default function SupportPlansAdminPage() {
               <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
               <p className="muted">
                 Quản lý các gói hỗ trợ (Standard, Priority, VIP...) mà khách
-                hàng có thể đăng ký. Mỗi <b>mức ưu tiên</b> (PriorityLevel) chỉ
-                có tối đa <b>1 gói đang hoạt động</b> tại một thời điểm. Hệ
-                thống cũng kiểm tra thêm quy tắc về <b>thứ tự giá</b> giữa các
-                mức ưu tiên (gói ở level cao hơn phải có giá cao hơn level thấp
-                hơn).
+                hàng có thể đăng ký. Mỗi <b>PriorityLevel</b> có tối đa{" "}
+                <b>1 gói đang hoạt động</b> tại một thời điểm. Hệ thống cũng
+                kiểm tra thứ tự <b>giá</b> giữa các level khi bật gói.
               </p>
             </div>
+          </div>
+
+          {/* Ghi chú luật gói hỗ trợ */}
+          <div className="support-plan-rules-note">
+            <div className="support-plan-rules-note-title">
+              Luật khi tạo & bật gói hỗ trợ:
+            </div>
+            <ul>
+              <li>
+                Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>1 gói đang bật</b>.
+                Khi bật gói mới cùng level, các gói khác cùng level sẽ tự tắt.
+              </li>
+              <li>
+                So sánh với <b>các gói đang bật khác</b>:
+                <ul>
+                  <li>
+                    Gói ở PriorityLevel <b>cao hơn</b> phải có giá{" "}
+                    <b>cao hơn</b> tất cả các gói đang bật ở level thấp hơn.
+                  </li>
+                  <li>
+                    Gói ở PriorityLevel <b>thấp hơn</b> phải có giá{" "}
+                      <b>thấp hơn</b> tất cả các gói đang bật ở level cao hơn.
+                  </li>
+                </ul>
+              </li>
+              <li>
+                Các gói ở trạng thái <b>tắt</b> không bị ràng buộc bởi luật trên;
+                hệ thống chỉ kiểm tra khi <b>lưu / bật</b> gói ở trạng thái hoạt
+                động.
+              </li>
+            </ul>
           </div>
 
           {/* Hàng filter + nút */}
@@ -658,7 +700,7 @@ export default function SupportPlansAdminPage() {
                 </button>
 
                 <button
-                  className="btn"
+                  className="btn secondary"
                   onClick={resetFilters}
                   title="Xoá bộ lọc"
                 >
@@ -689,8 +731,8 @@ export default function SupportPlansAdminPage() {
                 <th
                   style={{
                     width: 180,
-                    textAlign: "right",      // căn phải cho khớp nút
-                    paddingRight: 10,        // đẩy chữ sát về phía nút
+                    textAlign: "right",
+                    paddingRight: 10,
                   }}
                 >
                   Thao tác
@@ -808,9 +850,7 @@ export default function SupportPlansAdminPage() {
               <button
                 className="pager-btn"
                 disabled={page >= totalPages}
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 Sau ›
               </button>

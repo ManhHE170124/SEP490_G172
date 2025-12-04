@@ -42,7 +42,7 @@ a {
 }
 
 /* ===== Layout & card ===== */
-.page>.card {
+.page > .card {
   max-width: 1280px;
   margin-inline: auto;
   padding: 16px;
@@ -80,7 +80,7 @@ a {
   flex-direction: column;
 }
 
-.input-group .group>span {
+.input-group .group > span {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
@@ -135,6 +135,7 @@ textarea:focus {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 14px;
   border-radius: 12px;
@@ -174,12 +175,18 @@ textarea:focus {
   color: #b91c1c;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   box-shadow: 0 6px 18px rgba(2, 6, 23, 0.08);
 }
 
-.btn:active {
+.btn:active:not(:disabled) {
   transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
 }
 
 /* nút trạng thái nhỏ hơn một chút */
@@ -396,11 +403,11 @@ textarea:focus {
   transition: transform 0.18s ease;
 }
 
-.switch input:checked+.slider {
+.switch input:checked + .slider {
   background: var(--primary);
 }
 
-.switch input:checked+.slider:before {
+.switch input:checked + .slider:before {
   transform: translateX(18px);
 }
 
@@ -601,4 +608,57 @@ textarea:focus {
 .cat-modal-card .panel-body::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 999px;
+}
+
+/* ===== Override button cho màn TicketSubjectTemplatesAdmin (chống bị trong suốt) ===== */
+
+/* Tất cả button .btn trong page này */
+.page button.btn {
+  background: #fff !important;
+  border: 1px solid var(--line) !important;
+  color: #111827;
+}
+
+/* Biến thể primary */
+.page button.btn.primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* Biến thể ghost */
+.page button.btn.ghost {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+
+/* Biến thể secondary */
+.page button.btn.secondary {
+  background: #eef2ff !important;
+  border-color: #e0e7ff !important;
+  color: #1d4ed8 !important;
+}
+
+/* Biến thể danger */
+.page button.btn.danger {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+}
+
+/* Nút phân trang */
+.page button.pager-btn {
+  background: #ffffff !important;
+  border: 1px solid var(--line) !important;
+}
+
+/* Hover / active cho pager */
+.page button.pager-btn:hover:not(:disabled) {
+  background: #eef2ff !important;
+  border-color: #e0e7ff !important;
+}
+
+.page button.pager-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
