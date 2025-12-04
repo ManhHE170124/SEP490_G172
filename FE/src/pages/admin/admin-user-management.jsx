@@ -4,23 +4,36 @@
  * Notes (update):
  *  - BỎ passwordPlain và toggle xem mật khẩu.
  *  - THÊM input `username` (tạo/sửa). Nếu bỏ trống sẽ mặc định dùng email.
- *  - Validate FE theo giới hạn DB (max length) + rule mật khẩu:
- *      + Tạo mới: bắt buộc, >= 6 ký tự.
- *      + Cập nhật: tùy chọn, nếu nhập thì >= 6 ký tự.
- *  - Màn "Chi tiết người dùng" KHÔNG hiển thị trường mật khẩu (vì mật khẩu băm 1 chiều).
- *  - Nâng cấp validate: highlight từng field, hiện message dưới input,
- *    và disable nút Lưu khi form đang có lỗi (đúng yêu cầu đề bài).
+ *  - Mức độ ưu tiên (Users.SupportPriorityLevel):
+ *      + List: hiển thị Mức độ ưu tiên.
+ *      + View: hiển thị Mức độ ưu tiên hiện tại (read-only).
+ *      + Create/Update: KHÔNG cho chỉnh, priority chỉ dựa vào gói + loyalty.
+ *  - Gói hỗ trợ:
+ *      + Create: cho phép gán 1 gói trả phí (không có gói 0 mặc định).
+ *      + Edit:
+ *          * Giữ nguyên gói hiện tại.
+ *          * Xóa gói hỗ trợ (về trạng thái không có gói).
+ *          * Chọn gói mới (kể cả trùng planId với gói hiện tại) → BE sẽ tạo subscription mới, làm mới ngày tháng.
+ *  - THÊM filter:
+ *      + Filter Mức độ ưu tiên.
+ *      + Filter Người dùng tạm thời (isTemp), mặc định = false → chỉ người dùng thật.
+ *  - Màn "Chi tiết người dùng" KHÔNG hiển thị mật khẩu (vì mật khẩu băm 1 chiều).
+ *  - Không cho xem/sửa/disable user tạm thời (isTemp = true).
  */
+
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "../../styles/admin-user-management.css";
 import { usersApi } from "../../api/usersApi";
 import { USER_STATUS, USER_STATUS_OPTIONS } from "../../constants/userStatus";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
+import axiosClient from "../../api/axiosClient";
 
 function ErrorDialog({ message, onClose, showError }) {
+  // Đẩy lỗi chung lên toast
   if (message) {
     showError("Thông báo lỗi", message);
+    if (onClose) onClose();
   }
   return null;
 }
@@ -29,6 +42,8 @@ const initialFilters = {
   q: "",
   roleId: "",
   status: "",
+  supportPriorityLevel: "", // filter mức độ ưu tiên
+  isTemp: false, // mặc định xem người dùng thật
   page: 1,
   pageSize: 10,
   sortBy: "CreatedAt",
@@ -47,14 +62,30 @@ const FIELD_LIMITS = {
   passwordMax: 200,
 };
 
+// Helper format tiền
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return "0";
+  try {
+    return Number(value).toLocaleString("vi-VN");
+  } catch {
+    return String(value);
+  }
+};
+
 export default function AdminUserManagement() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
 
   const [uiFilters, setUiFilters] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
 
-  const [data, setData] = useState({ items: [], totalItems: 0, page: 1, pageSize: 10 });
+  const [data, setData] = useState({
+    items: [],
+    totalItems: 0,
+    page: 1,
+    pageSize: 10,
+  });
   const [roles, setRoles] = useState([]);
+  const [supportPlans, setSupportPlans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -72,22 +103,57 @@ export default function AdminUserManagement() {
     roleId: "",
     newPassword: "",
     hasAccount: false,
+
+    // ==== Priority + Support Plan (form state) ====
+    supportPriorityLevel: "0", // chỉ hiển thị read-only ở view
+    isTemp: false,
+
+    activeSupportPlanId: null,
+    activeSupportPlanName: "",
+    activeSupportPlanStartedAt: null,
+    activeSupportPlanExpiresAt: null,
+    activeSupportPlanStatus: "",
+
+    // Gói hỗ trợ muốn gán / đổi (gửi lên BE)
+    selectedSupportPlanId: "", // string; "" = tuỳ theo mode (add: không gán, edit: giữ nguyên)
+
+    // Tổng số tiền đã tiêu
+    totalProductSpend: 0,
   });
 
   // Lỗi theo từng field trong form modal
   const [fieldErrors, setFieldErrors] = useState({});
 
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil((data.totalItems || 0) / (applied.pageSize || 10))),
+    () =>
+      Math.max(
+        1,
+        Math.ceil((data.totalItems || 0) / (applied.pageSize || 10)
+        )
+      ),
     [data, applied.pageSize]
   );
 
   const fetchRoles = async () => {
     try {
       const res = await usersApi.roles();
-      setRoles((res || []).filter((r) => !(r.name || "").toLowerCase().includes("admin")));
+      setRoles(
+        (res || []).filter(
+          (r) => !(r.name || "").toLowerCase().includes("admin")
+        )
+      );
     } catch (err) {
       setErrorMsg(err.message || "Không tải được danh sách vai trò.");
+    }
+  };
+
+  const fetchSupportPlans = async () => {
+    try {
+      // Lấy danh sách gói hỗ trợ đang active cho dropdown
+      const res = await axiosClient.get("/supportplans/active");
+      setSupportPlans(res || []);
+    } catch (err) {
+      setErrorMsg(err.message || "Không tải được danh sách gói hỗ trợ.");
     }
   };
 
@@ -102,7 +168,14 @@ export default function AdminUserManagement() {
             (x) => !((x.roleName || "").toLowerCase().includes("admin"))
           ),
         };
-        setData(filtered || { items: [], totalItems: 0, page: take.page, pageSize: take.pageSize });
+        setData(
+          filtered || {
+            items: [],
+            totalItems: 0,
+            page: take.page,
+            pageSize: take.pageSize,
+          }
+        );
       } catch (err) {
         setErrorMsg(err.message || "Không tải được danh sách người dùng.");
         setData((prev) => ({ ...prev, items: [] }));
@@ -115,6 +188,7 @@ export default function AdminUserManagement() {
 
   useEffect(() => {
     fetchRoles();
+    fetchSupportPlans();
   }, []);
 
   useEffect(() => {
@@ -127,6 +201,8 @@ export default function AdminUserManagement() {
     applied.q,
     applied.roleId,
     applied.status,
+    applied.supportPriorityLevel,
+    applied.isTemp,
     fetchList,
   ]);
 
@@ -160,6 +236,19 @@ export default function AdminUserManagement() {
       roleId: "",
       newPassword: "",
       hasAccount: false,
+
+      supportPriorityLevel: "0",
+      isTemp: false, // admin tạo mới luôn là người dùng thật
+
+      activeSupportPlanId: null,
+      activeSupportPlanName: "",
+      activeSupportPlanStartedAt: null,
+      activeSupportPlanExpiresAt: null,
+      activeSupportPlanStatus: "",
+
+      selectedSupportPlanId: "", // add: "" = không gán gói
+
+      totalProductSpend: 0,
     });
     setFieldErrors({});
     setOpen(true);
@@ -168,6 +257,15 @@ export default function AdminUserManagement() {
   const openViewOrEdit = async (id, m) => {
     try {
       const u = await usersApi.get(id);
+
+      // Nếu vẫn lấy được user tạm thời (trong trường hợp BE chưa chặn) thì không cho mở
+      if (u.isTemp) {
+        setErrorMsg(
+          "Không thể xem / chỉnh sửa người dùng tạm thời. Vui lòng thao tác với người dùng thật."
+        );
+        return;
+      }
+
       setMode(m);
       setForm({
         userId: u.userId,
@@ -181,6 +279,30 @@ export default function AdminUserManagement() {
         roleId: u.roleId || "",
         newPassword: "",
         hasAccount: !!u.hasAccount,
+
+        // Priority + support plan từ BE (priority chỉ để hiển thị)
+        supportPriorityLevel: String(
+          typeof u.supportPriorityLevel === "number"
+            ? u.supportPriorityLevel
+            : 0
+        ),
+        isTemp: !!u.isTemp,
+
+        activeSupportPlanId:
+          typeof u.activeSupportPlanId === "number"
+            ? u.activeSupportPlanId
+            : null,
+        activeSupportPlanName: u.activeSupportPlanName || "",
+        activeSupportPlanStartedAt: u.activeSupportPlanStartedAt || null,
+        activeSupportPlanExpiresAt: u.activeSupportPlanExpiresAt || null,
+        activeSupportPlanStatus: u.activeSupportPlanStatus || "",
+
+        // Khi mở modal edit, mặc định: giữ nguyên gói (selectedSupportPlanId = "")
+        selectedSupportPlanId: "",
+
+        // Tổng số tiền đã tiêu
+        totalProductSpend:
+          typeof u.totalProductSpend === "number" ? u.totalProductSpend : 0,
       });
       setFieldErrors({});
       setOpen(true);
@@ -198,78 +320,75 @@ export default function AdminUserManagement() {
    * Validate toàn bộ form modal theo giới hạn DB + rule nghiệp vụ.
    * Trả về object { fieldName: message } nếu có lỗi.
    */
-  const validateFields = useCallback(
-    (currentForm, currentMode) => {
-      const errors = {};
+  const validateFields = useCallback((currentForm, currentMode) => {
+    const errors = {};
 
-      const fn = trim(currentForm.firstName);
-      if (!fn) {
-        errors.firstName = "Họ không được để trống.";
-      } else if (fn.length > FIELD_LIMITS.firstName) {
-        errors.firstName = `Họ tối đa ${FIELD_LIMITS.firstName} ký tự.`;
+    const fn = trim(currentForm.firstName);
+    if (!fn) {
+      errors.firstName = "Họ không được để trống.";
+    } else if (fn.length > FIELD_LIMITS.firstName) {
+      errors.firstName = `Họ tối đa ${FIELD_LIMITS.firstName} ký tự.`;
+    }
+
+    const ln = trim(currentForm.lastName);
+    if (!ln) {
+      errors.lastName = "Tên không được để trống.";
+    } else if (ln.length > FIELD_LIMITS.lastName) {
+      errors.lastName = `Tên tối đa ${FIELD_LIMITS.lastName} ký tự.`;
+    }
+
+    const email = trim(currentForm.email);
+    if (!email) {
+      errors.email = "Email không được để trống.";
+    } else if (email.length > FIELD_LIMITS.email) {
+      errors.email = `Email tối đa ${FIELD_LIMITS.email} ký tự.`;
+    } else if (!emailRegex.test(email)) {
+      errors.email = "Email không hợp lệ.";
+    }
+
+    const username = trim(currentForm.username);
+    if (username && username.length > FIELD_LIMITS.username) {
+      errors.username = `Username tối đa ${FIELD_LIMITS.username} ký tự.`;
+    }
+
+    const phone = trim(currentForm.phone);
+    if (phone) {
+      if (phone.length > FIELD_LIMITS.phone) {
+        errors.phone = `Điện thoại tối đa ${FIELD_LIMITS.phone} ký tự.`;
+      } else if (!/^[0-9+\s\-()]+$/.test(phone)) {
+        errors.phone =
+          "Số điện thoại chỉ được chứa số và các ký tự + - ( ) khoảng trắng.";
       }
+    }
 
-      const ln = trim(currentForm.lastName);
-      if (!ln) {
-        errors.lastName = "Tên không được để trống.";
-      } else if (ln.length > FIELD_LIMITS.lastName) {
-        errors.lastName = `Tên tối đa ${FIELD_LIMITS.lastName} ký tự.`;
+    const address = trim(currentForm.address);
+    if (address && address.length > FIELD_LIMITS.address) {
+      errors.address = `Địa chỉ tối đa ${FIELD_LIMITS.address} ký tự.`;
+    }
+
+    if (!currentForm.roleId) {
+      errors.roleId = "Vui lòng chọn vai trò.";
+    }
+
+    const pw = currentForm.newPassword || "";
+    if (currentMode === "add") {
+      if (!pw.trim()) {
+        errors.newPassword = "Mật khẩu không được để trống.";
+      } else if (pw.length < FIELD_LIMITS.passwordMin) {
+        errors.newPassword = `Mật khẩu phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
+      } else if (pw.length > FIELD_LIMITS.passwordMax) {
+        errors.newPassword = `Mật khẩu không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
       }
-
-      const email = trim(currentForm.email);
-      if (!email) {
-        errors.email = "Email không được để trống.";
-      } else if (email.length > FIELD_LIMITS.email) {
-        errors.email = `Email tối đa ${FIELD_LIMITS.email} ký tự.`;
-      } else if (!emailRegex.test(email)) {
-        errors.email = "Email không hợp lệ.";
+    } else if (currentMode === "edit" && pw) {
+      if (pw.length < FIELD_LIMITS.passwordMin) {
+        errors.newPassword = `Mật khẩu mới phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
+      } else if (pw.length > FIELD_LIMITS.passwordMax) {
+        errors.newPassword = `Mật khẩu mới không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
       }
+    }
 
-      const username = trim(currentForm.username);
-      if (username && username.length > FIELD_LIMITS.username) {
-        errors.username = `Username tối đa ${FIELD_LIMITS.username} ký tự.`;
-      }
-
-      const phone = trim(currentForm.phone);
-      if (phone) {
-        if (phone.length > FIELD_LIMITS.phone) {
-          errors.phone = `Điện thoại tối đa ${FIELD_LIMITS.phone} ký tự.`;
-        } else if (!/^[0-9+\s\-()]+$/.test(phone)) {
-          errors.phone =
-            "Số điện thoại chỉ được chứa số và các ký tự + - ( ) khoảng trắng.";
-        }
-      }
-
-      const address = trim(currentForm.address);
-      if (address && address.length > FIELD_LIMITS.address) {
-        errors.address = `Địa chỉ tối đa ${FIELD_LIMITS.address} ký tự.`;
-      }
-
-      if (!currentForm.roleId) {
-        errors.roleId = "Vui lòng chọn vai trò.";
-      }
-
-      const pw = currentForm.newPassword || "";
-      if (currentMode === "add") {
-        if (!pw.trim()) {
-          errors.newPassword = "Mật khẩu không được để trống.";
-        } else if (pw.length < FIELD_LIMITS.passwordMin) {
-          errors.newPassword = `Mật khẩu phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
-        } else if (pw.length > FIELD_LIMITS.passwordMax) {
-          errors.newPassword = `Mật khẩu không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
-        }
-      } else if (currentMode === "edit" && pw) {
-        if (pw.length < FIELD_LIMITS.passwordMin) {
-          errors.newPassword = `Mật khẩu mới phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
-        } else if (pw.length > FIELD_LIMITS.passwordMax) {
-          errors.newPassword = `Mật khẩu mới không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
-        }
-      }
-
-      return errors;
-    },
-    []
-  );
+    return errors;
+  }, []);
 
   // Re-validate mỗi khi form/modal thay đổi (add / edit)
   useEffect(() => {
@@ -302,6 +421,26 @@ export default function AdminUserManagement() {
       return;
     }
 
+    // Xử lý activeSupportPlanId theo mode & selectedSupportPlanId
+    let activeSupportPlanId;
+    if (mode === "add") {
+      // Tạo mới: "" = không gán gói; số = gán gói đó
+      activeSupportPlanId = form.selectedSupportPlanId
+        ? Number(form.selectedSupportPlanId)
+        : undefined;
+    } else if (mode === "edit") {
+      if (form.selectedSupportPlanId === "__REMOVE__") {
+        // Đánh dấu xoá gói hỗ trợ. BE nên hiểu activeSupportPlanId = 0 là "xóa gói".
+        activeSupportPlanId = 0;
+      } else if (form.selectedSupportPlanId) {
+        // Chọn gói mới (kể cả trùng với gói hiện tại) → BE tạo subscription mới, làm mới ngày.
+        activeSupportPlanId = Number(form.selectedSupportPlanId);
+      } else {
+        // "" = giữ nguyên gói hiện tại → không gửi field này
+        activeSupportPlanId = undefined;
+      }
+    }
+
     const payloadBase = {
       email: trim(form.email),
       firstName: trim(form.firstName),
@@ -311,6 +450,9 @@ export default function AdminUserManagement() {
       address: trim(form.address) || null,
       status: form.status,
       roleId: form.roleId || null,
+      ...(activeSupportPlanId !== undefined
+        ? { activeSupportPlanId }
+        : {}),
     };
 
     const passwordValue = trim(form.newPassword);
@@ -348,6 +490,12 @@ export default function AdminUserManagement() {
   };
 
   const toggleDisable = async (u) => {
+    if (u.isTemp) {
+      setErrorMsg(
+        "Không thể thay đổi trạng thái người dùng tạm thời. Vui lòng thao tác với người dùng thật."
+      );
+      return;
+    }
     const goingDisable = u.status === USER_STATUS.Active;
     const msg = goingDisable
       ? "Disable tài khoản này?"
@@ -358,11 +506,33 @@ export default function AdminUserManagement() {
       showSuccess("Thành công", "Đã thay đổi trạng thái người dùng.");
       fetchList(applied);
     } catch (err) {
-      setErrorMsg(err.message || "Không thay đổi được trạng thái người dùng.");
+      setErrorMsg(
+        err.message || "Không thay đổi được trạng thái người dùng."
+      );
     }
   };
 
   const hasFormErrors = mode !== "view" && Object.keys(fieldErrors).length > 0;
+
+  // Helper hiển thị ngày (chỉ ngày, bỏ time)
+  const formatDate = (d) => {
+    if (!d) return "-";
+    try {
+      return new Date(d).toLocaleDateString();
+    } catch {
+      return "-";
+    }
+  };
+
+  const paidSupportPlans = useMemo(
+    () =>
+      (supportPlans || []).filter((p) =>
+        typeof p.priorityLevel === "number"
+          ? p.priorityLevel > 0
+          : true
+      ),
+    [supportPlans]
+  );
 
   return (
     <>
@@ -418,6 +588,37 @@ export default function AdminUserManagement() {
                   </option>
                 ))}
               </select>
+
+              {/* Filter mức độ ưu tiên */}
+              <select
+                value={uiFilters.supportPriorityLevel}
+                onChange={(e) =>
+                  setUiFilters({
+                    ...uiFilters,
+                    supportPriorityLevel: e.target.value,
+                  })
+                }
+              >
+                <option value="">Tất cả mức độ ưu tiên</option>
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+
+              {/* Filter người dùng tạm thời */}
+              <select
+                value={uiFilters.isTemp ? "true" : "false"}
+                onChange={(e) =>
+                  setUiFilters({
+                    ...uiFilters,
+                    isTemp: e.target.value === "true",
+                  })
+                }
+              >
+                <option value="false">Người dùng thật</option>
+                <option value="true">Người dùng tạm thời</option>
+              </select>
+
               <div
                 style={{
                   display: "flex",
@@ -461,6 +662,7 @@ export default function AdminUserManagement() {
                     <th>Họ tên</th>
                     <th>Email</th>
                     <th>Vai trò</th>
+                    <th>Mức độ ưu tiên</th>
                     <th>Lần đăng nhập cuối</th>
                     <th>Trạng thái</th>
                     <th>Thao tác</th>
@@ -469,14 +671,20 @@ export default function AdminUserManagement() {
                 <tbody>
                   {!loading && data.items?.length === 0 && (
                     <tr>
-                      <td colSpan="7" style={{ padding: 14, textAlign: "center" }}>
+                      <td
+                        colSpan="8"
+                        style={{ padding: 14, textAlign: "center" }}
+                      >
                         Không có dữ liệu
                       </td>
                     </tr>
                   )}
                   {loading && (
                     <tr>
-                      <td colSpan="7" style={{ padding: 14, textAlign: "center" }}>
+                      <td
+                        colSpan="8"
+                        style={{ padding: 14, textAlign: "center" }}
+                      >
                         Đang tải…
                       </td>
                     </tr>
@@ -489,6 +697,7 @@ export default function AdminUserManagement() {
                       <td>{u.fullName}</td>
                       <td>{u.email}</td>
                       <td>{u.roleName || "-"}</td>
+                      <td>{u.supportPriorityLevel ?? 0}</td>
                       <td>
                         {u.lastLoginAt
                           ? new Date(u.lastLoginAt).toLocaleString()
@@ -507,31 +716,39 @@ export default function AdminUserManagement() {
                         className="actions-td"
                         style={{ display: "flex", gap: 6 }}
                       >
-                        <button
-                          className="btn"
-                          onClick={() => openViewOrEdit(u.userId, "view")}
-                          title="Xem"
-                        >
-                          👁️
-                        </button>
-                        <button
-                          className="btn"
-                          onClick={() => openViewOrEdit(u.userId, "edit")}
-                          title="Sửa"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="btn"
-                          onClick={() => toggleDisable(u)}
-                          title={
-                            u.status === USER_STATUS.Active
-                              ? "Disable"
-                              : "Reactive"
-                          }
-                        >
-                          {u.status === USER_STATUS.Active ? "🚫" : "✅"}
-                        </button>
+                        {u.isTemp ? (
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            Người dùng tạm thời
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              className="btn"
+                              onClick={() => openViewOrEdit(u.userId, "view")}
+                              title="Xem"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              className="btn"
+                              onClick={() => openViewOrEdit(u.userId, "edit")}
+                              title="Sửa"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="btn"
+                              onClick={() => toggleDisable(u)}
+                              title={
+                                u.status === USER_STATUS.Active
+                                  ? "Disable"
+                                  : "Reactive"
+                              }
+                            >
+                              {u.status === USER_STATUS.Active ? "🚫" : "✅"}
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -562,10 +779,7 @@ export default function AdminUserManagement() {
 
         {/* Modal */}
         {open && (
-          <div
-            className="modal-overlay active"
-            onClick={() => setOpen(false)}
-          >
+          <div className="modal-overlay active" onClick={() => setOpen(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3 className="modal-title">
@@ -575,7 +789,10 @@ export default function AdminUserManagement() {
                     ? "Cập nhật người dùng"
                     : "Chi tiết người dùng"}
                 </h3>
-                <button className="modal-close" onClick={() => setOpen(false)}>
+                <button
+                  className="modal-close"
+                  onClick={() => setOpen(false)}
+                >
                   ×
                 </button>
               </div>
@@ -601,7 +818,9 @@ export default function AdminUserManagement() {
                       maxLength={FIELD_LIMITS.firstName}
                     />
                     {fieldErrors.firstName && (
-                      <div className="error-message">{fieldErrors.firstName}</div>
+                      <div className="error-message">
+                        {fieldErrors.firstName}
+                      </div>
                     )}
                   </div>
 
@@ -624,7 +843,9 @@ export default function AdminUserManagement() {
                       maxLength={FIELD_LIMITS.lastName}
                     />
                     {fieldErrors.lastName && (
-                      <div className="error-message">{fieldErrors.lastName}</div>
+                      <div className="error-message">
+                        {fieldErrors.lastName}
+                      </div>
                     )}
                   </div>
 
@@ -647,7 +868,9 @@ export default function AdminUserManagement() {
                       maxLength={FIELD_LIMITS.email}
                     />
                     {fieldErrors.email && (
-                      <div className="error-message">{fieldErrors.email}</div>
+                      <div className="error-message">
+                        {fieldErrors.email}
+                      </div>
                     )}
                   </div>
 
@@ -667,7 +890,9 @@ export default function AdminUserManagement() {
                       maxLength={FIELD_LIMITS.username}
                     />
                     {fieldErrors.username && (
-                      <div className="error-message">{fieldErrors.username}</div>
+                      <div className="error-message">
+                        {fieldErrors.username}
+                      </div>
                     )}
                   </div>
 
@@ -687,7 +912,9 @@ export default function AdminUserManagement() {
                       maxLength={FIELD_LIMITS.phone}
                     />
                     {fieldErrors.phone && (
-                      <div className="error-message">{fieldErrors.phone}</div>
+                      <div className="error-message">
+                        {fieldErrors.phone}
+                      </div>
                     )}
                   </div>
 
@@ -707,7 +934,9 @@ export default function AdminUserManagement() {
                       maxLength={FIELD_LIMITS.address}
                     />
                     {fieldErrors.address && (
-                      <div className="error-message">{fieldErrors.address}</div>
+                      <div className="error-message">
+                        {fieldErrors.address}
+                      </div>
                     )}
                   </div>
 
@@ -733,7 +962,9 @@ export default function AdminUserManagement() {
                       ))}
                     </select>
                     {fieldErrors.roleId && (
-                      <div className="error-message">{fieldErrors.roleId}</div>
+                      <div className="error-message">
+                        {fieldErrors.roleId}
+                      </div>
                     )}
                   </div>
 
@@ -754,6 +985,51 @@ export default function AdminUserManagement() {
                       ))}
                     </select>
                   </div>
+
+                  {/* Mức độ ưu tiên hiện tại - chỉ view */}
+                  {mode === "view" && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        Mức độ ưu tiên hiện tại
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={String(form.supportPriorityLevel || "0")}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {/* Người dùng tạm thời - chỉ view/edit, read-only */}
+                  {mode !== "add" && (
+                    <div className="form-group">
+                      <label className="form-label">Người dùng tạm thời</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={form.isTemp ? "Có" : "Không"}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {/* Tổng số tiền đã tiêu - chỉ hiển thị, không cho sửa */}
+                  {mode !== "add" && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        Tổng số tiền đã tiêu
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={`${formatCurrency(
+                          form.totalProductSpend || 0
+                        )} đ`}
+                        disabled
+                      />
+                    </div>
+                  )}
 
                   {/* Trường mật khẩu:
                       - Chỉ hiển thị cho add / edit.
@@ -796,27 +1072,148 @@ export default function AdminUserManagement() {
                       )}
                     </div>
                   )}
-                </div>
 
-                <div className="modal-footer">
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => setOpen(false)}
-                  >
-                    Hủy
-                  </button>
+                  {/* Thông tin gói hỗ trợ đang active (read-only) */}
+                  <div className="form-group form-group-full">
+                    <label className="form-label">
+                      Gói hỗ trợ đang đăng ký
+                    </label>
+                    {form.activeSupportPlanName ? (
+                      <div
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: "1px solid var(--border-color)",
+                          background: "#f8f9fa",
+                          fontSize: 14,
+                        }}
+                      >
+                        <div>
+                          <strong>Tên gói:</strong>{" "}
+                          {form.activeSupportPlanName}
+                        </div>
+                        <div>
+                          <strong>Trạng thái:</strong>{" "}
+                          {form.activeSupportPlanStatus || "-"}
+                        </div>
+                        <div>
+                          <strong>Ngày bắt đầu:</strong>{" "}
+                          {formatDate(form.activeSupportPlanStartedAt)}
+                        </div>
+                        <div>
+                          <strong>Hết hạn:</strong>{" "}
+                          {formatDate(form.activeSupportPlanExpiresAt)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: "1px dashed var(--border-color)",
+                          color: "var(--text-muted)",
+                          fontSize: 14,
+                        }}
+                      >
+                        Chưa có gói hỗ trợ trả phí nào đang active.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chọn gói hỗ trợ mới (tùy chọn) */}
                   {mode !== "view" && (
-                    <button
-                      className="btn primary"
-                      type="submit"
-                      disabled={hasFormErrors}
-                    >
-                      Lưu
-                    </button>
+                    <div className="form-group form-group-full">
+                      <label className="form-label">
+                        {mode === "add"
+                          ? "Gán gói hỗ trợ (tùy chọn)"
+                          : "Chọn gói hỗ trợ mới / xóa gói (tùy chọn)"}
+                      </label>
+                      <select
+                        className="form-input"
+                        value={form.selectedSupportPlanId}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            selectedSupportPlanId: e.target.value,
+                          })
+                        }
+                      >
+                        {mode === "add" ? (
+                          <option value="">
+                            Không gán gói hỗ trợ (mặc định không có gói)
+                          </option>
+                        ) : (
+                          <>
+                            <option value="">
+                              Giữ nguyên gói hiện tại
+                            </option>
+                            <option value="__REMOVE__">
+                              Xóa gói hỗ trợ (về trạng thái không có gói)
+                            </option>
+                          </>
+                        )}
+
+                        {paidSupportPlans.map((p) => (
+                          <option
+                            key={p.supportPlanId}
+                            value={String(p.supportPlanId)}
+                          >
+                            {p.name} (Level {p.priorityLevel}) - {p.price}đ
+                          </option>
+                        ))}
+                      </select>
+                      {mode === "add" ? (
+                        <div
+                          className="hint-text"
+                          style={{ fontSize: 12, marginTop: 4 }}
+                        >
+                          Tùy chọn: nếu chọn một gói, hệ thống sẽ tạo subscription
+                          mới cho người dùng khi lưu.
+                        </div>
+                      ) : (
+                        <div
+                          className="hint-text"
+                          style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}
+                        >
+                          <div>
+                            - <strong>Giữ nguyên gói hiện tại</strong>: không
+                            thay đổi subscription.
+                          </div>
+                          <div>
+                            - <strong>Xóa gói hỗ trợ</strong>: huỷ subscription
+                            hiện tại (người dùng không còn gói).
+                          </div>
+                          <div>
+                            - <strong>Chọn một gói trong danh sách</strong> (kể
+                            cả trùng với gói hiện tại): hệ thống sẽ tạo{" "}
+                            subscription mới và <strong>làm mới thời hạn gói</strong>.
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </form>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-modal btn-modal-secondary"
+                  onClick={() => setOpen(false)}
+                >
+                  Đóng
+                </button>
+                {mode !== "view" && (
+                  <button
+                    type="button"
+                    className="btn-modal btn-modal-primary"
+                    onClick={submit}
+                    disabled={hasFormErrors}
+                  >
+                    Lưu
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

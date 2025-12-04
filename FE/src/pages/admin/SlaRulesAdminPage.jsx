@@ -118,9 +118,9 @@ const formatMinutes = (value) => {
   const hoursStr = Number.isInteger(rounded)
     ? rounded.toLocaleString("vi-VN")
     : rounded.toLocaleString("vi-VN", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      });
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
 
   return `${n.toLocaleString("vi-VN")} phút (${hoursStr} giờ)`;
 };
@@ -307,11 +307,14 @@ function SlaRuleModal({
                   onChange={() => setField("isActive", !form.isActive)}
                 />
                 <span className="slider" />
-                <span className="switch-label">
-                  {form.isActive ? "Đang bật" : "Đang tắt"}
-                </span>
               </label>
-              <div className="muted sla-modal-note">
+              <span
+                className={form.isActive ? "badge green" : "badge gray"}
+                style={{ textTransform: "none" }}
+              >
+                {form.isActive ? "Đang bật" : "Đang tắt"}
+              </span>
+              {/* <div className="muted sla-modal-note">
                 <strong>Quy tắc khi bật SLA rule:</strong>
                 <div>- Mỗi cặp Severity + PriorityLevel chỉ có 1 rule đang bật.</div>
                 <div>
@@ -322,7 +325,7 @@ function SlaRuleModal({
                   - Cùng PriorityLevel: Severity nghiêm trọng hơn (Low → Medium → High
                   → Critical) phải có thời gian phản hồi / xử lý <b>ngắn hơn</b>.
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -436,8 +439,8 @@ function SlaRuleModal({
                   ? "Đang lưu..."
                   : "Đang tạo..."
                 : isEdit
-                ? "Lưu thay đổi"
-                : "Tạo SLA rule"}
+                  ? "Lưu thay đổi"
+                  : "Tạo SLA rule"}
             </button>
           </div>
         </form>
@@ -511,8 +514,8 @@ export default function SlaRulesAdminPage() {
         const items = Array.isArray(res?.items)
           ? res.items
           : Array.isArray(res)
-          ? res
-          : [];
+            ? res
+            : [];
         setRules(items);
         setPage(typeof res?.page === "number" ? res.page : page);
         setPageSize(
@@ -571,7 +574,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không tải được chi tiết SLA rule để chỉnh sửa.",
+        "Không tải được chi tiết SLA rule để chỉnh sửa.",
         "Lỗi"
       );
     }
@@ -595,7 +598,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không thể lưu SLA rule. Vui lòng thử lại.",
+        "Không thể lưu SLA rule. Vui lòng thử lại.",
         "Lỗi"
       );
     } finally {
@@ -613,7 +616,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không thể cập nhật trạng thái SLA rule.",
+        "Không thể cập nhật trạng thái SLA rule.",
         "Lỗi"
       );
     }
@@ -637,7 +640,7 @@ export default function SlaRulesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-              "Không thể xoá SLA rule. Có thể rule đang được tham chiếu bởi ticket.",
+            "Không thể xoá SLA rule. Có thể rule đang được tham chiếu bởi ticket.",
             "Lỗi"
           );
         }

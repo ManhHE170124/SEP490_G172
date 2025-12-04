@@ -109,7 +109,7 @@ namespace Keytietkiem.Controllers
             var comment = await _context.PostComments
                 .Include(c => c.User)
                 .Include(c => c.Post)
-                .Include(c => c.Replies)
+                .Include(c => c.InverseParentComment)
                     .ThenInclude(r => r.User)
                 .FirstOrDefaultAsync(c => c.CommentId == id);
 
@@ -334,7 +334,7 @@ namespace Keytietkiem.Controllers
 
             var replies = await _context.PostComments
                 .Include(c => c.User)
-                .Include(c => c.Replies)
+                .Include(c => c.InverseParentComment)
                     .ThenInclude(r => r.User)
                 .Where(c => c.ParentCommentId == id)
                 .OrderBy(c => c.CreatedAt)
@@ -496,7 +496,7 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> DeleteComment(Guid id)
         {
             var comment = await _context.PostComments
-                .Include(c => c.Replies)
+                .Include(c => c.InverseParentComment)
                 .FirstOrDefaultAsync(c => c.CommentId == id);
 
             if (comment == null)
@@ -518,14 +518,14 @@ namespace Keytietkiem.Controllers
          */
         private async Task DeleteCommentRecursive(PostComment comment)
         {
-            if (comment.Replies != null && comment.Replies.Any())
+            if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                var replies = comment.Replies.ToList(); // Create a copy to avoid modification during iteration
+                var replies = comment.InverseParentComment.ToList(); // Create a copy to avoid modification during iteration
                 foreach (var reply in replies)
                 {
                     // Load replies of this reply
                     var replyWithChildren = await _context.PostComments
-                        .Include(r => r.Replies)
+                        .Include(r => r.InverseParentComment)
                         .FirstOrDefaultAsync(r => r.CommentId == reply.CommentId);
 
                     if (replyWithChildren != null)
@@ -547,7 +547,7 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> ShowComment(Guid id)
         {
             var comment = await _context.PostComments
-                .Include(c => c.Replies)
+                .Include(c => c.InverseParentComment)
                 .FirstOrDefaultAsync(c => c.CommentId == id);
 
             if (comment == null)
@@ -584,7 +584,7 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> HideComment(Guid id)
         {
             var comment = await _context.PostComments
-                .Include(c => c.Replies)
+                .Include(c => c.InverseParentComment)
                 .FirstOrDefaultAsync(c => c.CommentId == id);
 
             if (comment == null)
@@ -606,12 +606,12 @@ namespace Keytietkiem.Controllers
         {
             comment.IsApproved = true;
 
-            if (comment.Replies != null && comment.Replies.Any())
+            if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                foreach (var reply in comment.Replies)
+                foreach (var reply in comment.InverseParentComment)
                 {
                     var replyWithChildren = await _context.PostComments
-                        .Include(r => r.Replies)
+                        .Include(r => r.InverseParentComment)
                         .FirstOrDefaultAsync(r => r.CommentId == reply.CommentId);
 
                     if (replyWithChildren != null)
@@ -629,12 +629,12 @@ namespace Keytietkiem.Controllers
         {
             comment.IsApproved = false;
 
-            if (comment.Replies != null && comment.Replies.Any())
+            if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                foreach (var reply in comment.Replies)
+                foreach (var reply in comment.InverseParentComment)
                 {
                     var replyWithChildren = await _context.PostComments
-                        .Include(r => r.Replies)
+                        .Include(r => r.InverseParentComment)
                         .FirstOrDefaultAsync(r => r.CommentId == reply.CommentId);
 
                     if (replyWithChildren != null)
@@ -662,13 +662,13 @@ namespace Keytietkiem.Controllers
                 UserName = comment.User != null ? (comment.User.FullName ?? $"{comment.User.FirstName} {comment.User.LastName}".Trim()) : null,
                 UserEmail = comment.User?.Email,
                 PostTitle = comment.Post?.Title,
-                ReplyCount = comment.Replies?.Count ?? 0
+                ReplyCount = comment.InverseParentComment?.Count ?? 0
             };
 
             // Map nested replies recursively
-            if (comment.Replies != null && comment.Replies.Any())
+            if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                dto.Replies = comment.Replies
+                dto.Replies = comment.InverseParentComment
                     .OrderBy(r => r.CreatedAt)
                     .Select(r => MapToCommentDTO(r))
                     .ToList();

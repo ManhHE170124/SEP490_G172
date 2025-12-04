@@ -126,8 +126,8 @@ function TicketSubjectTemplateModal({
             : String(base.severity),
         category:
           base.category === null ||
-          base.category === undefined ||
-          base.category === ""
+            base.category === undefined ||
+            base.category === ""
             ? "General" // null/"" => General
             : String(base.category),
         isActive: typeof base.isActive === "boolean" ? base.isActive : true,
@@ -272,13 +272,16 @@ function TicketSubjectTemplateModal({
                   onChange={() => set("isActive", !form.isActive)}
                 />
                 <span className="slider" />
-                <span className="switch-label">
-                  {form.isActive ? "Đang bật" : "Đang tắt"}
-                </span>
               </label>
-              <span className="muted">
-                Chỉ các template đang bật mới hiển thị cho khách khi tạo ticket.
+              <span
+                className={form.isActive ? "badge green" : "badge gray"}
+                style={{ textTransform: "none" }}
+              >
+                {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
+              {/* <span className="muted">
+                Chỉ các template đang bật mới hiển thị cho khách khi tạo ticket.
+              </span> */}
             </div>
           </div>
         </div>
@@ -374,8 +377,8 @@ function TicketSubjectTemplateModal({
                   ? "Đang lưu..."
                   : "Đang tạo..."
                 : isEdit
-                ? "Lưu thay đổi"
-                : "Tạo template mới"}
+                  ? "Lưu thay đổi"
+                  : "Tạo template mới"}
             </button>
           </div>
         </form>
@@ -448,8 +451,8 @@ export default function TicketSubjectTemplatesAdminPage() {
         query.active === ""
           ? undefined
           : query.active === "true"
-          ? true
-          : false,
+            ? true
+            : false,
       sort: query.sort || "templateCode",
       direction: query.direction || "asc",
       page,
@@ -461,8 +464,8 @@ export default function TicketSubjectTemplatesAdminPage() {
         const items = Array.isArray(res?.items)
           ? res.items
           : Array.isArray(res)
-          ? res
-          : [];
+            ? res
+            : [];
         setTemplates(items);
         setPage(typeof res?.page === "number" ? res.page : page);
         setPageSize(
@@ -513,7 +516,7 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không tải được chi tiết template để chỉnh sửa.",
+        "Không tải được chi tiết template để chỉnh sửa.",
         "Lỗi"
       );
     }
@@ -570,7 +573,7 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không thể cập nhật trạng thái template.",
+        "Không thể cập nhật trạng thái template.",
         "Lỗi"
       );
     }
@@ -594,7 +597,7 @@ export default function TicketSubjectTemplatesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-              "Xoá Ticket Subject Template thất bại.",
+            "Xoá Ticket Subject Template thất bại.",
             "Lỗi"
           );
         }
