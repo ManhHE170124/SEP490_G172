@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Models;
@@ -334,6 +335,18 @@ namespace Keytietkiem.Controllers
                 });
             }
 
+            // Check Title unique (không trùng tiêu đề)
+            var titleExists = await db.TicketSubjectTemplates
+                .AnyAsync(t => t.Title == titleRaw);
+
+            if (titleExists)
+            {
+                return BadRequest(new
+                {
+                    message = "Tiêu đề template đã tồn tại. Vui lòng nhập tiêu đề khác."
+                });
+            }
+
             // Validate Severity
             var severityRaw = (dto.Severity ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(severityRaw))
@@ -460,6 +473,18 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new
                 {
                     message = "Tiêu đề không được vượt quá 200 ký tự."
+                });
+            }
+
+            // Check Title unique khi update (không trùng với template khác)
+            var titleExists = await db.TicketSubjectTemplates
+                .AnyAsync(t => t.Title == titleRaw && t.TemplateCode != code);
+
+            if (titleExists)
+            {
+                return BadRequest(new
+                {
+                    message = "Tiêu đề template đã tồn tại. Vui lòng nhập tiêu đề khác."
                 });
             }
 

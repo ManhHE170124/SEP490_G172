@@ -93,6 +93,7 @@ import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx
 import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyaltyRulesPage.jsx";
 import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
 import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplatesAdminPage.jsx";
+import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
 
 
 // Lazy admin ticket detail
@@ -568,6 +569,14 @@ export default function AppRoutes() {
         element={
           <AdminLayout>
             <SupportPlansAdminPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/sla-rules"
+        element={
+          <AdminLayout>
+            <SlaRulesAdminPage />
           </AdminLayout>
         }
       />

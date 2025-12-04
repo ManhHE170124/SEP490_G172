@@ -817,6 +817,41 @@ const Sidebar = () => {
           ),
         },
         {
+          id: "sla-rules-admin",
+          label: "Cấu hình SLA",
+          to: "/admin/sla-rules",
+          isActive: currentPage === "admin/sla-rules",
+          icon: (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ width: 20, height: 20 }}
+            >
+              {/* icon đồng hồ SLA */}
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M12 8v4l2.5 2.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9 3h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          ),
+        },
+        {
           id: "ticket-subject-templates",
           label: "Cấu hình mẫu chủ đề ticket",
           to: "/admin/ticket-subject-templates",
