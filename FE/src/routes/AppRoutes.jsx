@@ -92,6 +92,8 @@ import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx
 
 import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyaltyRulesPage.jsx";
 import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
+import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplatesAdminPage.jsx";
+
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -569,27 +571,36 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
+      <Route
+        path="/admin/ticket-subject-templates"
+        element={
+          <AdminLayout>
+            <TicketSubjectTemplatesAdminPage />
+          </AdminLayout>
+        }
+      />
+
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
       <Route
-   path="/cart/payment-cancel"
-   element={
-     <ClientLayout>
-       <PaymentCancelPage />
-     </ClientLayout>
-   }
- />
- <Route
-   path="/cart/payment-result"
-   element={
-     <ClientLayout>
-       <PaymentResultPage />
-     </ClientLayout>
-   }
- />
+        path="/cart/payment-cancel"
+        element={
+          <ClientLayout>
+            <PaymentCancelPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/cart/payment-result"
+        element={
+          <ClientLayout>
+            <PaymentResultPage />
+          </ClientLayout>
+        }
+      />
       <Route
         path="/homepage"
         element={

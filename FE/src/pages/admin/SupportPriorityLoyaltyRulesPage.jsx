@@ -570,10 +570,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
             {/* Nút Thêm rule: sát phải hàng */}
             <div className="group filter-add">
               <span>&nbsp;</span>
-              <button
-                className="btn primary"
-                onClick={openAddRule}
-              >
+              <button className="btn primary" onClick={openAddRule}>
                 Thêm rule ưu tiên
               </button>
             </div>
@@ -610,8 +607,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
                       ...s,
                       sort: "minTotalSpend",
                       direction:
-                        s.sort === "minTotalSpend" &&
-                        s.direction === "asc"
+                        s.sort === "minTotalSpend" && s.direction === "asc"
                           ? "desc"
                           : "asc",
                     }))
@@ -632,8 +628,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
                       ...s,
                       sort: "priorityLevel",
                       direction:
-                        s.sort === "priorityLevel" &&
-                        s.direction === "asc"
+                        s.sort === "priorityLevel" && s.direction === "asc"
                           ? "desc"
                           : "asc",
                     }))
@@ -669,7 +664,15 @@ export default function SupportPriorityLoyaltyRulesPage() {
                     : ""}
                 </th>
 
-                <th style={{ width: 160 }}>Thao tác</th>
+                <th
+                  style={{
+                    width: 180,
+                    textAlign: "right", // căn phải giống màn TicketSubjectTemplates
+                    paddingRight: 10,
+                  }}
+                >
+                  Thao tác
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -734,10 +737,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
 
               {rules.length === 0 && !loading && (
                 <tr>
-                  <td
-                    colSpan={5}
-                    style={{ textAlign: "center", padding: 14 }}
-                  >
+                  <td colSpan={5} style={{ textAlign: "center", padding: 14 }}>
                     Chưa có rule ưu tiên nào.
                   </td>
                 </tr>

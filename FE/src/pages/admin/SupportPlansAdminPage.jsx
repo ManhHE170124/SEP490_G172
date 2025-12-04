@@ -573,11 +573,12 @@ export default function SupportPlansAdminPage() {
             <div className="left">
               <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
               <p className="muted">
-                Quản lý các gói hỗ trợ (Standard, Priority, VIP...) mà khách hàng
-                có thể đăng ký. Mỗi <b>mức ưu tiên</b> (PriorityLevel) chỉ có tối
-                đa <b>1 gói đang hoạt động</b> tại một thời điểm. Hệ thống cũng kiểm
-                tra thêm quy tắc về <b>thứ tự giá</b> giữa các mức ưu tiên
-                (gói ở level cao hơn phải có giá cao hơn level thấp hơn).
+                Quản lý các gói hỗ trợ (Standard, Priority, VIP...) mà khách
+                hàng có thể đăng ký. Mỗi <b>mức ưu tiên</b> (PriorityLevel) chỉ
+                có tối đa <b>1 gói đang hoạt động</b> tại một thời điểm. Hệ
+                thống cũng kiểm tra thêm quy tắc về <b>thứ tự giá</b> giữa các
+                mức ưu tiên (gói ở level cao hơn phải có giá cao hơn level thấp
+                hơn).
               </p>
             </div>
           </div>
@@ -685,18 +686,22 @@ export default function SupportPlansAdminPage() {
                 <th style={{ width: 160 }}>Mức ưu tiên</th>
                 <th style={{ width: 160 }}>Giá gói</th>
                 <th style={{ width: 140 }}>Trạng thái</th>
-                <th style={{ width: 180 }}>Thao tác</th>
+                <th
+                  style={{
+                    width: 180,
+                    textAlign: "right",      // căn phải cho khớp nút
+                    paddingRight: 10,        // đẩy chữ sát về phía nút
+                  }}
+                >
+                  Thao tác
+                </th>
               </tr>
             </thead>
             <tbody>
               {plans.map((p) => (
                 <tr key={p.supportPlanId}>
                   <td>
-                    <EllipsisCell
-                      mono
-                      maxWidth={80}
-                      title={p.supportPlanId}
-                    >
+                    <EllipsisCell mono maxWidth={80} title={p.supportPlanId}>
                       {p.supportPlanId}
                     </EllipsisCell>
                   </td>
@@ -706,10 +711,7 @@ export default function SupportPlansAdminPage() {
                         <b>{p.name}</b>
                       </EllipsisCell>
                       {p.description && (
-                        <EllipsisCell
-                          maxWidth={260}
-                          title={p.description}
-                        >
+                        <EllipsisCell maxWidth={260} title={p.description}>
                           <span className="muted">{p.description}</span>
                         </EllipsisCell>
                       )}
