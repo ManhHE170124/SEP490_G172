@@ -20,35 +20,87 @@ public class AccountController : ControllerBase
     [Route("send-otp")]
     public async Task<IActionResult> SendOtp(SendOtpDto dto)
     {
-        var isExist = await _accountService.IsEmailExistsAsync(dto.Email);
-        if (isExist)
+        try
         {
-            return BadRequest("Email đã được sử dụng");
+            var isExist = await _accountService.IsEmailExistsAsync(dto.Email);
+            if (isExist)
+            {
+                return BadRequest(new { message = "Email đã được sử dụng" });
+            }
+            var response = await _accountService.SendOtpAsync(dto);
+            return Ok(new { message = response });
         }
-        var response = await _accountService.SendOtpAsync(dto);
-        return Ok(response);
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi gửi OTP", detail = ex.Message });
+        }
     }
 
     [HttpPost]
     [Route("verify-otp")]
     public async Task<IActionResult> VerifyOtp(VerifyOtpDto dto)
     {
-        var response = await _accountService.VerifyOtpAsync(dto);
-        return Ok(response);
+        try
+        {
+            var response = await _accountService.VerifyOtpAsync(dto);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi xác thực OTP", detail = ex.Message });
+        }
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterDto dto)                 
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        var response = await _accountService.RegisterAsync(dto);
-        return Ok(response);
+        try
+        {
+            var response = await _accountService.RegisterAsync(dto);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi đăng ký tài khoản", detail = ex.Message });
+        }
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginDto dto)                       
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
-        var response = await _accountService.LoginAsync(dto);
-        return Ok(response);
+        try
+        {
+            var response = await _accountService.LoginAsync(dto);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi đăng nhập", detail = ex.Message });
+        }
     }
 
     [Authorize]
@@ -111,28 +163,76 @@ public class AccountController : ControllerBase
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
-        var response = await _accountService.ForgotPasswordAsync(dto);
-        return Ok(new { message = response });
+        try
+        {
+            var response = await _accountService.ForgotPasswordAsync(dto);
+            return Ok(new { message = response });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi gửi yêu cầu đặt lại mật khẩu", detail = ex.Message });
+        }
     }
 
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
     {
-        await _accountService.ResetPasswordAsync(dto);
-        return Ok(new { message = "Đặt lại mật khẩu thành công" });
+        try
+        {
+            await _accountService.ResetPasswordAsync(dto);
+            return Ok(new { message = "Đặt lại mật khẩu thành công" });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi đặt lại mật khẩu", detail = ex.Message });
+        }
     }
 
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
     {
-        var response = await _accountService.RefreshTokenAsync(dto);
-        return Ok(response);
+        try
+        {
+            var response = await _accountService.RefreshTokenAsync(dto);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi làm mới token", detail = ex.Message });
+        }
     }
 
     [HttpPost("revoke-token")]
     public async Task<IActionResult> RevokeToken([FromBody] RevokeTokenDto dto)
     {
-        await _accountService.RevokeTokenAsync(dto);
-        return Ok(new { message = "Đăng xuất thành công" });
+        try
+        {
+            await _accountService.RevokeTokenAsync(dto);
+            return Ok(new { message = "Đăng xuất thành công" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi đăng xuất", detail = ex.Message });
+        }
     }
 }

@@ -1126,6 +1126,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasMaxLength(12)
                 .IsUnicode(false)
                 .HasDefaultValue("Active");
+            entity.Property(e => e.IsTemp).HasDefaultValue(false);
             entity.Property(e => e.TotalProductSpend).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
