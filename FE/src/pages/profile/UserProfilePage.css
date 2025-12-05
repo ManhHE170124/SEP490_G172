@@ -250,13 +250,23 @@
   max-width: 220px;
 }
 
-/* New grid-style filter layout for order history (inspired by code.html) */
-.profile-orders-filter-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
-  gap: 8px 12px;
+/* New grid-style filter layout for order history - 2 rows */
+.profile-orders-filter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.profile-orders-filter-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
   align-items: flex-end;
+}
+
+.profile-orders-filter-row:last-child {
+  grid-template-columns: 1fr 1fr 1fr auto;
 }
 
 .profile-filter-group {
@@ -266,13 +276,14 @@
 }
 
 .profile-filter-group--wide {
-  grid-column: span 2;
+  grid-column: span 1;
 }
 
 .profile-filter-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .profile-pagination {

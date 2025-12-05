@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { orderApi } from "../../services/orderApi";
+import useToast from "../../hooks/useToast";
+import ToastContainer from "../../components/Toast/ToastContainer";
 import "./OrderHistoryDetailPage.css";
 
 const formatDate = (value, fallback = "—") => {
@@ -31,24 +33,24 @@ const formatMoney = (value) => {
 
 const getStatusLabel = (status = "") => {
   const statusMap = {
-    pending: "Đang xử lý",
     paid: "Đã thanh toán",
-    failed: "Thất bại",
     cancelled: "Đã hủy",
   };
   const normalized = status.toString().toLowerCase().trim();
-  return statusMap[normalized] || status || "—";
+  // Chỉ hiển thị 2 trạng thái: Đã thanh toán và Đã hủy
+  if (normalized === "paid") return "Đã thanh toán";
+  if (normalized === "cancelled") return "Đã hủy";
+  // Mặc định là "Đã hủy" nếu không khớp
+  return "Đã hủy";
 };
 
 const getStatusTone = (status = "") => {
-  const text = status.toString().toLowerCase();
-  const successTokens = ["hoàn", "success", "complete", "done", "paid"];
-  const warningTokens = ["pending", "đang", "processing"];
-  const dangerTokens = ["hủy", "cancel", "failed", "lỗi", "cancelled"];
-  if (successTokens.some((token) => text.includes(token))) return "success";
-  if (warningTokens.some((token) => text.includes(token))) return "warning";
-  if (dangerTokens.some((token) => text.includes(token))) return "danger";
-  return "muted";
+  const text = status.toString().toLowerCase().trim();
+  // Chỉ có 2 trạng thái: Paid (success) và Cancelled (danger)
+  if (text === "paid") return "success";
+  if (text === "cancelled") return "danger";
+  // Mặc định là danger (Đã hủy)
+  return "danger";
 };
 
 const formatOrderNumber = (orderId, createdAt) => {
@@ -68,6 +70,9 @@ export default function OrderHistoryDetailPage() {
   const [modalData, setModalData] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Toast notification
+  const { toasts, removeToast, showError, showSuccess } = useToast();
 
   const loadOrder = useCallback(async () => {
     if (!id) {
@@ -110,7 +115,7 @@ export default function OrderHistoryDetailPage() {
         err?.response?.data?.message ||
         err?.message ||
         "Không thể tải thông tin tài khoản.";
-      alert(message);
+      showError("Lỗi", message);
     } finally {
       setModalLoading(false);
     }
@@ -123,7 +128,9 @@ export default function OrderHistoryDetailPage() {
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text).then(() => {
-      alert("Đã sao chép!");
+      showSuccess("Thành công", "Đã sao chép!");
+    }).catch(() => {
+      showError("Lỗi", "Không thể sao chép");
     });
   };
 
@@ -403,6 +410,9 @@ export default function OrderHistoryDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

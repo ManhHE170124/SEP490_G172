@@ -85,25 +85,21 @@ const formatMoney = (value) => {
 };
 
 const getStatusTone = (status = "") => {
-  const text = status.toString().toLowerCase();
-  const successTokens = ["hoàn", "success", "complete", "done", "paid"];
-  const warningTokens = ["pending", "đang", "processing"];
-  const dangerTokens = ["hủy", "cancel", "failed", "lỗi", "cancelled"];
-  if (successTokens.some((token) => text.includes(token))) return "success";
-  if (warningTokens.some((token) => text.includes(token))) return "warning";
-  if (dangerTokens.some((token) => text.includes(token))) return "danger";
-  return "muted";
+  const text = status.toString().toLowerCase().trim();
+  // Chỉ có 2 trạng thái: Paid (success) và Cancelled (danger)
+  if (text === "paid") return "success";
+  if (text === "cancelled") return "danger";
+  // Mặc định là danger (Đã hủy)
+  return "danger";
 };
 
 const getStatusLabel = (status = "") => {
-  const statusMap = {
-    pending: "Đang xử lý",
-    paid: "Đã thanh toán",
-    failed: "Thất bại",
-    cancelled: "Đã hủy",
-  };
   const normalized = status.toString().toLowerCase().trim();
-  return statusMap[normalized] || status || "—";
+  // Chỉ hiển thị 2 trạng thái: Đã thanh toán và Đã hủy
+  if (normalized === "paid") return "Đã thanh toán";
+  if (normalized === "cancelled") return "Đã hủy";
+  // Mặc định là "Đã hủy" nếu không khớp
+  return "Đã hủy";
 };
 
 const InlineNotice = ({ notice }) => {
@@ -742,7 +738,7 @@ const UserProfilePage = () => {
               handleViewOrderDetail(orderId);
             }}
           >
-            Xem chi tiết
+           Chi tiết
           </a>
         </td>
       </tr>
@@ -980,112 +976,115 @@ const UserProfilePage = () => {
                 Hiển thị các đơn hàng sản phẩm bạn đã mua.
               </div>
 
-              <div className="profile-orders-filter-grid">
-                <div className="profile-filter-group profile-filter-group--wide">
-                  <label className="profile-label" htmlFor="orderKeyword">
-                    Tìm kiếm theo mã đơn hàng
-                  </label>
-                  <input
-                    id="orderKeyword"
-                    className="profile-input"
-                    name="keyword"
-                    placeholder="VD: ORD-20250101-ABCD"
-                    value={orderKeywordInput}
-                    onChange={handleOrderFilterChange}
-                  />
+              <div className="profile-orders-filter-container">
+                <div className="profile-orders-filter-row">
+                  <div className="profile-filter-group profile-filter-group--wide">
+                    <label className="profile-label" htmlFor="orderKeyword">
+                      Tìm kiếm theo mã đơn hàng
+                    </label>
+                    <input
+                      id="orderKeyword"
+                      className="profile-input"
+                      name="keyword"
+                      placeholder="VD: ORD-20250101-ABCD"
+                      value={orderKeywordInput}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="fromDate">
+                      Từ ngày
+                    </label>
+                    <input
+                      id="fromDate"
+                      className="profile-input"
+                      type="date"
+                      name="fromDate"
+                      value={orderFilters.fromDate}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="toDate">
+                      Đến ngày
+                    </label>
+                    <input
+                      id="toDate"
+                      className="profile-input"
+                      type="date"
+                      name="toDate"
+                      value={orderFilters.toDate}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
                 </div>
 
-                <div className="profile-filter-group">
-                  <label className="profile-label" htmlFor="minAmount">
-                    Số tiền từ
-                  </label>
-                  <input
-                    id="minAmount"
-                    className="profile-input"
-                    type="number"
-                    name="minAmount"
-                    placeholder="Tối thiểu"
-                    value={orderFilters.minAmount}
-                    onChange={handleOrderFilterChange}
-                  />
-                </div>
+                <div className="profile-orders-filter-row">
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="minAmount">
+                      Số tiền từ
+                    </label>
+                    <input
+                      id="minAmount"
+                      className="profile-input"
+                      type="number"
+                      name="minAmount"
+                      placeholder="Tối thiểu"
+                      value={orderFilters.minAmount}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
 
-                <div className="profile-filter-group">
-                  <label className="profile-label" htmlFor="maxAmount">
-                    Số tiền đến
-                  </label>
-                  <input
-                    id="maxAmount"
-                    className="profile-input"
-                    type="number"
-                    name="maxAmount"
-                    placeholder="Tối đa"
-                    value={orderFilters.maxAmount}
-                    onChange={handleOrderFilterChange}
-                  />
-                </div>
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="maxAmount">
+                      Số tiền đến
+                    </label>
+                    <input
+                      id="maxAmount"
+                      className="profile-input"
+                      type="number"
+                      name="maxAmount"
+                      placeholder="Tối đa"
+                      value={orderFilters.maxAmount}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
 
-                <div className="profile-filter-group">
-                  <label className="profile-label" htmlFor="fromDate">
-                    Từ ngày
-                  </label>
-                  <input
-                    id="fromDate"
-                    className="profile-input"
-                    type="date"
-                    name="fromDate"
-                    value={orderFilters.fromDate}
-                    onChange={handleOrderFilterChange}
-                  />
-                </div>
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="status">
+                      Trạng thái
+                    </label>
+                    <select
+                      id="status"
+                      className="profile-input"
+                      name="status"
+                      value={orderFilters.status}
+                      onChange={handleOrderFilterChange}
+                    >
+                      <option value="all">Tất cả</option>
+                      <option value="Paid">Đã thanh toán</option>
+                      <option value="Cancelled">Đã hủy</option>
+                    </select>
+                  </div>
 
-                <div className="profile-filter-group">
-                  <label className="profile-label" htmlFor="toDate">
-                    Đến ngày
-                  </label>
-                  <input
-                    id="toDate"
-                    className="profile-input"
-                    type="date"
-                    name="toDate"
-                    value={orderFilters.toDate}
-                    onChange={handleOrderFilterChange}
-                  />
-                </div>
-
-                <div className="profile-filter-group">
-                  <label className="profile-label" htmlFor="status">
-                    Trạng thái
-                  </label>
-                  <select
-                    id="status"
-                    className="profile-input"
-                    name="status"
-                    value={orderFilters.status}
-                    onChange={handleOrderFilterChange}
-                  >
-                    <option value="all">Tất cả</option>
-                    <option value="Pending">Đang xử lý</option>
-                    <option value="Paid">Đã thanh toán</option>
-                    <option value="Cancelled">Đã hủy</option>
-                  </select>
-                </div>
-
-                <div className="profile-filter-actions">
-                  <button
-                    type="button"
-                    className="profile-btn"
-                    disabled={orderLoading}
-                    onClick={() => {
-                      setOrderFilters(INITIAL_ORDER_FILTERS);
-                      setOrderKeywordInput("");
-                      setOrderPage(1);
-                      setOrderSortBy(null); // TH1: không sort
-                      setOrderSortDir(null);
-                    }}
-                  >
-                    Đặt lại
-                  </button>
+                  <div className="profile-filter-actions">
+                    <button
+                      type="button"
+                      className="profile-btn"
+                      disabled={orderLoading}
+                      onClick={() => {
+                        setOrderFilters(INITIAL_ORDER_FILTERS);
+                        setOrderKeywordInput("");
+                        setOrderPage(1);
+                        setOrderSortBy(null); 
+                        setOrderSortDir(null);
+                      }}
+                    >
+                      Đặt lại
+                    </button>
+                  </div>
                 </div>
               </div>
 
