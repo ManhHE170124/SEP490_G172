@@ -197,7 +197,7 @@ public class AccountService : IAccountService
             // Increment failed login count
             account.FailedLoginCount++;
 
-            // Lock account after 5 failed attempts for 15 minutes
+            // Lock account after 5 failed attempts within 15 minutes
             if (account.FailedLoginCount >= 5)
             {
                 account.LockedUntil = _clock.UtcNow.AddMinutes(15);
