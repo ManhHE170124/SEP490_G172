@@ -1,4 +1,5 @@
-﻿using System;
+﻿// Keytietkiem/DTOs/Orders/OrderDtos.cs
+using System;
 using System.Collections.Generic;
 
 namespace Keytietkiem.DTOs.Orders
@@ -30,7 +31,7 @@ namespace Keytietkiem.DTOs.Orders
     }
 
     /// <summary>
-    /// Full Order DTO for Order Detail page
+    /// Full Order DTO for Order Detail page (read-only)
     /// </summary>
     public class OrderDTO
     {
@@ -50,15 +51,16 @@ namespace Keytietkiem.DTOs.Orders
         public decimal TotalAmount { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal? FinalAmount { get; set; }
-        public string Status { get; set; } = null!;
+
         public DateTime CreatedAt { get; set; }
 
         public List<OrderDetailDTO> OrderDetails { get; set; } = new();
-        // Không embed danh sách payments nữa vì bảng Payments đã tách hoàn toàn
+        // Không embed danh sách payments vì bảng Payments đã tách hoàn toàn
+        // và Orders hiện chỉ đóng vai trò log immutable sau khi Payment Paid.
     }
 
     /// <summary>
-    /// Order List Item DTO for Order Management (Admin)
+    /// Order List Item DTO for Order Management (Admin) – read-only
     /// </summary>
     public class OrderListItemDTO
     {
@@ -73,15 +75,13 @@ namespace Keytietkiem.DTOs.Orders
 
         public decimal TotalAmount { get; set; }
         public decimal? FinalAmount { get; set; }
-        public string Status { get; set; } = null!;
+
         public DateTime CreatedAt { get; set; }
         public int ItemCount { get; set; }
-
-        // Không còn PaymentStatus vì Orders không gắn Payment nữa
     }
 
     /// <summary>
-    /// Order History Item DTO for Order History (User)
+    /// Order History Item DTO for Order History (User) – read-only
     /// </summary>
     public class OrderHistoryItemDTO
     {
@@ -95,65 +95,10 @@ namespace Keytietkiem.DTOs.Orders
 
         public decimal TotalAmount { get; set; }
         public decimal? FinalAmount { get; set; }
-        public string Status { get; set; } = null!;
+
         public DateTime CreatedAt { get; set; }
         public int ItemCount { get; set; }
 
         public List<string> ProductNames { get; set; } = new();
-        // Không còn PaymentStatus
-    }
-
-    /// <summary>
-    /// DTO dùng chung cho tạo đơn (admin hoặc storefront) – 
-    /// ĐỐI VỚI LUỒNG CHECKOUT, Status sẽ bị BỎ QUA và luôn tạo "Pending".
-    /// </summary>
-    public class CreateOrderDTO
-    {
-        public Guid? UserId { get; set; }
-
-        // Email bắt buộc
-        public string Email { get; set; } = null!;
-
-        public decimal TotalAmount { get; set; }
-        public decimal DiscountAmount { get; set; } = 0;
-
-        // Giữ lại cho admin, nhưng khi checkout sẽ không dùng giá trị client gửi lên
-        public string Status { get; set; } = "Pending";
-
-        public List<CreateOrderDetailDTO> OrderDetails { get; set; } = new();
-    }
-
-    /// <summary>
-    /// DTO for creating order detail
-    /// </summary>
-    public class CreateOrderDetailDTO
-    {
-        // VariantId
-        public Guid VariantId { get; set; }
-
-        public int Quantity { get; set; }
-        public decimal UnitPrice { get; set; }
-
-        // LUỒNG CHECKOUT: chưa gắn Key, logic gắn key xử lý sau khi thanh toán thành công
-        public Guid? KeyId { get; set; }
-    }
-
-    /// <summary>
-    /// DTO for updating an order
-    /// </summary>
-    public class UpdateOrderDTO
-    {
-        public string Status { get; set; } = null!;
-        public decimal? DiscountAmount { get; set; }
-    }
-
-    /// <summary>
-    /// DTO trả về cho FE khi gọi /api/orders/checkout
-    /// (hiện tại mày đang trả { orderId } anonymous, có thể dùng DTO này sau nếu muốn).
-    /// </summary>
-    public class CheckoutOrderResponseDTO
-    {
-        public Guid OrderId { get; set; }
-        public string PaymentUrl { get; set; } = null!;
     }
 }

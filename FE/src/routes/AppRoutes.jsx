@@ -80,9 +80,18 @@ import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-manag
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import StaffSupportChatPage from "../pages/admin/staff-support-chat";
 
+// Subscription (Support Plan)
+import SupportPlanSubscriptionPage from "../pages/subscription/SupportPlanSubscriptionPage.jsx";
+
 // Product Report Pages
 import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";
 import ProductReportDetailPage from "../pages/report/ProductReportDetailPage.jsx";
+
+import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyaltyRulesPage.jsx";
+import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
+import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplatesAdminPage.jsx";
+import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
+
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -372,7 +381,7 @@ export default function AppRoutes() {
         )}
       />
       <Route
-        path="/admin-user-management"
+        path="/admin/users"
         element={renderAdminPage(
           MODULE_CODES.USER_MANAGER,
           <AdminUserManagement />
@@ -526,13 +535,69 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
+      {/* Support plan subscription (gói hỗ trợ) */}
+      <Route
+        path="/support/subscription"
+        element={
+          <ClientLayout>
+            <SupportPlanSubscriptionPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/admin/support-priority-loyalty-rules"
+        element={
+          <AdminLayout>
+            <SupportPriorityLoyaltyRulesPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/support-plans"
+        element={
+          <AdminLayout>
+            <SupportPlansAdminPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/sla-rules"
+        element={
+          <AdminLayout>
+            <SlaRulesAdminPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/ticket-subject-templates"
+        element={
+          <AdminLayout>
+            <TicketSubjectTemplatesAdminPage />
+          </AdminLayout>
+        }
+      />
+
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
-      <Route path="/payment-cancel" element={<ClientLayout><PaymentCancelPage /></ClientLayout>} />
-      <Route path="/payment-result" element={<ClientLayout><PaymentResultPage /></ClientLayout>} />
+      <Route
+        path="/cart/payment-cancel"
+        element={
+          <ClientLayout>
+            <PaymentCancelPage />
+          </ClientLayout>
+        }
+      />
+      <Route
+        path="/cart/payment-result"
+        element={
+          <ClientLayout>
+            <PaymentResultPage />
+          </ClientLayout>
+        }
+      />
       <Route
         path="/homepage"
         element={

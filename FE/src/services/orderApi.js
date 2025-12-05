@@ -1,5 +1,4 @@
-// services/orderApi.js
-
+// services/orderApi.js 
 import axiosClient from "../api/axiosClient";
 
 const END = {
@@ -9,8 +8,8 @@ const END = {
 
 export const orderApi = {
   /**
-   * List all orders (admin) - filtering done in FE
-   * @returns {Promise} Axios response with list of OrderListItemDTO
+   * List all orders (admin) - sorting ở BE
+   * params: sortBy, sortDir
    */
   list: (params) => {
     return axiosClient.get(END.ORDERS, { params });
@@ -31,16 +30,14 @@ export const orderApi = {
     });
   },
 
+  /**
+   * Xem chi tiết 1 đơn (OrderDTO)
+   */
   get: (id) => axiosClient.get(`${END.ORDERS}/${id}`),
 
-  create: (data) => axiosClient.post(END.ORDERS, data),
-
-  update: (id, data) => axiosClient.put(`${END.ORDERS}/${id}`, data),
-
-  delete: (id) => axiosClient.delete(`${END.ORDERS}/${id}`),
-
-  cancel: (id) => axiosClient.post(`${END.ORDERS}/${id}/cancel`),
-
+  /**
+   * Chỉ lấy phần chi tiết items của 1 đơn
+   */
   getDetails: (id) => axiosClient.get(`${END.ORDERS}/${id}/details`),
 
   getDetailCredentials: (orderId, orderDetailId) =>

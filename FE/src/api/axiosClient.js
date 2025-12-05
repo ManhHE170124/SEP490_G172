@@ -15,6 +15,8 @@ console.log("[axiosClient] baseURL =", baseURL);
 const axiosClient = axios.create({
   baseURL,
   timeout: 15000,
+  // 🟢 BẮT BUỘC: cho phép gửi/nhận cookie (ktk_anon_cart) cho guest cart
+  withCredentials: true,
   headers: { "Content-Type": "application/json" },
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: "repeat" }),
 });

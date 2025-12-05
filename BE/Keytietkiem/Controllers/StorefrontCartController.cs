@@ -1,17 +1,20 @@
 ﻿// Keytietkiem/Controllers/StorefrontCartController.cs
 using Keytietkiem.DTOs.Cart;
 using Keytietkiem.DTOs.Orders;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mail;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
 
 namespace Keytietkiem.Controllers
@@ -25,43 +28,50 @@ namespace Keytietkiem.Controllers
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IMemoryCache _cache;
         private readonly IAccountService _accountService;
+        private readonly PayOSService _payOs;
+        private readonly IConfiguration _config;
 
-        private static readonly TimeSpan CartTtl = TimeSpan.FromMinutes(60);
+        // TTL dài hơn cho user đã đăng nhập, ngắn hơn cho guest
+        private static readonly TimeSpan AuthenticatedCartTtl = TimeSpan.FromDays(7);
+        private static readonly TimeSpan AnonymousCartTtl = TimeSpan.FromHours(1);
+
+        // TTL cho snapshot cart gắn với 1 Payment (dữ liệu ẩn, không hiển thị ra)
+        // Khớp yêu cầu: sau ~5 phút không thanh toán thì coi như hết hạn.
+        private static readonly TimeSpan CartPaymentSnapshotTtl = TimeSpan.FromMinutes(5);
+
+        private const string AnonymousCartCookieName = "ktk_anon_cart";
 
         public StorefrontCartController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
             IMemoryCache cache,
-            IAccountService accountService)
+            IAccountService accountService,
+            PayOSService payOs,
+            IConfiguration config)
         {
             _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
             _accountService = accountService ?? throw new ArgumentNullException(nameof(accountService));
+            _payOs = payOs ?? throw new ArgumentNullException(nameof(payOs));
+            _config = config ?? throw new ArgumentNullException(nameof(config));
         }
 
         // ===== GET: /apistorefront/cart =====
+        // Áp dụng cho cả guest và user đã đăng nhập
         [HttpGet]
         public ActionResult<StorefrontCartDto> GetCart()
         {
-            var userId = GetCurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized(new { message = "User must be logged in to use server-side cart." });
-            }
-
-            var cart = GetOrCreateCart(userId.Value);
+            var (cacheKey, _, isAuthenticated) = GetCartContext();
+            var cart = GetOrCreateCart(cacheKey, isAuthenticated);
             return Ok(ToDto(cart));
         }
 
         // ===== POST: /apistorefront/cart/items =====
         // Body: { "variantId": "...", "quantity": 1 }
+        // Áp dụng cho cả guest và user đã đăng nhập
         [HttpPost("items")]
         public async Task<ActionResult<StorefrontCartDto>> AddItem([FromBody] AddToCartRequestDto dto)
         {
-            var userId = GetCurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized(new { message = "User must be logged in to use server-side cart." });
-            }
+            var (cacheKey, _, isAuthenticated) = GetCartContext();
 
             if (dto == null || dto.VariantId == Guid.Empty)
             {
@@ -100,7 +110,7 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            // Trừ tồn kho
+            // Trừ tồn kho NGAY trong DB
             variant.StockQty -= addQty;
             if (variant.StockQty < 0) variant.StockQty = 0;
             // nếu có UpdatedAt:
@@ -109,7 +119,7 @@ namespace Keytietkiem.Controllers
             await db.SaveChangesAsync();
 
             // Cập nhật cart trong cache
-            var cart = GetOrCreateCart(userId.Value);
+            var cart = GetOrCreateCart(cacheKey, isAuthenticated);
             var existing = cart.Items.FirstOrDefault(i => i.VariantId == variant.VariantId);
 
             if (existing == null)
@@ -135,28 +145,75 @@ namespace Keytietkiem.Controllers
                 existing.Quantity += addQty;
             }
 
-            SaveCart(userId.Value, cart);
+            SaveCart(cacheKey, cart, isAuthenticated);
 
             return Ok(ToDto(cart));
         }
 
+        // ===== POST: /apistorefront/cart/checkout =====
+        // Flow:
+        //  - Tính tiền từ cart.
+        //  - Gọi PayOS để lấy checkoutUrl.
+        //  - Lưu snapshot cart (ẩn) vào cache key theo PaymentId.
+        //  - Xoá cart đang hiển thị (cache cart theo user/anon).
+        //  - Trả về PaymentId + PaymentUrl cho FE redirect.
         [HttpPost("checkout")]
         public async Task<ActionResult<CartCheckoutResultDto>> Checkout()
         {
-            var userId = GetCurrentUserId();
+            var (cartCacheKey, userId, isAuthenticated) = GetCartContext();
 
-            var cart = GetOrCreateCart(userId.Value);
+            var cart = GetOrCreateCart(cartCacheKey, isAuthenticated);
             if (cart.Items == null || cart.Items.Count == 0)
                 return BadRequest(new { message = "Giỏ hàng đang trống." });
 
-            var email = GetCurrentUserEmail() ?? cart.ReceiverEmail;
-            if (string.IsNullOrWhiteSpace(email))
-                return BadRequest(new { message = "Email nhận hàng không được để trống." });
+            // ===== Lấy email =====
+            string email;
+
+            if (isAuthenticated && userId.HasValue)
+            {
+                // Ưu tiên email trong JWT claims
+                email = GetCurrentUserEmail() ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    // Fallback: lấy từ DB Users
+                    await using var dbLookup = await _dbFactory.CreateDbContextAsync();
+                    var user = await dbLookup.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.UserId == userId.Value);
+
+                    email = user?.Email ?? string.Empty;
+                }
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Tài khoản hiện tại chưa có email. Vui lòng cập nhật email trước khi thanh toán."
+                    });
+                }
+            }
+            else
+            {
+                // Guest bắt buộc phải set ReceiverEmail
+                email = (cart.ReceiverEmail ?? string.Empty).Trim();
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    return BadRequest(new { message = "Email nhận hàng không được để trống." });
+                }
+
+                if (!IsValidEmail(email))
+                {
+                    return BadRequest(new { message = "Email nhận hàng không hợp lệ." });
+                }
+            }
 
             email = email.Trim();
             if (email.Length > 254)
                 email = email[..254]; // tránh lỗi truncate nvarchar(254)
 
+            // ===== Tính tiền từ cart =====
             decimal totalListAmount = 0m;
             decimal totalAmount = 0m;
 
@@ -174,95 +231,121 @@ namespace Keytietkiem.Controllers
                 totalAmount += unitPrice * qty;     // giá sau giảm
             }
 
-            var discountAmount = totalListAmount - totalAmount;
-            if (discountAmount < 0) discountAmount = 0;
+            if (totalAmount <= 0)
+            {
+                return BadRequest(new { message = "Số tiền thanh toán không hợp lệ." });
+            }
 
-            // Round về 2 số lẻ cho khớp decimal(12,2) của Orders
+            // Round về 2 số lẻ (decimal(12,2)/decimal(18,2))
             totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
             totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
-            discountAmount = Math.Round(discountAmount, 2, MidpointRounding.AwayFromZero);
 
-            // If user is not logged in, check if email exists and create temp user if needed
-            
-            if (!userId.HasValue)
-            { 
-                var user = await _accountService.GetUserAsync(email);
+            // ===== Tạo Payment Pending trong DB + gọi PayOS =====
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            using var tx = await db.Database.BeginTransactionAsync();
+
+            // Sử dụng UnixTimeSeconds làm orderCode (unique int)
+            var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
+
+            var payment = new Payment
+            {
+                Amount = totalAmount,
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow,
+                Provider = "PayOS",
+                ProviderOrderCode = orderCode,
+                Email = email,
+                TransactionType = "ORDER_PAYMENT"
+            };
+
+            db.Payments.Add(payment);
+            await db.SaveChangesAsync();
+
+            var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/')
+                                  ?? "https://keytietkiem.com";
+
+            // Trang kết quả / cancel FE sẽ đọc paymentId để hiển thị thông báo, redirect tiếp
+            var returnUrl = $"{frontendBaseUrl}/cart/payment-result?paymentId={payment.PaymentId}";
+            var cancelUrl = $"{frontendBaseUrl}/cart/payment-cancel?paymentId={payment.PaymentId}";
+
+            string buyerName = email;
+            string buyerPhone = string.Empty;
+
+            if (isAuthenticated && userId.HasValue)
+            {
+                var user = await db.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.UserId == userId.Value);
+
                 if (user != null)
                 {
-                    userId = user.UserId;
-                }
-                else
-                {
-                    userId = (await _accountService.CreateTempUserAsync(email)).UserId;
+                    buyerName = string.IsNullOrWhiteSpace(user.FullName)
+                        ? (user.Email ?? buyerName)
+                        : user.FullName!;
+                    buyerPhone = user.Phone ?? string.Empty;
                 }
             }
 
-            try
+            var amountInt = (int)Math.Round(totalAmount, 0, MidpointRounding.AwayFromZero);
+
+            // Description encode PaymentId (không cần decode, chỉ để trace)
+            var description = EncodeCartPaymentDescription(payment.PaymentId);
+
+            var paymentUrl = await _payOs.CreatePayment(
+                orderCode,
+                amountInt,
+                description,
+                returnUrl,
+                cancelUrl,
+                buyerPhone,
+                buyerName,
+                email
+            );
+
+            await tx.CommitAsync();
+
+            // ===== Lưu snapshot cart theo PaymentId (ẩn, không hiển thị) =====
+            var itemsSnapshot = cart.Items
+                .Select(i => new StorefrontCartItemDto
+                {
+                    VariantId = i.VariantId,
+                    ProductId = i.ProductId,
+                    ProductName = i.ProductName,
+                    ProductType = i.ProductType,
+                    VariantTitle = i.VariantTitle,
+                    Thumbnail = i.Thumbnail,
+                    Quantity = i.Quantity,
+                    ListPrice = i.ListPrice,
+                    UnitPrice = i.UnitPrice
+                })
+                .ToList();
+
+            var itemsKey = GetCartPaymentItemsCacheKey(payment.PaymentId);
+            var metaKey = GetCartPaymentMetaCacheKey(payment.PaymentId);
+
+            var snapshotOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(CartPaymentSnapshotTtl);
+
+            // Lưu danh sách item + meta (userId / email) – không hiển thị ra FE
+            _cache.Set(itemsKey, itemsSnapshot, snapshotOptions);
+            _cache.Set(metaKey, (UserId: userId, Email: email), snapshotOptions);
+
+            // ===== Clear cart hiển thị (KHÔNG hoàn kho) =====
+            // Tồn kho đã bị trừ khi AddItem/UpdateItem; nếu payment cancel/expire,
+            // PayOS webhook sẽ gọi logic hoàn kho dựa trên snapshot.
+            _cache.Remove(cartCacheKey);
+
+            var result = new CartCheckoutResultDto
             {
-                await using var db = await _dbFactory.CreateDbContextAsync();
+                PaymentId = payment.PaymentId,
+                PaymentStatus = payment.Status ?? "Pending",
+                Amount = payment.Amount,
+                Email = payment.Email,
+                CreatedAt = payment.CreatedAt,
+                PaymentUrl = paymentUrl
+            };
 
-                //  - TotalAmount  = tổng giá niêm yết (totalListAmount)
-                //  - DiscountAmount = tổng giảm giá
-                //  - FinalAmount  = tổng giá sau giảm (totalAmount)
-                var order = new Order
-                {
-                    UserId = userId.Value,
-                    Email = email,
-                    TotalAmount = totalListAmount,
-                    DiscountAmount = discountAmount,
-                    FinalAmount = totalAmount,
-                    Status = "Pending",
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                db.Orders.Add(order);
-                await db.SaveChangesAsync();
-
-                foreach (var item in cart.Items)
-                {
-                    if (item.Quantity <= 0) continue;
-
-                    var detail = new OrderDetail
-                    {
-                        OrderId = order.OrderId,
-                        VariantId = item.VariantId,
-                        Quantity = item.Quantity,
-                        UnitPrice = item.UnitPrice
-                    };
-
-                    db.OrderDetails.Add(detail);
-                }
-
-                await db.SaveChangesAsync();
-
-                // Clear cart (không hoàn kho ở đây vì đã trừ khi AddItem)
-                var cacheKey = GetCacheKey(userId.Value);
-                _cache.Remove(cacheKey);
-
-                var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
-
-                var result = new CartCheckoutResultDto
-                {
-                    OrderId = order.OrderId,
-                    OrderStatus = order.Status,
-                    TotalAmount = order.TotalAmount,
-                    DiscountAmount = order.DiscountAmount,
-                    FinalAmount = finalAmount,
-                    Email = order.Email,
-                    CreatedAt = order.CreatedAt
-                };
-
-                return Ok(result);
-            }
-            catch (DbUpdateException ex)
-            {
-                // Trong môi trường dev, trả full detail ra FE để biết constraint nào lỗi
-                return StatusCode(500, new
-                {
-                    message = "Lỗi khi tạo đơn hàng.",
-                    detail = ex.InnerException?.Message ?? ex.Message
-                });
-            }
+            return Ok(result);
         }
 
         // ===== PUT: /apistorefront/cart/items/{variantId} =====
@@ -272,11 +355,7 @@ namespace Keytietkiem.Controllers
             Guid variantId,
             [FromBody] UpdateCartItemRequestDto dto)
         {
-            var userId = GetCurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized(new { message = "User must be logged in to use server-side cart." });
-            }
+            var (cacheKey, _, isAuthenticated) = GetCartContext();
 
             if (dto == null)
             {
@@ -288,7 +367,7 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Quantity must be greater than or equal to 0." });
             }
 
-            var cart = GetOrCreateCart(userId.Value);
+            var cart = GetOrCreateCart(cacheKey, isAuthenticated);
             var item = cart.Items.FirstOrDefault(i => i.VariantId == variantId);
 
             if (item == null)
@@ -358,7 +437,7 @@ namespace Keytietkiem.Controllers
                 item.Quantity = newQty;
             }
 
-            SaveCart(userId.Value, cart);
+            SaveCart(cacheKey, cart, isAuthenticated);
 
             return Ok(ToDto(cart));
         }
@@ -367,13 +446,9 @@ namespace Keytietkiem.Controllers
         [HttpDelete("items/{variantId:guid}")]
         public async Task<ActionResult<StorefrontCartDto>> RemoveItem(Guid variantId)
         {
-            var userId = GetCurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized(new { message = "User must be logged in to use server-side cart." });
-            }
+            var (cacheKey, _, isAuthenticated) = GetCartContext();
 
-            var cart = GetOrCreateCart(userId.Value);
+            var cart = GetOrCreateCart(cacheKey, isAuthenticated);
             var item = cart.Items.FirstOrDefault(i => i.VariantId == variantId);
 
             if (item != null)
@@ -395,7 +470,7 @@ namespace Keytietkiem.Controllers
                 }
 
                 cart.Items.Remove(item);
-                SaveCart(userId.Value, cart);
+                SaveCart(cacheKey, cart, isAuthenticated);
             }
 
             return Ok(ToDto(cart));
@@ -406,21 +481,17 @@ namespace Keytietkiem.Controllers
         [HttpPut("receiver-email")]
         public ActionResult<StorefrontCartDto> SetReceiverEmail([FromBody] SetCartReceiverEmailRequestDto dto)
         {
-            var userId = GetCurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized(new { message = "User must be logged in to use server-side cart." });
-            }
+            var (cacheKey, _, isAuthenticated) = GetCartContext();
 
             if (dto == null || string.IsNullOrWhiteSpace(dto.ReceiverEmail))
             {
                 return BadRequest(new { message = "ReceiverEmail is required." });
             }
 
-            var cart = GetOrCreateCart(userId.Value);
+            var cart = GetOrCreateCart(cacheKey, isAuthenticated);
             cart.ReceiverEmail = dto.ReceiverEmail.Trim();
 
-            SaveCart(userId.Value, cart);
+            SaveCart(cacheKey, cart, isAuthenticated);
 
             return Ok(ToDto(cart));
         }
@@ -429,17 +500,13 @@ namespace Keytietkiem.Controllers
         [HttpDelete]
         public async Task<IActionResult> ClearCart([FromQuery] bool skipRestoreStock = false)
         {
-            var userId = GetCurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized(new { message = "User must be logged in to use server-side cart." });
-            }
+            var (cacheKey, _, isAuthenticated) = GetCartContext();
 
-            var cart = GetOrCreateCart(userId.Value);
+            var cart = GetOrCreateCart(cacheKey, isAuthenticated);
 
             // Nếu KHÔNG skipRestoreStock => hoàn kho như cũ (dùng cho nút "Xoá giỏ hàng").
-            // Nếu skipRestoreStock = true (dùng sau khi tạo Order từ cart) => KHÔNG hoàn kho nữa,
-            // vì tồn kho đã bị trừ ngay lúc AddItem/UpdateItem và sẽ chỉ cộng lại nếu đơn bị Cancel.
+            // Nếu skipRestoreStock = true (dùng sau khi tạo Payment từ cart) => KHÔNG hoàn kho nữa,
+            // vì tồn kho đã bị trừ ngay lúc AddItem/UpdateItem và sẽ chỉ cộng lại nếu thanh toán bị Cancel.
             if (!skipRestoreStock && cart.Items.Any())
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
@@ -466,12 +533,10 @@ namespace Keytietkiem.Controllers
                 await db.SaveChangesAsync();
             }
 
-            var cacheKey = GetCacheKey(userId.Value);
             _cache.Remove(cacheKey);
 
             return NoContent();
         }
-
 
         // ===== Helpers =====
 
@@ -492,13 +557,58 @@ namespace Keytietkiem.Controllers
             => User?.FindFirst(ClaimTypes.Email)?.Value
                ?? User?.FindFirst("email")?.Value;
 
-        private string GetCacheKey(Guid userId)
+        // Lấy context cart hiện tại:
+        //  - Nếu đã đăng nhập: dùng userId.
+        //  - Nếu chưa đăng nhập: dùng cookie ẩn ktk_anon_cart.
+        private (string CacheKey, Guid? UserId, bool IsAuthenticated) GetCartContext()
+        {
+            var userId = GetCurrentUserId();
+            if (userId.HasValue)
+            {
+                var key = GetUserCacheKey(userId.Value);
+                return (key, userId, true);
+            }
+
+            var anonId = GetOrCreateAnonymousCartId();
+            var anonKey = GetAnonymousCacheKey(anonId);
+            return (anonKey, null, false);
+        }
+
+        private string GetUserCacheKey(Guid userId)
             => $"cart:user:{userId:D}";
 
-        private CartCacheModel GetOrCreateCart(Guid userId)
-        {
-            var cacheKey = GetCacheKey(userId);
+        private string GetAnonymousCacheKey(string anonId)
+            => $"cart:anon:{anonId}";
 
+        private string GetOrCreateAnonymousCartId()
+        {
+            if (Request.Cookies.TryGetValue(AnonymousCartCookieName, out var existing) &&
+                !string.IsNullOrWhiteSpace(existing))
+            {
+                // Browser đã có cookie ktk_anon_cart -> dùng lại ID cũ
+                return existing;
+            }
+
+            var newId = Guid.NewGuid().ToString("N");
+
+            
+            var options = new CookieOptions
+            {
+                HttpOnly = true,
+                IsEssential = true,
+                SameSite = SameSiteMode.None,       
+                Secure = true,                      
+                Expires = DateTimeOffset.UtcNow.Add(AnonymousCartTtl)
+            };
+
+            Response.Cookies.Append(AnonymousCartCookieName, newId, options);
+            return newId;
+        }
+
+
+
+        private CartCacheModel GetOrCreateCart(string cacheKey, bool isAuthenticated)
+        {
             if (_cache.TryGetValue<CartCacheModel>(cacheKey, out var existing) && existing != null)
             {
                 return existing;
@@ -509,16 +619,16 @@ namespace Keytietkiem.Controllers
                 Items = new List<StorefrontCartItemDto>()
             };
 
-            SaveCart(userId, cart);
+            SaveCart(cacheKey, cart, isAuthenticated);
             return cart;
         }
 
-        private void SaveCart(Guid userId, CartCacheModel cart)
+        private void SaveCart(string cacheKey, CartCacheModel cart, bool isAuthenticated)
         {
-            var cacheKey = GetCacheKey(userId);
+            var ttl = isAuthenticated ? AuthenticatedCartTtl : AnonymousCartTtl;
 
             var options = new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(CartTtl);
+                .SetSlidingExpiration(ttl);
 
             _cache.Set(cacheKey, cart, options);
         }
@@ -551,6 +661,38 @@ namespace Keytietkiem.Controllers
                 AccountUserName = accountUserName,
                 AccountEmail = accountEmail
             };
+        }
+
+        private static string GetCartPaymentItemsCacheKey(Guid paymentId)
+            => $"cart:payment:{paymentId:D}:items";
+
+        private static string GetCartPaymentMetaCacheKey(Guid paymentId)
+            => $"cart:payment:{paymentId:D}:meta";
+
+        private static string EncodeCartPaymentDescription(Guid paymentId)
+        {
+            var bytes = paymentId.ToByteArray();
+
+            var base64 = Convert.ToBase64String(bytes)
+                .TrimEnd('=')          // bỏ padding
+                .Replace('+', '-')     // URL-safe
+                .Replace('/', '_');    // URL-safe
+
+            return "C" + base64;
+        }
+
+        private static bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new MailAddress(email);
+                // So khớp lại để tránh case address được normalize khác
+                return addr.Address.Equals(email, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private sealed class CartCacheModel

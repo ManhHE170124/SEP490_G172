@@ -6,9 +6,7 @@ import StorefrontProductApi from "../../services/storefrontProductService";
 import Toast from "../../components/Toast/Toast";
 import ConfirmDialog from "../../components/Toast/ConfirmDialog";
 import "./StorefrontCartPage.css";
-import GuestCartService from "../../services/guestCartService"; // NEW
-import StorefrontOrderApi from "../../services/storefrontOrderService";
-import StorefrontPaymentApi from "../../services/storefrontPaymentService";
+import GuestCartService from "../../services/guestCartService"; // guest wrapper (dùng API cart server-side)
 
 const formatCurrency = (value) => {
   if (value == null) return "0₫";
@@ -44,7 +42,7 @@ const StorefrontCartPage = () => {
   const [updatingItemId, setUpdatingItemId] = useState(null);
   const [updatingEmail, setUpdatingEmail] = useState(false);
   const [localEmail, setLocalEmail] = useState("");
-  const [checkingOut, setCheckingOut] = useState(false); // NEW
+  const [checkingOut, setCheckingOut] = useState(false);
 
   // Toast state
   const [toasts, setToasts] = useState([]);
@@ -102,13 +100,11 @@ const StorefrontCartPage = () => {
       if (customer) {
         // Đã đăng nhập -> cart server-side
         res = await StorefrontCartApi.getCart();
-
         const emailFromApi = res.accountEmail || res.receiverEmail || "";
         setLocalEmail(emailFromApi);
       } else {
-        // Guest -> cart frontend
-        res = GuestCartService.getCart();
-
+        // Guest -> cart server-side qua GuestCartService wrapper
+        res = await GuestCartService.getCart();
         const emailFromApi = res.receiverEmail || "";
         setLocalEmail(emailFromApi);
       }
@@ -136,7 +132,7 @@ const StorefrontCartPage = () => {
     try {
       const res = customer
         ? await StorefrontCartApi.removeItem(item.variantId)
-        : GuestCartService.removeItem(item.variantId);
+        : await GuestCartService.removeItem(item.variantId);
 
       setCart(res);
       addToast(
@@ -192,7 +188,7 @@ const StorefrontCartPage = () => {
     try {
       const res = customer
         ? await StorefrontCartApi.updateItem(item.variantId, newQty)
-        : GuestCartService.updateItem(item.variantId, newQty);
+        : await GuestCartService.updateItem(item.variantId, newQty);
 
       setCart(res);
     } catch (err) {
@@ -216,7 +212,7 @@ const StorefrontCartPage = () => {
     try {
       const res = customer
         ? await StorefrontCartApi.clearCart()
-        : GuestCartService.clearCart();
+        : await GuestCartService.clearCart();
 
       setCart(res);
       addToast("success", "Đã xoá giỏ hàng", "Toàn bộ sản phẩm đã được xoá.");
@@ -257,7 +253,7 @@ const StorefrontCartPage = () => {
       const trimmed = localEmail.trim();
       const res = customer
         ? await StorefrontCartApi.setReceiverEmail(trimmed)
-        : GuestCartService.setReceiverEmail(trimmed);
+        : await GuestCartService.setReceiverEmail(trimmed);
 
       setCart(res);
       addToast(
@@ -301,59 +297,43 @@ const StorefrontCartPage = () => {
 
     setCheckingOut(true);
     try {
-      let checkoutCart = cart;
-
-      if (customer) {
-        // User login: sync email nhận hàng lên server cart
-        await StorefrontCartApi.setReceiverEmail(effectiveEmail);
-        // cart server-side chỉ để hiển thị, không cần reload lại state
-      } else {
-        // Guest: lưu email vào guest cart local
-        GuestCartService.setReceiverEmail(effectiveEmail);
-        checkoutCart = GuestCartService.getCart();
-        setCart(checkoutCart);
+      // Với user đã đăng nhập: BE dùng email từ JWT/DB.
+      // Với guest: BE dùng cart.ReceiverEmail, nên cần sync email lên server.
+      if (!customer) {
+        await GuestCartService.setReceiverEmail(effectiveEmail);
       }
 
-      // Lấy userId nếu có (tùy cấu trúc user khi login)
-      const userId =
-        customer?.userId ?? customer?.userID ?? customer?.id ?? null;
+      // Gọi /api/storefront/cart/checkout:
+      //  - BE tính lại tiền,
+      //  - tạo Payment ORDER_CART (Pending),
+      //  - gọi PayOS lấy checkoutUrl,
+      //  - lưu snapshot cart,
+      //  - xoá cart hiển thị server-side.
+      const checkoutResult = await StorefrontCartApi.checkout();
 
-      // Bước 1: gọi /api/orders/checkout để tạo Order Pending
-      const { orderId } = await StorefrontOrderApi.checkoutFromCart({
-        userId,
-        email: effectiveEmail,
-        cart: checkoutCart,
-      });
-
-      // Bước 2: gọi /api/payments/payos/create để tạo Payment Pending + lấy PayOS checkoutUrl
-      const { paymentUrl } = await StorefrontPaymentApi.createPayOSPayment(
-        orderId
-      );
-
-      // Sau khi tạo Order + Payment thành công:
-      //  - clear cart
-      //  - KHÔNG trả stock về kho (vì stock đang gắn với Order)
-      if (customer) {
-        await StorefrontCartApi.clearCart({
-          skipRestoreStock: true,
-        });
-      } else {
-        GuestCartService.clearCart();
-      }
-
+      // StorefrontCartApi.checkout() đã bắn event cart rỗng,
+      // ở đây chỉ cần reset state local.
       setCart(null);
       setLocalEmail(effectiveEmail);
 
-      // Redirect sang trang thanh toán PayOS
-      window.location.href = paymentUrl;
+      if (checkoutResult.paymentUrl) {
+        // Redirect sang trang thanh toán PayOS
+        window.location.href = checkoutResult.paymentUrl;
+        return;
+      }
+
+      addToast(
+        "warning",
+        "Không nhận được link thanh toán",
+        "Phiên thanh toán đã được tạo nhưng thiếu URL. Vui lòng thử lại sau."
+      );
     } catch (err) {
       console.error("Checkout failed:", err);
       const serverMsg = err?.response?.data?.message;
       addToast(
         "error",
         "Thanh toán thất bại",
-        serverMsg ||
-          "Không thể tạo đơn hàng hoặc phiên thanh toán. Vui lòng thử lại."
+        serverMsg || "Không thể tạo phiên thanh toán. Vui lòng thử lại."
       );
     } finally {
       setCheckingOut(false);

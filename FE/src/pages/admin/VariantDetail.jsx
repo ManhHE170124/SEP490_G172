@@ -1,6 +1,6 @@
 import React from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ProductVariantsApi } from "../../services/productVariants";
+import ProductVariantsApi from "../../services/productVariants";
 import ProductSectionsPanel from "../admin/ProductSectionsPanel";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "../admin/admin.css";
@@ -134,7 +134,12 @@ export default function VariantDetail() {
         status: (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
         hasSections: v.hasSections ?? v.HasSections ?? false,
         sellPrice: v.sellPrice ?? v.SellPrice ?? 0,
-        listPrice: v.listPrice ?? v.ListPrice ?? v.cogsPrice ?? v.CogsPrice ?? 0,
+        listPrice:
+          v.listPrice ??
+          v.ListPrice ??
+          v.cogsPrice ??
+          v.CogsPrice ??
+          0,
         cogsPrice: v.cogsPrice ?? v.CogsPrice ?? 0, // giá vốn – chỉ hiển thị
       };
 

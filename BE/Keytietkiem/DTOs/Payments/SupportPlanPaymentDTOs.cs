@@ -12,55 +12,54 @@ namespace Keytietkiem.DTOs.Payments
         /// Id của gói hỗ trợ mà user muốn mua.
         /// </summary>
         public int SupportPlanId { get; set; }
-
-        /// <summary>
-        /// Ghi chú optional cho subscription.
-        /// FE có thể giữ giá trị này và gửi lại ở bước confirm
-        /// (sẽ được lưu vào UserSupportPlanSubscription.Note).
-        /// </summary>
-        public string? Note { get; set; }
     }
 
     /// <summary>
     /// Response khi tạo Payment PayOS cho gói hỗ trợ.
-    /// Format tương tự CreatePayOSPaymentResponseDTO.
     /// </summary>
     public class CreateSupportPlanPayOSPaymentResponseDTO
     {
         /// <summary>
-        /// Id payment trong bảng Payments, dùng cho bước confirm.
+        /// Id payment đã tạo trong hệ thống.
         /// </summary>
         public Guid PaymentId { get; set; }
 
         /// <summary>
-        /// Id gói hỗ trợ mà payment này gắn với.
+        /// Id gói hỗ trợ mà user đang mua.
         /// </summary>
         public int SupportPlanId { get; set; }
 
         /// <summary>
-        /// Tên gói hỗ trợ (hiển thị trên FE khi redirect xong).
+        /// Tên gói hỗ trợ để FE hiển thị.
         /// </summary>
         public string SupportPlanName { get; set; } = string.Empty;
 
         /// <summary>
-        /// Giá của gói hỗ trợ tại thời điểm tạo payment.
+        /// Giá gốc của gói (theo 1 kỳ, ví dụ 1 tháng).
         /// </summary>
         public decimal Price { get; set; }
 
         /// <summary>
-        /// URL thanh toán PayOS để FE redirect user.
+        /// Số tiền thực tế user cần thanh toán sau khi đã điều chỉnh
+        /// theo Priority gốc + subscription hiện tại (pro-rate, chênh lệch...).
+        /// Đây là giá sẽ được gửi sang PayOS.
         /// </summary>
-        public string PaymentUrl { get; set; } = null!;
+        public decimal AdjustedAmount { get; set; }
+
+        /// <summary>
+        /// Url thanh toán PayOS để redirect user.
+        /// </summary>
+        public string PaymentUrl { get; set; } = string.Empty;
     }
 
     /// <summary>
-    /// Yêu cầu xác nhận thanh toán thành công & tạo subscription 1 tháng.
-    /// Được dùng ở API: POST /api/supportplans/confirm-payment
+    /// DTO confirm sau khi thanh toán thành công, dùng bởi FE để yêu cầu
+    /// hệ thống kích hoạt / gia hạn subscription.
     /// </summary>
     public class ConfirmSupportPlanPaymentDTO
     {
         /// <summary>
-        /// PaymentId tương ứng với giao dịch PayOS (bản ghi trong bảng Payments).
+        /// PaymentId đã được PayOS báo trạng thái Paid (qua webhook).
         /// </summary>
         public Guid PaymentId { get; set; }
 
