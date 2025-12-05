@@ -435,7 +435,7 @@ namespace Keytietkiem.Controllers
         /// <param name="email">Email người dùng</param>
         /// <returns>Tổng số tiền đã thanh toán (decimal)</returns>
         [NonAction]
-        private static async Task<decimal> CalculateUserTotalPaidOrderAmountAsync(
+        public static async Task<decimal> CalculateUserTotalPaidOrderAmountAsync(
             KeytietkiemDbContext db,
             string email)
         {
@@ -457,35 +457,45 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// Tính toán & đồng bộ cấp ưu tiên loyalty cho user dựa trên tổng chi tiêu:
         ///  - Tính tổng tiền ORDER_PAYMENT (Paid) theo email.
-        ///  - So với các rule loyalty đang ACTIVE (PriorityLevel &gt; 0).
+        ///  - So với các rule loyalty đang ACTIVE (PriorityLevel > 0).
         ///  - Xác định PriorityLevel loyalty phù hợp nhất.
-        ///  - Nếu khác với Users.SupportPriorityLevel hiện tại thì cập nhật lại.
+        ///  - Nếu khác với Users.SupportPriorityLevel / Users.TotalProductSpend hiện tại thì cập nhật lại.
         ///  - Trả về PriorityLevel mới (0 nếu không đạt rule nào hoặc không tìm thấy user).
-        /// 
+        ///
         /// Có thể gọi hàm này từ các controller khác mỗi khi cần refresh loyalty:
-        ///  - VD: sau khi Payment được đổi sang trạng thái Paid.
+        ///  - VD: sau khi Payment được đổi sang trạng thái Paid
+        ///  - Hoặc khi load thông tin user trong UsersController.
         /// </summary>
+        /// <param name="db">DbContext hiện tại</param>
         /// <param name="email">Email người dùng cần tính loyalty</param>
         /// <returns>PriorityLevel loyalty hiện tại sau khi đồng bộ</returns>
         [NonAction]
-        public async Task<int> RecalculateUserLoyaltyPriorityLevelAsync(string email)
+        public static async Task<int> RecalculateUserLoyaltyPriorityLevelAsync(
+            KeytietkiemDbContext db,
+            string email)
         {
             if (string.IsNullOrWhiteSpace(email))
                 return 0;
-
-            await using var db = await _dbFactory.CreateDbContextAsync();
 
             var normalizedEmail = email.Trim();
 
             var user = await db.Users
                 .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
-            // Không tìm thấy user → coi như level 0 (không update được gì)
             if (user == null)
                 return 0;
 
             // 1. Tính tổng tiền user đã tiêu (ORDER_PAYMENT, Paid)
             var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
+
+            var needSave = false;
+
+            // 1.1. Cập nhật TotalProductSpend nếu thay đổi
+            if (user.TotalProductSpend != totalSpend)
+            {
+                user.TotalProductSpend = totalSpend;
+                needSave = true;
+            }
 
             // 2. Lấy rule đang active, level > 0
             //    Chọn level cao nhất sao cho MinTotalSpend <= totalSpend
@@ -502,10 +512,16 @@ namespace Keytietkiem.Controllers
             if (user.SupportPriorityLevel != newLevel)
             {
                 user.SupportPriorityLevel = newLevel;
+                needSave = true;
+            }
+
+            if (needSave)
+            {
                 await db.SaveChangesAsync();
             }
 
             return newLevel;
         }
+
     }
 }
