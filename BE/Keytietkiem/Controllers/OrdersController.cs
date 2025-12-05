@@ -154,34 +154,35 @@ namespace Keytietkiem.Controllers
             }
 
             var orders = await _context.Orders
+                .AsNoTracking()
                 .Where(o => o.UserId == userId.Value)
                 .Include(o => o.OrderDetails)
                     .ThenInclude(od => od.Variant)
                         .ThenInclude(v => v.Product)
                 .ToListAsync();
 
-            var orderHistory = orders.Select(o => new OrderHistoryItemDTO
+            var items = orders.Select(o => new OrderHistoryItemDTO
             {
                 OrderId = o.OrderId,
                 UserId = o.UserId,
                 OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
-                Email = o.Email,
+                Email = o.Email ?? string.Empty,
                 TotalAmount = o.TotalAmount,
                 FinalAmount = o.FinalAmount,
-                Status = o.Status,
+                Status = o.Status ?? string.Empty,
                 CreatedAt = o.CreatedAt,
                 ItemCount = o.OrderDetails?.Count ?? 0,
                 ProductNames = o.OrderDetails?
-                    .Select(od => od.Variant?.Product?.ProductName
-                                  ?? od.Variant?.Title
+                    .Select(od => od.Variant!.Product?.ProductName
+                                  ?? od.Variant!.Title
                                   ?? string.Empty)
-                    .Where(n => !string.IsNullOrEmpty(n))
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
                     .Distinct()
                     .ToList()
                     ?? new List<string>()
             }).ToList();
 
-            return Ok(orderHistory);
+            return Ok(items);
         }
 
         [HttpGet("{id:guid}")]
@@ -691,6 +692,97 @@ namespace Keytietkiem.Controllers
             }).ToList() ?? new List<OrderDetailDTO>();
 
             return Ok(orderDetails);
+        }
+
+        [HttpGet("{orderId:guid}/details/{orderDetailId:long}/credentials")]
+        public async Task<IActionResult> GetOrderDetailCredentials(Guid orderId, long orderDetailId)
+        {
+            var orderDetail = await _context.OrderDetails
+                .Include(od => od.Variant)
+                    .ThenInclude(v => v.Product)
+                .Include(od => od.Key)
+                .FirstOrDefaultAsync(od => od.OrderId == orderId && od.OrderDetailId == orderDetailId);
+
+            if (orderDetail == null)
+            {
+                return NotFound(new { message = "Không tìm thấy chi tiết đơn hàng" });
+            }
+
+            var productType = orderDetail.Variant?.Product?.ProductType?.ToUpper() ?? "";
+
+            // Nếu là PERSONAL_KEY
+            if (productType == "PERSONAL_KEY" || productType == "KEY")
+            {
+                if (orderDetail.KeyId == null || orderDetail.Key == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy mã kích hoạt cho sản phẩm này" });
+                }
+
+                return Ok(new
+                {
+                    productName = orderDetail.Variant?.Product?.ProductName ?? "",
+                    productType = "KEY",
+                    keyString = orderDetail.Key.KeyString
+                });
+            }
+
+            // Nếu là PERSONAL_ACCOUNT
+            if (productType == "PERSONAL_ACCOUNT" || productType == "ACCOUNT")
+            {
+                // Lấy tất cả OrderDetails với cùng VariantId trong order này, sắp xếp theo OrderDetailId
+                var orderDetailsWithSameVariant = await _context.OrderDetails
+                    .Where(od => od.OrderId == orderId && od.VariantId == orderDetail.VariantId)
+                    .OrderBy(od => od.OrderDetailId)
+                    .ToListAsync();
+
+                // Tìm index của OrderDetail hiện tại trong danh sách
+                var detailIndex = orderDetailsWithSameVariant.FindIndex(od => od.OrderDetailId == orderDetail.OrderDetailId);
+                if (detailIndex < 0)
+                {
+                    return NotFound(new { message = "Không tìm thấy chi tiết đơn hàng" });
+                }
+
+                // Lấy tất cả accounts được assign cho order này với cùng VariantId, sắp xếp theo AddedAt
+                var accountCustomers = await _context.ProductAccountCustomers
+                    .Include(pac => pac.ProductAccount)
+                    .Where(pac => 
+                        pac.OrderId == orderId && 
+                        pac.ProductAccount.VariantId == orderDetail.VariantId &&
+                        pac.IsActive)
+                    .OrderBy(pac => pac.AddedAt)
+                    .ToListAsync();
+
+                if (accountCustomers == null || accountCustomers.Count == 0)
+                {
+                    return NotFound(new { message = "Không tìm thấy tài khoản cho sản phẩm này" });
+                }
+
+                // Lấy account tương ứng với OrderDetail index
+                if (detailIndex >= accountCustomers.Count)
+                {
+                    return NotFound(new { message = "Không tìm thấy tài khoản tương ứng cho chi tiết đơn hàng này" });
+                }
+
+                var accountCustomer = accountCustomers[detailIndex];
+                if (accountCustomer.ProductAccount == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy thông tin tài khoản" });
+                }
+
+                var account = accountCustomer.ProductAccount;
+                var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
+
+                return Ok(new
+                {
+                    productName = orderDetail.Variant?.Product?.ProductName ?? "",
+                    productType = "ACCOUNT",
+                    accountEmail = account.AccountEmail,
+                    accountUsername = account.AccountUsername,
+                    accountPassword = decryptedPassword
+                });
+            }
+
+            return BadRequest(new { message = "Loại sản phẩm không được hỗ trợ" });
         }
 
         // ===== Helpers =====

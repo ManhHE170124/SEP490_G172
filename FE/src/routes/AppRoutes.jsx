@@ -15,6 +15,7 @@ import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
+import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
 //Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
@@ -71,10 +72,6 @@ import PaymentCancelPage from "../pages/storefront/PaymentCancelPage";
 import PaymentResultPage from "../pages/storefront/PaymentResultPage";
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
-// Order pages
-import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
-import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
-
 // Customer ticket pages
 import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
@@ -82,9 +79,6 @@ import CustomerTicketManagementPage from "../pages/tickets/customer-ticket-manag
 
 import AdminSupportChatPage from "../pages/admin/admin-support-chat";
 import StaffSupportChatPage from "../pages/admin/staff-support-chat";
-
-// Subscription (Support Plan)
-import SupportPlanSubscriptionPage from "../pages/subcription/SupportPlanSubscriptionPage.jsx";
 
 // Product Report Pages
 import ProductReportManagementPage from "../pages/report/ProductReportManagementPage.jsx";
@@ -194,6 +188,14 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route
+        path="/orderhistory/:id"
+        element={
+          <ClientLayout>
+            <OrderHistoryDetailPage />
+          </ClientLayout>
+        }
+      />
       <Route path="/admin" element={<div />} />
       <Route
         path="/admin/profile"
@@ -290,23 +292,6 @@ export default function AppRoutes() {
         element={
           <ClientLayout>
             <CustomerTicketManagementPage />
-          </ClientLayout>
-        }
-      />
-      {/* Orders */}
-      <Route
-        path="/orders/history"
-        element={
-          <ClientLayout>
-            <OrderHistoryPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/orders/:id"
-        element={
-          <ClientLayout>
-            <OrderDetailPage />
           </ClientLayout>
         }
       />
@@ -541,16 +526,7 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
-      {/* Support plan subscription (gói hỗ trợ) */}
-      <Route
-        path="/support/subscription"
-        element={
-          <ClientLayout>
-            <SupportPlanSubscriptionPage />
-          </ClientLayout>
-        }
-      />
-      
+
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
