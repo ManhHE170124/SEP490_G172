@@ -85,7 +85,7 @@ public class AccountService : IAccountService
 
         // Check if a temp user exists with this email
         var existingTempUser = await _userRepository.FirstOrDefaultAsync(
-            u => u.Email == registerDto.Email && u.Status == "Temp",
+            u => u.Email == registerDto.Email && u.IsTemp,
             cancellationToken);
 
         User user;
@@ -101,6 +101,7 @@ public class AccountService : IAccountService
             user.Phone = registerDto.Phone;
             user.Address = registerDto.Address;
             user.Status = "Active";
+            user.IsTemp = false;
             user.EmailVerified = true; // Email verified via OTP
             user.UpdatedAt = _clock.UtcNow;
 
@@ -196,7 +197,7 @@ public class AccountService : IAccountService
             // Increment failed login count
             account.FailedLoginCount++;
 
-            // Lock account after 5 failed attempts for 15 minutes
+            // Lock account after 5 failed attempts within 15 minutes
             if (account.FailedLoginCount >= 5)
             {
                 account.LockedUntil = _clock.UtcNow.AddMinutes(15);
@@ -358,14 +359,14 @@ public class AccountService : IAccountService
 
     public async Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _userRepository.AnyAsync(u => u.Email == email && u.Status != "Temp", cancellationToken);
+        return await _userRepository.AnyAsync(u => u.Email == email && !u.IsTemp, cancellationToken);
     }
 
     public async Task<User> CreateTempUserAsync(string email, CancellationToken cancellationToken = default)
     {
         // Check if temp user already exists
         var existingTempUser = await _userRepository.FirstOrDefaultAsync(
-            u => u.Email == email && u.Status == "Temp",
+            u => u.Email == email && u.IsTemp,
             cancellationToken);
 
         if (existingTempUser != null)
@@ -379,6 +380,7 @@ public class AccountService : IAccountService
             UserId = Guid.NewGuid(),
             Email = email,
             Status = "Temp",
+            IsTemp = true,
             EmailVerified = false,
             CreatedAt = _clock.UtcNow
         };

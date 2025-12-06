@@ -25,6 +25,10 @@ export default function KeyMonitorPage() {
   const [accountReports, setAccountReports] = useState([]);
   const [loadingKeyReports, setLoadingKeyReports] = useState(false);
   const [loadingAccountReports, setLoadingAccountReports] = useState(false);
+
+  // Expiring accounts state
+  const [expiringAccounts, setExpiringAccounts] = useState([]);
+  const [loadingExpiringAccounts, setLoadingExpiringAccounts] = useState(false);
   // Pagination state for key reports
   const [keyReportsPage, setKeyReportsPage] = useState(1);
   const [keyReportsPageSize, setKeyReportsPageSize] = useState(10);
@@ -146,6 +150,26 @@ export default function KeyMonitorPage() {
       setLoadingCounters(false);
     }
   }, []);
+
+  // Load expiring accounts
+  const loadExpiringAccounts = useCallback(async () => {
+    setLoadingExpiringAccounts(true);
+    try {
+      const data = await ProductAccountApi.getExpiringSoon(5);
+      setExpiringAccounts(Array.isArray(data) ? data : data?.data || []);
+      // Update counter
+      setExpiringSoonCount(data?.length || 0);
+    } catch (err) {
+      console.error("Failed to load expiring accounts:", err);
+      showError(
+        "Lỗi tải dữ liệu",
+        err.message || "Không thể tải danh sách tài khoản sắp hết hạn"
+      );
+      setExpiringAccounts([]);
+    } finally {
+      setLoadingExpiringAccounts(false);
+    }
+  }, [showError]);
   // Load low stock (keys only)
   const loadLowStock = useCallback(async () => {
     setLoadingLowStock(true);
@@ -204,6 +228,10 @@ export default function KeyMonitorPage() {
   useEffect(() => {
     loadAccountReports();
   }, [loadAccountReports]);
+
+  useEffect(() => {
+    loadExpiringAccounts();
+  }, [loadExpiringAccounts]);
   const openImportModal = async (product) => {
     setImportProduct(product);
     setCsvFile(null);
@@ -643,6 +671,111 @@ export default function KeyMonitorPage() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="card">
+        <h2 style={{ margin: 0, marginBottom: 10 }}>
+          Tài khoản sắp hết hạn (5 ngày)
+        </h2>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Sản phẩm</th>
+              <th>Email tài khoản</th>
+              <th>Biến thể</th>
+              <th>Ngày hết hạn</th>
+              <th>Slot</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loadingExpiringAccounts && (
+              <tr>
+                <td colSpan="7" style={{ padding: 16, textAlign: "center" }}>
+                  Đang tải...
+                </td>
+              </tr>
+            )}
+            {!loadingExpiringAccounts && expiringAccounts.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ padding: 16, textAlign: "center" }}>
+                  Không có tài khoản sắp hết hạn
+                </td>
+              </tr>
+            )}
+            {!loadingExpiringAccounts &&
+              expiringAccounts.map((account) => {
+                const daysLeft = account.expiryDate
+                  ? Math.ceil(
+                      (new Date(account.expiryDate) - new Date()) /
+                        (1000 * 60 * 60 * 24)
+                    )
+                  : 0;
+
+                return (
+                  <tr key={account.productAccountId}>
+                    <td>{account.productName}</td>
+                    <td>{account.accountEmail}</td>
+                    <td>{account.variantTitle}</td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span>
+                          {account.expiryDate
+                            ? new Date(account.expiryDate).toLocaleDateString(
+                                "vi-VN"
+                              )
+                            : "-"}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            color: daysLeft <= 2 ? "#dc2626" : "#d97706",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Còn {daysLeft} ngày
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      {account.currentUsers}/{account.maxUsers}
+                    </td>
+                    <td>
+                      <span
+                        className="label-chip"
+                        style={{
+                          background:
+                            account.status === "Active"
+                              ? "#16a34a"
+                              : account.status === "Full"
+                              ? "#ea580c"
+                              : "#6b7280",
+                        }}
+                      >
+                        {account.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          className="btn"
+                          onClick={() =>
+                            (window.location.href = `/accounts/${account.productAccountId}`)
+                          }
+                        >
+                          Chi tiết
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+        <small className="muted">
+          Danh sách tài khoản sẽ hết hạn trong vòng 5 ngày tới.
+        </small>
       </section>
 
       {showImportModal && (

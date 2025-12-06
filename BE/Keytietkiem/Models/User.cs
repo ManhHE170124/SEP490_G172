@@ -33,6 +33,8 @@ public partial class User
 
     public decimal TotalProductSpend { get; set; }
 
+    public bool IsTemp { get; set; }
+
     public virtual Account? Account { get; set; }
 
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();

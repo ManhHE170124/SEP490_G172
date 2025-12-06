@@ -81,9 +81,13 @@ public class RegisterDto
 public class LoginDto
 {
     [Required(ErrorMessage = "Username là bắt buộc")]
+    [MinLength(1, ErrorMessage = "Username không được để trống")]
+    [RegularExpression(@"^\S+.*", ErrorMessage = "Username không được chỉ chứa khoảng trắng")]
     public string Username { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password là bắt buộc")]
+    [MinLength(1, ErrorMessage = "Password không được để trống")]
+    [RegularExpression(@"^\S+.*", ErrorMessage = "Password không được chỉ chứa khoảng trắng")]
     public string Password { get; set; } = string.Empty;
 }
 
