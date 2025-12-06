@@ -304,14 +304,12 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.FinalAmount)
                 .HasComputedColumnSql("([TotalAmount]-[DiscountAmount])", true)
                 .HasColumnType("decimal(13, 2)");
-            // ĐÃ BỎ Status
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(12, 2)");
 
             entity.HasOne(d => d.User).WithMany(p => p.Orders)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_Orders_User");
         });
-
 
         modelBuilder.Entity<OrderDetail>(entity =>
         {
@@ -461,7 +459,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.IsApproved).HasDefaultValue(false);
 
-            entity.HasOne(d => d.ParentComment).WithMany(p => p.Replies)
+            entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
                 .HasForeignKey(d => d.ParentCommentId)
                 .HasConstraintName("FK_PostComments_ParentComment");
 

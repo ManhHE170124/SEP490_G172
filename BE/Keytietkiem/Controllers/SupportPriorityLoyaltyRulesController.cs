@@ -116,8 +116,8 @@ namespace Keytietkiem.Controllers
 
         /// <summary>
         /// Rule business: kiểm tra thứ tự mức chi tiêu của các rule đang ACTIVE.
-        /// - Level thấp hơn phải có MinTotalSpend < level cao hơn.
-        /// - Chỉ xét các rule đang IsActive = true, PriorityLevel > 0.
+        /// - Level thấp hơn phải có MinTotalSpend &lt; level cao hơn.
+        /// - Chỉ xét các rule đang IsActive = true, PriorityLevel &gt; 0.
         /// </summary>
         private static IQueryable<SupportPriorityLoyaltyRule> BuildConflictQuery(
             IQueryable<SupportPriorityLoyaltyRule> source,
@@ -422,5 +422,106 @@ namespace Keytietkiem.Controllers
 
             return Ok(new { entity.RuleId, entity.IsActive });
         }
+
+        // =========================
+        //  LOYALTY HELPER FUNCTIONS
+        // =========================
+
+        /// <summary>
+        /// Tính tổng số tiền user đã tiêu cho ORDER_PAYMENT với trạng thái Paid,
+        /// dựa theo email của user.
+        /// </summary>
+        /// <param name="db">DbContext hiện tại</param>
+        /// <param name="email">Email người dùng</param>
+        /// <returns>Tổng số tiền đã thanh toán (decimal)</returns>
+        [NonAction]
+        public static async Task<decimal> CalculateUserTotalPaidOrderAmountAsync(
+            KeytietkiemDbContext db,
+            string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return 0m;
+
+            var normalizedEmail = email.Trim();
+
+            var total = await db.Payments
+                .Where(p =>
+                    p.Status == "Paid" &&
+                    p.TransactionType == "ORDER_PAYMENT" &&
+                    p.Email == normalizedEmail)
+                .SumAsync(p => (decimal?)p.Amount);
+
+            return total ?? 0m;
+        }
+
+        /// <summary>
+        /// Tính toán & đồng bộ cấp ưu tiên loyalty cho user dựa trên tổng chi tiêu:
+        ///  - Tính tổng tiền ORDER_PAYMENT (Paid) theo email.
+        ///  - So với các rule loyalty đang ACTIVE (PriorityLevel > 0).
+        ///  - Xác định PriorityLevel loyalty phù hợp nhất.
+        ///  - Nếu khác với Users.SupportPriorityLevel / Users.TotalProductSpend hiện tại thì cập nhật lại.
+        ///  - Trả về PriorityLevel mới (0 nếu không đạt rule nào hoặc không tìm thấy user).
+        ///
+        /// Có thể gọi hàm này từ các controller khác mỗi khi cần refresh loyalty:
+        ///  - VD: sau khi Payment được đổi sang trạng thái Paid
+        ///  - Hoặc khi load thông tin user trong UsersController.
+        /// </summary>
+        /// <param name="db">DbContext hiện tại</param>
+        /// <param name="email">Email người dùng cần tính loyalty</param>
+        /// <returns>PriorityLevel loyalty hiện tại sau khi đồng bộ</returns>
+        [NonAction]
+        public static async Task<int> RecalculateUserLoyaltyPriorityLevelAsync(
+            KeytietkiemDbContext db,
+            string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return 0;
+
+            var normalizedEmail = email.Trim();
+
+            var user = await db.Users
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+            if (user == null)
+                return 0;
+
+            // 1. Tính tổng tiền user đã tiêu (ORDER_PAYMENT, Paid)
+            var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
+
+            var needSave = false;
+
+            // 1.1. Cập nhật TotalProductSpend nếu thay đổi
+            if (user.TotalProductSpend != totalSpend)
+            {
+                user.TotalProductSpend = totalSpend;
+                needSave = true;
+            }
+
+            // 2. Lấy rule đang active, level > 0
+            //    Chọn level cao nhất sao cho MinTotalSpend <= totalSpend
+            var newLevel = await db.SupportPriorityLoyaltyRules
+                .Where(r =>
+                    r.IsActive &&
+                    r.PriorityLevel > 0 &&
+                    r.MinTotalSpend <= totalSpend)
+                .OrderByDescending(r => r.PriorityLevel)
+                .Select(r => (int?)r.PriorityLevel)
+                .FirstOrDefaultAsync() ?? 0;
+
+            // 3. Nếu khác với SupportPriorityLevel hiện tại → update lại
+            if (user.SupportPriorityLevel != newLevel)
+            {
+                user.SupportPriorityLevel = newLevel;
+                needSave = true;
+            }
+
+            if (needSave)
+            {
+                await db.SaveChangesAsync();
+            }
+
+            return newLevel;
+        }
+
     }
 }

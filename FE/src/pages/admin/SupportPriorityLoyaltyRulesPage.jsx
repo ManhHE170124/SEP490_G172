@@ -227,7 +227,7 @@ function RuleModal({
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
 
-              <div className="muted support-priority-modal-note">
+              {/* <div className="muted support-priority-modal-note">
                 <strong>Quy tắc khi bật rule:</strong>
                 <div>
                   - Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>1 rule đang bật</b>.
@@ -245,7 +245,7 @@ function RuleModal({
                   - Các rule đang tắt không bị ràng buộc; hệ thống chỉ kiểm tra
                   khi <b>lưu / bật</b> rule.
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
