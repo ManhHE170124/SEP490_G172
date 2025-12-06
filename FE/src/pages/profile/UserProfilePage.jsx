@@ -977,6 +977,7 @@ const UserProfilePage = () => {
               </div>
 
               <div className="profile-orders-filter-container">
+                {/* Hàng 1: Tìm kiếm theo mã đơn hàng, Từ ngày, Đến ngày */}
                 <div className="profile-orders-filter-row">
                   <div className="profile-filter-group profile-filter-group--wide">
                     <label className="profile-label" htmlFor="orderKeyword">
@@ -1021,6 +1022,7 @@ const UserProfilePage = () => {
                   </div>
                 </div>
 
+                {/* Hàng 2: Số tiền từ, Số tiền đến, Trạng thái, nút Đặt lại */}
                 <div className="profile-orders-filter-row">
                   <div className="profile-filter-group">
                     <label className="profile-label" htmlFor="minAmount">
@@ -1078,7 +1080,7 @@ const UserProfilePage = () => {
                         setOrderFilters(INITIAL_ORDER_FILTERS);
                         setOrderKeywordInput("");
                         setOrderPage(1);
-                        setOrderSortBy(null); 
+                        setOrderSortBy(null); // TH1: không sort
                         setOrderSortDir(null);
                       }}
                     >

@@ -113,7 +113,6 @@ namespace Keytietkiem.Controllers
                 PostTypeId = post.PostTypeId,
                 AuthorId = post.AuthorId,
                 MetaTitle = post.MetaTitle,
-                MetaDescription = post.MetaDescription,
                 Status = post.Status,
                 ViewCount = post.ViewCount,
                 CreatedAt = post.CreatedAt,
@@ -195,7 +194,6 @@ namespace Keytietkiem.Controllers
                 PostTypeId = createPostDto.PostTypeId,
                 AuthorId = createPostDto.AuthorId,
                 MetaTitle = createPostDto.MetaTitle,
-                MetaDescription = createPostDto.MetaDescription,
                 Status = createPostDto.Status ?? "Draft",
                 ViewCount = 0,
                 CreatedAt = DateTime.Now
@@ -260,7 +258,6 @@ namespace Keytietkiem.Controllers
                 PostTypeId = createdPost.PostTypeId,
                 AuthorId = createdPost.AuthorId,
                 MetaTitle = createdPost.MetaTitle,
-                MetaDescription = createdPost.MetaDescription,
                 Status = createdPost.Status,
                 ViewCount = createdPost.ViewCount,
                 CreatedAt = createdPost.CreatedAt,
@@ -337,7 +334,6 @@ namespace Keytietkiem.Controllers
             existing.Thumbnail = updatePostDto.Thumbnail;
             existing.PostTypeId = updatePostDto.PostTypeId;
             existing.MetaTitle = updatePostDto.MetaTitle;
-            existing.MetaDescription = updatePostDto.MetaDescription;
             existing.Status = updatePostDto.Status;
             existing.UpdatedAt = DateTime.Now;
 
@@ -530,7 +526,6 @@ namespace Keytietkiem.Controllers
                 PostTypeId = post.PostTypeId,
                 AuthorId = post.AuthorId,
                 MetaTitle = post.MetaTitle,
-                MetaDescription = post.MetaDescription,
                 Status = post.Status,
                 ViewCount = post.ViewCount,
                 CreatedAt = post.CreatedAt,
