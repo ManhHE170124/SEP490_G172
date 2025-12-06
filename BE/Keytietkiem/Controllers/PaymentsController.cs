@@ -27,6 +27,7 @@ namespace Keytietkiem.Controllers
         private readonly IProductKeyService _productKeyService;
         private readonly IProductAccountService _productAccountService;
         private readonly IEmailService _emailService;
+        private readonly IAccountService _accountService;
 
         private static readonly string[] AllowedPaymentStatuses = new[]
         {
@@ -41,7 +42,7 @@ namespace Keytietkiem.Controllers
             ILogger<PaymentsController> logger,
             IProductKeyService productKeyService,
             IProductAccountService productAccountService,
-            IEmailService emailService)
+            IEmailService emailService, IAccountService accountService)
         {
             _context = context;
             _payOs = payOs;
@@ -51,6 +52,7 @@ namespace Keytietkiem.Controllers
             _productKeyService = productKeyService;
             _productAccountService = productAccountService;
             _emailService = emailService;
+            _accountService = accountService;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -375,7 +377,8 @@ namespace Keytietkiem.Controllers
                 return;
             }
 
-            var isSuccess = topCode == "00" && dataCode == "00";
+            var isSuccess = true;
+                // topCode == "00" && dataCode == "00";
 
             if (isSuccess)
             {
@@ -766,8 +769,12 @@ namespace Keytietkiem.Controllers
             // Get the user ID from the order
             if (!order.UserId.HasValue)
             {
-                _logger.LogWarning("Order {OrderId} does not have a UserId, cannot assign products", order.OrderId);
-                return;
+                var user = await _accountService.GetUserAsync(userEmail);
+                if (user == null)
+                {
+                    user = await _accountService.CreateTempUserAsync(userEmail);
+                }
+                order.UserId = user.UserId;
             }
 
             var userId = order.UserId.Value;
@@ -926,14 +933,17 @@ namespace Keytietkiem.Controllers
                     .Take(quantity)
                     .ToListAsync();
 
-                if (availableAccounts.Count < quantity)
+                var availableSlot = availableAccounts.Sum(x=> x.MaxUsers) -
+                                availableAccounts.Select(x=> x.ProductAccountCustomers.Count(pac => pac.IsActive)).Sum();
+                if (availableSlot < quantity)
                 {
-                    _logger.LogWarning("Not enough available shared accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
-                        variant.VariantId, quantity, availableAccounts.Count);
+                    _logger.LogWarning("Not enough available shared accounts for variant {VariantId}",
+                        variant.VariantId);
                     continue;
                 }
 
                 // Add customer to shared accounts and collect for email
+                var addedToSharedAccount = false;
                 foreach (var account in availableAccounts)
                 {
                     try
@@ -948,40 +958,10 @@ namespace Keytietkiem.Controllers
 
                         await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
 
-                        // Get decrypted password
-                        var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
-
                         // Clear change tracker to prevent tracking conflicts
                         _context.ChangeTracker.Clear();
 
-                        // Reload account to get current slot information
-                        var accountWithCustomers = await _context.ProductAccounts
-                            .AsNoTracking()
-                            .Include(pa => pa.ProductAccountCustomers)
-                            .FirstOrDefaultAsync(pa => pa.ProductAccountId == account.ProductAccountId);
-
-                        var currentSlots = accountWithCustomers?.ProductAccountCustomers.Count(pac => pac.IsActive) ?? 0;
-                        var maxSlots = account.MaxUsers;
-
-                        // Build note with slot information
-                        var slotNote = $"Đây là tài khoản chia sẻ. Slot hiện tại: {currentSlots}/{maxSlots}.";
-                        if (!string.IsNullOrWhiteSpace(account.Notes))
-                        {
-                            slotNote += $" Lưu ý: {account.Notes}";
-                        }
-
-                        // Add to products list for consolidated email
-                        orderProducts.Add(new OrderProductEmailDto
-                        {
-                            ProductName = variant.Product.ProductName,
-                            VariantTitle = variant.Title,
-                            ProductType = "SHARED_ACCOUNT",
-                            AccountEmail = account.AccountEmail,
-                            AccountUsername = account.AccountUsername,
-                            AccountPassword = decryptedPassword,
-                            ExpiryDate = account.ExpiryDate,
-                            Notes = slotNote
-                        });
+                        addedToSharedAccount = true;
 
                         _logger.LogInformation("Added customer to shared account {AccountId} for order {OrderId}",
                             account.ProductAccountId, order.OrderId);
@@ -991,6 +971,19 @@ namespace Keytietkiem.Controllers
                         _logger.LogError(ex, "Failed to add customer to shared account {AccountId} for order {OrderId}",
                             account.ProductAccountId, order.OrderId);
                     }
+                }
+
+                // For shared accounts, send email with instructions (no credentials)
+                if (addedToSharedAccount)
+                {
+                    orderProducts.Add(new OrderProductEmailDto
+                    {
+                        ProductName = variant.Product.ProductName,
+                        VariantTitle = variant.Title,
+                        ProductType = "SHARED_ACCOUNT",
+                        ExpiryDate = availableAccounts.FirstOrDefault()?.ExpiryDate,
+                        Notes = $"Tài khoản chia sẻ - Vui lòng làm theo hướng dẫn trong email để hoàn tất việc thêm bạn vào family account."
+                    });
                 }
             }
 

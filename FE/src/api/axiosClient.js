@@ -7,7 +7,7 @@ import qs from "qs";
 
 const baseURL =
   process.env.REACT_APP_API_URL // CRA
-  || import.meta?.env?.VITE_API_BASE_URL // Vite (phòng hờ)
+  || import.meta.env?.VITE_API_BASE_URL // Vite (phòng hờ)
   || "https://localhost:7292/api"; // fallback theo port mới của bạn
 
 console.log("[axiosClient] baseURL =", baseURL);

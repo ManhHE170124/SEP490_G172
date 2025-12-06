@@ -247,6 +247,8 @@ hr {
   color: #111;
   font-weight: 400;
   cursor: pointer;
+  flex-wrap: nowrap;
+  white-space: normal;
 }
 
 .checkbox input[type="checkbox"] {
