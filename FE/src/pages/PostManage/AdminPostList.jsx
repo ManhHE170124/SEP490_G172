@@ -286,7 +286,6 @@ export default function AdminPostList() {
         posttypeId: postTypeId,
         status: newStatus,
         metaTitle: post.metaTitle || "",
-        metaDescription: post.metaDescription || "",
         tagIds: post.tags?.map(t => t.tagId) || []
       });
 
@@ -310,49 +309,6 @@ export default function AdminPostList() {
     }
   };
 
-  // Export CSV function
-  const handleExportCSV = () => {
-    try {
-      const headers = ["Tiêu đề", "Danh mục", "Người phụ trách", "Trạng thái", "Lượt xem", "Ngày tạo", "Ngày cập nhật"];
-      const csvRows = [headers.join(",")];
-
-      filteredSorted.forEach(post => {
-        const row = [
-          `"${(post.title || "").replace(/"/g, '""')}"`,
-          `"${((post.posttypeName || post.postTypeName || post.PosttypeName) || "").replace(/"/g, '""')}"`,
-          `"${(post.authorName || "").replace(/"/g, '""')}"`,
-          `"${getStatusLabel(post.status).replace(/"/g, '""')}"`,
-          post.viewCount || 0,
-          `"${formatDate(post.createdAt)}"`,
-          `"${formatDate(post.updatedAt)}"`
-        ];
-        csvRows.push(row.join(","));
-      });
-
-      const csvContent = csvRows.join("\n");
-      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `danh-sach-bai-viet-${new Date().toISOString().split("T")[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showSuccess("Thành công", "Đã xuất file CSV");
-    } catch (err) {
-      console.log("Lỗi khi xuất file CSV:", err);
-      // Handle network errors globally - only show one toast
-      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        showError("Lỗi khi xuất file CSV", err.message || "Không thể xuất file CSV");
-      }
-    }
-  };
 
   // Get status label
   const getStatusLabel = (status) => {
@@ -429,11 +385,15 @@ export default function AdminPostList() {
           <p className="apl-post-list-subtitle">Quản lý, chỉnh sửa và xóa bài viết</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button className="apl-btn-secondary" onClick={handleExportCSV} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          <button 
+            className="apl-btn-secondary" 
+            onClick={() => navigate("/post-dashboard")}
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
             </svg>
-            Xuất CSV
+            Dashboard
           </button>
           <button className="apl-add-button" onClick={handleCreate}>
             + Tạo bài viết mới

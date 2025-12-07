@@ -665,6 +665,23 @@ const Sidebar = () => {
       moduleCode: MODULE_CODES.POST_MANAGER,
       items: [
         {
+          id: "post-dashboard",
+          label: "Dashboard Bài viết",
+          to: "/post-dashboard",
+          isActive: currentPage === "post-dashboard",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ),
+        },
+        {
           id: "admin-post-list",
           label: "Danh sách bài viết",
           to: "/admin-post-list",
