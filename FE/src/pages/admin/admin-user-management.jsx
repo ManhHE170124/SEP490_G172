@@ -21,10 +21,18 @@
  *  - Không cho xem/sửa/disable user tạm thời (isTemp = true).
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import "../../styles/admin-user-management.css";
 import { usersApi } from "../../api/usersApi";
-import { USER_STATUS, USER_STATUS_OPTIONS } from "../../constants/userStatus";
+import {
+  USER_STATUS,
+  USER_STATUS_OPTIONS,
+} from "../../constants/userStatus";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import axiosClient from "../../api/axiosClient";
@@ -73,7 +81,8 @@ const formatCurrency = (value) => {
 };
 
 export default function AdminUserManagement() {
-  const { toasts, showSuccess, showError, removeToast } = useToast();
+  const { toasts, showSuccess, showError, removeToast } =
+    useToast();
 
   const [uiFilters, setUiFilters] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
@@ -128,7 +137,9 @@ export default function AdminUserManagement() {
     () =>
       Math.max(
         1,
-        Math.ceil((data.totalItems || 0) / (applied.pageSize || 10)
+        Math.ceil(
+          (data.totalItems || 0) /
+            (applied.pageSize || 10)
         )
       ),
     [data, applied.pageSize]
@@ -139,21 +150,34 @@ export default function AdminUserManagement() {
       const res = await usersApi.roles();
       setRoles(
         (res || []).filter(
-          (r) => !(r.name || "").toLowerCase().includes("admin")
+          (r) =>
+            !(
+              (r.name || "")
+                .toLowerCase()
+                .includes("admin")
+            )
         )
       );
     } catch (err) {
-      setErrorMsg(err.message || "Không tải được danh sách vai trò.");
+      setErrorMsg(
+        err.message ||
+          "Không tải được danh sách vai trò."
+      );
     }
   };
 
   const fetchSupportPlans = async () => {
     try {
       // Lấy danh sách gói hỗ trợ đang active cho dropdown
-      const res = await axiosClient.get("/supportplans/active");
+      const res = await axiosClient.get(
+        "/supportplans/active"
+      );
       setSupportPlans(res || []);
     } catch (err) {
-      setErrorMsg(err.message || "Không tải được danh sách gói hỗ trợ.");
+      setErrorMsg(
+        err.message ||
+          "Không tải được danh sách gói hỗ trợ."
+      );
     }
   };
 
@@ -165,7 +189,12 @@ export default function AdminUserManagement() {
         const filtered = {
           ...res,
           items: (res?.items || []).filter(
-            (x) => !((x.roleName || "").toLowerCase().includes("admin"))
+            (x) =>
+              !(
+                (x.roleName || "")
+                  .toLowerCase()
+                  .includes("admin")
+              )
           ),
         };
         setData(
@@ -177,8 +206,14 @@ export default function AdminUserManagement() {
           }
         );
       } catch (err) {
-        setErrorMsg(err.message || "Không tải được danh sách người dùng.");
-        setData((prev) => ({ ...prev, items: [] }));
+        setErrorMsg(
+          err.message ||
+            "Không tải được danh sách người dùng."
+        );
+        setData((prev) => ({
+          ...prev,
+          items: [],
+        }));
       } finally {
         setLoading(false);
       }
@@ -208,7 +243,11 @@ export default function AdminUserManagement() {
 
   const onApply = (e) => {
     e.preventDefault();
-    setApplied((prev) => ({ ...prev, ...uiFilters, page: 1 }));
+    setApplied((prev) => ({
+      ...prev,
+      ...uiFilters,
+      page: 1,
+    }));
   };
 
   const onReset = () => {
@@ -219,7 +258,10 @@ export default function AdminUserManagement() {
   const gotoPage = (p) =>
     setApplied((prev) => ({
       ...prev,
-      page: Math.max(1, Math.min(totalPages, p)),
+      page: Math.max(
+        1,
+        Math.min(totalPages, p)
+      ),
     }));
 
   const openAdd = () => {
@@ -250,6 +292,7 @@ export default function AdminUserManagement() {
 
       totalProductSpend: 0,
     });
+    // clear error như màn template
     setFieldErrors({});
     setOpen(true);
   };
@@ -282,131 +325,182 @@ export default function AdminUserManagement() {
 
         // Priority + support plan từ BE (priority chỉ để hiển thị)
         supportPriorityLevel: String(
-          typeof u.supportPriorityLevel === "number"
+          typeof u.supportPriorityLevel ===
+          "number"
             ? u.supportPriorityLevel
             : 0
         ),
         isTemp: !!u.isTemp,
 
         activeSupportPlanId:
-          typeof u.activeSupportPlanId === "number"
+          typeof u.activeSupportPlanId ===
+          "number"
             ? u.activeSupportPlanId
             : null,
-        activeSupportPlanName: u.activeSupportPlanName || "",
-        activeSupportPlanStartedAt: u.activeSupportPlanStartedAt || null,
-        activeSupportPlanExpiresAt: u.activeSupportPlanExpiresAt || null,
-        activeSupportPlanStatus: u.activeSupportPlanStatus || "",
+        activeSupportPlanName:
+          u.activeSupportPlanName || "",
+        activeSupportPlanStartedAt:
+          u.activeSupportPlanStartedAt || null,
+        activeSupportPlanExpiresAt:
+          u.activeSupportPlanExpiresAt || null,
+        activeSupportPlanStatus:
+          u.activeSupportPlanStatus || "",
 
         // Khi mở modal edit, mặc định: giữ nguyên gói (selectedSupportPlanId = "")
         selectedSupportPlanId: "",
 
         // Tổng số tiền đã tiêu
         totalProductSpend:
-          typeof u.totalProductSpend === "number" ? u.totalProductSpend : 0,
+          typeof u.totalProductSpend ===
+          "number"
+            ? u.totalProductSpend
+            : 0,
       });
+      // clear error như màn template
       setFieldErrors({});
       setOpen(true);
     } catch (err) {
-      setErrorMsg(err.message || "Không lấy được thông tin người dùng.");
+      setErrorMsg(
+        err.message ||
+          "Không lấy được thông tin người dùng."
+      );
     }
   };
 
   const trim = (v) => (v || "").trim();
 
   // Regex email cơ bản: phải có "@" và "."
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   /**
    * Validate toàn bộ form modal theo giới hạn DB + rule nghiệp vụ.
    * Trả về object { fieldName: message } nếu có lỗi.
+   * (Chỉ gọi khi submit, giống màn TicketSubjectTemplatesAdminPage)
    */
-  const validateFields = useCallback((currentForm, currentMode) => {
-    const errors = {};
+  const validateFields = useCallback(
+    (currentForm, currentMode) => {
+      const errors = {};
 
-    const fn = trim(currentForm.firstName);
-    if (!fn) {
-      errors.firstName = "Họ không được để trống.";
-    } else if (fn.length > FIELD_LIMITS.firstName) {
-      errors.firstName = `Họ tối đa ${FIELD_LIMITS.firstName} ký tự.`;
-    }
-
-    const ln = trim(currentForm.lastName);
-    if (!ln) {
-      errors.lastName = "Tên không được để trống.";
-    } else if (ln.length > FIELD_LIMITS.lastName) {
-      errors.lastName = `Tên tối đa ${FIELD_LIMITS.lastName} ký tự.`;
-    }
-
-    const email = trim(currentForm.email);
-    if (!email) {
-      errors.email = "Email không được để trống.";
-    } else if (email.length > FIELD_LIMITS.email) {
-      errors.email = `Email tối đa ${FIELD_LIMITS.email} ký tự.`;
-    } else if (!emailRegex.test(email)) {
-      errors.email = "Email không hợp lệ.";
-    }
-
-    const username = trim(currentForm.username);
-    if (username && username.length > FIELD_LIMITS.username) {
-      errors.username = `Username tối đa ${FIELD_LIMITS.username} ký tự.`;
-    }
-
-    const phone = trim(currentForm.phone);
-    if (phone) {
-      if (phone.length > FIELD_LIMITS.phone) {
-        errors.phone = `Điện thoại tối đa ${FIELD_LIMITS.phone} ký tự.`;
-      } else if (!/^[0-9+\s\-()]+$/.test(phone)) {
-        errors.phone =
-          "Số điện thoại chỉ được chứa số và các ký tự + - ( ) khoảng trắng.";
+      const fn = trim(currentForm.firstName);
+      if (!fn) {
+        errors.firstName =
+          "Họ không được để trống.";
+      } else if (
+        fn.length > FIELD_LIMITS.firstName
+      ) {
+        errors.firstName = `Họ tối đa ${FIELD_LIMITS.firstName} ký tự.`;
       }
-    }
 
-    const address = trim(currentForm.address);
-    if (address && address.length > FIELD_LIMITS.address) {
-      errors.address = `Địa chỉ tối đa ${FIELD_LIMITS.address} ký tự.`;
-    }
-
-    if (!currentForm.roleId) {
-      errors.roleId = "Vui lòng chọn vai trò.";
-    }
-
-    const pw = currentForm.newPassword || "";
-    if (currentMode === "add") {
-      if (!pw.trim()) {
-        errors.newPassword = "Mật khẩu không được để trống.";
-      } else if (pw.length < FIELD_LIMITS.passwordMin) {
-        errors.newPassword = `Mật khẩu phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
-      } else if (pw.length > FIELD_LIMITS.passwordMax) {
-        errors.newPassword = `Mật khẩu không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
+      const ln = trim(currentForm.lastName);
+      if (!ln) {
+        errors.lastName =
+          "Tên không được để trống.";
+      } else if (
+        ln.length > FIELD_LIMITS.lastName
+      ) {
+        errors.lastName = `Tên tối đa ${FIELD_LIMITS.lastName} ký tự.`;
       }
-    } else if (currentMode === "edit" && pw) {
-      if (pw.length < FIELD_LIMITS.passwordMin) {
-        errors.newPassword = `Mật khẩu mới phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
-      } else if (pw.length > FIELD_LIMITS.passwordMax) {
-        errors.newPassword = `Mật khẩu mới không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
+
+      const email = trim(currentForm.email);
+      if (!email) {
+        errors.email =
+          "Email không được để trống.";
+      } else if (
+        email.length > FIELD_LIMITS.email
+      ) {
+        errors.email = `Email tối đa ${FIELD_LIMITS.email} ký tự.`;
+      } else if (!emailRegex.test(email)) {
+        errors.email = "Email không hợp lệ.";
       }
-    }
 
-    return errors;
-  }, []);
+      const username = trim(
+        currentForm.username
+      );
+      if (
+        username &&
+        username.length >
+          FIELD_LIMITS.username
+      ) {
+        errors.username = `Username tối đa ${FIELD_LIMITS.username} ký tự.`;
+      }
 
-  // Re-validate mỗi khi form/modal thay đổi (add / edit)
-  useEffect(() => {
-    if (!open || mode === "view") {
-      setFieldErrors({});
-      return;
-    }
-    const errors = validateFields(form, mode);
-    setFieldErrors(errors);
-  }, [open, form, mode, validateFields]);
+      const phone = trim(currentForm.phone);
+      if (phone) {
+        if (
+          phone.length > FIELD_LIMITS.phone
+        ) {
+          errors.phone = `Điện thoại tối đa ${FIELD_LIMITS.phone} ký tự.`;
+        } else if (
+          !/^[0-9+\s\-()]+$/.test(phone)
+        ) {
+          errors.phone =
+            "Số điện thoại chỉ được chứa số và các ký tự + - ( ) khoảng trắng.";
+        }
+      }
 
+      const address = trim(
+        currentForm.address
+      );
+      if (
+        address &&
+        address.length >
+          FIELD_LIMITS.address
+      ) {
+        errors.address = `Địa chỉ tối đa ${FIELD_LIMITS.address} ký tự.`;
+      }
+
+      if (!currentForm.roleId) {
+        errors.roleId = "Vui lòng chọn vai trò.";
+      }
+
+      const pw = currentForm.newPassword || "";
+      if (currentMode === "add") {
+        if (!pw.trim()) {
+          errors.newPassword =
+            "Mật khẩu không được để trống.";
+        } else if (
+          pw.length < FIELD_LIMITS.passwordMin
+        ) {
+          errors.newPassword = `Mật khẩu phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
+        } else if (
+          pw.length >
+          FIELD_LIMITS.passwordMax
+        ) {
+          errors.newPassword = `Mật khẩu không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
+        }
+      } else if (
+        currentMode === "edit" &&
+        pw
+      ) {
+        if (
+          pw.length < FIELD_LIMITS.passwordMin
+        ) {
+          errors.newPassword = `Mật khẩu mới phải có ít nhất ${FIELD_LIMITS.passwordMin} ký tự.`;
+        } else if (
+          pw.length >
+          FIELD_LIMITS.passwordMax
+        ) {
+          errors.newPassword = `Mật khẩu mới không được dài quá ${FIELD_LIMITS.passwordMax} ký tự.`;
+        }
+      }
+
+      return errors;
+    },
+    []
+  );
+
+  // KHÔNG auto validate onChange nữa, chỉ validate khi submit
   const validateForm = () => {
     const errors = validateFields(form, mode);
     setFieldErrors(errors);
-    const hasErrors = Object.keys(errors).length > 0;
+
+    const hasErrors =
+      Object.keys(errors).length > 0;
     if (hasErrors) {
       // Lấy message lỗi đầu tiên để show lên toast
-      const firstError = Object.values(errors)[0];
+      const firstError =
+        Object.values(errors)[0];
       if (firstError) {
         setErrorMsg(firstError);
       }
@@ -425,16 +519,26 @@ export default function AdminUserManagement() {
     let activeSupportPlanId;
     if (mode === "add") {
       // Tạo mới: "" = không gán gói; số = gán gói đó
-      activeSupportPlanId = form.selectedSupportPlanId
-        ? Number(form.selectedSupportPlanId)
-        : undefined;
+      activeSupportPlanId =
+        form.selectedSupportPlanId
+          ? Number(
+              form.selectedSupportPlanId
+            )
+          : undefined;
     } else if (mode === "edit") {
-      if (form.selectedSupportPlanId === "__REMOVE__") {
+      if (
+        form.selectedSupportPlanId ===
+        "__REMOVE__"
+      ) {
         // Đánh dấu xoá gói hỗ trợ. BE nên hiểu activeSupportPlanId = 0 là "xóa gói".
         activeSupportPlanId = 0;
-      } else if (form.selectedSupportPlanId) {
+      } else if (
+        form.selectedSupportPlanId
+      ) {
         // Chọn gói mới (kể cả trùng với gói hiện tại) → BE tạo subscription mới, làm mới ngày.
-        activeSupportPlanId = Number(form.selectedSupportPlanId);
+        activeSupportPlanId = Number(
+          form.selectedSupportPlanId
+        );
       } else {
         // "" = giữ nguyên gói hiện tại → không gửi field này
         activeSupportPlanId = undefined;
@@ -445,31 +549,49 @@ export default function AdminUserManagement() {
       email: trim(form.email),
       firstName: trim(form.firstName),
       lastName: trim(form.lastName),
-      username: trim(form.username) || null,
+      username:
+        trim(form.username) || null,
       phone: trim(form.phone) || null,
-      address: trim(form.address) || null,
+      address:
+        trim(form.address) || null,
       status: form.status,
       roleId: form.roleId || null,
-      ...(activeSupportPlanId !== undefined
+      ...(activeSupportPlanId !==
+      undefined
         ? { activeSupportPlanId }
         : {}),
     };
 
-    const passwordValue = trim(form.newPassword);
+    const passwordValue = trim(
+      form.newPassword
+    );
     try {
       if (mode === "add") {
         await usersApi.create({
           ...payloadBase,
-          newPassword: passwordValue, // bắt buộc, đã validate
+          newPassword:
+            passwordValue, // bắt buộc, đã validate
         });
-        showSuccess("Thành công", "Đã tạo người dùng mới.");
+        showSuccess(
+          "Thành công",
+          "Đã tạo người dùng mới."
+        );
       } else if (mode === "edit") {
-        await usersApi.update(form.userId, {
-          userId: form.userId,
-          ...payloadBase,
-          newPassword: passwordValue === "" ? null : passwordValue,
-        });
-        showSuccess("Thành công", "Đã cập nhật thông tin người dùng.");
+        await usersApi.update(
+          form.userId,
+          {
+            userId: form.userId,
+            ...payloadBase,
+            newPassword:
+              passwordValue === ""
+                ? null
+                : passwordValue,
+          }
+        );
+        showSuccess(
+          "Thành công",
+          "Đã cập nhật thông tin người dùng."
+        );
       }
       setOpen(false);
       fetchList(applied);
@@ -496,23 +618,26 @@ export default function AdminUserManagement() {
       );
       return;
     }
-    const goingDisable = u.status === USER_STATUS.Active;
+    const goingDisable =
+      u.status === USER_STATUS.Active;
     const msg = goingDisable
       ? "Disable tài khoản này?"
       : "Reactive (kích hoạt lại) tài khoản này?";
     if (!window.confirm(msg)) return;
     try {
       await usersApi.delete(u.userId);
-      showSuccess("Thành công", "Đã thay đổi trạng thái người dùng.");
+      showSuccess(
+        "Thành công",
+        "Đã thay đổi trạng thái người dùng."
+      );
       fetchList(applied);
     } catch (err) {
       setErrorMsg(
-        err.message || "Không thay đổi được trạng thái người dùng."
+        err.message ||
+          "Không thay đổi được trạng thái người dùng."
       );
     }
   };
-
-  const hasFormErrors = mode !== "view" && Object.keys(fieldErrors).length > 0;
 
   // Helper hiển thị ngày (chỉ ngày, bỏ time)
   const formatDate = (d) => {
@@ -534,253 +659,500 @@ export default function AdminUserManagement() {
     [supportPlans]
   );
 
+  const fromIndex =
+    data.totalItems === 0
+      ? 0
+      : (applied.page - 1) *
+          applied.pageSize +
+        1;
+  const toIndex = Math.min(
+    data.totalItems || 0,
+    applied.page * applied.pageSize
+  );
+
   return (
     <>
-      <div className="kt-admin wrap">
-        <main className="main">
-          <section className="card filters" aria-labelledby="title">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 id="title" style={{ margin: 0 }}>
-                Quản lý người dùng
-              </h2>
-              <button className="btn primary" onClick={openAdd}>
-                + Thêm người dùng
-              </button>
+      <div className="page user-mgmt-page">
+        <div
+          className="card"
+          style={{
+            margin: "0 auto",
+            maxWidth: 1120,
+          }}
+        >
+          {/* Header */}
+          <div className="card-header">
+            <div className="left">
+              <h2>Quản lý người dùng</h2>
+              <p className="muted">
+                Quản lý tài khoản khách hàng
+                / nhân viên, trạng thái, vai
+                trò, mức độ ưu tiên hỗ trợ
+                và gói hỗ trợ.
+              </p>
             </div>
+          </div>
 
-            <form className="row" style={{ marginTop: 10 }} onSubmit={onApply}>
-              <input
-                className="input"
-                placeholder="Tìm tên, email, username, điện thoại…"
-                value={uiFilters.q}
-                onChange={(e) =>
-                  setUiFilters({ ...uiFilters, q: e.target.value })
-                }
-              />
-              <select
-                value={uiFilters.roleId}
-                onChange={(e) =>
-                  setUiFilters({ ...uiFilters, roleId: e.target.value })
-                }
-              >
-                <option value="">Tất cả vai trò</option>
-                {roles.map((r) => (
-                  <option key={r.roleId} value={r.roleId}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={uiFilters.status}
-                onChange={(e) =>
-                  setUiFilters({ ...uiFilters, status: e.target.value })
-                }
-              >
-                {USER_STATUS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-
-              {/* Filter mức độ ưu tiên */}
-              <select
-                value={uiFilters.supportPriorityLevel}
-                onChange={(e) =>
-                  setUiFilters({
-                    ...uiFilters,
-                    supportPriorityLevel: e.target.value,
-                  })
-                }
-              >
-                <option value="">Tất cả mức độ ưu tiên</option>
-                <option value="0">0</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
-
-              {/* Filter người dùng tạm thời */}
-              <select
-                value={uiFilters.isTemp ? "true" : "false"}
-                onChange={(e) =>
-                  setUiFilters({
-                    ...uiFilters,
-                    isTemp: e.target.value === "true",
-                  })
-                }
-              >
-                <option value="false">Người dùng thật</option>
-                <option value="true">Người dùng tạm thời</option>
-              </select>
-
+          {/* Filter bar + Add button trên cùng 1 hàng */}
+          <div
+            className="row"
+            style={{
+              gap: 10,
+              marginTop: 14,
+              alignItems: "flex-end",
+              flexWrap: "nowrap",
+            }}
+          >
+            <form
+              className="row"
+              style={{
+                flex: 1,
+                gap: 10,
+                alignItems: "flex-end",
+                flexWrap: "wrap",
+              }}
+              onSubmit={onApply}
+            >
               <div
+                className="group"
                 style={{
-                  display: "flex",
-                  gap: 8,
-                  justifyContent: "flex-end",
+                  flex: 1,
+                  minWidth: 260,
                 }}
               >
-                <button className="btn primary" type="submit">
+                <span>Tìm kiếm</span>
+                <input
+                  className="input"
+                  placeholder="Tìm tên, email, username, điện thoại…"
+                  value={uiFilters.q}
+                  onChange={(e) =>
+                    setUiFilters({
+                      ...uiFilters,
+                      q: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div
+                className="group"
+                style={{ width: 180 }}
+              >
+                <span>Vai trò</span>
+                <select
+                  value={uiFilters.roleId}
+                  onChange={(e) =>
+                    setUiFilters({
+                      ...uiFilters,
+                      roleId: e.target.value,
+                    })
+                  }
+                >
+                  <option value="">
+                    Tất cả vai trò
+                  </option>
+                  {roles.map((r) => (
+                    <option
+                      key={r.roleId}
+                      value={r.roleId}
+                    >
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div
+                className="group"
+                style={{ width: 180 }}
+              >
+                <span>Trạng thái</span>
+                <select
+                  value={uiFilters.status}
+                  onChange={(e) =>
+                    setUiFilters({
+                      ...uiFilters,
+                      status: e.target.value,
+                    })
+                  }
+                >
+                  {USER_STATUS_OPTIONS.map(
+                    (o) => (
+                      <option
+                        key={o.value}
+                        value={o.value}
+                      >
+                        {o.label}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div
+                className="group"
+                style={{ width: 160 }}
+              >
+                <span>Mức độ ưu tiên</span>
+                <select
+                  value={
+                    uiFilters.supportPriorityLevel
+                  }
+                  onChange={(e) =>
+                    setUiFilters({
+                      ...uiFilters,
+                      supportPriorityLevel:
+                        e.target.value,
+                    })
+                  }
+                >
+                  <option value="">
+                    Tất cả
+                  </option>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+
+              <div
+                className="group"
+                style={{ width: 190 }}
+              >
+                <span>Loại người dùng</span>
+                <select
+                  value={
+                    uiFilters.isTemp
+                      ? "true"
+                      : "false"
+                  }
+                  onChange={(e) =>
+                    setUiFilters({
+                      ...uiFilters,
+                      isTemp:
+                        e.target.value ===
+                        "true",
+                    })
+                  }
+                >
+                  <option value="false">
+                    Người dùng thật
+                  </option>
+                  <option value="true">
+                    Người dùng tạm thời
+                  </option>
+                </select>
+              </div>
+
+              <div
+                className="row"
+                style={{
+                  gap: 8,
+                  alignItems: "flex-end",
+                  flexShrink: 0,
+                }}
+              >
+                {loading && (
+                  <span className="muted">
+                    Đang tải…
+                  </span>
+                )}
+                <button
+                  className="btn ghost"
+                  type="submit"
+                  disabled={loading}
+                >
                   Áp dụng
                 </button>
-                <button className="btn" type="button" onClick={onReset}>
-                  Reset
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={onReset}
+                  disabled={loading}
+                >
+                  Đặt lại
                 </button>
               </div>
             </form>
-          </section>
 
-          <section className="card" style={{ padding: 14 }}>
-            <div
+            <button
+              type="button"
+              className="btn primary"
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
+              onClick={openAdd}
             >
-              <h3 style={{ margin: 0 }}>Danh sách người dùng</h3>
-              <small className="muted">
-                {data.totalItems} mục · phân trang
-              </small>
-            </div>
+              Thêm người dùng
+            </button>
+          </div>
 
-            <div style={{ overflow: "auto", marginTop: 8 }}>
-              <table
-                className="table"
-                aria-label="Bảng quản lý người dùng"
-                id="userTable"
-              >
-                <thead>
+          {/* Bảng danh sách */}
+          <table
+            className="table"
+            aria-label="Bảng quản lý người dùng"
+            id="userTable"
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    width: 56,
+                  }}
+                >
+                  #
+                </th>
+                <th
+                  style={{
+                    minWidth: 200,
+                  }}
+                >
+                  Họ tên
+                </th>
+                <th
+                  style={{
+                    minWidth: 220,
+                  }}
+                >
+                  Email
+                </th>
+                <th
+                  style={{
+                    width: 130,
+                  }}
+                >
+                  Vai trò
+                </th>
+                <th
+                  style={{
+                    width: 120,
+                  }}
+                >
+                  Mức độ ưu tiên
+                </th>
+                <th
+                  style={{
+                    width: 190,
+                  }}
+                >
+                  Lần đăng nhập cuối
+                </th>
+                <th
+                  style={{
+                    width: 140,
+                  }}
+                >
+                  Trạng thái
+                </th>
+                <th
+                  style={{
+                    width: 210,
+                    textAlign: "right",
+                  }}
+                >
+                  Thao tác
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {!loading &&
+                data.items?.length === 0 && (
                   <tr>
-                    <th>#</th>
-                    <th>Họ tên</th>
-                    <th>Email</th>
-                    <th>Vai trò</th>
-                    <th>Mức độ ưu tiên</th>
-                    <th>Lần đăng nhập cuối</th>
-                    <th>Trạng thái</th>
-                    <th>Thao tác</th>
+                    <td
+                      colSpan="8"
+                      style={{
+                        padding: 14,
+                        textAlign: "center",
+                      }}
+                    >
+                      Không có dữ liệu
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {!loading && data.items?.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan="8"
-                        style={{ padding: 14, textAlign: "center" }}
-                      >
-                        Không có dữ liệu
-                      </td>
-                    </tr>
-                  )}
-                  {loading && (
-                    <tr>
-                      <td
-                        colSpan="8"
-                        style={{ padding: 14, textAlign: "center" }}
-                      >
-                        Đang tải…
-                      </td>
-                    </tr>
-                  )}
-                  {data.items?.map((u, idx) => (
-                    <tr key={u.userId}>
-                      <td>
-                        {(applied.page - 1) * applied.pageSize + idx + 1}
-                      </td>
-                      <td>{u.fullName}</td>
-                      <td>{u.email}</td>
-                      <td>{u.roleName || "-"}</td>
-                      <td>{u.supportPriorityLevel ?? 0}</td>
-                      <td>
-                        {u.lastLoginAt
-                          ? new Date(u.lastLoginAt).toLocaleString()
-                          : "-"}
-                      </td>
-                      <td>
+                )}
+              {loading && (
+                <tr>
+                  <td
+                    colSpan="8"
+                    style={{
+                      padding: 14,
+                      textAlign: "center",
+                    }}
+                  >
+                    Đang tải…
+                  </td>
+                </tr>
+              )}
+              {data.items?.map(
+                (u, idx) => (
+                  <tr key={u.userId}>
+                    <td>
+                      {(applied.page - 1) *
+                        applied.pageSize +
+                        idx +
+                        1}
+                    </td>
+                    <td>
+                      {u.fullName}
+                    </td>
+                    <td>{u.email}</td>
+                    <td>
+                      {u.roleName || "-"}
+                    </td>
+                    <td>
+                      <span className="badge purple">
+                        Level{" "}
+                        {u
+                          .supportPriorityLevel ??
+                          0}
+                      </span>
+                      {u.isTemp && (
                         <span
-                          className={`status ${
-                            u.status === USER_STATUS.Active ? "s-ok" : "s-bad"
-                          }`}
+                          className="badge gray"
+                          style={{
+                            marginLeft: 6,
+                          }}
                         >
-                          {u.status}
+                          Temp
                         </span>
-                      </td>
-                      <td
-                        className="actions-td"
-                        style={{ display: "flex", gap: 6 }}
+                      )}
+                    </td>
+                    <td>
+                      {u.lastLoginAt
+                        ? new Date(
+                            u.lastLoginAt
+                          ).toLocaleString()
+                        : "-"}
+                    </td>
+                    <td>
+                      <span
+                        className={`status ${
+                          u.status ===
+                          USER_STATUS.Active
+                            ? "s-ok"
+                            : "s-bad"
+                        }`}
                       >
-                        {u.isTemp ? (
-                          <span className="muted" style={{ fontSize: 12 }}>
-                            Người dùng tạm thời
-                          </span>
-                        ) : (
-                          <>
-                            <button
-                              className="btn"
-                              onClick={() => openViewOrEdit(u.userId, "view")}
-                              title="Xem"
-                            >
-                              👁️
-                            </button>
-                            <button
-                              className="btn"
-                              onClick={() => openViewOrEdit(u.userId, "edit")}
-                              title="Sửa"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="btn"
-                              onClick={() => toggleDisable(u)}
-                              title={
-                                u.status === USER_STATUS.Active
-                                  ? "Disable"
-                                  : "Reactive"
-                              }
-                            >
-                              {u.status === USER_STATUS.Active ? "🚫" : "✅"}
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {u.status}
+                      </span>
+                    </td>
+                    <td className="actions-td">
+                      {u.isTemp ? (
+                        <span
+                          className="muted"
+                          style={{
+                            fontSize: 12,
+                          }}
+                        >
+                          Người dùng tạm
+                          thời
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            className="btn ghost"
+                            onClick={() =>
+                              openViewOrEdit(
+                                u.userId,
+                                "view"
+                              )
+                            }
+                            title="Xem"
+                          >
+                            👁️
+                          </button>
+                          <button
+                            className="btn ghost"
+                            onClick={() =>
+                              openViewOrEdit(
+                                u.userId,
+                                "edit"
+                              )
+                            }
+                            title="Sửa"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            className="btn ghost"
+                            onClick={() =>
+                              toggleDisable(
+                                u
+                              )
+                            }
+                            title={
+                              u.status ===
+                              USER_STATUS.Active
+                                ? "Disable"
+                                : "Reactive"
+                            }
+                          >
+                            {u.status ===
+                            USER_STATUS.Active
+                              ? "🚫"
+                              : "✅"}
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: 6,
-                marginTop: 12,
-              }}
-            >
-              <button className="btn" onClick={() => gotoPage(applied.page - 1)}>
+          {/* Pager kiểu TicketSubjectTemplatesAdminPage */}
+          <div className="pager">
+            <div className="pager-left">
+              <span>
+                {data.totalItems} người dùng ·{" "}
+                {data.totalItems > 0
+                  ? `Hiển thị ${fromIndex}–${toIndex}`
+                  : "Không có bản ghi"}
+              </span>
+            </div>
+            <div className="pager-right">
+              <button
+                type="button"
+                className="pager-btn"
+                onClick={() =>
+                  gotoPage(applied.page - 1)
+                }
+                disabled={applied.page <= 1}
+              >
                 «
               </button>
-              <span style={{ padding: 8 }}>
+              <span>
                 Trang {applied.page}/{totalPages}
               </span>
-              <button className="btn" onClick={() => gotoPage(applied.page + 1)}>
+              <button
+                type="button"
+                className="pager-btn"
+                onClick={() =>
+                  gotoPage(applied.page + 1)
+                }
+                disabled={
+                  applied.page >= totalPages
+                }
+              >
                 »
               </button>
             </div>
-          </section>
-        </main>
+          </div>
+        </div>
 
         {/* Modal */}
         {open && (
-          <div className="modal-overlay active" onClick={() => setOpen(false)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-overlay active"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              className="modal"
+              onClick={(e) =>
+                e.stopPropagation()
+              }
+            >
               <div className="modal-header">
                 <h3 className="modal-title">
                   {mode === "add"
@@ -791,31 +1163,53 @@ export default function AdminUserManagement() {
                 </h3>
                 <button
                   className="modal-close"
-                  onClick={() => setOpen(false)}
+                  onClick={() =>
+                    setOpen(false)
+                  }
                 >
                   ×
                 </button>
               </div>
 
-              <form onSubmit={submit} className="modal-body">
+              <form
+                onSubmit={submit}
+                className="modal-body"
+              >
                 <div className="form-grid">
                   <div className="form-group">
                     <label className="form-label">
-                      Họ <span style={{ color: "red" }}>*</span>
+                      Họ{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       type="text"
                       className={`form-input ${
-                        fieldErrors.firstName ? "error" : ""
+                        fieldErrors.firstName
+                          ? "error"
+                          : ""
                       }`}
                       value={form.firstName}
                       onChange={(e) =>
-                        setForm({ ...form, firstName: e.target.value })
+                        setForm({
+                          ...form,
+                          firstName:
+                            e.target.value,
+                        })
                       }
                       required
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                       placeholder="Nhập họ"
-                      maxLength={FIELD_LIMITS.firstName}
+                      maxLength={
+                        FIELD_LIMITS.firstName
+                      }
                     />
                     {fieldErrors.firstName && (
                       <div className="error-message">
@@ -826,21 +1220,38 @@ export default function AdminUserManagement() {
 
                   <div className="form-group">
                     <label className="form-label">
-                      Tên <span style={{ color: "red" }}>*</span>
+                      Tên{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       type="text"
                       className={`form-input ${
-                        fieldErrors.lastName ? "error" : ""
+                        fieldErrors.lastName
+                          ? "error"
+                          : ""
                       }`}
                       value={form.lastName}
                       onChange={(e) =>
-                        setForm({ ...form, lastName: e.target.value })
+                        setForm({
+                          ...form,
+                          lastName:
+                            e.target.value,
+                        })
                       }
                       required
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                       placeholder="Nhập tên"
-                      maxLength={FIELD_LIMITS.lastName}
+                      maxLength={
+                        FIELD_LIMITS.lastName
+                      }
                     />
                     {fieldErrors.lastName && (
                       <div className="error-message">
@@ -851,21 +1262,38 @@ export default function AdminUserManagement() {
 
                   <div className="form-group">
                     <label className="form-label">
-                      Email <span style={{ color: "red" }}>*</span>
+                      Email{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       type="email"
                       className={`form-input ${
-                        fieldErrors.email ? "error" : ""
+                        fieldErrors.email
+                          ? "error"
+                          : ""
                       }`}
                       value={form.email}
                       onChange={(e) =>
-                        setForm({ ...form, email: e.target.value })
+                        setForm({
+                          ...form,
+                          email:
+                            e.target.value,
+                        })
                       }
                       required
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                       placeholder="Nhập email"
-                      maxLength={FIELD_LIMITS.email}
+                      maxLength={
+                        FIELD_LIMITS.email
+                      }
                     />
                     {fieldErrors.email && (
                       <div className="error-message">
@@ -875,19 +1303,31 @@ export default function AdminUserManagement() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Username</label>
+                    <label className="form-label">
+                      Username
+                    </label>
                     <input
                       type="text"
                       className={`form-input ${
-                        fieldErrors.username ? "error" : ""
+                        fieldErrors.username
+                          ? "error"
+                          : ""
                       }`}
                       value={form.username}
                       onChange={(e) =>
-                        setForm({ ...form, username: e.target.value })
+                        setForm({
+                          ...form,
+                          username:
+                            e.target.value,
+                        })
                       }
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                       placeholder="Để trống sẽ mặc định dùng email"
-                      maxLength={FIELD_LIMITS.username}
+                      maxLength={
+                        FIELD_LIMITS.username
+                      }
                     />
                     {fieldErrors.username && (
                       <div className="error-message">
@@ -897,19 +1337,31 @@ export default function AdminUserManagement() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Điện thoại</label>
+                    <label className="form-label">
+                      Điện thoại
+                    </label>
                     <input
                       type="tel"
                       className={`form-input ${
-                        fieldErrors.phone ? "error" : ""
+                        fieldErrors.phone
+                          ? "error"
+                          : ""
                       }`}
                       value={form.phone}
                       onChange={(e) =>
-                        setForm({ ...form, phone: e.target.value })
+                        setForm({
+                          ...form,
+                          phone:
+                            e.target.value,
+                        })
                       }
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                       placeholder="Nhập số điện thoại"
-                      maxLength={FIELD_LIMITS.phone}
+                      maxLength={
+                        FIELD_LIMITS.phone
+                      }
                     />
                     {fieldErrors.phone && (
                       <div className="error-message">
@@ -919,19 +1371,31 @@ export default function AdminUserManagement() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Địa chỉ</label>
+                    <label className="form-label">
+                      Địa chỉ
+                    </label>
                     <input
                       type="text"
                       className={`form-input ${
-                        fieldErrors.address ? "error" : ""
+                        fieldErrors.address
+                          ? "error"
+                          : ""
                       }`}
                       value={form.address}
                       onChange={(e) =>
-                        setForm({ ...form, address: e.target.value })
+                        setForm({
+                          ...form,
+                          address:
+                            e.target.value,
+                        })
                       }
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                       placeholder="Nhập địa chỉ"
-                      maxLength={FIELD_LIMITS.address}
+                      maxLength={
+                        FIELD_LIMITS.address
+                      }
                     />
                     {fieldErrors.address && (
                       <div className="error-message">
@@ -942,21 +1406,41 @@ export default function AdminUserManagement() {
 
                   <div className="form-group">
                     <label className="form-label">
-                      Vai trò <span style={{ color: "red" }}>*</span>
+                      Vai trò{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <select
                       className={`form-input ${
-                        fieldErrors.roleId ? "error" : ""
+                        fieldErrors.roleId
+                          ? "error"
+                          : ""
                       }`}
                       value={form.roleId}
                       onChange={(e) =>
-                        setForm({ ...form, roleId: e.target.value })
+                        setForm({
+                          ...form,
+                          roleId:
+                            e.target.value,
+                        })
                       }
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                     >
-                      <option value="">-- Chọn vai trò --</option>
+                      <option value="">
+                        -- Chọn vai trò --
+                      </option>
                       {roles.map((r) => (
-                        <option key={r.roleId} value={r.roleId}>
+                        <option
+                          key={r.roleId}
+                          value={r.roleId}
+                        >
                           {r.name}
                         </option>
                       ))}
@@ -969,17 +1453,30 @@ export default function AdminUserManagement() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Trạng thái</label>
+                    <label className="form-label">
+                      Trạng thái
+                    </label>
                     <select
                       className="form-input"
                       value={form.status}
                       onChange={(e) =>
-                        setForm({ ...form, status: e.target.value })
+                        setForm({
+                          ...form,
+                          status:
+                            e.target.value,
+                        })
                       }
-                      disabled={mode === "view"}
+                      disabled={
+                        mode === "view"
+                      }
                     >
-                      {Object.values(USER_STATUS).map((s) => (
-                        <option key={s} value={s}>
+                      {Object.values(
+                        USER_STATUS
+                      ).map((s) => (
+                        <option
+                          key={s}
+                          value={s}
+                        >
                           {s}
                         </option>
                       ))}
@@ -995,7 +1492,10 @@ export default function AdminUserManagement() {
                       <input
                         type="text"
                         className="form-input"
-                        value={String(form.supportPriorityLevel || "0")}
+                        value={String(
+                          form.supportPriorityLevel ||
+                            "0"
+                        )}
                         disabled
                       />
                     </div>
@@ -1004,17 +1504,23 @@ export default function AdminUserManagement() {
                   {/* Người dùng tạm thời - chỉ view/edit, read-only */}
                   {mode !== "add" && (
                     <div className="form-group">
-                      <label className="form-label">Người dùng tạm thời</label>
+                      <label className="form-label">
+                        Người dùng tạm thời
+                      </label>
                       <input
                         type="text"
                         className="form-input"
-                        value={form.isTemp ? "Có" : "Không"}
+                        value={
+                          form.isTemp
+                            ? "Có"
+                            : "Không"
+                        }
                         disabled
                       />
                     </div>
                   )}
 
-                  {/* Tổng số tiền đã tiêu - chỉ hiển thị, không cho sửa */}
+                  {/* Tổng số tiền đã tiêu - chỉ hiển thị */}
                   {mode !== "add" && (
                     <div className="form-group">
                       <label className="form-label">
@@ -1024,23 +1530,28 @@ export default function AdminUserManagement() {
                         type="text"
                         className="form-input"
                         value={`${formatCurrency(
-                          form.totalProductSpend || 0
+                          form.totalProductSpend ||
+                            0
                         )} đ`}
                         disabled
                       />
                     </div>
                   )}
 
-                  {/* Trường mật khẩu:
-                      - Chỉ hiển thị cho add / edit.
-                      - Add: bắt buộc, label "Mật khẩu".
-                      - Edit: tùy chọn, label "Mật khẩu mới (tùy chọn)". */}
+                  {/* Mật khẩu */}
                   {mode !== "view" && (
                     <div className="form-group form-group-full">
                       <label className="form-label">
                         {mode === "add" ? (
                           <>
-                            Mật khẩu <span style={{ color: "red" }}>*</span>
+                            Mật khẩu{" "}
+                            <span
+                              style={{
+                                color: "red",
+                              }}
+                            >
+                              *
+                            </span>
                           </>
                         ) : (
                           "Mật khẩu mới (tùy chọn)"
@@ -1049,25 +1560,41 @@ export default function AdminUserManagement() {
                       <input
                         type="password"
                         className={`form-input ${
-                          fieldErrors.newPassword ? "error" : ""
+                          fieldErrors.newPassword
+                            ? "error"
+                            : ""
                         }`}
-                        value={form.newPassword}
-                        onChange={(e) =>
-                          setForm({ ...form, newPassword: e.target.value })
+                        value={
+                          form.newPassword
                         }
-                        required={mode === "add"}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            newPassword:
+                              e.target.value,
+                          })
+                        }
+                        required={
+                          mode === "add"
+                        }
                         placeholder={
                           mode === "add"
                             ? `Nhập mật khẩu (ít nhất ${FIELD_LIMITS.passwordMin} ký tự)`
                             : "Để trống nếu không thay đổi"
                         }
                         autoComplete="new-password"
-                        minLength={FIELD_LIMITS.passwordMin}
-                        maxLength={FIELD_LIMITS.passwordMax}
+                        minLength={
+                          FIELD_LIMITS.passwordMin
+                        }
+                        maxLength={
+                          FIELD_LIMITS.passwordMax
+                        }
                       />
                       {fieldErrors.newPassword && (
                         <div className="error-message">
-                          {fieldErrors.newPassword}
+                          {
+                            fieldErrors.newPassword
+                          }
                         </div>
                       )}
                     </div>
@@ -1081,41 +1608,63 @@ export default function AdminUserManagement() {
                     {form.activeSupportPlanName ? (
                       <div
                         style={{
-                          padding: "10px 12px",
+                          padding:
+                            "10px 12px",
                           borderRadius: 8,
-                          border: "1px solid var(--border-color)",
-                          background: "#f8f9fa",
+                          border:
+                            "1px solid var(--border-color)",
+                          background:
+                            "#f8f9fa",
                           fontSize: 14,
                         }}
                       >
                         <div>
-                          <strong>Tên gói:</strong>{" "}
-                          {form.activeSupportPlanName}
+                          <strong>
+                            Tên gói:
+                          </strong>{" "}
+                          {
+                            form.activeSupportPlanName
+                          }
                         </div>
                         <div>
-                          <strong>Trạng thái:</strong>{" "}
-                          {form.activeSupportPlanStatus || "-"}
+                          <strong>
+                            Trạng thái:
+                          </strong>{" "}
+                          {form.activeSupportPlanStatus ||
+                            "-"}
                         </div>
                         <div>
-                          <strong>Ngày bắt đầu:</strong>{" "}
-                          {formatDate(form.activeSupportPlanStartedAt)}
+                          <strong>
+                            Ngày bắt đầu:
+                          </strong>{" "}
+                          {formatDate(
+                            form.activeSupportPlanStartedAt
+                          )}
                         </div>
                         <div>
-                          <strong>Hết hạn:</strong>{" "}
-                          {formatDate(form.activeSupportPlanExpiresAt)}
+                          <strong>
+                            Hết hạn:
+                          </strong>{" "}
+                          {formatDate(
+                            form.activeSupportPlanExpiresAt
+                          )}
                         </div>
                       </div>
                     ) : (
                       <div
                         style={{
-                          padding: "10px 12px",
+                          padding:
+                            "10px 12px",
                           borderRadius: 8,
-                          border: "1px dashed var(--border-color)",
-                          color: "var(--text-muted)",
+                          border:
+                            "1px dashed var(--border-color)",
+                          color:
+                            "var(--text-muted)",
                           fontSize: 14,
                         }}
                       >
-                        Chưa có gói hỗ trợ trả phí nào đang active.
+                        Chưa có gói hỗ trợ trả
+                        phí nào đang active.
                       </div>
                     )}
                   </div>
@@ -1130,63 +1679,111 @@ export default function AdminUserManagement() {
                       </label>
                       <select
                         className="form-input"
-                        value={form.selectedSupportPlanId}
+                        value={
+                          form.selectedSupportPlanId
+                        }
                         onChange={(e) =>
                           setForm({
                             ...form,
-                            selectedSupportPlanId: e.target.value,
+                            selectedSupportPlanId:
+                              e.target.value,
                           })
                         }
                       >
                         {mode === "add" ? (
                           <option value="">
-                            Không gán gói hỗ trợ (mặc định không có gói)
+                            Không gán gói hỗ
+                            trợ (mặc định không
+                            có gói)
                           </option>
                         ) : (
                           <>
                             <option value="">
-                              Giữ nguyên gói hiện tại
+                              Giữ nguyên gói
+                              hiện tại
                             </option>
                             <option value="__REMOVE__">
-                              Xóa gói hỗ trợ (về trạng thái không có gói)
+                              Xóa gói hỗ trợ
+                              (về trạng thái
+                              không có gói)
                             </option>
                           </>
                         )}
 
-                        {paidSupportPlans.map((p) => (
-                          <option
-                            key={p.supportPlanId}
-                            value={String(p.supportPlanId)}
-                          >
-                            {p.name} (Level {p.priorityLevel}) - {p.price}đ
-                          </option>
-                        ))}
+                        {paidSupportPlans.map(
+                          (p) => (
+                            <option
+                              key={
+                                p.supportPlanId
+                              }
+                              value={String(
+                                p.supportPlanId
+                              )}
+                            >
+                              {p.name} (Level{" "}
+                              {p.priorityLevel})
+                              {" - "}
+                              {formatCurrency(
+                                p.price
+                              )}
+                              đ
+                            </option>
+                          )
+                        )}
                       </select>
                       {mode === "add" ? (
                         <div
                           className="hint-text"
-                          style={{ fontSize: 12, marginTop: 4 }}
+                          style={{
+                            marginTop: 4,
+                          }}
                         >
-                          Tùy chọn: nếu chọn một gói, hệ thống sẽ tạo subscription
-                          mới cho người dùng khi lưu.
+                          Tùy chọn: nếu chọn một
+                          gói, hệ thống sẽ tạo
+                          subscription mới cho
+                          người dùng khi lưu.
                         </div>
                       ) : (
                         <div
                           className="hint-text"
-                          style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}
+                          style={{
+                            marginTop: 4,
+                            lineHeight: 1.5,
+                          }}
                         >
                           <div>
-                            - <strong>Giữ nguyên gói hiện tại</strong>: không
-                            thay đổi subscription.
+                            -{" "}
+                            <strong>
+                              Giữ nguyên gói
+                              hiện tại
+                            </strong>
+                            : không thay đổi
+                            subscription.
                           </div>
                           <div>
-                            - <strong>Xóa gói hỗ trợ</strong>: huỷ subscription
-                            hiện tại (người dùng không còn gói).
+                            -{" "}
+                            <strong>
+                              Xóa gói hỗ trợ
+                            </strong>
+                            : huỷ subscription
+                            hiện tại (người
+                            dùng không còn gói).
                           </div>
                           <div>
-                            - <strong>Chọn một gói trong danh sách</strong> (kể
-                            cả trùng với gói hiện tại): hệ thống sẽ tạo{" "}
-                            subscription mới và <strong>làm mới thời hạn gói</strong>.
+                            -{" "}
+                            <strong>
+                              Chọn một gói trong
+                              danh sách
+                            </strong>{" "}
+                            (kể cả trùng với gói
+                            hiện tại): hệ thống
+                            sẽ tạo subscription
+                            mới và{" "}
+                            <strong>
+                              làm mới thời hạn
+                              gói
+                            </strong>
+                            .
                           </div>
                         </div>
                       )}
@@ -1199,7 +1796,9 @@ export default function AdminUserManagement() {
                 <button
                   type="button"
                   className="btn-modal btn-modal-secondary"
-                  onClick={() => setOpen(false)}
+                  onClick={() =>
+                    setOpen(false)
+                  }
                 >
                   Đóng
                 </button>
@@ -1208,7 +1807,6 @@ export default function AdminUserManagement() {
                     type="button"
                     className="btn-modal btn-modal-primary"
                     onClick={submit}
-                    disabled={hasFormErrors}
                   >
                     Lưu
                   </button>
@@ -1219,7 +1817,10 @@ export default function AdminUserManagement() {
         )}
       </div>
 
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <ToastContainer
+        toasts={toasts}
+        removeToast={removeToast}
+      />
       <ErrorDialog
         message={errorMsg}
         onClose={() => setErrorMsg("")}
