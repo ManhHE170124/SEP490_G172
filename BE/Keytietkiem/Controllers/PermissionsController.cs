@@ -13,10 +13,16 @@
  *   - PUT    /api/permissions/{id}         : Update permission
  *   - DELETE /api/permissions/{id}         : Delete permission and role-permissions
  */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Roles;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Controllers
 {
@@ -25,9 +31,14 @@ namespace Keytietkiem.Controllers
     public class PermissionsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
-        public PermissionsController(KeytietkiemDbContext context)
+        private readonly IAuditLogger _auditLogger;
+
+        public PermissionsController(
+            KeytietkiemDbContext context,
+            IAuditLogger auditLogger)
         {
             _context = context;
+            _auditLogger = auditLogger;
         }
 
         /**
@@ -85,7 +96,7 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Create a new permission.
          * Route: POST /api/permissions
-         * Body: Permission newPermission
+         * Body: CreatePermissionDTO createPermissionDto
          * Returns: 201 Created with created permission, 400/409 on validation errors
          */
         [HttpPost]
@@ -99,8 +110,10 @@ namespace Keytietkiem.Controllers
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-                return BadRequest(new { message = string.Join(" ", errors) });
+                var message = string.Join(" ", errors);
+                return BadRequest(new { message });
             }
+
             var existing = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionName == createPermissionDto.PermissionName);
             if (existing != null)
@@ -162,6 +175,24 @@ namespace Keytietkiem.Controllers
                 UpdatedAt = newPermission.UpdatedAt
             };
 
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreatePermission",
+                entityType: "Permission",
+                entityId: newPermission.PermissionId.ToString(),
+                before: null,
+                after: new
+                {
+                    newPermission.PermissionId,
+                    newPermission.PermissionName,
+                    newPermission.Code,
+                    newPermission.Description,
+                    newPermission.CreatedAt,
+                    newPermission.UpdatedAt,
+                    RolesCount = roles.Count,
+                    ModulesCount = modules.Count
+                });
+
             return CreatedAtAction(nameof(GetPermissionById), new { id = newPermission.PermissionId }, permissionDto);
         }
 
@@ -169,7 +200,7 @@ namespace Keytietkiem.Controllers
          * Summary: Update an existing permission by id.
          * Route: PUT /api/permissions/{id}
          * Params: id (long)
-         * Body: Permission updatedPermission
+         * Body: UpdatePermissionDTO updatePermissionDto
          * Returns: 204 No Content, 400/404 on errors
          */
         [HttpPut("{id}")]
@@ -183,14 +214,18 @@ namespace Keytietkiem.Controllers
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-                return BadRequest(new { message = string.Join(" ", errors) });
+                var message = string.Join(" ", errors);
+                return BadRequest(new { message });
             }
+
             var existing = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionId == id);
             if (existing == null)
             {
+                // Không audit lỗi để tránh spam log
                 return NotFound();
             }
+
             // Check if Code is unique (if provided and changed)
             if (!string.IsNullOrWhiteSpace(updatePermissionDto.Code) && existing.Code != updatePermissionDto.Code)
             {
@@ -202,12 +237,39 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            var before = new
+            {
+                existing.PermissionId,
+                existing.PermissionName,
+                existing.Code,
+                existing.Description,
+                existing.CreatedAt,
+                existing.UpdatedAt
+            };
+
             existing.PermissionName = updatePermissionDto.PermissionName;
             existing.Code = updatePermissionDto.Code;
             existing.Description = updatePermissionDto.Description;
             existing.UpdatedAt = DateTime.Now;
             _context.Permissions.Update(existing);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdatePermission",
+                entityType: "Permission",
+                entityId: existing.PermissionId.ToString(),
+                before: before,
+                after: new
+                {
+                    existing.PermissionId,
+                    existing.PermissionName,
+                    existing.Code,
+                    existing.Description,
+                    existing.CreatedAt,
+                    existing.UpdatedAt
+                });
+
             return NoContent();
         }
 
@@ -221,14 +283,41 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> DeletePermission(long id)
         {
             var existingPermission = await _context.Permissions
+                .Include(p => p.RolePermissions)
                 .FirstOrDefaultAsync(m => m.PermissionId == id);
             if (existingPermission == null)
             {
+                // Không audit lỗi để tránh spam log
                 return NotFound();
             }
+
+            var before = new
+            {
+                existingPermission.PermissionId,
+                existingPermission.PermissionName,
+                existingPermission.Code,
+                existingPermission.Description,
+                existingPermission.CreatedAt,
+                existingPermission.UpdatedAt,
+                RolePermissionsCount = existingPermission.RolePermissions?.Count ?? 0
+            };
+
             _context.RolePermissions.RemoveRange(existingPermission.RolePermissions);
             _context.Permissions.Remove(existingPermission);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "DeletePermission",
+                entityType: "Permission",
+                entityId: existingPermission.PermissionId.ToString(),
+                before: before,
+                after: new
+                {
+                    existingPermission.PermissionId,
+                    Deleted = true
+                });
+
             return NoContent();
         }
     }

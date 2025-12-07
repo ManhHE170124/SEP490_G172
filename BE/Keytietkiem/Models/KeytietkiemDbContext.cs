@@ -128,28 +128,47 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_Accounts_User");
         });
 
+        // Trong KeytietkiemDbContext.OnModelCreating(ModelBuilder modelBuilder)
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F23986F01F4DF");
+            entity.HasKey(e => e.AuditId).HasName("PK_AuditLog");
 
             entity.ToTable("AuditLog");
+
+            entity.Property(e => e.OccurredAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.Property(e => e.ActorEmail)
+                .HasMaxLength(254);
+
+            entity.Property(e => e.ActorRole)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.Property(e => e.SessionId)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.IpAddress)
+                .HasMaxLength(45)
+                .IsUnicode(false);
+
+            entity.Property(e => e.UserAgent)
+                .HasMaxLength(200);
 
             entity.Property(e => e.Action)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-            entity.Property(e => e.ActorEmail).HasMaxLength(254);
-            entity.Property(e => e.EntityId).HasMaxLength(128);
-            entity.Property(e => e.IpAddress)
-                .HasMaxLength(45)
-                .IsUnicode(false);
-            entity.Property(e => e.OccurredAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.Resource)
+
+            entity.Property(e => e.EntityType)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-            entity.Property(e => e.UserAgent).HasMaxLength(200);
+
+            entity.Property(e => e.EntityId)
+                .HasMaxLength(128);
         });
+
+
 
         modelBuilder.Entity<Badge>(entity =>
         {

@@ -4,24 +4,31 @@
  * Created: 17-10-2025
  * Last Updated: 20-10-2025
  * Version: 1.0.0
- * Purpose: Manage roles (CRUD). Initializes role-permissions for all modules &
+ * Purpose: Manage roles (CRUD). Initializes role-permissions for all modules & 
  *          permissions on role creation and maintains referential integrity on
  *          updates/deletions.
  * Endpoints:
- *   - GET    /api/roles              : List roles
- *   - GET    /api/roles/{id}         : Get role by id (includes role-permissions)
- *   - GET    /api/roles/{id}/permissions : Get role permissions matrix
- *   - POST   /api/roles              : Create role and seed role-permissions
- *   - PUT    /api/roles/{id}         : Update role
- *   - PUT    /api/roles/{id}/permissions : Bulk update role permissions
- *   - DELETE /api/roles/{id}         : Delete role and its role-permissions
+ *   - GET    /api/roles                   : List roles
+ *   - GET    /api/roles/list              : List roles (full info)
+ *   - GET    /api/roles/{id}              : Get role by id (includes role-permissions)
+ *   - GET    /api/roles/{id}/permissions  : Get role permissions matrix
+ *   - POST   /api/roles                   : Create role and seed role-permissions
+ *   - PUT    /api/roles/{id}              : Update role
+ *   - PUT    /api/roles/{id}/permissions  : Bulk update role permissions
+ *   - DELETE /api/roles/{id}              : Delete role and its role-permissions
+ *   - GET    /api/roles/active            : List active roles
+ *   - POST   /api/roles/module-access     : List modules accessible by role codes
+ *   - POST   /api/roles/check-permission  : Check permission for single role
+ *   - POST   /api/roles/check-permissions : Check permissions for multiple roles
  */
 
+using Keytietkiem.DTOs.Roles;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.DTOs.Roles;
-using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
@@ -30,9 +37,12 @@ namespace Keytietkiem.Controllers
     public class RolesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
-        public RolesController(KeytietkiemDbContext context)
+        private readonly IAuditLogger _auditLogger;
+
+        public RolesController(KeytietkiemDbContext context, IAuditLogger auditLogger)
         {
             _context = context;
+            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -49,9 +59,10 @@ namespace Keytietkiem.Controllers
 
             return Ok(roles);
         }
+
         /**
          * Summary: Retrieve all roles.
-         * Route: GET /api/roles
+         * Route: GET /api/roles/list
          * Params: none
          * Returns: 200 OK with list of roles
          */
@@ -84,10 +95,11 @@ namespace Keytietkiem.Controllers
         {
             var role = await _context.Roles
                 .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Module)
+                    .ThenInclude(rp => rp.Module)
                 .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
+                    .ThenInclude(rp => rp.Permission)
                 .FirstOrDefaultAsync(r => r.RoleId == id);
+
             if (role == null)
             {
                 return NotFound();
@@ -115,10 +127,11 @@ namespace Keytietkiem.Controllers
 
             return Ok(roleResponse);
         }
+
         /**
          * Summary: Create a new role and seed role-permissions for all modules & permissions.
          * Route: POST /api/roles
-         * Body: Role newRole
+         * Body: CreateRoleDTO
          * Returns: 201 Created with created role, 400/409 on validation errors
          */
         [HttpPost]
@@ -131,9 +144,12 @@ namespace Keytietkiem.Controllers
 
             if (!ModelState.IsValid)
             {
-                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
+
             var existingRole = await _context.Roles
                 .FirstOrDefaultAsync(m => m.Name == createRoleDto.Name);
             if (existingRole != null)
@@ -198,13 +214,24 @@ namespace Keytietkiem.Controllers
                 UpdatedAt = newRole.UpdatedAt
             };
 
+            // ===== AUDIT LOG: CREATE ROLE (success only) =====
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "Role",
+                entityId: newRole.RoleId,
+                before: null,
+                after: roleDto
+            );
+
             return CreatedAtAction(nameof(GetRoleById), new { id = newRole.RoleId }, roleDto);
         }
+
         /**
         * Summary: Update an existing role by id.
         * Route: PUT /api/roles/{id}
         * Params: id (string)
-        * Body: Role updatedRole
+        * Body: UpdateRoleDTO
         * Returns: 204 No Content, 400/404 on errors
         */
         [HttpPut("{id}")]
@@ -217,16 +244,31 @@ namespace Keytietkiem.Controllers
 
             if (!ModelState.IsValid)
             {
-                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
+
             var existingRole = await _context.Roles.FindAsync(id);
             if (existingRole == null)
             {
                 return NotFound();
             }
+
+            // Snapshot before
+            var before = new
+            {
+                existingRole.RoleId,
+                existingRole.Name,
+                existingRole.Code,
+                existingRole.IsActive,
+                existingRole.IsSystem
+            };
+
             // Check if Code is unique (if provided and changed)
-            if (!string.IsNullOrWhiteSpace(updateRoleDto.Code) && existingRole.Code != updateRoleDto.Code)
+            if (!string.IsNullOrWhiteSpace(updateRoleDto.Code) &&
+                existingRole.Code != updateRoleDto.Code)
             {
                 var existingCode = await _context.Roles
                     .FirstOrDefaultAsync(m => m.Code == updateRoleDto.Code && m.RoleId != id);
@@ -240,10 +282,32 @@ namespace Keytietkiem.Controllers
             existingRole.Code = updateRoleDto.Code;
             existingRole.IsActive = updateRoleDto.IsActive;
             existingRole.UpdatedAt = DateTime.Now;
+
             _context.Roles.Update(existingRole);
             await _context.SaveChangesAsync();
+
+            var after = new
+            {
+                existingRole.RoleId,
+                existingRole.Name,
+                existingRole.Code,
+                existingRole.IsActive,
+                existingRole.IsSystem
+            };
+
+            // ===== AUDIT LOG: UPDATE ROLE (success only) =====
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "Role",
+                entityId: existingRole.RoleId,
+                before: before,
+                after: after
+            );
+
             return NoContent();
         }
+
         /**
          * Summary: Delete a role by id and cascade remove related role-permissions.
          * Route: DELETE /api/roles/{id}
@@ -258,10 +322,32 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
+
+            // Snapshot before delete
+            var before = new
+            {
+                existingRole.RoleId,
+                existingRole.Name,
+                existingRole.Code,
+                existingRole.IsActive,
+                existingRole.IsSystem
+            };
+
             var rolePermissions = _context.RolePermissions.Where(rp => rp.RoleId == id);
             _context.RolePermissions.RemoveRange(rolePermissions);
             _context.Roles.Remove(existingRole);
             await _context.SaveChangesAsync();
+
+            // ===== AUDIT LOG: DELETE ROLE (success only) =====
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Delete",
+                entityType: "Role",
+                entityId: existingRole.RoleId,
+                before: before,
+                after: null
+            );
+
             return NoContent();
         }
 
@@ -287,6 +373,7 @@ namespace Keytietkiem.Controllers
                     UpdatedAt = r.UpdatedAt
                 })
                 .ToListAsync();
+
             return Ok(activeRoles);
         }
 
@@ -301,9 +388,9 @@ namespace Keytietkiem.Controllers
         {
             var role = await _context.Roles
                 .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Module)
+                    .ThenInclude(rp => rp.Module)
                 .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
+                    .ThenInclude(rp => rp.Permission)
                 .FirstOrDefaultAsync(r => r.RoleId == id);
 
             if (role == null)
@@ -364,12 +451,24 @@ namespace Keytietkiem.Controllers
                     .Where(rp => rp.RoleId == id)
                     .ToListAsync();
 
+                // Snapshot before
+                var before = existingRolePermissions
+                    .Select(rp => new
+                    {
+                        rp.RoleId,
+                        rp.ModuleId,
+                        rp.PermissionId,
+                        rp.IsActive
+                    })
+                    .ToList();
+
                 // Update or create role permissions
                 foreach (var permissionDto in updateDto.RolePermissions)
                 {
                     var existingPermission = existingRolePermissions
-                        .FirstOrDefault(rp => rp.ModuleId == permissionDto.ModuleId &&
-                                            rp.PermissionId == permissionDto.PermissionId);
+                        .FirstOrDefault(rp =>
+                            rp.ModuleId == permissionDto.ModuleId &&
+                            rp.PermissionId == permissionDto.PermissionId);
 
                     if (existingPermission != null)
                     {
@@ -404,8 +503,8 @@ namespace Keytietkiem.Controllers
                         ModuleId = rp.ModuleId,
                         PermissionId = rp.PermissionId,
                         IsActive = rp.IsActive,
-                        ModuleName = rp.Module.ModuleName,
-                        PermissionName = rp.Permission.PermissionName
+                        ModuleName = rp.Module!.ModuleName,
+                        PermissionName = rp.Permission!.PermissionName
                     })
                     .ToListAsync();
 
@@ -416,11 +515,28 @@ namespace Keytietkiem.Controllers
                     RolePermissions = updatedRolePermissions
                 };
 
+                // ===== AUDIT LOG: UPDATE ROLE PERMISSIONS (success only) =====
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "UpdatePermissions",
+                    entityType: "Role",
+                    entityId: role.RoleId,
+                    before: before,
+                    after: response
+                );
+
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "An error occurred while updating role permissions.", error = ex.Message });
+                // Không ghi audit log cho lỗi để tránh spam log
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        message = "An error occurred while updating role permissions.",
+                        error = ex.Message
+                    });
             }
         }
 
@@ -492,7 +608,8 @@ namespace Keytietkiem.Controllers
         [HttpPost("check-permission")]
         public async Task<IActionResult> CheckPermission([FromBody] CheckPermissionRequestDTO request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.RoleCode) ||
+            if (request == null ||
+                string.IsNullOrWhiteSpace(request.RoleCode) ||
                 string.IsNullOrWhiteSpace(request.ModuleCode) ||
                 string.IsNullOrWhiteSpace(request.PermissionCode))
             {
@@ -547,7 +664,7 @@ namespace Keytietkiem.Controllers
                         rp.ModuleId == module.ModuleId &&
                         rp.PermissionId == permission.PermissionId);
 
-                bool hasAccess = rolePermission != null && rolePermission.IsActive;
+                var hasAccess = rolePermission != null && rolePermission.IsActive;
 
                 return Ok(new CheckPermissionResponseDTO
                 {
@@ -557,7 +674,13 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "An error occurred while checking permission.", error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        message = "An error occurred while checking permission.",
+                        error = ex.Message
+                    });
             }
         }
 
@@ -642,7 +765,7 @@ namespace Keytietkiem.Controllers
                             rp.ModuleId == module.ModuleId &&
                             rp.PermissionId == permission.PermissionId);
 
-                    bool hasAccess = rolePermission != null && rolePermission.IsActive;
+                    var hasAccess = rolePermission != null && rolePermission.IsActive;
 
                     results.Add(new CheckPermissionResponseDTO
                     {
@@ -655,10 +778,14 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "An error occurred while checking permissions.", error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        message = "An error occurred while checking permissions.",
+                        error = ex.Message
+                    });
             }
         }
-
-
     }
 }

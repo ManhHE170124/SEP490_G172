@@ -1,11 +1,14 @@
-﻿using System.Security.Cryptography;
-using System.Text;
+﻿using Keytietkiem.DTOs.Common;
+using Keytietkiem.DTOs.Enums;
 using Keytietkiem.DTOs.Users;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.DTOs.Common;
-using Keytietkiem.DTOs.Enums;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Keytietkiem.Controllers
 {
@@ -14,7 +17,13 @@ namespace Keytietkiem.Controllers
     public class UsersController : ControllerBase
     {
         private readonly KeytietkiemDbContext _db;
-        public UsersController(KeytietkiemDbContext db) => _db = db;
+        private readonly IAuditLogger _auditLogger;
+
+        public UsersController(KeytietkiemDbContext db, IAuditLogger auditLogger)
+        {
+            _db = db;
+            _auditLogger = auditLogger;
+        }
 
         // ===== Password hashing (PBKDF2 - 1 chiều) =====
         private static byte[] HashPassword(string password)
@@ -477,6 +486,8 @@ namespace Keytietkiem.Controllers
 
             await _db.Users.AddAsync(user);
 
+            bool hasAccount = false;
+
             if (!string.IsNullOrWhiteSpace(dto.NewPassword))
             {
                 // Bảo đảm Username là duy nhất
@@ -493,6 +504,8 @@ namespace Keytietkiem.Controllers
                     CreatedAt = now,
                     UpdatedAt = now
                 });
+
+                hasAccount = true;
             }
 
             // Nếu admin chọn gói hỗ trợ khi tạo user -> tạo subscription thủ công
@@ -507,6 +520,26 @@ namespace Keytietkiem.Controllers
             }
 
             await _db.SaveChangesAsync();
+
+            // 🔐 AUDIT LOG – CREATE USER
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "User",
+                entityId: user.UserId.ToString(),
+                before: null,
+                after: new
+                {
+                    user.UserId,
+                    user.Email,
+                    user.Status,
+                    user.SupportPriorityLevel,
+                    user.IsTemp,
+                    RoleIds = user.Roles.Select(r => r.RoleId).ToList(),
+                    HasAccount = hasAccount
+                }
+            );
+
             return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
         }
 
@@ -559,6 +592,17 @@ namespace Keytietkiem.Controllers
                 if (emailExists)
                     return Conflict(new { message = "Email đã tồn tại, vui lòng dùng email khác." });
             }
+
+            var before = new
+            {
+                u.UserId,
+                u.Email,
+                u.Status,
+                u.SupportPriorityLevel,
+                u.IsTemp,
+                RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
+                HasAccount = u.Account != null
+            };
 
             u.FirstName = dto.FirstName;
             u.LastName = dto.LastName;
@@ -647,6 +691,28 @@ namespace Keytietkiem.Controllers
             }
 
             await _db.SaveChangesAsync();
+
+            var after = new
+            {
+                u.UserId,
+                u.Email,
+                u.Status,
+                u.SupportPriorityLevel,
+                u.IsTemp,
+                RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
+                HasAccount = u.Account != null
+            };
+
+            // 🔐 AUDIT LOG – UPDATE USER
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "User",
+                entityId: u.UserId.ToString(),
+                before: before,
+                after: after
+            );
+
             return NoContent();
         }
 
@@ -673,12 +739,37 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Không thể khoá/mở khoá người dùng tạm thời (IsTemp = true)." });
             }
 
+            var before = new
+            {
+                u.UserId,
+                u.Email,
+                Status = u.Status
+            };
+
             u.Status = string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase)
                 ? "Disabled"
                 : "Active";
 
             u.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+
+            var after = new
+            {
+                u.UserId,
+                u.Email,
+                Status = u.Status
+            };
+
+            // 🔐 AUDIT LOG – TOGGLE ACTIVE/DISABLED
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "ToggleActive",
+                entityType: "User",
+                entityId: u.UserId.ToString(),
+                before: before,
+                after: after
+            );
+
             return NoContent();
         }
     }

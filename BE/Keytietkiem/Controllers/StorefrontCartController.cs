@@ -3,7 +3,9 @@ using Keytietkiem.DTOs.Cart;
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -14,7 +16,6 @@ using System.Linq;
 using System.Net.Mail;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
 
 namespace Keytietkiem.Controllers
@@ -71,7 +72,7 @@ namespace Keytietkiem.Controllers
         [HttpPost("items")]
         public async Task<ActionResult<StorefrontCartDto>> AddItem([FromBody] AddToCartRequestDto dto)
         {
-            var (cacheKey, _, isAuthenticated) = GetCartContext();
+            var (cacheKey, userId, isAuthenticated) = GetCartContext();
 
             if (dto == null || dto.VariantId == Guid.Empty)
             {
@@ -355,7 +356,7 @@ namespace Keytietkiem.Controllers
             Guid variantId,
             [FromBody] UpdateCartItemRequestDto dto)
         {
-            var (cacheKey, _, isAuthenticated) = GetCartContext();
+            var (cacheKey, userId, isAuthenticated) = GetCartContext();
 
             if (dto == null)
             {
@@ -446,7 +447,7 @@ namespace Keytietkiem.Controllers
         [HttpDelete("items/{variantId:guid}")]
         public async Task<ActionResult<StorefrontCartDto>> RemoveItem(Guid variantId)
         {
-            var (cacheKey, _, isAuthenticated) = GetCartContext();
+            var (cacheKey, userId, isAuthenticated) = GetCartContext();
 
             var cart = GetOrCreateCart(cacheKey, isAuthenticated);
             var item = cart.Items.FirstOrDefault(i => i.VariantId == variantId);
@@ -481,7 +482,7 @@ namespace Keytietkiem.Controllers
         [HttpPut("receiver-email")]
         public ActionResult<StorefrontCartDto> SetReceiverEmail([FromBody] SetCartReceiverEmailRequestDto dto)
         {
-            var (cacheKey, _, isAuthenticated) = GetCartContext();
+            var (cacheKey, userId, isAuthenticated) = GetCartContext();
 
             if (dto == null || string.IsNullOrWhiteSpace(dto.ReceiverEmail))
             {
@@ -500,9 +501,12 @@ namespace Keytietkiem.Controllers
         [HttpDelete]
         public async Task<IActionResult> ClearCart([FromQuery] bool skipRestoreStock = false)
         {
-            var (cacheKey, _, isAuthenticated) = GetCartContext();
+            var (cacheKey, userId, isAuthenticated) = GetCartContext();
 
             var cart = GetOrCreateCart(cacheKey, isAuthenticated);
+            var beforeItems = cart.Items
+                .Select(i => new { i.VariantId, i.Quantity })
+                .ToList();
 
             // Nếu KHÔNG skipRestoreStock => hoàn kho như cũ (dùng cho nút "Xoá giỏ hàng").
             // Nếu skipRestoreStock = true (dùng sau khi tạo Payment từ cart) => KHÔNG hoàn kho nữa,
@@ -591,21 +595,18 @@ namespace Keytietkiem.Controllers
 
             var newId = Guid.NewGuid().ToString("N");
 
-            
             var options = new CookieOptions
             {
                 HttpOnly = true,
                 IsEssential = true,
-                SameSite = SameSiteMode.None,       
-                Secure = true,                      
+                SameSite = SameSiteMode.None,
+                Secure = true,
                 Expires = DateTimeOffset.UtcNow.Add(AnonymousCartTtl)
             };
 
             Response.Cookies.Append(AnonymousCartCookieName, newId, options);
             return newId;
         }
-
-
 
         private CartCacheModel GetOrCreateCart(string cacheKey, bool isAuthenticated)
         {

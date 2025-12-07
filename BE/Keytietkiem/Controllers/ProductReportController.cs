@@ -1,8 +1,13 @@
-using System.Security.Claims;
 using Keytietkiem.DTOs;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers;
 
@@ -12,10 +17,14 @@ namespace Keytietkiem.Controllers;
 public class ProductReportController : ControllerBase
 {
     private readonly IProductReportService _productReportService;
+    private readonly IAuditLogger _auditLogger;
 
-    public ProductReportController(IProductReportService productReportService)
+    public ProductReportController(
+        IProductReportService productReportService,
+        IAuditLogger auditLogger)
     {
         _productReportService = productReportService ?? throw new ArgumentNullException(nameof(productReportService));
+        _auditLogger = auditLogger;
     }
 
     /// <summary>
@@ -68,8 +77,26 @@ public class ProductReportController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateProductReport([FromBody] CreateProductReportDto dto)
     {
-        var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId.Value);
-        return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
+        try
+        {
+            var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId!.Value);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "ProductReport",
+                entityId: report.Id.ToString(),
+                before: null,
+                after: report
+);
+
+            return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
+        }
+        catch (Exception)
+        {
+            // Giữ nguyên behavior: exception -> 500, không log để tránh spam
+            throw;
+        }
     }
 
     /// <summary>
@@ -82,13 +109,34 @@ public class ProductReportController : ControllerBase
     public async Task<IActionResult> UpdateProductReportStatus(Guid id, [FromBody] UpdateProductReportDto dto)
     {
         if (id != dto.Id)
+        {
+            // Không log 400 để tránh spam log
             return BadRequest(new { message = "ID trong URL và body không khớp" });
+        }
 
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
-        var report = await _productReportService.UpdateProductReportStatusAsync(dto, actorId, actorEmail);
-        return Ok(report);
+        try
+        {
+            var report = await _productReportService.UpdateProductReportStatusAsync(dto, actorId, actorEmail);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdateStatus",
+                entityType: "ProductReport",
+                entityId: report.Id.ToString(),
+                before: null,
+                after: report
+);
+
+            return Ok(report);
+        }
+        catch (Exception)
+        {
+            // Giữ nguyên behavior cũ (exception -> 500), không log để tránh spam
+            throw;
+        }
     }
 
     /// <summary>

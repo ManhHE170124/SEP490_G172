@@ -1,7 +1,10 @@
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Enums;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
@@ -17,13 +20,16 @@ namespace Keytietkiem.Controllers
     {
         private readonly IProductKeyService _productKeyService;
         private readonly ILicensePackageService _licensePackageService;
+        private readonly IAuditLogger _auditLogger;
 
         public ProductKeyController(
             IProductKeyService productKeyService,
-            ILicensePackageService licensePackageService)
+            ILicensePackageService licensePackageService,
+            IAuditLogger auditLogger)
         {
             _productKeyService = productKeyService;
             _licensePackageService = licensePackageService;
+            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -80,6 +86,16 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 var result = await _productKeyService.CreateProductKeyAsync(dto, actorId, cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "Create",
+                    entityType: "ProductKey",
+                    entityId: result.KeyId.ToString(),
+                    before: null,
+                    after: result
+);
+
                 return CreatedAtAction(nameof(GetProductKeyById), new { keyId = result.KeyId }, result);
             }
             catch (InvalidOperationException ex)
@@ -109,7 +125,22 @@ namespace Keytietkiem.Controllers
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+                // Lấy bản hiện tại để log before
+                var before = await _productKeyService.GetProductKeyByIdAsync(keyId, cancellationToken);
+
                 var result = await _productKeyService.UpdateProductKeyAsync(dto, actorId, cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+
+                    action: "Update",
+                    entityType: "ProductKey",
+                    entityId: keyId.ToString(),
+                    before: before,
+                    after: result
+);
+
                 return Ok(result);
             }
             catch (InvalidOperationException ex)
@@ -134,6 +165,16 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 await _productKeyService.DeleteProductKeyAsync(keyId, actorId, cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "Delete",
+                    entityType: "ProductKey",
+                    entityId: keyId.ToString(),
+                    before: null,
+                    after: new { KeyId = keyId, Deleted = true }
+);
+
                 return NoContent();
             }
             catch (InvalidOperationException ex)
@@ -158,6 +199,16 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 await _productKeyService.AssignKeyToOrderAsync(dto, actorId, cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "AssignToOrder",
+                    entityType: "ProductKeyAssignment",
+                    entityId: null,
+                    before: null,
+                    after: dto
+);
+
                 return Ok(new { message = "Gán key cho đơn hàng thành công" });
             }
             catch (InvalidOperationException ex)
@@ -182,6 +233,16 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 await _productKeyService.UnassignKeyFromOrderAsync(keyId, actorId, cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "UnassignFromOrder",
+                    entityType: "ProductKeyAssignment",
+                    entityId: keyId.ToString(),
+                    before: null,
+                    after: new { KeyId = keyId, Unassigned = true }
+);
+
                 return Ok(new { message = "Gỡ key khỏi đơn hàng thành công" });
             }
             catch (InvalidOperationException ex)
@@ -206,6 +267,16 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 var count = await _productKeyService.BulkUpdateKeyStatusAsync(dto, actorId, cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "BulkUpdateStatus",
+                    entityType: "ProductKey",
+                    entityId: null,
+                    before: null,
+                    after: new { UpdatedCount = count, Request = dto }
+);
+
                 return Ok(new { message = $"Đã cập nhật trạng thái {count} product keys", count });
             }
             catch (InvalidOperationException ex)
@@ -250,6 +321,15 @@ namespace Keytietkiem.Controllers
                     dto.CogsPrice,
                     dto.ExpiryDate,
                     cancellationToken);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "ImportCsv",
+                    entityType: "ProductKey",
+                    entityId: null,
+                    before: null,
+                    after: result
+);
 
                 return Ok(result);
             }

@@ -6,19 +6,25 @@
  * Endpoints:
  *   - GET    /api/comments                    : List all comments (with filters)
  *   - GET    /api/comments/{id}               : Get comment by id
- *   - GET    /api/posts/{postId}/comments      : Get top-level comments for a post
+ *   - GET    /api/posts/{postId}/comments     : Get top-level comments for a post
  *   - GET    /api/comments/{id}/replies       : Get replies for a comment
  *   - POST   /api/comments                    : Create a new comment or reply
  *   - PUT    /api/comments/{id}               : Update comment
  *   - DELETE /api/comments/{id}               : Delete comment
- *   - PATCH  /api/comments/{id}/approve       : Approve comment
- *   - PATCH  /api/comments/{id}/reject        : Reject comment
+ *   - PATCH  /api/comments/{id}/show          : Show comment (IsApproved = true)
+ *   - PATCH  /api/comments/{id}/hide          : Hide comment (IsApproved = false)
  */
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
 using Keytietkiem.DTOs.Post;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Controllers
 {
@@ -27,10 +33,14 @@ namespace Keytietkiem.Controllers
     public class PostCommentsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
+        private readonly IAuditLogger _auditLogger;
 
-        public PostCommentsController(KeytietkiemDbContext context)
+        public PostCommentsController(
+            KeytietkiemDbContext context,
+            IAuditLogger auditLogger)
         {
             _context = context;
+            _auditLogger = auditLogger;
         }
 
         /**
@@ -124,7 +134,7 @@ namespace Keytietkiem.Controllers
 
         /**
          * Summary: Get top-level comments for a specific post (ParentCommentId = NULL).
-         * Route: GET /api/posts/{postId}/comments
+         * Route: GET /api/comments/posts/{postId}/comments
          * Params: postId (Guid) - post identifier
          * Returns: 200 OK with list of top-level comments and their replies
          */
@@ -152,12 +162,10 @@ namespace Keytietkiem.Controllers
                 .ToListAsync();
 
             // Build flat structure: group by root parent (top-level comment)
-            // A comment is a root if ParentCommentId is null
-            // A comment's root is found by traversing up the parent chain
             var commentDict = allComments.ToDictionary(c => c.CommentId);
             var rootCommentMap = new Dictionary<Guid, Guid>(); // Maps commentId to its root commentId
 
-            // Find root for each comment
+            // Helper to find root for each comment
             Guid? GetRootCommentId(Guid commentId)
             {
                 if (!commentDict.ContainsKey(commentId))
@@ -199,7 +207,6 @@ namespace Keytietkiem.Controllers
                 .OrderByDescending(c => c.CreatedAt)
                 .ToList();
 
-            // Group comments into threads (root + all children)
             var threads = new List<List<PostComment>>();
             foreach (var root in rootComments)
             {
@@ -212,7 +219,7 @@ namespace Keytietkiem.Controllers
                         var rootId = GetRootCommentId(c.CommentId);
                         return rootId == root.CommentId && c.CommentId != root.CommentId;
                     })
-                    .OrderBy(c => c.CreatedAt) // Children in chronological order
+                    .OrderBy(c => c.CreatedAt)
                     .ToList();
 
                 thread.AddRange(children);
@@ -220,26 +227,20 @@ namespace Keytietkiem.Controllers
             }
 
             // Apply pagination on threads (not individual comments)
-            // This ensures a complete thread (root + all children) stays on the same page
             var totalComments = threads.Sum(t => t.Count);
 
-            // Calculate which threads to include in this page
-            // We'll try to fit as many complete threads as possible within pageSize
             var pagedThreads = new List<List<PostComment>>();
             var currentPageCount = 0;
             var targetStartIndex = (page - 1) * pageSize;
 
             // Find the starting thread by counting comments
-            // Always include complete threads to avoid splitting parent and children
             var commentCount = 0;
             var startThreadIndex = 0;
             foreach (var thread in threads)
             {
                 if (commentCount + thread.Count > targetStartIndex)
                 {
-                    // This thread contains or starts after the target start index
                     startThreadIndex = threads.IndexOf(thread);
-                    // Always include the complete thread to avoid splitting
                     pagedThreads.Add(thread);
                     currentPageCount = commentCount + thread.Count - targetStartIndex;
                     startThreadIndex++;
@@ -254,25 +255,17 @@ namespace Keytietkiem.Controllers
                 var thread = threads[i];
                 if (currentPageCount + thread.Count <= pageSize)
                 {
-                    // Add the entire thread if it fits
                     pagedThreads.Add(thread);
                     currentPageCount += thread.Count;
                 }
                 else
                 {
-                    // Thread doesn't fit, stop here to avoid splitting
                     break;
                 }
             }
 
-            // Flatten the paged threads into a list of comments
             var pagedComments = pagedThreads.SelectMany(t => t).ToList();
 
-            // IMPORTANT: Never skip comments from the middle of a thread to avoid splitting parent and children
-            // If targetStartIndex is in the middle of the first thread, we include the whole thread
-            // This means the page might start slightly before targetStartIndex, but threads stay intact
-
-            // Convert to DTOs with root information
             var commentDtos = pagedComments.Select(c =>
             {
                 var dto = new PostCommentDTO
@@ -287,16 +280,15 @@ namespace Keytietkiem.Controllers
                     UserName = c.User != null ? (c.User.FullName ?? $"{c.User.FirstName} {c.User.LastName}".Trim()) : null,
                     UserEmail = c.User?.Email,
                     PostTitle = c.Post?.Title,
-                    ReplyCount = 0, // Not used in flat structure
-                    Replies = new List<PostCommentDTO>() // Empty - flat structure
+                    ReplyCount = 0,
+                    Replies = new List<PostCommentDTO>()
                 };
 
-                // Add root comment ID for frontend grouping
+                // RootId logic only used for FE grouping (no extra field stored here)
                 var rootId = GetRootCommentId(c.CommentId);
                 if (rootId.HasValue && rootId.Value != c.CommentId)
                 {
-                    // This is a child, store root ID in a custom property
-                    // We'll use ParentCommentId to track the immediate parent
+                    // child comment, FE can group by own ParentCommentId
                 }
 
                 return dto;
@@ -423,7 +415,7 @@ namespace Keytietkiem.Controllers
             {
                 PostId = createCommentDto.PostId,
                 UserId = createCommentDto.UserId,
-                ParentCommentId = actualParentId, // Use calculated parent ID
+                ParentCommentId = actualParentId,
                 Content = createCommentDto.Content.Trim(),
                 CreatedAt = DateTime.Now,
                 IsApproved = true // Default to visible
@@ -439,6 +431,24 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(c => c.CommentId == newComment.CommentId);
 
             var commentDto = MapToCommentDTO(createdComment!);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreateComment",
+                entityType: "PostComment",
+                entityId: newComment.CommentId.ToString(),
+                before: null,
+                after: new
+                {
+                    newComment.CommentId,
+                    newComment.PostId,
+                    newComment.UserId,
+                    newComment.ParentCommentId,
+                    newComment.Content,
+                    newComment.CreatedAt,
+                    newComment.IsApproved
+                });
+
             return CreatedAtAction(nameof(GetCommentById), new { id = createdComment!.CommentId }, commentDto);
         }
 
@@ -468,6 +478,17 @@ namespace Keytietkiem.Controllers
                 return NotFound(new { message = "Comment không được tìm thấy." });
             }
 
+            var before = new
+            {
+                existing.CommentId,
+                existing.PostId,
+                existing.UserId,
+                existing.ParentCommentId,
+                existing.Content,
+                existing.IsApproved,
+                existing.CreatedAt
+            };
+
             existing.Content = updateCommentDto.Content.Trim();
             if (updateCommentDto.IsApproved.HasValue)
             {
@@ -483,6 +504,24 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(c => c.CommentId == id);
 
             var commentDto = MapToCommentDTO(updatedComment!);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdateComment",
+                entityType: "PostComment",
+                entityId: existing.CommentId.ToString(),
+                before: before,
+                after: new
+                {
+                    existing.CommentId,
+                    existing.PostId,
+                    existing.UserId,
+                    existing.ParentCommentId,
+                    existing.Content,
+                    existing.IsApproved,
+                    existing.CreatedAt
+                });
+
             return Ok(commentDto);
         }
 
@@ -504,11 +543,35 @@ namespace Keytietkiem.Controllers
                 return NotFound(new { message = "Comment không được tìm thấy." });
             }
 
+            var before = new
+            {
+                comment.CommentId,
+                comment.PostId,
+                comment.UserId,
+                comment.ParentCommentId,
+                comment.Content,
+                comment.IsApproved,
+                comment.CreatedAt,
+                DirectReplyCount = comment.InverseParentComment?.Count ?? 0
+            };
+
             // Recursively delete all replies
             await DeleteCommentRecursive(comment);
 
             _context.PostComments.Remove(comment);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "DeleteComment",
+                entityType: "PostComment",
+                entityId: comment.CommentId.ToString(),
+                before: before,
+                after: new
+                {
+                    comment.CommentId,
+                    Deleted = true
+                });
 
             return NoContent();
         }
@@ -520,10 +583,9 @@ namespace Keytietkiem.Controllers
         {
             if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                var replies = comment.InverseParentComment.ToList(); // Create a copy to avoid modification during iteration
+                var replies = comment.InverseParentComment.ToList();
                 foreach (var reply in replies)
                 {
-                    // Load replies of this reply
                     var replyWithChildren = await _context.PostComments
                         .Include(r => r.InverseParentComment)
                         .FirstOrDefaultAsync(r => r.CommentId == reply.CommentId);
@@ -567,9 +629,33 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            var before = new
+            {
+                comment.CommentId,
+                comment.PostId,
+                comment.UserId,
+                comment.ParentCommentId,
+                comment.IsApproved
+            };
+
             // Show comment and all its replies recursively
             await ShowCommentRecursive(comment);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "ShowComment",
+                entityType: "PostComment",
+                entityId: comment.CommentId.ToString(),
+                before: before,
+                after: new
+                {
+                    comment.CommentId,
+                    comment.PostId,
+                    comment.UserId,
+                    comment.ParentCommentId,
+                    comment.IsApproved
+                });
 
             return Ok(new { message = "Comment đã được hiển thị.", commentId = id });
         }
@@ -592,9 +678,33 @@ namespace Keytietkiem.Controllers
                 return NotFound(new { message = "Comment không được tìm thấy." });
             }
 
+            var before = new
+            {
+                comment.CommentId,
+                comment.PostId,
+                comment.UserId,
+                comment.ParentCommentId,
+                comment.IsApproved
+            };
+
             // Hide comment and all its replies recursively
             await HideCommentRecursive(comment);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "HideComment",
+                entityType: "PostComment",
+                entityId: comment.CommentId.ToString(),
+                before: before,
+                after: new
+                {
+                    comment.CommentId,
+                    comment.PostId,
+                    comment.UserId,
+                    comment.ParentCommentId,
+                    comment.IsApproved
+                });
 
             return Ok(new { message = "Comment đã bị ẩn.", commentId = id });
         }
@@ -665,7 +775,6 @@ namespace Keytietkiem.Controllers
                 ReplyCount = comment.InverseParentComment?.Count ?? 0
             };
 
-            // Map nested replies recursively
             if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
                 dto.Replies = comment.InverseParentComment
@@ -678,4 +787,3 @@ namespace Keytietkiem.Controllers
         }
     }
 }
-

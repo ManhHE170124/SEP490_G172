@@ -6,13 +6,15 @@
  * Purpose: Manage layout sections - Simple CRUD without service layer
  */
 
+using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Keytietkiem.Models;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers.Admin
 {
@@ -21,10 +23,12 @@ namespace Keytietkiem.Controllers.Admin
     public class LayoutSectionsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
+        private readonly IAuditLogger _auditLogger;
 
-        public LayoutSectionsController(KeytietkiemDbContext context)
+        public LayoutSectionsController(KeytietkiemDbContext context, IAuditLogger auditLogger)
         {
             _context = context;
+            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -45,6 +49,7 @@ namespace Keytietkiem.Controllers.Admin
             }
             catch (Exception ex)
             {
+                // Không audit log cho GET và lỗi - chỉ trả về 500
                 return StatusCode(500, new { message = "Lỗi khi tải danh sách sections", error = ex.Message });
             }
         }
@@ -67,6 +72,7 @@ namespace Keytietkiem.Controllers.Admin
             }
             catch (Exception ex)
             {
+                // Không audit log cho GET và lỗi - chỉ trả về 500
                 return StatusCode(500, new { message = "Lỗi khi tải section", error = ex.Message });
             }
         }
@@ -81,19 +87,29 @@ namespace Keytietkiem.Controllers.Admin
         {
             try
             {
-                // Validation
+                // ===== Validation (KHÔNG audit 400 để tránh spam) =====
                 if (string.IsNullOrWhiteSpace(request.SectionName))
-                    return BadRequest(new { message = "Tên section là bắt buộc" });
+                {
+                    const string msg = "Tên section là bắt buộc";
+                    return BadRequest(new { message = msg });
+                }
 
                 if (string.IsNullOrWhiteSpace(request.SectionKey))
-                    return BadRequest(new { message = "Section key là bắt buộc" });
+                {
+                    const string msg = "Section key là bắt buộc";
+                    return BadRequest(new { message = msg });
+                }
 
                 // Check duplicate SectionKey
+                var trimmedKey = request.SectionKey.Trim();
                 var exists = await _context.LayoutSections
-                    .AnyAsync(x => x.SectionKey == request.SectionKey.Trim());
+                    .AnyAsync(x => x.SectionKey == trimmedKey);
 
                 if (exists)
-                    return Conflict(new { message = $"Section key '{request.SectionKey}' đã tồn tại" });
+                {
+                    var msg = $"Section key '{request.SectionKey}' đã tồn tại";
+                    return Conflict(new { message = msg });
+                }
 
                 // Auto DisplayOrder if not provided
                 int displayOrder = request.DisplayOrder ?? 0;
@@ -107,7 +123,7 @@ namespace Keytietkiem.Controllers.Admin
                 // Create new section
                 var section = new LayoutSection
                 {
-                    SectionKey = request.SectionKey.Trim(),
+                    SectionKey = trimmedKey,
                     SectionName = request.SectionName.Trim(),
                     DisplayOrder = displayOrder,
                     IsActive = request.IsActive ?? true,
@@ -118,10 +134,30 @@ namespace Keytietkiem.Controllers.Admin
                 _context.LayoutSections.Add(section);
                 await _context.SaveChangesAsync();
 
+                // AUDIT: tạo mới layout section
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "CreateSection",
+                    entityType: "LayoutSection",
+                    entityId: section.Id.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        section.Id,
+                        section.SectionKey,
+                        section.SectionName,
+                        section.DisplayOrder,
+                        section.IsActive,
+                        section.CreatedAt,
+                        section.UpdatedAt
+                    }
+                );
+
                 return CreatedAtAction(nameof(Get), new { id = section.Id }, section);
             }
             catch (Exception ex)
             {
+                // Không audit log lỗi nữa, chỉ trả về 500
                 return StatusCode(500, new { message = "Lỗi khi tạo section", error = ex.Message });
             }
         }
@@ -139,27 +175,53 @@ namespace Keytietkiem.Controllers.Admin
                 var section = await _context.LayoutSections.FindAsync(id);
 
                 if (section == null)
-                    return NotFound(new { message = "Không tìm thấy section" });
+                {
+                    const string msg = "Không tìm thấy section";
+                    // Không audit log lỗi 404 để tránh spam
+                    return NotFound(new { message = msg });
+                }
 
-                // Validation
+                var beforeSnapshot = new
+                {
+                    section.Id,
+                    section.SectionKey,
+                    section.SectionName,
+                    section.DisplayOrder,
+                    section.IsActive,
+                    section.CreatedAt,
+                    section.UpdatedAt
+                };
+
+                // ===== Validation (KHÔNG audit 400/409 để tránh spam) =====
                 if (string.IsNullOrWhiteSpace(request.SectionName))
-                    return BadRequest(new { message = "Tên section là bắt buộc" });
+                {
+                    const string msg = "Tên section là bắt buộc";
+                    return BadRequest(new { message = msg });
+                }
 
                 if (string.IsNullOrWhiteSpace(request.SectionKey))
-                    return BadRequest(new { message = "Section key là bắt buộc" });
+                {
+                    const string msg = "Section key là bắt buộc";
+                    return BadRequest(new { message = msg });
+                }
+
+                var trimmedKey = request.SectionKey.Trim();
 
                 // Check duplicate SectionKey (excluding current)
-                if (section.SectionKey != request.SectionKey.Trim())
+                if (!string.Equals(section.SectionKey, trimmedKey, StringComparison.Ordinal))
                 {
                     var keyExists = await _context.LayoutSections
-                        .AnyAsync(x => x.SectionKey == request.SectionKey.Trim() && x.Id != id);
+                        .AnyAsync(x => x.SectionKey == trimmedKey && x.Id != id);
 
                     if (keyExists)
-                        return Conflict(new { message = $"Section key '{request.SectionKey}' đã tồn tại" });
+                    {
+                        var msg = $"Section key '{request.SectionKey}' đã tồn tại";
+                        return Conflict(new { message = msg });
+                    }
                 }
 
                 // Update fields
-                section.SectionKey = request.SectionKey.Trim();
+                section.SectionKey = trimmedKey;
                 section.SectionName = request.SectionName.Trim();
                 section.DisplayOrder = request.DisplayOrder ?? section.DisplayOrder ?? 0;
                 section.IsActive = request.IsActive ?? section.IsActive;
@@ -167,10 +229,32 @@ namespace Keytietkiem.Controllers.Admin
 
                 await _context.SaveChangesAsync();
 
+                var afterSnapshot = new
+                {
+                    section.Id,
+                    section.SectionKey,
+                    section.SectionName,
+                    section.DisplayOrder,
+                    section.IsActive,
+                    section.CreatedAt,
+                    section.UpdatedAt
+                };
+
+                // AUDIT: cập nhật layout section
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "UpdateSection",
+                    entityType: "LayoutSection",
+                    entityId: id.ToString(),
+                    before: beforeSnapshot,
+                    after: afterSnapshot
+                );
+
                 return Ok(section);
             }
             catch (Exception ex)
             {
+                // Không audit log lỗi nữa, chỉ trả về 500
                 return StatusCode(500, new { message = "Lỗi khi cập nhật section", error = ex.Message });
             }
         }
@@ -187,15 +271,41 @@ namespace Keytietkiem.Controllers.Admin
                 var section = await _context.LayoutSections.FindAsync(id);
 
                 if (section == null)
-                    return NotFound(new { message = "Không tìm thấy section" });
+                {
+                    const string msg = "Không tìm thấy section";
+                    // Không audit log lỗi 404 để tránh spam
+                    return NotFound(new { message = msg });
+                }
+
+                var beforeSnapshot = new
+                {
+                    section.Id,
+                    section.SectionKey,
+                    section.SectionName,
+                    section.DisplayOrder,
+                    section.IsActive,
+                    section.CreatedAt,
+                    section.UpdatedAt
+                };
 
                 _context.LayoutSections.Remove(section);
                 await _context.SaveChangesAsync();
+
+                // AUDIT: xóa layout section
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "DeleteSection",
+                    entityType: "LayoutSection",
+                    entityId: id.ToString(),
+                    before: beforeSnapshot,
+                    after: null
+                );
 
                 return NoContent();
             }
             catch (Exception ex)
             {
+                // Không audit log lỗi nữa, chỉ trả về 500
                 return StatusCode(500, new { message = "Lỗi khi xóa section", error = ex.Message });
             }
         }
@@ -210,25 +320,55 @@ namespace Keytietkiem.Controllers.Admin
         {
             try
             {
+                // Validation (không audit 400 để tránh spam)
                 if (items == null || items.Count == 0)
-                    return BadRequest(new { message = "Dữ liệu reorder là bắt buộc" });
+                {
+                    const string msg = "Dữ liệu reorder là bắt buộc";
+                    return BadRequest(new { message = msg });
+                }
+
+                var beforeList = new List<object>();
+                var afterList = new List<object>();
 
                 foreach (var item in items)
                 {
                     var section = await _context.LayoutSections.FindAsync(item.Id);
                     if (section != null)
                     {
+                        beforeList.Add(new
+                        {
+                            section.Id,
+                            section.DisplayOrder
+                        });
+
                         section.DisplayOrder = item.DisplayOrder;
                         section.UpdatedAt = DateTime.UtcNow;
+
+                        afterList.Add(new
+                        {
+                            section.Id,
+                            section.DisplayOrder
+                        });
                     }
                 }
 
                 await _context.SaveChangesAsync();
 
+                // AUDIT: sắp xếp lại thứ tự sections
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "ReorderSections",
+                    entityType: "LayoutSection",
+                    entityId: null,
+                    before: beforeList,
+                    after: afterList
+                );
+
                 return NoContent();
             }
             catch (Exception ex)
             {
+                // Không audit log lỗi nữa, chỉ trả về 500
                 return StatusCode(500, new { message = "Lỗi khi sắp xếp lại", error = ex.Message });
             }
         }

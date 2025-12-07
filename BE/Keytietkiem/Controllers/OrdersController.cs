@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Orders;
-using Keytietkiem.DTOs;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.Services.Interfaces;
+using System;
 
 namespace Keytietkiem.Controllers
 {
@@ -14,11 +15,16 @@ namespace Keytietkiem.Controllers
     {
         private readonly KeytietkiemDbContext _context;
         private readonly IProductAccountService _productAccountService;
+        private readonly IAuditLogger _auditLogger;
+
         public OrdersController(
-            KeytietkiemDbContext context, IProductAccountService productAccountService)
+            KeytietkiemDbContext context,
+            IProductAccountService productAccountService,
+            IAuditLogger auditLogger)
         {
             _context = context;
             _productAccountService = productAccountService;
+            _auditLogger = auditLogger;
         }
 
         // ========== CÁC API READ-ONLY ==========
@@ -147,7 +153,7 @@ namespace Keytietkiem.Controllers
 
             var payments = await _context.Payments
                 .AsNoTracking()
-                .Where(p => 
+                .Where(p =>
                     p.TransactionType == "ORDER_PAYMENT" &&
                     orderEmails.Values.Contains(p.Email))
                 .ToListAsync();
@@ -155,10 +161,10 @@ namespace Keytietkiem.Controllers
             var items = orders.Select(o =>
             {
                 var finalAmount = o.FinalAmount ?? (o.TotalAmount - o.DiscountAmount);
-                
+
                 // Tìm payment liên quan: Email khớp, TransactionType = ORDER_PAYMENT, Amount gần bằng FinalAmount, CreatedAt gần với Order.CreatedAt
                 var relatedPayment = payments
-                    .Where(p => 
+                    .Where(p =>
                         p.Email == o.Email &&
                         p.TransactionType == "ORDER_PAYMENT" &&
                         Math.Abs((decimal)(p.Amount - finalAmount)) < 0.01m && // Cho phép sai số nhỏ
@@ -216,10 +222,13 @@ namespace Keytietkiem.Controllers
                 }
 
                 var orderDto = await MapToOrderDTOAsync(order);
+
+                // Không log success 200 để tránh spam audit log
                 return Ok(orderDto);
             }
             catch (Exception ex)
             {
+                // Không ghi audit log, chỉ trả 500
                 return StatusCode(500, new { message = "Đã có lỗi hệ thống. Vui lòng thử lại sau.", error = ex.Message });
             }
         }
@@ -259,6 +268,7 @@ namespace Keytietkiem.Controllers
                 SubTotal = od.Quantity * od.UnitPrice
             }).ToList() ?? new List<OrderDetailDTO>();
 
+            // Không log success 200 để tránh spam audit log
             return Ok(orderDetails);
         }
 
@@ -286,6 +296,22 @@ namespace Keytietkiem.Controllers
                     return NotFound(new { message = "Không tìm thấy mã kích hoạt cho sản phẩm này" });
                 }
 
+                // Log truy cập thành công KEY (bảo mật)
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "GetOrderDetailCredentials",
+                    entityType: "OrderDetail",
+                    entityId: orderDetailId.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        orderId,
+                        orderDetailId,
+                        ProductType = "KEY",
+                        ProductName = orderDetail.Variant?.Product?.ProductName ?? "",
+                        orderDetail.KeyId
+                    });
+
                 return Ok(new
                 {
                     productName = orderDetail.Variant?.Product?.ProductName ?? "",
@@ -300,7 +326,7 @@ namespace Keytietkiem.Controllers
                 // Lấy order để lấy UserId
                 var order = await _context.Orders
                     .FirstOrDefaultAsync(o => o.OrderId == orderId);
-                
+
                 if (order == null || !order.UserId.HasValue)
                 {
                     return NotFound(new { message = "Không tìm thấy đơn hàng hoặc người dùng" });
@@ -322,8 +348,8 @@ namespace Keytietkiem.Controllers
                 // Lấy tất cả accounts được assign cho order này với cùng VariantId và UserId, sắp xếp theo AddedAt
                 var accountCustomers = await _context.ProductAccountCustomers
                     .Include(pac => pac.ProductAccount)
-                    .Where(pac => 
-                        pac.OrderId == orderId && 
+                    .Where(pac =>
+                        pac.OrderId == orderId &&
                         pac.UserId == order.UserId.Value &&
                         pac.ProductAccount.VariantId == orderDetail.VariantId &&
                         pac.IsActive)
@@ -339,7 +365,7 @@ namespace Keytietkiem.Controllers
                 // Nếu có ít accounts hơn OrderDetails, lấy account đầu tiên (chia sẻ account)
                 var accountIndex = detailIndex < accountCustomers.Count ? detailIndex : 0;
                 var accountCustomer = accountCustomers[accountIndex];
-                
+
                 if (accountCustomer.ProductAccount == null)
                 {
                     return NotFound(new { message = "Không tìm thấy thông tin tài khoản" });
@@ -347,6 +373,25 @@ namespace Keytietkiem.Controllers
 
                 var account = accountCustomer.ProductAccount;
                 var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
+
+                // Log truy cập thành công ACCOUNT (bảo mật)
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "GetOrderDetailCredentials",
+                    entityType: "ProductAccount",
+                    entityId: account.ProductAccountId.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        orderId,
+                        orderDetailId,
+                        ProductType = "ACCOUNT",
+                        ProductName = orderDetail.Variant?.Product?.ProductName ?? "",
+                        AccountId = account.ProductAccountId,
+                        account.AccountEmail,
+                        account.AccountUsername
+                        // KHÔNG log mật khẩu
+                    });
 
                 return Ok(new
                 {
@@ -358,6 +403,7 @@ namespace Keytietkiem.Controllers
                 });
             }
 
+            // Không log error cho type không hỗ trợ, chỉ trả 400
             return BadRequest(new { message = "Loại sản phẩm không được hỗ trợ" });
         }
 
@@ -375,11 +421,11 @@ namespace Keytietkiem.Controllers
             try
             {
                 var finalAmount = order.FinalAmount ?? (order.TotalAmount - order.DiscountAmount);
-                
+
                 // Tìm payment liên quan: Email khớp, TransactionType = ORDER_PAYMENT, Amount gần bằng FinalAmount, CreatedAt gần với Order.CreatedAt
                 var relatedPayment = await _context.Payments
                     .AsNoTracking()
-                    .Where(p => 
+                    .Where(p =>
                         p.Email == order.Email &&
                         p.TransactionType == "ORDER_PAYMENT" &&
                         Math.Abs((decimal)(p.Amount - finalAmount)) < 0.01m) // Cho phép sai số nhỏ
@@ -391,7 +437,7 @@ namespace Keytietkiem.Controllers
                 {
                     relatedPayment = await _context.Payments
                         .AsNoTracking()
-                        .Where(p => 
+                        .Where(p =>
                             p.Email == order.Email &&
                             p.TransactionType == "ORDER_PAYMENT" &&
                             Math.Abs((p.CreatedAt - order.CreatedAt).TotalMinutes) < 10) // Trong vòng 10 phút
@@ -433,10 +479,9 @@ namespace Keytietkiem.Controllers
                     }).ToList() ?? new List<OrderDetailDTO>()
                 };
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log lỗi và trả về order với status mặc định
-                // Trong production, nên log vào logger
+                // Không dùng audit log ở đây, chỉ fallback status mặc định
                 return new OrderDTO
                 {
                     OrderId = order.OrderId,

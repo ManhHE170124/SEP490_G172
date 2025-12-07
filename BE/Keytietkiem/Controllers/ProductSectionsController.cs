@@ -1,10 +1,12 @@
-﻿using System.Text.RegularExpressions;
-using Keytietkiem.DTOs.Common;
+﻿using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Keytietkiem.Controllers
 {
@@ -14,15 +16,18 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
+        private readonly IAuditLogger _auditLogger;
 
         private const int SectionTitleMaxLength = 200;
 
         public ProductSectionsController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
-            IClock clock)
+            IClock clock,
+            IAuditLogger auditLogger)
         {
             _dbFactory = dbFactory;
             _clock = clock;
+            _auditLogger = auditLogger;
         }
 
         private static string NormType(string? t) => ProductSectionEnums.Normalize(t);
@@ -252,6 +257,23 @@ namespace Keytietkiem.Controllers
             db.ProductSections.Add(s);
             await db.SaveChangesAsync();
 
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "ProductSection",
+                entityId: s.SectionId.ToString(),
+                before: null,
+                after: new
+                {
+                    s.SectionId,
+                    s.VariantId,
+                    s.SectionType,
+                    s.Title,
+                    s.SortOrder,
+                    s.IsActive
+                }
+);
+
             return CreatedAtAction(nameof(Get),
                 new { productId, variantId, sectionId = s.SectionId },
                 new ProductSectionDetailDto(
@@ -272,6 +294,16 @@ namespace Keytietkiem.Controllers
             var s = await db.ProductSections
                 .FirstOrDefaultAsync(x => x.SectionId == sectionId && x.VariantId == variantId);
             if (s is null) return NotFound();
+
+            var beforeSnapshot = new
+            {
+                s.SectionId,
+                s.VariantId,
+                s.SectionType,
+                s.Title,
+                s.SortOrder,
+                s.IsActive
+            };
 
             // Validate type
             var type = NormType(dto.SectionType);
@@ -337,6 +369,24 @@ namespace Keytietkiem.Controllers
             s.UpdatedAt = _clock.UtcNow;
 
             await db.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "ProductSection",
+                entityId: s.SectionId.ToString(),
+                before: beforeSnapshot,
+                after: new
+                {
+                    s.SectionId,
+                    s.VariantId,
+                    s.SectionType,
+                    s.Title,
+                    s.SortOrder,
+                    s.IsActive
+                }
+);
+
             return NoContent();
         }
 
@@ -348,10 +398,33 @@ namespace Keytietkiem.Controllers
 
             var s = await db.ProductSections
                 .FirstOrDefaultAsync(x => x.SectionId == sectionId && x.VariantId == variantId);
-            if (s is null) return NotFound();
+            if (s is null)
+            {
+                return NotFound();
+            }
+
+            var beforeSnapshot = new
+            {
+                s.SectionId,
+                s.VariantId,
+                s.SectionType,
+                s.Title,
+                s.SortOrder,
+                s.IsActive
+            };
 
             db.ProductSections.Remove(s);
             await db.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Delete",
+                entityType: "ProductSection",
+                entityId: s.SectionId.ToString(),
+                before: beforeSnapshot,
+                after: null
+);
+
             return NoContent();
         }
 
@@ -363,12 +436,31 @@ namespace Keytietkiem.Controllers
 
             var s = await db.ProductSections
                 .FirstOrDefaultAsync(x => x.SectionId == sectionId && x.VariantId == variantId);
-            if (s is null) return NotFound();
+            if (s is null)
+            {
+                return NotFound();
+            }
+
+            var beforeSnapshot = new
+            {
+                s.SectionId,
+                s.IsActive
+            };
 
             s.IsActive = !s.IsActive;
             s.UpdatedAt = _clock.UtcNow;
 
             await db.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Toggle",
+                entityType: "ProductSection",
+                entityId: s.SectionId.ToString(),
+                before: beforeSnapshot,
+                after: new { s.SectionId, s.IsActive }
+);
+
             return Ok(new { s.SectionId, s.IsActive });
         }
 
@@ -382,6 +474,11 @@ namespace Keytietkiem.Controllers
                 .Where(x => x.VariantId == variantId)
                 .ToListAsync();
 
+            var beforeSnapshot = list
+                .OrderBy(x => x.SortOrder)
+                .Select(x => new { x.SectionId, x.SortOrder })
+                .ToList();
+
             var pos = 0;
             foreach (var id in dto.SectionIdsInOrder)
             {
@@ -390,6 +487,21 @@ namespace Keytietkiem.Controllers
             }
 
             await db.SaveChangesAsync();
+
+            var afterSnapshot = list
+                .OrderBy(x => x.SortOrder)
+                .Select(x => new { x.SectionId, x.SortOrder })
+                .ToList();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Reorder",
+                entityType: "ProductSection",
+                entityId: variantId.ToString(),
+                before: beforeSnapshot,
+                after: afterSnapshot
+);
+
             return NoContent();
         }
     }

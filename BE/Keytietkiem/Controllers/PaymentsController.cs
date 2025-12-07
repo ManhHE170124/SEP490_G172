@@ -12,6 +12,7 @@ using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Services.Interfaces;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
+using Keytietkiem.Services;
 
 namespace Keytietkiem.Controllers
 {
@@ -27,6 +28,7 @@ namespace Keytietkiem.Controllers
         private readonly IProductKeyService _productKeyService;
         private readonly IProductAccountService _productAccountService;
         private readonly IEmailService _emailService;
+        private readonly IAuditLogger _auditLogger;
 
         private static readonly string[] AllowedPaymentStatuses = new[]
         {
@@ -41,7 +43,8 @@ namespace Keytietkiem.Controllers
             ILogger<PaymentsController> logger,
             IProductKeyService productKeyService,
             IProductAccountService productAccountService,
-            IEmailService emailService)
+            IEmailService emailService,
+            IAuditLogger auditLogger)
         {
             _context = context;
             _payOs = payOs;
@@ -51,6 +54,7 @@ namespace Keytietkiem.Controllers
             _productKeyService = productKeyService;
             _productAccountService = productAccountService;
             _emailService = emailService;
+            _auditLogger = auditLogger;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -206,7 +210,10 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookModel payload)
         {
             if (payload == null || payload.Data == null)
+            {
+                // Không log để tránh spam audit log, chỉ trả 400
                 return BadRequest();
+            }
 
             var data = payload.Data;
 
@@ -222,14 +229,18 @@ namespace Keytietkiem.Controllers
 
             if (payment == null)
             {
-                // Không có payment nào khớp orderCode -> bỏ qua
+                // Không log để tránh spam khi PayOS retry hoặc orderCode không khớp
                 return Ok();
             }
+
+            var oldStatus = payment.Status;
 
             // 1. Payment từ Cart (ORDER_PAYMENT với snapshot cart)
             if (string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleCartPaymentWebhook(payment, topCode, dataCode, data.Amount);
+
+                // Bỏ log success ở webhook để tránh spam
                 return Ok();
             }
 
@@ -248,6 +259,8 @@ namespace Keytietkiem.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // Bỏ log success ở webhook để tránh spam
             return Ok();
         }
 
@@ -279,15 +292,18 @@ namespace Keytietkiem.Controllers
             // Nếu đã được webhook xử lý rồi thì không làm lại (idempotent)
             if (!string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
             {
+                // Không log success idempotent để tránh spam
                 return Ok(new { message = "Payment đã được xử lý", status = payment.Status });
             }
 
+            var oldStatus = payment.Status;
+
             // Mặc định coi là success khi FE vào trang /cart/payment-result
-            // (có thể kiểm tra thêm dto.Code/dto.Status nếu muốn)
             var amountFromGateway = (long)Math.Round(payment.Amount, 0, MidpointRounding.AwayFromZero);
 
             await HandleCartPaymentWebhook(payment, "00", "00", amountFromGateway);
 
+            // Không audit ở đây để tránh spam
             return Ok(new { message = "Đã xác nhận thanh toán thành công", status = payment.Status });
         }
 
@@ -308,14 +324,17 @@ namespace Keytietkiem.Controllers
 
             if (payment == null)
             {
-                // Không tìm thấy payment -> coi như đã xử lý xong
+                // Không tìm thấy payment -> coi như đã xử lý xong, không audit để tránh spam
                 return Ok(new { message = "Payment không tồn tại" });
             }
 
             if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
+                // Không audit để tránh spam
                 return Ok(new { message = "Không phải payment tạo từ cart" });
             }
+
+            var oldStatus = payment.Status;
 
             // Chỉ xử lý khi còn Pending
             if (string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
@@ -324,6 +343,7 @@ namespace Keytietkiem.Controllers
                 await HandleCartPaymentWebhook(payment, "XX", "XX", 0);
             }
 
+            // Không audit success để tránh spam
             return Ok(new { message = "Cart payment cancelled", status = payment.Status });
         }
 
@@ -476,6 +496,7 @@ namespace Keytietkiem.Controllers
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to process variants for order {OrderId}", order.OrderId);
+                    // Không audit lỗi để tránh spam
                 }
 
                 ClearCartSnapshot(payment.PaymentId);
@@ -508,8 +529,6 @@ namespace Keytietkiem.Controllers
             ClearCartSnapshot(payment.PaymentId);
             await _context.SaveChangesAsync();
         }
-
-
 
         // ===== API: Tạo Payment + PayOS checkoutUrl cho gói hỗ trợ (subscription 1 tháng) =====
         // POST /api/payments/payos/create-support-plan
@@ -556,8 +575,6 @@ namespace Keytietkiem.Controllers
             }
 
             // ================== TÍNH AdjustedAmount (theo số ngày) ==================
-            // 1 gói = 30 ngày. Số ngày còn lại = ExpiresAt.Date - Today.Date
-            // Công thức: Số tiền phải thanh toán = Giá gói được chọn - (Giá gói ban đầu * Số ngày còn lại / 30)
             var basePriority = user.SupportPriorityLevel;
             var targetPriority = plan.PriorityLevel;
 
@@ -629,7 +646,6 @@ namespace Keytietkiem.Controllers
             else if (basePriority > 0)
             {
                 // ==== TRƯỜNG HỢP 2: KHÔNG CÓ SUBSCRIPTION, NHƯNG BASE PRIORITY > 0 ====
-                // (theo note: coi như user có quyền lợi gói base trong full kỳ, luôn tính như còn "max ngày")
                 var basePlan = await _context.SupportPlans
                     .AsNoTracking()
                     .Where(p => p.IsActive && p.PriorityLevel == basePriority)
@@ -650,7 +666,6 @@ namespace Keytietkiem.Controllers
                 remainingDays.Value > 0)
             {
                 // Áp dụng công thức chung:
-                // Số tiền phải thanh toán = Giá gói được chọn - (Giá gói ban đầu * Số ngày còn lại / 30)
                 var ratio = periodDays == 0 ? 0 : (remainingDays.Value / periodDays); // 0..1
                 var discount = basePrice.Value * ratio;
                 adjustedAmount = plan.Price - discount;
@@ -737,6 +752,7 @@ namespace Keytietkiem.Controllers
             {
                 await tx.RollbackAsync();
 
+                // Không audit lỗi để tránh spam
                 return StatusCode(502, new
                 {
                     message = "Không tạo được link thanh toán PayOS (support plan). Chi tiết: " + ex.Message
@@ -755,9 +771,29 @@ namespace Keytietkiem.Controllers
                 PaymentUrl = paymentUrl
             };
 
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreateSupportPlanPayOSPayment",
+                entityType: "Payment",
+                entityId: payment.PaymentId.ToString(),
+                before: null,
+                after: new
+                {
+                    payment.PaymentId,
+                    payment.Status,
+                    payment.Amount,
+                    payment.Provider,
+                    payment.ProviderOrderCode,
+                    payment.TransactionType,
+                    UserId = user.UserId,
+                    SupportPlanId = plan.SupportPlanId,
+                    SupportPlanPriority = plan.PriorityLevel,
+                    AdjustedAmount = adjustedAmount
+                });
+
             return Ok(resp);
         }
-        
+
         private async Task ProcessVariants(List<ProductVariant> variants, Order order)
         {
             var systemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");

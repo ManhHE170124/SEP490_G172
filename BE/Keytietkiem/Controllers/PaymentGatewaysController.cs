@@ -8,6 +8,7 @@
 
 using Keytietkiem.DTOs;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Keytietkiem.Controllers.Admin
@@ -17,10 +18,14 @@ namespace Keytietkiem.Controllers.Admin
     public class PaymentGatewaysController : ControllerBase
     {
         private readonly IPaymentGatewayService _service;
+        private readonly IAuditLogger _auditLogger;
 
-        public PaymentGatewaysController(IPaymentGatewayService service)
+        public PaymentGatewaysController(
+            IPaymentGatewayService service,
+            IAuditLogger auditLogger)
         {
             _service = service;
+            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -43,7 +48,10 @@ namespace Keytietkiem.Controllers.Admin
         {
             var result = await _service.GetByIdAsync(id);
             if (result == null)
+            {
                 return NotFound(new { message = "Payment gateway not found" });
+            }
+
             return Ok(result);
         }
 
@@ -64,10 +72,27 @@ namespace Keytietkiem.Controllers.Admin
             try
             {
                 var created = await _service.CreateAsync(dto);
+
+                // Audit log (success) – chỉ log metadata, không log secret
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "CreatePaymentGateway",
+                    entityType: "PaymentGateway",
+                    entityId: created.Id.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        created.Id,
+                        created.Name,
+                        created.IsActive,
+                        created.CallbackUrl
+                    });
+
                 return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
             }
             catch (Exception ex)
             {
+                // Không log lỗi để tránh spam audit
                 return BadRequest(new { message = ex.Message });
             }
         }
@@ -90,11 +115,30 @@ namespace Keytietkiem.Controllers.Admin
             {
                 var updated = await _service.UpdateAsync(id, dto);
                 if (updated == null)
+                {
+                    // Không audit trường hợp not found
                     return NotFound(new { message = "Payment gateway not found" });
+                }
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "UpdatePaymentGateway",
+                    entityType: "PaymentGateway",
+                    entityId: updated.Id.ToString(),
+                    before: null, // Nếu cần before thì service/fetch thêm, ở đây giữ đơn giản
+                    after: new
+                    {
+                        updated.Id,
+                        updated.Name,
+                        updated.IsActive,
+                        updated.CallbackUrl
+                    });
+
                 return Ok(updated);
             }
             catch (Exception ex)
             {
+                // Không log lỗi để tránh spam audit
                 return BadRequest(new { message = ex.Message });
             }
         }
@@ -106,10 +150,30 @@ namespace Keytietkiem.Controllers.Admin
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var deleted = await _service.DeleteAsync(id);
-            if (!deleted)
-                return NotFound(new { message = "Payment gateway not found" });
-            return NoContent();
+            try
+            {
+                var deleted = await _service.DeleteAsync(id);
+                if (!deleted)
+                {
+                    // Không audit trường hợp not found
+                    return NotFound(new { message = "Payment gateway not found" });
+                }
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "DeletePaymentGateway",
+                    entityType: "PaymentGateway",
+                    entityId: id.ToString(),
+                    before: null,
+                    after: null);
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                // Không log lỗi để tránh spam audit
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -123,11 +187,29 @@ namespace Keytietkiem.Controllers.Admin
             {
                 var toggled = await _service.ToggleActiveAsync(id);
                 if (toggled == null)
+                {
+                    // Không audit trường hợp not found
                     return NotFound(new { message = "Payment gateway not found" });
+                }
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "TogglePaymentGateway",
+                    entityType: "PaymentGateway",
+                    entityId: toggled.Id.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        toggled.Id,
+                        toggled.Name,
+                        toggled.IsActive
+                    });
+
                 return Ok(toggled);
             }
             catch (Exception ex)
             {
+                // Không log lỗi để tránh spam audit
                 return BadRequest(new { message = ex.Message });
             }
         }

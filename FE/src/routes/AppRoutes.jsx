@@ -91,6 +91,7 @@ import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyal
 import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
 import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplatesAdminPage.jsx";
 import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
+import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
 
 // Lazy admin ticket detail
@@ -576,6 +577,14 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
+            <Route
+        path="/admin/audit-logs"
+        element={renderAdminPage(
+          MODULE_CODES.SETTINGS_MANAGER,
+          <AuditLogsPage />
+        )}
+      />
+
 
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
