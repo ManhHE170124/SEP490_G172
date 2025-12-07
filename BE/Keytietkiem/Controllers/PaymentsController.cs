@@ -398,8 +398,7 @@ namespace Keytietkiem.Controllers
                 return;
             }
 
-            var isSuccess = true;
-                // topCode == "00" && dataCode == "00";
+            var isSuccess = topCode == "00" && dataCode == "00";
 
             if (isSuccess)
             {
