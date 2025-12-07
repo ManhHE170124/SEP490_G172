@@ -1,15 +1,17 @@
 ﻿// File: Controllers/TicketRepliesController.cs
-using System;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Hubs;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers;
 
@@ -21,11 +23,16 @@ public class TicketRepliesController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<TicketHub> _ticketHub;
+    private readonly IAuditLogger _auditLogger;
 
-    public TicketRepliesController(KeytietkiemDbContext db, IHubContext<TicketHub> ticketHub)
+    public TicketRepliesController(
+        KeytietkiemDbContext db,
+        IHubContext<TicketHub> ticketHub,
+        IAuditLogger auditLogger)
     {
         _db = db;
         _ticketHub = ticketHub;
+        _auditLogger = auditLogger;
     }
 
     /// <summary>
@@ -77,7 +84,7 @@ public class TicketRepliesController : ControllerBase
 
         if (!isTicketOwner && !isAssignee && !isAdmin)
         {
-            // Trả về 403 + message để FE hiển thị ở chỗ "Bạn cần đăng nhập..."
+            // Trả về 403 + message để FE hiển thị ở chỗ "Bạn cần đăng nhập...".
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Người dùng không có quyền hạn để phản hồi." });
         }
@@ -134,6 +141,33 @@ public class TicketRepliesController : ControllerBase
         // 🔔 Broadcast realtime đến tất cả client đang xem ticket này (nhóm "ticket:{id}")
         await _ticketHub.Clients.Group($"ticket:{id}")
             .SendAsync("ReceiveReply", dtoOut);
+
+        // 🔐 AUDIT LOG – CHỈ log khi staff/admin reply (không log khách để tránh spam)
+        if (isStaffReply)
+        {
+            // Không log full message để tránh log nhạy cảm quá chi tiết, chỉ log preview
+            var preview = msg.Length <= 200 ? msg : msg.Substring(0, 200);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "StaffReply",
+                entityType: "TicketReply",
+                entityId: reply.ReplyId.ToString(),
+                before: null,
+                after: new
+                {
+                    reply.ReplyId,
+                    reply.TicketId,
+                    reply.SenderId,
+                    reply.IsStaffReply,
+                    MessagePreview = preview,
+                    t.Status,
+                    t.SlaStatus,
+                    t.FirstRespondedAt,
+                    t.UpdatedAt
+                }
+            );
+        }
 
         // FE vẫn nhận response trực tiếp để xử lý lạc quan
         return Ok(dtoOut);

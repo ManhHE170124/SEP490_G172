@@ -30,7 +30,6 @@ namespace Keytietkiem.DTOs.Post
         public Guid? PostTypeId { get; set; }
         public Guid? AuthorId { get; set; }
         public string? MetaTitle { get; set; }
-        public string? MetaDescription { get; set; }
         public string? Status { get; set; }
         public int? ViewCount { get; set; }
         public DateTime? CreatedAt { get; set; }
@@ -80,9 +79,6 @@ namespace Keytietkiem.DTOs.Post
         
         [StringLength(60, ErrorMessage = "Meta title không được vượt quá 60 ký tự.")]
         public string? MetaTitle { get; set; }
-        
-        [StringLength(160, ErrorMessage = "Meta description không được vượt quá 160 ký tự.")]
-        public string? MetaDescription { get; set; }
         public string? Status { get; set; }
         public List<Guid> TagIds { get; set; } = new List<Guid>();
     }
@@ -107,9 +103,6 @@ namespace Keytietkiem.DTOs.Post
         
         [StringLength(60, ErrorMessage = "Meta title không được vượt quá 60 ký tự.")]
         public string? MetaTitle { get; set; }
-        
-        [StringLength(160, ErrorMessage = "Meta description không được vượt quá 160 ký tự.")]
-        public string? MetaDescription { get; set; }
         public string? Status { get; set; }
         public List<Guid> TagIds { get; set; } = new List<Guid>();
     }

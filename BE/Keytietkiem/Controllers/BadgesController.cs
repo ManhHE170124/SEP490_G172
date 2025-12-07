@@ -1,6 +1,7 @@
 ﻿using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,9 +12,11 @@ namespace Keytietkiem.Controllers;
 public class BadgesController : ControllerBase
 {
     private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
+    private readonly IAuditLogger _auditLogger;
 
     private const int BadgeCodeMaxLength = 32;
     private const int BadgeDisplayNameMaxLength = 64;
+
     private static bool IsValidHexColor(string? color)
     {
         if (string.IsNullOrWhiteSpace(color)) return false;
@@ -32,11 +35,15 @@ public class BadgesController : ControllerBase
         return true;
     }
 
-    public BadgesController(IDbContextFactory<KeytietkiemDbContext> dbFactory)
+    public BadgesController(
+        IDbContextFactory<KeytietkiemDbContext> dbFactory,
+        IAuditLogger auditLogger)
     {
         _dbFactory = dbFactory;
+        _auditLogger = auditLogger;
     }
 
+    // ================== GET LIST (không audit) ==================
     [HttpGet]
     public async Task<IActionResult> List(
         [FromQuery] string? keyword,
@@ -103,6 +110,7 @@ public class BadgesController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    // ================== GET DETAIL (không audit) ==================
     [HttpGet("{code}")]
     public async Task<ActionResult<BadgeListItemDto>> Get(string code)
     {
@@ -124,6 +132,7 @@ public class BadgesController : ControllerBase
         return dto is null ? NotFound() : Ok(dto);
     }
 
+    // ================== CREATE (có audit) ==================
     [HttpPost]
     public async Task<IActionResult> Create(BadgeCreateDto dto)
     {
@@ -132,25 +141,44 @@ public class BadgesController : ControllerBase
         // ===== Validate BadgeCode =====
         var rawCode = dto.BadgeCode ?? string.Empty;
         var code = rawCode.Trim();
+
         if (string.IsNullOrWhiteSpace(code))
-            return BadRequest(new { message = "BadgeCode is required" });
+        {
+            const string msg = "BadgeCode is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (code.Contains(' '))
-            return BadRequest(new { message = "BadgeCode cannot contain spaces" });
+        {
+            const string msg = "BadgeCode cannot contain spaces";
+            return BadRequest(new { message = msg });
+        }
 
         if (code.Length > BadgeCodeMaxLength)
-            return BadRequest(new { message = $"BadgeCode cannot exceed {BadgeCodeMaxLength} characters" });
+        {
+            var msg = $"BadgeCode cannot exceed {BadgeCodeMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         if (await db.Badges.AnyAsync(x => x.BadgeCode == code))
-            return Conflict(new { message = "BadgeCode already exists" });
+        {
+            const string msg = "BadgeCode already exists";
+            return Conflict(new { message = msg });
+        }
 
         // ===== Validate DisplayName =====
         var name = dto.DisplayName?.Trim();
         if (string.IsNullOrWhiteSpace(name))
-            return BadRequest(new { message = "DisplayName is required" });
+        {
+            const string msg = "DisplayName is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (name.Length > BadgeDisplayNameMaxLength)
-            return BadRequest(new { message = $"DisplayName cannot exceed {BadgeDisplayNameMaxLength} characters" });
+        {
+            var msg = $"DisplayName cannot exceed {BadgeDisplayNameMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         // ===== Validate ColorHex =====
         string? color = null;
@@ -158,7 +186,10 @@ public class BadgesController : ControllerBase
         {
             color = dto.ColorHex.Trim();
             if (!IsValidHexColor(color))
-                return BadRequest(new { message = "ColorHex must be a valid hex color, e.g. #1e40af" });
+            {
+                const string msg = "ColorHex must be a valid hex color, e.g. #1e40af";
+                return BadRequest(new { message = msg });
+            }
         }
 
         var e = new Badge
@@ -174,6 +205,23 @@ public class BadgesController : ControllerBase
         db.Badges.Add(e);
         await db.SaveChangesAsync();
 
+        // AUDIT
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "CreateBadge",
+            entityType: "Badge",
+            entityId: e.BadgeCode,
+            before: null,
+            after: new
+            {
+                e.BadgeCode,
+                e.DisplayName,
+                e.ColorHex,
+                e.Icon,
+                e.IsActive
+            }
+        );
+
         var body = new BadgeListItemDto(
             e.BadgeCode,
             e.DisplayName,
@@ -186,32 +234,61 @@ public class BadgesController : ControllerBase
         return CreatedAtAction(nameof(Get), new { code = e.BadgeCode }, body);
     }
 
+    // ================== UPDATE (có audit) ==================
     [HttpPut("{code}")]
     public async Task<IActionResult> Update(string code, BadgeUpdateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Badges.FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (e is null) return NotFound(new { message = "Badge not found" });
+        if (e is null)
+        {
+            const string msg = "Badge not found";
+            return NotFound(new { message = msg });
+        }
+
+        var beforeSnapshot = new
+        {
+            e.BadgeCode,
+            e.DisplayName,
+            e.ColorHex,
+            e.Icon,
+            e.IsActive
+        };
 
         // ===== Validate DisplayName =====
         var name = dto.DisplayName?.Trim();
         if (string.IsNullOrWhiteSpace(name))
-            return BadRequest(new { message = "DisplayName is required" });
+        {
+            const string msg = "DisplayName is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (name.Length > BadgeDisplayNameMaxLength)
-            return BadRequest(new { message = $"DisplayName cannot exceed {BadgeDisplayNameMaxLength} characters" });
+        {
+            var msg = $"DisplayName cannot exceed {BadgeDisplayNameMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         // ===== Validate BadgeCode (mới) =====
         var rawCode = dto.BadgeCode ?? string.Empty;
         var newCode = rawCode.Trim();
         if (string.IsNullOrWhiteSpace(newCode))
-            return BadRequest(new { message = "BadgeCode is required" });
+        {
+            const string msg = "BadgeCode is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (newCode.Contains(' '))
-            return BadRequest(new { message = "BadgeCode cannot contain spaces" });
+        {
+            const string msg = "BadgeCode cannot contain spaces";
+            return BadRequest(new { message = msg });
+        }
 
         if (newCode.Length > BadgeCodeMaxLength)
-            return BadRequest(new { message = $"BadgeCode cannot exceed {BadgeCodeMaxLength} characters" });
+        {
+            var msg = $"BadgeCode cannot exceed {BadgeCodeMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         var codeChanged = !string.Equals(newCode, e.BadgeCode, StringComparison.Ordinal);
 
@@ -219,7 +296,10 @@ public class BadgesController : ControllerBase
         {
             var exists = await db.Badges.AnyAsync(b => b.BadgeCode == newCode && b.BadgeCode != e.BadgeCode);
             if (exists)
-                return Conflict(new { message = "BadgeCode already exists" });
+            {
+                const string msg = "BadgeCode already exists";
+                return Conflict(new { message = msg });
+            }
         }
 
         // ===== Validate ColorHex =====
@@ -228,7 +308,10 @@ public class BadgesController : ControllerBase
         {
             color = dto.ColorHex.Trim();
             if (!IsValidHexColor(color))
-                return BadRequest(new { message = "ColorHex must be a valid hex color, e.g. #1e40af" });
+            {
+                const string msg = "ColorHex must be a valid hex color, e.g. #1e40af";
+                return BadRequest(new { message = msg });
+            }
         }
 
         // Cập nhật info chung
@@ -241,6 +324,25 @@ public class BadgesController : ControllerBase
         if (!codeChanged)
         {
             await db.SaveChangesAsync();
+
+            var afterSnapshot = new
+            {
+                e.BadgeCode,
+                e.DisplayName,
+                e.ColorHex,
+                e.Icon,
+                e.IsActive
+            };
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdateBadge",
+                entityType: "Badge",
+                entityId: e.BadgeCode,
+                before: beforeSnapshot,
+                after: afterSnapshot
+            );
+
             return NoContent();
         }
 
@@ -285,21 +387,51 @@ public class BadgesController : ControllerBase
         db.Badges.Remove(e);
 
         await db.SaveChangesAsync();
+
+        var afterRenameSnapshot = new
+        {
+            OldCode = oldCode,
+            NewCode = newBadge.BadgeCode,
+            newBadge.DisplayName,
+            newBadge.ColorHex,
+            newBadge.Icon,
+            newBadge.IsActive
+        };
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "UpdateBadge",
+            entityType: "Badge",
+            entityId: newBadge.BadgeCode,
+            before: beforeSnapshot,
+            after: afterRenameSnapshot
+        );
+
         return NoContent();
     }
 
-
-
-
-
+    // ================== DELETE (có audit) ==================
     [HttpDelete("{code}")]
     public async Task<IActionResult> Delete(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Badges.FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (e is null) return NotFound(new { message = "Badge not found" });
+        if (e is null)
+        {
+            const string msg = "Badge not found";
+            return NotFound(new { message = msg });
+        }
 
-        // Xóa quan hệ ProductBadges trước (tránh FK error + badge không còn hiển thị ở product)
+        var beforeSnapshot = new
+        {
+            e.BadgeCode,
+            e.DisplayName,
+            e.ColorHex,
+            e.Icon,
+            e.IsActive
+        };
+
+        // Xóa quan hệ ProductBadges trước
         var related = await db.ProductBadges
             .Where(pb => pb.Badge == code)
             .ToListAsync();
@@ -309,39 +441,108 @@ public class BadgesController : ControllerBase
 
         db.Badges.Remove(e);
         await db.SaveChangesAsync();
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "DeleteBadge",
+            entityType: "Badge",
+            entityId: e.BadgeCode,
+            before: beforeSnapshot,
+            after: null
+        );
+
         return NoContent();
     }
 
+    // ================== TOGGLE (có audit) ==================
     [HttpPatch("{code}/toggle")]
     public async Task<IActionResult> Toggle(string code)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Badges.FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (e is null) return NotFound(new { message = "Badge not found" });
+        if (e is null)
+        {
+            const string msg = "Badge not found";
+            return NotFound(new { message = msg });
+        }
+
+        var beforeSnapshot = new
+        {
+            e.BadgeCode,
+            e.IsActive
+        };
 
         e.IsActive = !e.IsActive;
         await db.SaveChangesAsync();
+
+        var afterSnapshot = new
+        {
+            e.BadgeCode,
+            e.IsActive
+        };
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "ToggleBadge",
+            entityType: "Badge",
+            entityId: e.BadgeCode,
+            before: beforeSnapshot,
+            after: afterSnapshot
+        );
+
         return Ok(new { e.BadgeCode, e.IsActive });
     }
 
+    // ================== SET STATUS (có audit) ==================
     [HttpPatch("{code}/status")]
     public async Task<IActionResult> SetStatus(string code, [FromBody] bool active)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Badges.FirstOrDefaultAsync(x => x.BadgeCode == code);
-        if (e is null) return NotFound(new { message = "Badge not found" });
+        if (e is null)
+        {
+            const string msg = "Badge not found";
+            return NotFound(new { message = msg });
+        }
+
+        var beforeSnapshot = new
+        {
+            e.BadgeCode,
+            e.IsActive
+        };
 
         e.IsActive = active;
         await db.SaveChangesAsync();
+
+        var afterSnapshot = new
+        {
+            e.BadgeCode,
+            e.IsActive
+        };
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "SetBadgeStatus",
+            entityType: "Badge",
+            entityId: e.BadgeCode,
+            before: beforeSnapshot,
+            after: afterSnapshot
+        );
+
         return Ok(new { e.BadgeCode, e.IsActive });
     }
 
+    // ================== GÁN BADGE CHO PRODUCT (có audit) ==================
     [HttpPost("products/{productId:guid}")]
     public async Task<IActionResult> SetBadgesForProduct(Guid productId, [FromBody] IEnumerable<string> codes)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var exists = await db.Products.AnyAsync(p => p.ProductId == productId);
-        if (!exists) return NotFound(new { message = "Product not found" });
+        if (!exists)
+        {
+            const string msg = "Product not found";
+            return NotFound(new { message = msg });
+        }
 
         var set = codes?.Select(c => c.Trim())
                        .Where(c => !string.IsNullOrWhiteSpace(c))
@@ -353,6 +554,10 @@ public class BadgesController : ControllerBase
                                    .ToListAsync();
 
         var current = await db.ProductBadges.Where(p => p.ProductId == productId).ToListAsync();
+
+        var beforeSnapshot = current.Select(pb => pb.Badge).ToList();
+        var afterSnapshot = valid.ToList();
+
         db.ProductBadges.RemoveRange(current);
         db.ProductBadges.AddRange(valid.Select(code => new ProductBadge
         {
@@ -362,6 +567,16 @@ public class BadgesController : ControllerBase
         }));
 
         await db.SaveChangesAsync();
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "SetBadgesForProduct",
+            entityType: "Product",
+            entityId: productId.ToString(),
+            before: new { ProductId = productId, Badges = beforeSnapshot },
+            after: new { ProductId = productId, Badges = afterSnapshot }
+        );
+
         return NoContent();
     }
 }

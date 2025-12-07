@@ -8,6 +8,8 @@
   border-right: 1px solid var(--line);
   z-index: 1000;
   transition: width 0.25s ease, box-shadow 0.25s ease;
+  
+  /* FIX: Enable flexbox for scrollable nav */
 
   /* THÊM 2 DÒNG NÀY */
   display: flex;
@@ -40,6 +42,8 @@
   padding: 1.5rem 1.5rem 2rem;
   border-bottom: 1px solid var(--line);
   transition: padding 0.25s ease;
+  flex-shrink: 0; /* Prevent logo from shrinking when nav scrolls */
+  cursor: pointer; /* Show it's clickable */
 }
 
 .sb-logo i {
@@ -76,9 +80,30 @@
   overflow: hidden;
 }
 
+/* ===== Menu nav: chỉ phần này cuộn ===== */
 .sb-nav {
-  padding: 1.5rem 0;
-  transition: padding 0.25s ease;
+  flex: 1;
+  padding: 1.25rem 0 1.5rem;
+  overflow-y: auto; /* Enable scrolling */
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for nav */
+.sb-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sb-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sb-nav::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
+  border-radius: 3px;
+}
+
+.sb-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.3);
 }
 
 .sb-sidebar.collapsed .sb-nav {
@@ -94,13 +119,6 @@
   height: 2px;
   border-radius: 999px;
   background: #111827;
-}
-
-/* ===== Menu nav: chỉ phần này cuộn ===== */
-.sb-nav {
-  flex: 1;
-  padding: 1.25rem 0 1.5rem;
-  overflow-y: auto;
 }
 
 /* (giữ nguyên các style item/section cũ) */
@@ -239,6 +257,14 @@
   color: white;
 }
 
+/* Empty state for no permissions */
+.sb-empty {
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 /* App layout adjustment */
 .sb-app {
   display: flex;
@@ -252,9 +278,43 @@
   flex-direction: column;
 }
 
+.sb-sidebar.collapsed + div {
+  margin-left: 72px !important;
+}
+
 .sb-main {
   flex: 1;
   padding: 2rem;
   background: var(--page);
 }
 
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .sb-sidebar {
+    width: 72px;
+  }
+  
+  .sb-sidebar .sb-label {
+    display: none;
+  }
+  
+  .sb-app > div:last-child {
+    margin-left: 72px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sb-sidebar {
+    transform: translateX(-100%);
+    width: 280px;
+  }
+  
+  .sb-sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .sb-app > div:last-child {
+    margin-left: 0 !important;
+  }
+}

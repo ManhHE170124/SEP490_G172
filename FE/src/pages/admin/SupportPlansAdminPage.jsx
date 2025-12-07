@@ -257,11 +257,14 @@ function SupportPlanModal({
                   onChange={() => set("isActive", !form.isActive)}
                 />
                 <span className="slider" />
-                <span className="switch-label">
-                  {form.isActive ? "Đang bật" : "Đang tắt"}
-                </span>
               </label>
-              <div className="muted support-plan-modal-note">
+              <span
+                className={form.isActive ? "badge green" : "badge gray"}
+                style={{ textTransform: "none" }}
+              >
+                {form.isActive ? "Đang bật" : "Đang tắt"}
+              </span>
+              {/* <div className="muted support-plan-modal-note">
                 <strong>Quy tắc khi bật gói:</strong>
                 <div>- Mỗi PriorityLevel chỉ có tối đa 1 gói đang bật.</div>
                 <div>
@@ -276,7 +279,7 @@ function SupportPlanModal({
                   - Các gói đang tắt không bị ràng buộc về giá; hệ thống chỉ
                   kiểm tra khi lưu / bật gói ở trạng thái hoạt động.
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

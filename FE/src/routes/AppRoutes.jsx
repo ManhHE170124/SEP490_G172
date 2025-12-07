@@ -15,6 +15,7 @@ import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
 import { MODULE_CODES } from "../constants/accessControl";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
+import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
 //Role Management Pages
 import RoleAssign from "../pages/RoleManage/RoleAssign";
@@ -71,10 +72,6 @@ import PaymentCancelPage from "../pages/storefront/PaymentCancelPage";
 import PaymentResultPage from "../pages/storefront/PaymentResultPage";
 import BlogDetail from '../pages/blog/BlogDetail.jsx';
 
-// Order pages
-import OrderHistoryPage from "../pages/orders/OrderHistoryPage.jsx";
-import OrderDetailPage from "../pages/orders/OrderDetailPage.jsx";
-
 // Customer ticket pages
 import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
 import CustomerTicketDetailPage from "../pages/tickets/customer-ticket-detail.jsx";
@@ -94,6 +91,7 @@ import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyal
 import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
 import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplatesAdminPage.jsx";
 import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
+import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
 
 // Lazy admin ticket detail
@@ -200,6 +198,14 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route
+        path="/orderhistory/:id"
+        element={
+          <ClientLayout>
+            <OrderHistoryDetailPage />
+          </ClientLayout>
+        }
+      />
       <Route path="/admin" element={<div />} />
       <Route
         path="/admin/profile"
@@ -296,23 +302,6 @@ export default function AppRoutes() {
         element={
           <ClientLayout>
             <CustomerTicketManagementPage />
-          </ClientLayout>
-        }
-      />
-      {/* Orders */}
-      <Route
-        path="/orders/history"
-        element={
-          <ClientLayout>
-            <OrderHistoryPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/orders/:id"
-        element={
-          <ClientLayout>
-            <OrderDetailPage />
           </ClientLayout>
         }
       />
@@ -588,6 +577,14 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
+            <Route
+        path="/admin/audit-logs"
+        element={renderAdminPage(
+          MODULE_CODES.SETTINGS_MANAGER,
+          <AuditLogsPage />
+        )}
+      />
+
 
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />

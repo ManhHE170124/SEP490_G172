@@ -3,8 +3,11 @@ using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Keytietkiem.Controllers
 {
@@ -14,15 +17,20 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
+        private readonly IAuditLogger _auditLogger;
 
         private const int TitleMaxLength = 60;
         private const int CodeMaxLength = 50;
         private const decimal MaxPriceValue = 9999999999999999.99M; // decimal(18,2)
 
-        public ProductVariantsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
+        public ProductVariantsController(
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IClock clock,
+            IAuditLogger auditLogger)
         {
             _dbFactory = dbFactory;
             _clock = clock;
+            _auditLogger = auditLogger;
         }
 
         private static string NormalizeStatus(string? s)
@@ -449,6 +457,29 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
+            // === AUDIT LOG: CREATE SUCCESS ===
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "ProductVariant",
+                entityId: v.VariantId.ToString(),
+                before: null,
+                after: new
+                {
+                    v.VariantId,
+                    v.ProductId,
+                    v.VariantCode,
+                    v.Title,
+                    v.DurationDays,
+                    v.StockQty,
+                    v.WarrantyDays,
+                    v.Status,
+                    v.SellPrice,
+                    v.ListPrice,
+                    v.CogsPrice
+                }
+   );
+
             return CreatedAtAction(nameof(Get), new { productId, variantId = v.VariantId },
                 new ProductVariantDetailDto(
                     v.VariantId,
@@ -476,6 +507,22 @@ namespace Keytietkiem.Controllers
             await using var db = await _dbFactory.CreateDbContextAsync();
             var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
+
+            // Snapshot before
+            var before = new
+            {
+                v.VariantId,
+                v.ProductId,
+                v.VariantCode,
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice
+            };
 
             var title = NormalizeString(dto.Title);
             var variantCode = NormalizeString(dto.VariantCode ?? v.VariantCode ?? string.Empty);
@@ -567,6 +614,32 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
+            // Snapshot after
+            var after = new
+            {
+                v.VariantId,
+                v.ProductId,
+                v.VariantCode,
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice
+            };
+
+            // === AUDIT LOG: UPDATE SUCCESS ===
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "ProductVariant",
+                entityId: v.VariantId.ToString(),
+                before: before,
+                after: after
+);
+
             return NoContent();
         }
 
@@ -580,6 +653,22 @@ namespace Keytietkiem.Controllers
                             .FirstOrDefaultAsync(x => x.ProductId == productId &&
                                                       x.VariantId == variantId);
             if (v is null) return NotFound();
+
+            // Snapshot before delete
+            var before = new
+            {
+                v.VariantId,
+                v.ProductId,
+                v.VariantCode,
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice
+            };
 
             var hasSections = await db.ProductSections
                                       .AnyAsync(s => s.VariantId == variantId);
@@ -599,6 +688,16 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
+            // === AUDIT LOG: DELETE SUCCESS ===
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Delete",
+                entityType: "ProductVariant",
+                entityId: v.VariantId.ToString(),
+                before: before,
+                after: null
+);
+
             return NoContent();
         }
 
@@ -613,6 +712,14 @@ namespace Keytietkiem.Controllers
                                 .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
                 if (v is null) return NotFound();
 
+                var before = new
+                {
+                    v.VariantId,
+                    v.ProductId,
+                    v.Status,
+                    v.StockQty
+                };
+
                 v.Status = ToggleVisibility(v.Status, v.StockQty);
                 v.UpdatedAt = _clock.UtcNow;
 
@@ -620,10 +727,29 @@ namespace Keytietkiem.Controllers
                 await RecalcProductStatus(db, productId);
                 await db.SaveChangesAsync();
 
+                var after = new
+                {
+                    v.VariantId,
+                    v.ProductId,
+                    v.Status,
+                    v.StockQty
+                };
+
+                // === AUDIT LOG: TOGGLE SUCCESS ===
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "Toggle",
+                    entityType: "ProductVariant",
+                    entityId: v.VariantId.ToString(),
+                    before: before,
+                    after: after
+);
+
                 return Ok(new { VariantId = v.VariantId, Status = v.Status });
             }
             catch (Exception ex)
             {
+                // Không audit log lỗi toggle để tránh spam, chỉ trả 500
                 return Problem(title: "Toggle variant status failed",
                                detail: ex.Message,
                                statusCode: StatusCodes.Status500InternalServerError);

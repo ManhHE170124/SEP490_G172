@@ -1,9 +1,9 @@
-using System.Security.Claims;
 using Keytietkiem.DTOs;
-using Keytietkiem.DTOs.Enums;
+using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Keytietkiem.Controllers;
 
@@ -13,10 +13,14 @@ namespace Keytietkiem.Controllers;
 public class LicensePackageController : ControllerBase
 {
     private readonly ILicensePackageService _licensePackageService;
+    private readonly IAuditLogger _auditLogger;
 
-    public LicensePackageController(ILicensePackageService licensePackageService)
+    public LicensePackageController(
+        ILicensePackageService licensePackageService,
+        IAuditLogger auditLogger)
     {
         _licensePackageService = licensePackageService ?? throw new ArgumentNullException(nameof(licensePackageService));
+        _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
     }
 
     /// <summary>
@@ -70,6 +74,19 @@ public class LicensePackageController : ControllerBase
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
         var package = await _licensePackageService.CreateLicensePackageAsync(dto, actorId, actorEmail);
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "CreateLicensePackage",
+            entityType: "LicensePackage",
+            entityId: package.PackageId.ToString(),
+            before: dto,
+            after: new
+            {
+                package.PackageId
+            }
+        );
+
         return CreatedAtAction(nameof(GetLicensePackageById), new { id = package.PackageId }, package);
     }
 
@@ -82,12 +99,28 @@ public class LicensePackageController : ControllerBase
     public async Task<IActionResult> UpdateLicensePackage(int id, [FromBody] UpdateLicensePackageDto dto)
     {
         if (id != dto.PackageId)
-            return BadRequest(new { message = "ID trong URL và body không khớp" });
+        {
+            const string msg = "ID trong URL và body không khớp";
+            return BadRequest(new { message = msg });
+        }
 
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
         var package = await _licensePackageService.UpdateLicensePackageAsync(dto, actorId, actorEmail);
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "UpdateLicensePackage",
+            entityType: "LicensePackage",
+            entityId: dto.PackageId.ToString(),
+            before: null,
+            after: new
+            {
+                package.PackageId
+            }
+        );
+
         return Ok(package);
     }
 
@@ -102,6 +135,16 @@ public class LicensePackageController : ControllerBase
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
         await _licensePackageService.ImportLicenseToStockAsync(dto, actorId, actorEmail);
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "ImportLicenseToStock",
+            entityType: "LicensePackage",
+            entityId: null,           // PackageId nằm trong dto nếu cần truy ngược
+            before: null,
+            after: dto
+        );
+
         return Ok(new { message = "Đã nhập license vào kho thành công" });
     }
 
@@ -116,6 +159,16 @@ public class LicensePackageController : ControllerBase
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
         await _licensePackageService.DeleteLicensePackageAsync(id, actorId, actorEmail);
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "DeleteLicensePackage",
+            entityType: "LicensePackage",
+            entityId: id.ToString(),
+            before: null,
+            after: null
+        );
+
         return Ok(new { message = "Gói license đã được xóa thành công" });
     }
 
@@ -139,10 +192,16 @@ public class LicensePackageController : ControllerBase
         [FromForm] DateTime? expiryDate = null)
     {
         if (file == null || file.Length == 0)
-            return BadRequest(new { message = "File CSV là bắt buộc" });
+        {
+            const string msg = "File CSV là bắt buộc";
+            return BadRequest(new { message = msg });
+        }
 
         if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "File phải có định dạng CSV" });
+        {
+            const string msg = "File phải có định dạng CSV";
+            return BadRequest(new { message = msg });
+        }
 
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
@@ -156,6 +215,25 @@ public class LicensePackageController : ControllerBase
             actorEmail,
             keyType,
             expiryDate);
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "UploadLicenseCsv",
+            entityType: "LicensePackage",
+            entityId: packageId.ToString(),
+            before: null,
+            after: new
+            {
+                packageId,
+                variantId,
+                supplierId,
+                fileName = file.FileName,
+                fileLength = file.Length,
+                keyType,
+                expiryDate
+            }
+        );
+
         return Ok(result);
     }
 

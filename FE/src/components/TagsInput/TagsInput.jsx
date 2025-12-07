@@ -103,6 +103,15 @@ const TagsInput = ({
       return;
     }
 
+    if (trimmedInput.length > 100) {
+      setError('Tag không được vượt quá 100 ký tự');
+      return;
+    }
+
+    if (trimmedInput.length < 2) {
+      setError('Tag không được dưới 2 ký tự');
+      return;
+    }
     // Check if it's an existing tag in database
     const existingTag = availableTags.find(
       t => t.tagName.toLowerCase() === trimmedInput.toLowerCase()

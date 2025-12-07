@@ -128,28 +128,47 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_Accounts_User");
         });
 
+        // Trong KeytietkiemDbContext.OnModelCreating(ModelBuilder modelBuilder)
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F23986F01F4DF");
+            entity.HasKey(e => e.AuditId).HasName("PK_AuditLog");
 
             entity.ToTable("AuditLog");
+
+            entity.Property(e => e.OccurredAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.Property(e => e.ActorEmail)
+                .HasMaxLength(254);
+
+            entity.Property(e => e.ActorRole)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.Property(e => e.SessionId)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.IpAddress)
+                .HasMaxLength(45)
+                .IsUnicode(false);
+
+            entity.Property(e => e.UserAgent)
+                .HasMaxLength(200);
 
             entity.Property(e => e.Action)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-            entity.Property(e => e.ActorEmail).HasMaxLength(254);
-            entity.Property(e => e.EntityId).HasMaxLength(128);
-            entity.Property(e => e.IpAddress)
-                .HasMaxLength(45)
-                .IsUnicode(false);
-            entity.Property(e => e.OccurredAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.Resource)
+
+            entity.Property(e => e.EntityType)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-            entity.Property(e => e.UserAgent).HasMaxLength(200);
+
+            entity.Property(e => e.EntityId)
+                .HasMaxLength(128);
         });
+
+
 
         modelBuilder.Entity<Badge>(entity =>
         {
@@ -304,14 +323,12 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.FinalAmount)
                 .HasComputedColumnSql("([TotalAmount]-[DiscountAmount])", true)
                 .HasColumnType("decimal(13, 2)");
-            // ĐÃ BỎ Status
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(12, 2)");
 
             entity.HasOne(d => d.User).WithMany(p => p.Orders)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_Orders_User");
         });
-
 
         modelBuilder.Entity<OrderDetail>(entity =>
         {
@@ -461,7 +478,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.IsApproved).HasDefaultValue(false);
 
-            entity.HasOne(d => d.ParentComment).WithMany(p => p.Replies)
+            entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
                 .HasForeignKey(d => d.ParentCommentId)
                 .HasConstraintName("FK_PostComments_ParentComment");
 

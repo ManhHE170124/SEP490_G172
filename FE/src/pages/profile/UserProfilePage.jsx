@@ -1,17 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ImageUploader from "../../components/ImageUploader/ImageUploader";
 import profileService from "../../services/profile";
+import { orderApi } from "../../services/orderApi";
 import "./UserProfilePage.css";
 
 const SECTION_ITEMS = [
   { id: "profile-overview", label: "Tổng quan" },
-  // { id: "profile-orders", label: "Lịch sử đơn hàng" },
+  { id: "profile-orders", label: "Lịch sử đơn hàng" },
   // { id: "profile-transactions", label: "Lịch sử giao dịch" },
   { id: "profile-security", label: "Mật khẩu & Bảo mật" },
   { id: "profile-details", label: "Cập nhật thông tin" },
 ];
 
-const INITIAL_ORDER_FILTERS = { keyword: "", fromDate: "", toDate: "" };
+const INITIAL_ORDER_FILTERS = {
+  keyword: "",
+  fromDate: "",
+  toDate: "",
+  minAmount: "",
+  maxAmount: "",
+  status: "all",
+};
 const INITIAL_TRANSACTION_FILTERS = { keyword: "", fromDate: "", toDate: "" };
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
@@ -76,14 +85,21 @@ const formatMoney = (value) => {
 };
 
 const getStatusTone = (status = "") => {
-  const text = status.toString().toLowerCase();
-  const successTokens = ["hoàn", "success", "complete", "done"];
-  const warningTokens = ["pending", "đang", "processing"];
-  const dangerTokens = ["hủy", "cancel", "failed", "lỗi"];
-  if (successTokens.some((token) => text.includes(token))) return "success";
-  if (warningTokens.some((token) => text.includes(token))) return "warning";
-  if (dangerTokens.some((token) => text.includes(token))) return "danger";
-  return "muted";
+  const text = status.toString().toLowerCase().trim();
+  // Chỉ có 2 trạng thái: Paid (success) và Cancelled (danger)
+  if (text === "paid") return "success";
+  if (text === "cancelled") return "danger";
+  // Mặc định là danger (Đã hủy)
+  return "danger";
+};
+
+const getStatusLabel = (status = "") => {
+  const normalized = status.toString().toLowerCase().trim();
+  // Chỉ hiển thị 2 trạng thái: Đã thanh toán và Đã hủy
+  if (normalized === "paid") return "Đã thanh toán";
+  if (normalized === "cancelled") return "Đã hủy";
+  // Mặc định là "Đã hủy" nếu không khớp
+  return "Đã hủy";
 };
 
 const InlineNotice = ({ notice }) => {
@@ -96,6 +112,8 @@ const InlineNotice = ({ notice }) => {
 };
 
 const UserProfilePage = () => {
+  const navigate = useNavigate();
+  
   const storedUser = useMemo(() => {
     try {
       const raw = localStorage.getItem("user");
@@ -108,7 +126,8 @@ const UserProfilePage = () => {
   }, []);
 
   const [profile, setProfile] = useState(storedUser);
-  const [orders, setOrders] = useState([]);
+  const [allOrders, setAllOrders] = useState([]); // Tất cả orders từ BE
+  const [orders, setOrders] = useState([]); // Orders đã filter/sort/paginate
   const [transactions, setTransactions] = useState([]);
 
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -146,9 +165,14 @@ const UserProfilePage = () => {
   });
 
   const [orderFilters, setOrderFilters] = useState(INITIAL_ORDER_FILTERS);
+  const [orderKeywordInput, setOrderKeywordInput] = useState(""); // Input value (chưa debounce)
   const [transactionFilters, setTransactionFilters] = useState(
     INITIAL_TRANSACTION_FILTERS
   );
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderTotalPages, setOrderTotalPages] = useState(1);
+  const [orderSortBy, setOrderSortBy] = useState(null); // null = không sort (TH1)
+  const [orderSortDir, setOrderSortDir] = useState(null);
 
   const [activeSection, setActiveSection] = useState(SECTION_ITEMS[0].id);
 
@@ -201,16 +225,31 @@ const UserProfilePage = () => {
     }
   }, []);
 
-  const fetchOrders = useCallback(async (filters = INITIAL_ORDER_FILTERS) => {
+  // Tạo userId một lần dựa trên profile/storedUser
+  const userId = useMemo(() => {
+    return (
+      profile?.userId ||
+      profile?.id ||
+      storedUser?.userId ||
+      storedUser?.id ||
+      null
+    );
+  }, [profile, storedUser]);
+
+  // Lấy tất cả orders từ BE một lần
+  const fetchAllOrders = useCallback(async (currentUserId) => {
+    if (!currentUserId) {
+      setOrderError("Không tìm thấy thông tin người dùng.");
+      setOrderLoading(false);
+      return;
+    }
+
     setOrderLoading(true);
     setOrderError("");
     try {
-      const response = await profileService.getOrders({
-        ...sanitizeFilters(filters),
-        page: 1,
-        pageSize: 5,
-      });
-      setOrders(extractList(response));
+      const response = await orderApi.history(currentUserId);
+      const list = extractList(response);
+      setAllOrders(list);
     } catch (error) {
       const message =
         error?.response?.data?.message ||
@@ -221,6 +260,130 @@ const UserProfilePage = () => {
       setOrderLoading(false);
     }
   }, []);
+
+  // Filter, sort, paginate orders ở client-side
+  const filteredAndPaginatedOrders = useMemo(() => {
+    let filtered = [...allOrders];
+
+    // Filter theo keyword (search trong OrderNumber)
+    if (orderFilters.keyword?.trim()) {
+      const keyword = orderFilters.keyword.trim().toLowerCase();
+      filtered = filtered.filter((order) => {
+        const orderNumber = (order.orderNumber || "").toLowerCase();
+        return orderNumber.includes(keyword);
+      });
+    }
+
+    // Filter theo minAmount
+    if (orderFilters.minAmount) {
+      const minAmount = Number(orderFilters.minAmount);
+      if (!Number.isNaN(minAmount)) {
+        filtered = filtered.filter((order) => {
+          const finalAmount = order.finalAmount ?? order.totalAmount ?? 0;
+          return finalAmount >= minAmount;
+        });
+      }
+    }
+
+    // Filter theo maxAmount
+    if (orderFilters.maxAmount) {
+      const maxAmount = Number(orderFilters.maxAmount);
+      if (!Number.isNaN(maxAmount)) {
+        filtered = filtered.filter((order) => {
+          const finalAmount = order.finalAmount ?? order.totalAmount ?? 0;
+          return finalAmount <= maxAmount;
+        });
+      }
+    }
+
+    // Filter theo fromDate
+    if (orderFilters.fromDate) {
+      const fromDate = new Date(orderFilters.fromDate);
+      fromDate.setHours(0, 0, 0, 0);
+      if (!Number.isNaN(fromDate.getTime())) {
+        filtered = filtered.filter((order) => {
+          const orderDate = new Date(order.createdAt);
+          orderDate.setHours(0, 0, 0, 0);
+          return orderDate >= fromDate;
+        });
+      }
+    }
+
+    // Filter theo toDate
+    if (orderFilters.toDate) {
+      const toDate = new Date(orderFilters.toDate);
+      toDate.setHours(23, 59, 59, 999);
+      if (!Number.isNaN(toDate.getTime())) {
+        filtered = filtered.filter((order) => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate <= toDate;
+        });
+      }
+    }
+
+    // Filter theo status
+    if (orderFilters.status && orderFilters.status !== "all") {
+      filtered = filtered.filter(
+        (order) => order.status?.toLowerCase() === orderFilters.status.toLowerCase()
+      );
+    }
+
+    // Sort - chỉ sort khi có orderSortBy (không null)
+    if (orderSortBy && orderSortDir) {
+      const sortBy = orderSortBy;
+      const asc = orderSortDir === "asc";
+
+      filtered.sort((a, b) => {
+        let aVal, bVal;
+
+        switch (sortBy.toLowerCase()) {
+          case "ordernumber":
+            aVal = a.orderNumber || "";
+            bVal = b.orderNumber || "";
+            return asc
+              ? aVal.localeCompare(bVal)
+              : bVal.localeCompare(aVal);
+
+          case "totalamount":
+            aVal = a.finalAmount ?? a.totalAmount ?? 0;
+            bVal = b.finalAmount ?? b.totalAmount ?? 0;
+            return asc ? aVal - bVal : bVal - aVal;
+
+          case "status":
+            aVal = a.status || "";
+            bVal = b.status || "";
+            return asc
+              ? aVal.localeCompare(bVal)
+              : bVal.localeCompare(aVal);
+
+          default: // createdAt
+            aVal = new Date(a.createdAt).getTime();
+            bVal = new Date(b.createdAt).getTime();
+            return asc ? aVal - bVal : bVal - aVal;
+        }
+      });
+    }
+
+    // Tính total pages
+    const pageSize = 5;
+    const total = filtered.length;
+    const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+    setOrderTotalPages(totalPages);
+
+    // Paginate
+    const page = orderPage || 1;
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginated = filtered.slice(startIndex, endIndex);
+
+    return { items: paginated, total, totalPages };
+  }, [
+    allOrders,
+    orderFilters,
+    orderSortBy,
+    orderSortDir,
+    orderPage,
+  ]);
 
   const fetchTransactions = useCallback(
     async (filters = INITIAL_TRANSACTION_FILTERS) => {
@@ -250,9 +413,27 @@ const UserProfilePage = () => {
     loadProfile();
   }, [loadProfile]);
 
-  // useEffect(() => {
-  //   fetchOrders(INITIAL_ORDER_FILTERS);
-  // }, [fetchOrders]);
+  // Load tất cả orders một lần khi userId thay đổi
+  useEffect(() => {
+    if (userId) {
+      fetchAllOrders(userId);
+    }
+  }, [fetchAllOrders, userId]);
+
+  // Cập nhật orders từ filteredAndPaginatedOrders
+  useEffect(() => {
+    setOrders(filteredAndPaginatedOrders.items || []);
+  }, [filteredAndPaginatedOrders]);
+
+  // Debounce keyword input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setOrderFilters((prev) => ({ ...prev, keyword: orderKeywordInput }));
+      setOrderPage(1); // Reset về trang 1 khi search
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [orderKeywordInput]);
 
   // useEffect(() => {
   //   fetchTransactions(INITIAL_TRANSACTION_FILTERS);
@@ -312,7 +493,14 @@ const UserProfilePage = () => {
 
   const handleOrderFilterChange = (event) => {
     const { name, value } = event.target;
-    setOrderFilters((prev) => ({ ...prev, [name]: value }));
+    if (name === "keyword") {
+      // Keyword được xử lý riêng với debounce
+      setOrderKeywordInput(value);
+    } else {
+      setOrderFilters((prev) => ({ ...prev, [name]: value }));
+      // Reset về trang 1 khi thay đổi filter
+      setOrderPage(1);
+    }
   };
 
   const handleTransactionFilterChange = (event) => {
@@ -450,7 +638,7 @@ const UserProfilePage = () => {
     }
   };
 
-  const handleApplyOrderFilters = () => fetchOrders(orderFilters);
+  // Không cần handleApplyOrderFilters vì useEffect đã tự động xử lý
   const handleApplyTransactionFilters = () =>
     fetchTransactions(transactionFilters);
 
@@ -502,22 +690,34 @@ const UserProfilePage = () => {
 
   const maskedEmail = email ? maskEmail(email) : "—";
 
+  const handleViewOrderDetail = (orderId) => {
+    // Chuyển hướng đến trang chi tiết đơn hàng
+    navigate(`/orderhistory/${orderId}`);
+  };
+
   const orderRows = orders?.map((order, index) => {
-    const createdAt =
-      order?.createdAt || order?.createdDate || order?.orderDate;
-    const code = order?.code || order?.orderCode || order?.id || `#${index}`;
-    const product =
-      order?.productName ||
-      order?.productTitle ||
-      order?.items?.[0]?.name ||
-      "—";
-    const total =
-      order?.total ||
-      order?.totalPrice ||
-      order?.totalAmount ||
-      order?.amount ||
-      order?.grandTotal;
-    const status = order?.statusLabel || order?.status || "";
+    const createdAt = order?.createdAt;
+    const orderId = order?.orderId || order?.id;
+    const code =
+      order?.orderNumber ||
+      order?.orderCode ||
+      order?.code ||
+      orderId ||
+      `#${index}`;
+    const productNames = Array.isArray(order?.productNames)
+      ? order.productNames
+      : [];
+    let product = "—";
+    if (productNames.length === 0) {
+      product = "—";
+    } else if (productNames.length === 1) {
+      product = productNames[0];
+    } else {
+      const remainingCount = productNames.length - 1;
+      product = `${productNames[0]}, +${remainingCount} sản phẩm khác`;
+    }
+    const total = order?.finalAmount ?? order?.totalAmount ?? order?.total;
+    const status = order?.status || "";
     return (
       <tr key={`${code}-${index}`}>
         <td>{formatDate(createdAt)}</td>
@@ -526,12 +726,53 @@ const UserProfilePage = () => {
         <td>{formatMoney(total)}</td>
         <td>
           <span className={`profile-pill ${getStatusTone(status)}`}>
-            {status || "—"}
+            {getStatusLabel(status)}
           </span>
+        </td>
+        <td>
+          <a
+            href={`/orderhistory/${orderId}`}
+            className="profile-link"
+            onClick={(e) => {
+              e.preventDefault();
+              handleViewOrderDetail(orderId);
+            }}
+          >
+           Chi tiết
+          </a>
         </td>
       </tr>
     );
   });
+
+  const handleOrderPageChange = (nextPage) => {
+    if (nextPage < 1 || nextPage > orderTotalPages) return;
+    setOrderPage(nextPage); // useEffect sẽ tự động fetch
+  };
+
+  const handleOrderSort = (columnKey) => {
+    if (orderSortBy !== columnKey) {
+      // Click vào cột khác: bắt đầu với DESC (TH2)
+      setOrderSortBy(columnKey);
+      setOrderSortDir("desc");
+    } else {
+      // Click vào cột đang sort: chuyển trạng thái
+      if (orderSortDir === "desc") {
+        // TH2 -> TH3 (ASC)
+        setOrderSortDir("asc");
+      } else if (orderSortDir === "asc") {
+        // TH3 -> TH1 (không sort)
+        setOrderSortBy(null);
+        setOrderSortDir(null);
+      } else {
+        // TH1 -> TH2 (DESC) - trường hợp này không nên xảy ra nhưng để an toàn
+        setOrderSortBy(columnKey);
+        setOrderSortDir("desc");
+      }
+    }
+    // Reset về trang 1 khi thay đổi sort
+    setOrderPage(1);
+  };
 
   const transactionRows = transactions?.map((transaction, index) => {
     const createdAt =
@@ -729,71 +970,201 @@ const UserProfilePage = () => {
               </div>
             </section>
 
-            {/* <section id="profile-orders" className="profile-card">
+            <section id="profile-orders" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Lịch sử đơn hàng</h3>
               <div className="profile-hint" style={{ marginBottom: 12 }}>
                 Hiển thị các đơn hàng sản phẩm bạn đã mua.
               </div>
 
-              <div className="profile-orders-filter">
-                <input
-                  className="profile-input"
-                  name="keyword"
-                  placeholder="Mã đơn hàng"
-                  value={orderFilters.keyword}
-                  onChange={handleOrderFilterChange}
-                />
-                <input
-                  className="profile-input"
-                  type="date"
-                  name="fromDate"
-                  placeholder="Từ ngày"
-                  value={orderFilters.fromDate}
-                  onChange={handleOrderFilterChange}
-                />
-                <input
-                  className="profile-input"
-                  type="date"
-                  name="toDate"
-                  placeholder="Đến ngày"
-                  value={orderFilters.toDate}
-                  onChange={handleOrderFilterChange}
-                />
-                <button
-                  type="button"
-                  className="profile-btn"
-                  onClick={handleApplyOrderFilters}
-                >
-                  Lọc
-                </button>
+              <div className="profile-orders-filter-container">
+                {/* Hàng 1: Tìm kiếm theo mã đơn hàng, Từ ngày, Đến ngày */}
+                <div className="profile-orders-filter-row">
+                  <div className="profile-filter-group profile-filter-group--wide">
+                    <label className="profile-label" htmlFor="orderKeyword">
+                      Tìm kiếm theo mã đơn hàng
+                    </label>
+                    <input
+                      id="orderKeyword"
+                      className="profile-input"
+                      name="keyword"
+                      placeholder="VD: ORD-20250101-ABCD"
+                      value={orderKeywordInput}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="fromDate">
+                      Từ ngày
+                    </label>
+                    <input
+                      id="fromDate"
+                      className="profile-input"
+                      type="date"
+                      name="fromDate"
+                      value={orderFilters.fromDate}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="toDate">
+                      Đến ngày
+                    </label>
+                    <input
+                      id="toDate"
+                      className="profile-input"
+                      type="date"
+                      name="toDate"
+                      value={orderFilters.toDate}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+                </div>
+
+                {/* Hàng 2: Số tiền từ, Số tiền đến, Trạng thái, nút Đặt lại */}
+                <div className="profile-orders-filter-row">
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="minAmount">
+                      Số tiền từ
+                    </label>
+                    <input
+                      id="minAmount"
+                      className="profile-input"
+                      type="number"
+                      name="minAmount"
+                      placeholder="Tối thiểu"
+                      value={orderFilters.minAmount}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="maxAmount">
+                      Số tiền đến
+                    </label>
+                    <input
+                      id="maxAmount"
+                      className="profile-input"
+                      type="number"
+                      name="maxAmount"
+                      placeholder="Tối đa"
+                      value={orderFilters.maxAmount}
+                      onChange={handleOrderFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="status">
+                      Trạng thái
+                    </label>
+                    <select
+                      id="status"
+                      className="profile-input"
+                      name="status"
+                      value={orderFilters.status}
+                      onChange={handleOrderFilterChange}
+                    >
+                      <option value="all">Tất cả</option>
+                      <option value="Paid">Đã thanh toán</option>
+                      <option value="Cancelled">Đã hủy</option>
+                    </select>
+                  </div>
+
+                  <div className="profile-filter-actions">
+                    <button
+                      type="button"
+                      className="profile-btn"
+                      disabled={orderLoading}
+                      onClick={() => {
+                        setOrderFilters(INITIAL_ORDER_FILTERS);
+                        setOrderKeywordInput("");
+                        setOrderPage(1);
+                        setOrderSortBy(null); // TH1: không sort
+                        setOrderSortDir(null);
+                      }}
+                    >
+                      Đặt lại
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="profile-table-wrapper">
                 <table className="profile-table" aria-label="Lịch sử đơn hàng">
                   <thead>
                     <tr>
-                      <th>Thời gian</th>
-                      <th>Mã đơn</th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleOrderSort("createdAt")}
+                          onKeyDown={(e) => e.key === "Enter" && handleOrderSort("createdAt")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Thời gian
+                          {orderSortBy === "createdAt" && orderSortDir &&
+                            (orderSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleOrderSort("orderNumber")}
+                          onKeyDown={(e) => e.key === "Enter" && handleOrderSort("orderNumber")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Mã đơn
+                          {orderSortBy === "orderNumber" && orderSortDir &&
+                            (orderSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
                       <th>Sản phẩm</th>
-                      <th>Tổng tiền</th>
-                      <th>Trạng thái</th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleOrderSort("totalAmount")}
+                          onKeyDown={(e) => e.key === "Enter" && handleOrderSort("totalAmount")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Tổng tiền
+                          {orderSortBy === "totalAmount" && orderSortDir &&
+                            (orderSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleOrderSort("status")}
+                          onKeyDown={(e) => e.key === "Enter" && handleOrderSort("status")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Trạng thái
+                          {orderSortBy === "status" && orderSortDir &&
+                            (orderSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orderLoading ? (
                       <tr>
-                        <td colSpan={5} className="profile-empty">
+                        <td colSpan={6} className="profile-empty">
                           Đang tải đơn hàng...
                         </td>
                       </tr>
                     ) : orderError ? (
                       <tr>
-                        <td colSpan={5} className="profile-empty">
+                        <td colSpan={6} className="profile-empty">
                           {orderError}{" "}
                           <button
                             type="button"
                             className="profile-btn"
-                            onClick={handleApplyOrderFilters}
+                            onClick={() => fetchAllOrders(userId)}
                           >
                             Thử lại
                           </button>
@@ -803,7 +1174,7 @@ const UserProfilePage = () => {
                       orderRows
                     ) : (
                       <tr>
-                        <td colSpan={5} className="profile-empty">
+                        <td colSpan={6} className="profile-empty">
                           Bạn chưa có đơn hàng nào.
                         </td>
                       </tr>
@@ -811,7 +1182,29 @@ const UserProfilePage = () => {
                   </tbody>
                 </table>
               </div>
-            </section> */}
+
+              <div className="profile-pagination">
+                <button
+                  type="button"
+                  className="profile-btn"
+                  disabled={orderPage <= 1 || orderLoading}
+                  onClick={() => handleOrderPageChange(orderPage - 1)}
+                >
+                  Trang trước
+                </button>
+                <span className="profile-hint">
+                  Trang {orderPage} / {orderTotalPages}
+                </span>
+                <button
+                  type="button"
+                  className="profile-btn"
+                  disabled={orderPage >= orderTotalPages || orderLoading}
+                  onClick={() => handleOrderPageChange(orderPage + 1)}
+                >
+                  Trang sau
+                </button>
+              </div>
+            </section>
 
             {/* <section id="profile-transactions" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Lịch sử giao dịch</h3>

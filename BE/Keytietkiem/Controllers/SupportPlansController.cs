@@ -1,15 +1,18 @@
 ﻿// File: Controllers/SupportPlansController.cs
+using Keytietkiem.DTOs.Payments;
+using Keytietkiem.DTOs.SupportPlans;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Keytietkiem.DTOs.Payments;
-using Keytietkiem.DTOs.SupportPlans;
-using Keytietkiem.Models;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
@@ -18,10 +21,14 @@ namespace Keytietkiem.Controllers
     public class SupportPlansController : ControllerBase
     {
         private readonly KeytietkiemDbContext _db;
+        private readonly IAuditLogger _auditLogger;
 
-        public SupportPlansController(KeytietkiemDbContext db)
+        public SupportPlansController(
+            KeytietkiemDbContext db,
+            IAuditLogger auditLogger)
         {
             _db = db;
+            _auditLogger = auditLogger;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -86,7 +93,7 @@ namespace Keytietkiem.Controllers
                 .Include(s => s.SupportPlan)
                 .Where(s =>
                     s.UserId == userId.Value &&
-                    s.Status == "Active" &&                // ✅ Dùng so sánh thường để EF translate
+                    s.Status == "Active" &&
                     (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
                 .OrderByDescending(s => s.StartedAt)
                 .FirstOrDefaultAsync();
@@ -262,6 +269,25 @@ namespace Keytietkiem.Controllers
                     ExpiresAt = existing.ExpiresAt
                 };
 
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "ConfirmSupportPlanPayment",
+                    entityType: "UserSupportPlanSubscription",
+                    entityId: existing.SubscriptionId.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        existing.SubscriptionId,
+                        existing.UserId,
+                        existing.SupportPlanId,
+                        existing.Status,
+                        existing.StartedAt,
+                        existing.ExpiresAt,
+                        existing.PaymentId,
+                        EffectivePriorityLevel = effectivePriorityLevelExisting
+                    }
+                );
+
                 return Ok(existingDto);
             }
 
@@ -320,8 +346,33 @@ namespace Keytietkiem.Controllers
                 ExpiresAt = subscription.ExpiresAt
             };
 
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "ConfirmSupportPlanPayment",
+                entityType: "UserSupportPlanSubscription",
+                entityId: subscription.SubscriptionId.ToString(),
+                before: new
+                {
+                    UserId = user.UserId,
+                    OldActiveSubscriptionCount = oldActiveSubsForUser.Count,
+                    PaymentId = payment.PaymentId,
+                    PlanId = plan.SupportPlanId
+                },
+                after: new
+                {
+                    subscription.SubscriptionId,
+                    subscription.UserId,
+                    subscription.SupportPlanId,
+                    subscription.Status,
+                    subscription.StartedAt,
+                    subscription.ExpiresAt,
+                    subscription.PaymentId,
+                    subscription.Note,
+                    EffectivePriorityLevel = effectivePriorityLevelNew
+                }
+            );
+
             return Ok(result);
         }
-
     }
 }

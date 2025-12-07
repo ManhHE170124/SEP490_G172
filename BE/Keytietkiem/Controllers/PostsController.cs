@@ -16,7 +16,7 @@
  *   - POST   /api/posts/{id}/images  : Add image to a post
  *   - DELETE /api/posts/{id}/images/{imageId} : Delete a post image
  *   - POST   /api/posts/upload       : Upload an image file
- *   - GET    /api/posts/posttypes     : List all post types
+ *   - GET    /api/posts/posttypes    : List all post types
  *   - PUT    /api/posts/{id}/images/{imageId} : Update a post image
  */
 
@@ -24,10 +24,13 @@ using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
 using Keytietkiem.DTOs;
 using Microsoft.EntityFrameworkCore;
-using System.Text.RegularExpressions;
 using Keytietkiem.Services;
 using Keytietkiem.DTOs.Post;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Keytietkiem.Infrastructure;
+using System.Linq;
+using System.Text.Json;
 
 namespace Keytietkiem.Controllers
 {
@@ -37,10 +40,16 @@ namespace Keytietkiem.Controllers
     {
         private readonly KeytietkiemDbContext _context;
         private readonly IPhotoService _photoService;
-        public PostsController(KeytietkiemDbContext context, IPhotoService photoService)
+        private readonly IAuditLogger _auditLogger;
+
+        public PostsController(
+            KeytietkiemDbContext context,
+            IPhotoService photoService,
+            IAuditLogger auditLogger)
         {
             _context = context;
             _photoService = photoService;
+            _auditLogger = auditLogger;
         }
 
         /**
@@ -69,7 +78,9 @@ namespace Keytietkiem.Controllers
                     ViewCount = p.ViewCount,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
-                    AuthorName = p.Author != null ? (p.Author.FullName ?? $"{p.Author.FirstName} {p.Author.LastName}".Trim()) : null,
+                    AuthorName = p.Author != null
+                        ? (p.Author.FullName ?? $"{p.Author.FirstName} {p.Author.LastName}".Trim())
+                        : null,
                     PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null,
                     Tags = p.Tags.Select(t => new TagDTO
                     {
@@ -79,6 +90,7 @@ namespace Keytietkiem.Controllers
                     }).ToList()
                 })
                 .ToListAsync();
+
             return Ok(posts);
         }
 
@@ -113,12 +125,13 @@ namespace Keytietkiem.Controllers
                 PostTypeId = post.PostTypeId,
                 AuthorId = post.AuthorId,
                 MetaTitle = post.MetaTitle,
-                MetaDescription = post.MetaDescription,
                 Status = post.Status,
                 ViewCount = post.ViewCount,
                 CreatedAt = post.CreatedAt,
                 UpdatedAt = post.UpdatedAt,
-                AuthorName = post.Author != null ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim()) : null,
+                AuthorName = post.Author != null
+                    ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim())
+                    : null,
                 PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
                 Tags = post.Tags.Select(t => new TagDTO
                 {
@@ -184,7 +197,6 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-
             var newPost = new Post
             {
                 Title = createPostDto.Title,
@@ -195,7 +207,6 @@ namespace Keytietkiem.Controllers
                 PostTypeId = createPostDto.PostTypeId,
                 AuthorId = createPostDto.AuthorId,
                 MetaTitle = createPostDto.MetaTitle,
-                MetaDescription = createPostDto.MetaDescription,
                 Status = createPostDto.Status ?? "Draft",
                 ViewCount = 0,
                 CreatedAt = DateTime.Now
@@ -209,8 +220,7 @@ namespace Keytietkiem.Controllers
             catch (DbUpdateException ex)
             {
                 // Kiểm tra unique constraint violation trên Slug
-                if (
-                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
                     ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
                 {
                     return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
@@ -231,14 +241,12 @@ namespace Keytietkiem.Controllers
                 }
                 catch (DbUpdateException ex)
                 {
-                    // Kiểm tra unique constraint violation trên Slug
-                    if (
-                        ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
                         ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
                     {
                         return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
                     }
-                    throw; // Re-throw nếu không phải lỗi unique constraint
+                    throw;
                 }
             }
 
@@ -248,6 +256,23 @@ namespace Keytietkiem.Controllers
                 .Include(p => p.PostType)
                 .Include(p => p.Tags)
                 .FirstOrDefaultAsync(p => p.PostId == newPost.PostId);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreatePost",
+                entityType: "Post",
+                entityId: createdPost!.PostId.ToString(),
+                before: null,
+                after: new
+                {
+                    createdPost.PostId,
+                    createdPost.Title,
+                    createdPost.Slug,
+                    createdPost.Status,
+                    createdPost.PostTypeId,
+                    createdPost.AuthorId,
+                    TagIds = createdPost.Tags.Select(t => t.TagId).ToList()
+                });
 
             var postDto = new PostDTO
             {
@@ -260,12 +285,13 @@ namespace Keytietkiem.Controllers
                 PostTypeId = createdPost.PostTypeId,
                 AuthorId = createdPost.AuthorId,
                 MetaTitle = createdPost.MetaTitle,
-                MetaDescription = createdPost.MetaDescription,
                 Status = createdPost.Status,
                 ViewCount = createdPost.ViewCount,
                 CreatedAt = createdPost.CreatedAt,
                 UpdatedAt = createdPost.UpdatedAt,
-                AuthorName = createdPost.Author != null ? (createdPost.Author.FullName ?? $"{createdPost.Author.FirstName} {createdPost.Author.LastName}".Trim()) : null,
+                AuthorName = createdPost.Author != null
+                    ? (createdPost.Author.FullName ?? $"{createdPost.Author.FirstName} {createdPost.Author.LastName}".Trim())
+                    : null,
                 PostTypeName = createdPost.PostType != null ? createdPost.PostType.PostTypeName : null,
                 Tags = createdPost.Tags.Select(t => new TagDTO
                 {
@@ -308,6 +334,16 @@ namespace Keytietkiem.Controllers
                 return NotFound();
             }
 
+            var before = new
+            {
+                existing.PostId,
+                existing.Title,
+                existing.Slug,
+                existing.Status,
+                existing.PostTypeId,
+                existing.AuthorId
+            };
+
             // Validate PostType exists
             if (updatePostDto.PostTypeId.HasValue)
             {
@@ -337,7 +373,6 @@ namespace Keytietkiem.Controllers
             existing.Thumbnail = updatePostDto.Thumbnail;
             existing.PostTypeId = updatePostDto.PostTypeId;
             existing.MetaTitle = updatePostDto.MetaTitle;
-            existing.MetaDescription = updatePostDto.MetaDescription;
             existing.Status = updatePostDto.Status;
             existing.UpdatedAt = DateTime.Now;
 
@@ -357,15 +392,31 @@ namespace Keytietkiem.Controllers
             }
             catch (DbUpdateException ex)
             {
-                // Kiểm tra unique constraint violation trên Slug
-                if (
-                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
                     ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
                 {
                     return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
                 }
-                throw; // Re-throw nếu không phải lỗi unique constraint
+                throw;
             }
+
+            var after = new
+            {
+                existing.PostId,
+                existing.Title,
+                existing.Slug,
+                existing.Status,
+                existing.PostTypeId,
+                existing.AuthorId
+            };
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdatePost",
+                entityType: "Post",
+                entityId: existing.PostId.ToString(),
+                before: before,
+                after: after);
 
             return NoContent();
         }
@@ -380,7 +431,6 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> DeletePost(Guid id)
         {
             var existingPost = await _context.Posts
-
                 .FirstOrDefaultAsync(p => p.PostId == id);
 
             if (existingPost == null)
@@ -388,8 +438,28 @@ namespace Keytietkiem.Controllers
                 return NotFound();
             }
 
+            var before = new
+            {
+                existingPost.PostId,
+                existingPost.Title,
+                existingPost.Slug,
+                existingPost.Status
+            };
+
             _context.Posts.Remove(existingPost);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "DeletePost",
+                entityType: "Post",
+                entityId: existingPost.PostId.ToString(),
+                before: before,
+                after: new
+                {
+                    existingPost.PostId,
+                    Deleted = true
+                });
 
             return NoContent();
         }
@@ -412,6 +482,7 @@ namespace Keytietkiem.Controllers
                     Description = pt.Description
                 })
                 .ToListAsync();
+
             return Ok(postTypes);
         }
 
@@ -428,6 +499,7 @@ namespace Keytietkiem.Controllers
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
+
             var newPostType = new PostType
             {
                 PostTypeName = createPostTypeDto.PostTypeName,
@@ -435,8 +507,23 @@ namespace Keytietkiem.Controllers
                 Slug = createPostTypeDto.Slug,
                 CreatedAt = DateTime.Now
             };
+
             _context.PostTypes.Add(newPostType);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreatePostType",
+                entityType: "PostType",
+                entityId: newPostType.PostTypeId.ToString(),
+                before: null,
+                after: new
+                {
+                    newPostType.PostTypeId,
+                    newPostType.PostTypeName,
+                    newPostType.Slug
+                });
+
             var postTypeDto = new PostTypeDTO
             {
                 PostTypeId = newPostType.PostTypeId,
@@ -444,6 +531,7 @@ namespace Keytietkiem.Controllers
                 Slug = newPostType.Slug,
                 Description = newPostType.Description
             };
+
             return CreatedAtAction(nameof(GetPosttypes), new { id = newPostType.PostTypeId }, postTypeDto);
         }
 
@@ -460,21 +548,44 @@ namespace Keytietkiem.Controllers
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
+
             var existing = await _context.PostTypes
                 .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
             if (existing == null)
             {
                 return NotFound();
             }
+
+            var before = new
+            {
+                existing.PostTypeId,
+                existing.PostTypeName,
+                existing.Slug
+            };
+
             existing.PostTypeName = updatePostTypeDto.PostTypeName;
             existing.Description = updatePostTypeDto.Description;
             existing.Slug = updatePostTypeDto.Slug;
             _context.PostTypes.Update(existing);
             await _context.SaveChangesAsync();
+
+            var after = new
+            {
+                existing.PostTypeId,
+                existing.PostTypeName,
+                existing.Slug
+            };
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdatePostType",
+                entityType: "PostType",
+                entityId: existing.PostTypeId.ToString(),
+                before: before,
+                after: after);
+
             return NoContent();
-
         }
-
 
         [HttpDelete("posttypes/{id}")]
         public async Task<IActionResult> DeletePosttype(Guid id)
@@ -486,12 +597,34 @@ namespace Keytietkiem.Controllers
             {
                 return NotFound();
             }
+
             if (existing.Posts != null && existing.Posts.Any())
             {
                 return BadRequest("Không thể xóa danh mục này.");
             }
+
+            var before = new
+            {
+                existing.PostTypeId,
+                existing.PostTypeName,
+                existing.Slug
+            };
+
             _context.PostTypes.Remove(existing);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "DeletePostType",
+                entityType: "PostType",
+                entityId: existing.PostTypeId.ToString(),
+                before: before,
+                after: new
+                {
+                    existing.PostTypeId,
+                    Deleted = true
+                });
+
             return NoContent();
         }
 
@@ -502,20 +635,21 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post detail, 404 if not found
          */
         [HttpGet("slug/{slug}")]
-        [AllowAnonymous] // Public endpoint - không cần auth
+        [AllowAnonymous]
         public async Task<IActionResult> GetPostBySlug(string slug)
         {
             var post = await _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
                 .Include(p => p.Tags)
-                .Where(p => p.Slug == slug && p.Status == "Published") 
+                .Where(p => p.Slug == slug && p.Status == "Published")
                 .FirstOrDefaultAsync();
 
             if (post == null)
             {
                 return NotFound(new { message = "Không tìm thấy bài viết" });
             }
+
             post.ViewCount = (post.ViewCount ?? 0) + 1;
             await _context.SaveChangesAsync();
 
@@ -530,7 +664,6 @@ namespace Keytietkiem.Controllers
                 PostTypeId = post.PostTypeId,
                 AuthorId = post.AuthorId,
                 MetaTitle = post.MetaTitle,
-                MetaDescription = post.MetaDescription,
                 Status = post.Status,
                 ViewCount = post.ViewCount,
                 CreatedAt = post.CreatedAt,

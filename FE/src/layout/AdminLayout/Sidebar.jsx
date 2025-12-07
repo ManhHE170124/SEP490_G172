@@ -882,6 +882,37 @@ const Sidebar = () => {
             </svg>
           ),
         }
+        , {
+          id: "audit-logs",
+          label: "Lịch sử thao tác hệ thống",
+          to: "/admin/audit-logs",
+          isActive: currentPage === "admin/audit-logs",
+          icon: (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ width: 20, height: 20 }}
+            >
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="16"
+                rx="2"
+                ry="2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M7 9h10M7 13h6M7 17h4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          ),
+        }
+
 
       ],
     },
