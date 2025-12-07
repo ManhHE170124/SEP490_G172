@@ -960,53 +960,69 @@ namespace Keytietkiem.Controllers
                 var quantity = orderDetail.Quantity;
 
                 // Get available shared accounts for this variant (not full)
+                // Order by number of active customers descending to fill nearly-full accounts first
                 var availableAccounts = await _context.ProductAccounts
-                    .AsNoTracking()
                     .Where(pa => pa.VariantId == variant.VariantId &&
                                  pa.Status == "Active" &&
                                  pa.MaxUsers > 1) // Shared accounts have MaxUsers > 1
                     .Include(pa => pa.ProductAccountCustomers)
                     .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers) // Not full
-                    .Take(quantity)
+                    .Select(pa => new
+                    {
+                        Account = pa,
+                        ActiveCustomerCount = pa.ProductAccountCustomers.Count(pac => pac.IsActive),
+                        AvailableSlots = pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive)
+                    })
+                    .OrderByDescending(x => x.ActiveCustomerCount) // Fill nearly-full accounts first
                     .ToListAsync();
 
-                var availableSlot = availableAccounts.Sum(x=> x.MaxUsers) -
-                                availableAccounts.Select(x=> x.ProductAccountCustomers.Count(pac => pac.IsActive)).Sum();
-                if (availableSlot < quantity)
+                var totalAvailableSlots = availableAccounts.Sum(x => x.AvailableSlots);
+                if (totalAvailableSlots < quantity)
                 {
-                    _logger.LogWarning("Not enough available shared accounts for variant {VariantId}",
-                        variant.VariantId);
+                    _logger.LogWarning("Not enough available slots for variant {VariantId}. Required: {Quantity}, Available: {AvailableSlots}",
+                        variant.VariantId, quantity, totalAvailableSlots);
                     continue;
                 }
 
                 // Add customer to shared accounts and collect for email
                 var addedToSharedAccount = false;
-                foreach (var account in availableAccounts)
+                var assignedCount = 0;
+
+                foreach (var accountInfo in availableAccounts)
                 {
-                    try
+                    if (assignedCount >= quantity)
+                        break;
+
+                    var slotsToAssign = Math.Min(accountInfo.AvailableSlots, quantity - assignedCount);
+
+                    for (int i = 0; i < slotsToAssign; i++)
                     {
-                        // Add customer to shared account
-                        var assignDto = new AssignAccountToOrderDto
+                        try
                         {
-                            ProductAccountId = account.ProductAccountId,
-                            OrderId = order.OrderId,
-                            UserId = userId
-                        };
+                            // Add customer to shared account
+                            var assignDto = new AssignAccountToOrderDto
+                            {
+                                ProductAccountId = accountInfo.Account.ProductAccountId,
+                                OrderId = order.OrderId,
+                                UserId = userId
+                            };
 
-                        await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
+                            await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
 
-                        // Clear change tracker to prevent tracking conflicts
-                        _context.ChangeTracker.Clear();
+                            // Clear change tracker to prevent tracking conflicts
+                            _context.ChangeTracker.Clear();
 
-                        addedToSharedAccount = true;
+                            addedToSharedAccount = true;
+                            assignedCount++;
 
-                        _logger.LogInformation("Added customer to shared account {AccountId} for order {OrderId}",
-                            account.ProductAccountId, order.OrderId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to add customer to shared account {AccountId} for order {OrderId}",
-                            account.ProductAccountId, order.OrderId);
+                            _logger.LogInformation("Added customer to shared account {AccountId} for order {OrderId} (slot {SlotNumber}/{TotalSlots})",
+                                accountInfo.Account.ProductAccountId, order.OrderId, assignedCount, quantity);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to add customer to shared account {AccountId} for order {OrderId}",
+                                accountInfo.Account.ProductAccountId, order.OrderId);
+                        }
                     }
                 }
 
@@ -1018,7 +1034,7 @@ namespace Keytietkiem.Controllers
                         ProductName = variant.Product.ProductName,
                         VariantTitle = variant.Title,
                         ProductType = "SHARED_ACCOUNT",
-                        ExpiryDate = availableAccounts.FirstOrDefault()?.ExpiryDate,
+                        ExpiryDate = availableAccounts.FirstOrDefault()?.Account.ExpiryDate,
                         Notes = $"Tài khoản chia sẻ - Vui lòng làm theo hướng dẫn trong email để hoàn tất việc thêm bạn vào family account."
                     });
                 }
