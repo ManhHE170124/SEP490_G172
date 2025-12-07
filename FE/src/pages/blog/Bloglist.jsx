@@ -18,7 +18,7 @@ const BlogList = () => {
 
     // Get filters from URL
     const page = parseInt(searchParams.get('page')) || 1;
-    const categorySlug = searchParams.get('category') || 'all';
+    const categoryId = searchParams.get('category') || 'all';
     const tagSlug = searchParams.get('tag') || 'all';
     const searchQuery = searchParams.get('q') || '';
 
@@ -90,12 +90,9 @@ const BlogList = () => {
             );
         }
 
-        // Category filter (by slug)
-        if (categorySlug !== "all") {
-            const category = categories.find(c => c.slug === categorySlug);
-            if (category) {
-                result = result.filter(p => p.postTypeId === category.postTypeId);
-            }
+        // Category filter (by postTypeId)
+        if (categoryId !== "all") {
+            result = result.filter(p => p.postTypeId === categoryId);
         }
 
         // Tag filter (by slug)
@@ -109,7 +106,7 @@ const BlogList = () => {
         }
 
         return result;
-    }, [posts, search, categorySlug, tagSlug, categories, tags]);
+    }, [posts, search, categoryId, tagSlug, categories, tags]);
 
     // Pagination
     const total = filteredPosts.length;
@@ -138,7 +135,7 @@ const BlogList = () => {
     }, [search]);
 
     // Get active filter labels
-    const activeCategory = categories.find(c => c.slug === categorySlug);
+    const activeCategory = categories.find(c => c.postTypeId === categoryId);
     const activeTag = tags.find(t => t.slug === tagSlug);
 
     return (
@@ -217,7 +214,7 @@ const BlogList = () => {
                     </form>
 
                     {/* ✅ Active filters indicator */}
-                    {(categorySlug !== "all" || tagSlug !== "all" || searchQuery) && (
+                    {(categoryId !== "all" || tagSlug !== "all" || searchQuery) && (
                         <div style={{
                             marginBottom: 16,
                             display: 'flex',
@@ -466,15 +463,15 @@ const BlogList = () => {
                         <ul className="bloglist-category-list">
                             <li
                                 onClick={() => updateFilter('category', null)}
-                                className={categorySlug === "all" ? "active" : ""}
+                                className={categoryId === "all" ? "active" : ""}
                             >
                                 Tất cả danh mục
                             </li>
                             {categories.map(item => (
                                 <li
                                     key={item.postTypeId}
-                                    className={categorySlug === item.slug ? "active" : ""}
-                                    onClick={() => updateFilter('category', item.slug)}
+                                    className={categoryId === item.postTypeId ? "active" : ""}
+                                    onClick={() => updateFilter('category', item.postTypeId)}
                                 >
                                     {item.postTypeName}
                                 </li>

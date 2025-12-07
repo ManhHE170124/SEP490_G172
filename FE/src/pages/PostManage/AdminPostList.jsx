@@ -798,41 +798,63 @@ export default function AdminPostList() {
       </div>
 
       {/* Pagination */}
-      <div className="apl-post-list-pagination">
-        <div className="apl-pagination-controls">
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(1)}
-            disabled={currentPage === 0 || currentPage === 1}
-          >
-            «
-          </button>
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 0 || currentPage === 1}
-          >
-            ‹
-          </button>
-          <span className="apl-pagination-page">
-            Trang {currentPage}/{totalPages} ({total} bài viết)
-          </span>
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === 0 || currentPage >= totalPages}
-          >
-            ›
-          </button>
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(totalPages)}
-            disabled={currentPage === 0 || currentPage >= totalPages}
-          >
-            »
-          </button>
+      {!loading && !error && (
+        <div className="apl-pagination">
+          <div className="apl-pagination-info">
+            Hiển thị {total === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, total)}/{total} bài viết
+          </div>
+          <div className="apl-pagination-controls">
+            <button
+              className="apl-pagination-btn"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+              title="Trang trước"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              Trước
+            </button>
+            
+            <div className="apl-pagination-numbers">
+              {[...Array(totalPages)].map((_, idx) => {
+                const pageNum = idx + 1;
+                // Show first, last, current, and ±1 around current
+                if (
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= page - 1 && pageNum <= page + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      className={`apl-pagination-number ${page === pageNum ? "active" : ""}`}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (pageNum === page - 2 || pageNum === page + 2) {
+                  return <span key={pageNum} className="apl-pagination-ellipsis">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <button
+              className="apl-pagination-btn"
+              onClick={() => setPage(page + 1)}
+              disabled={page >= totalPages}
+              title="Trang sau"
+            >
+              Sau
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

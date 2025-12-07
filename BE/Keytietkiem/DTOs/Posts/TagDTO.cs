@@ -23,6 +23,8 @@ namespace Keytietkiem.DTOs.Post
         public Guid TagId { get; set; }
         public string TagName { get; set; } = null!;
         public string Slug { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 
     public class CreateTagDTO
