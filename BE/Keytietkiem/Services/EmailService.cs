@@ -263,21 +263,62 @@ public class EmailService : IEmailService
             {
                 var isShared = product.ProductType == "SHARED_ACCOUNT";
                 var borderColor = isShared ? "#ff9800" : "#28a745";
-                var accountTypeLabel = isShared ? "Shared Account Credentials" : "Account Credentials";
+                var accountTypeLabel = isShared ? "Shared Account" : "Account Credentials";
 
-                var usernameInfo = !string.IsNullOrWhiteSpace(product.AccountUsername)
-                    ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Username:</strong> {product.AccountUsername}</p>"
-                    : "";
-                var expiryInfo = product.ExpiryDate.HasValue
-                    ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {product.ExpiryDate.Value:dd/MM/yyyy}</p>"
-                    : "";
-                var notesInfo = !string.IsNullOrWhiteSpace(product.Notes)
-                    ? $@"<div style='background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #ffc107;'>
-                            <p style='color: #856404; font-size: 13px; margin: 0;'><strong>📌 Ghi chú:</strong> {product.Notes}</p>
-                         </div>"
-                    : "";
+                string accountSection;
 
-                var accountSection = $@"
+                if (isShared)
+                {
+                    // For shared accounts: show thank you and instructions to create ticket
+                    var expiryInfo = product.ExpiryDate.HasValue
+                        ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {product.ExpiryDate.Value:dd/MM/yyyy}</p>"
+                        : "";
+                    var notesInfo = !string.IsNullOrWhiteSpace(product.Notes)
+                        ? $@"<div style='background-color: #e7f3ff; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #2196F3;'>
+                                <p style='color: #0d47a1; font-size: 13px; margin: 0;'><strong>ℹ️ Thông tin:</strong> {product.Notes}</p>
+                             </div>"
+                        : "";
+
+                    accountSection = $@"
+                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid {borderColor};'>
+                        <h3 style='color: {borderColor}; font-size: 16px; margin: 0 0 15px 0;'>#{productNumber} - {accountTypeLabel}</h3>
+                        <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Sản phẩm:</strong> {product.ProductName}</p>
+                        <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Gói:</strong> {product.VariantTitle}</p>
+                        {expiryInfo}
+                        {notesInfo}
+                        <hr style='border: none; border-top: 1px solid #ddd; margin: 15px 0;'>
+                        <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 3px solid #ff9800;'>
+                            <h4 style='color: #ff9800; font-size: 15px; margin: 0 0 10px 0;'>🙏 Cảm ơn bạn đã đặt hàng!</h4>
+                            <p style='color: #856404; font-size: 14px; line-height: 1.6; margin: 10px 0;'>
+                                Để hoàn tất việc thêm bạn vào tài khoản chia sẻ, vui lòng làm theo các bước sau:
+                            </p>
+                            <ol style='color: #856404; font-size: 14px; line-height: 1.8; margin: 10px 0; padding-left: 20px;'>
+                                <li><strong>Tạo ticket</strong> hỗ trợ trên hệ thống của chúng tôi</li>
+                                <li><strong>Cung cấp thông tin tài khoản</strong> của bạn (email/username) để chúng tôi có thể thêm bạn vào family/shared account</li>
+                                <li>Đội ngũ hỗ trợ sẽ xử lý yêu cầu của bạn trong thời gian sớm nhất</li>
+                            </ol>
+                            <p style='color: #856404; font-size: 13px; margin: 10px 0 0 0;'>
+                                <strong>📌 Lưu ý:</strong> Bạn cần có tài khoản riêng của mình để chúng tôi thêm vào family/shared plan.
+                            </p>
+                        </div>
+                    </div>";
+                }
+                else
+                {
+                    // For personal accounts: show credentials as before
+                    var usernameInfo = !string.IsNullOrWhiteSpace(product.AccountUsername)
+                        ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Username:</strong> {product.AccountUsername}</p>"
+                        : "";
+                    var expiryInfo = product.ExpiryDate.HasValue
+                        ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {product.ExpiryDate.Value:dd/MM/yyyy}</p>"
+                        : "";
+                    var notesInfo = !string.IsNullOrWhiteSpace(product.Notes)
+                        ? $@"<div style='background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #ffc107;'>
+                                <p style='color: #856404; font-size: 13px; margin: 0;'><strong>📌 Ghi chú:</strong> {product.Notes}</p>
+                             </div>"
+                        : "";
+
+                    accountSection = $@"
                     <div style='background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid {borderColor};'>
                         <h3 style='color: {borderColor}; font-size: 16px; margin: 0 0 15px 0;'>#{productNumber} - {accountTypeLabel}</h3>
                         <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Sản phẩm:</strong> {product.ProductName}</p>
@@ -292,6 +333,7 @@ public class EmailService : IEmailService
                         {expiryInfo}
                         {notesInfo}
                     </div>";
+                }
 
                 productSections.Add(accountSection);
             }

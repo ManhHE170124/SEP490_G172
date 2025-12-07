@@ -379,7 +379,7 @@ public class AccountService : IAccountService
         {
             UserId = Guid.NewGuid(),
             Email = email,
-            Status = "Temp",
+            Status = "Active",  // Database constraint only allows: Active, Locked, Disabled
             IsTemp = true,
             EmailVerified = false,
             CreatedAt = _clock.UtcNow
