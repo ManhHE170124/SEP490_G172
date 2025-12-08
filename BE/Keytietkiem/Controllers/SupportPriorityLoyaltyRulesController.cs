@@ -1,4 +1,8 @@
-﻿using Keytietkiem.DTOs.Common;
+﻿using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
+using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.SupportPlans;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +29,7 @@ namespace Keytietkiem.Controllers
         /// Bỏ qua toàn bộ level 0 (default).
         /// </summary>
         [HttpGet]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<SupportPriorityLoyaltyRuleListItemDto>>> List(
             [FromQuery] int? priorityLevel,
             [FromQuery] bool? active,
@@ -93,6 +98,7 @@ namespace Keytietkiem.Controllers
         /// Lấy chi tiết 1 rule.
         /// </summary>
         [HttpGet("{ruleId:int}")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<SupportPriorityLoyaltyRuleDetailDto>> GetById(int ruleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -147,6 +153,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới rule.
         /// </summary>
         [HttpPost]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<SupportPriorityLoyaltyRuleDetailDto>> Create(
             SupportPriorityLoyaltyRuleCreateDto dto)
         {
@@ -243,6 +250,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật rule.
         /// </summary>
         [HttpPut("{ruleId:int}")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(
             int ruleId,
             SupportPriorityLoyaltyRuleUpdateDto dto)
@@ -334,6 +342,7 @@ namespace Keytietkiem.Controllers
         /// Xoá hẳn 1 rule.
         /// </summary>
         [HttpDelete("{ruleId:int}")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(int ruleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -358,6 +367,7 @@ namespace Keytietkiem.Controllers
         /// - Khi tắt: chỉ tắt rule hiện tại.
         /// </summary>
         [HttpPatch("{ruleId:int}/toggle")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(int ruleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

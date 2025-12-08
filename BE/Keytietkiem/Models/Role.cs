@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
-
 public partial class Role
 {
     public string RoleId { get; set; } = null!;
@@ -18,6 +17,8 @@ public partial class Role
     public DateTime? UpdatedAt { get; set; }
 
     public string? Code { get; set; }
+
+    public virtual ICollection<NotificationTargetRole> NotificationTargetRoles { get; set; } = new List<NotificationTargetRole>();
 
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 

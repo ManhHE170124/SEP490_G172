@@ -1,6 +1,10 @@
 ﻿using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +31,7 @@ namespace Keytietkiem.Controllers
 
         // GET: /api/faqs
         [HttpGet]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> List(
             [FromQuery] string? keyword,
             [FromQuery] bool? active,
@@ -108,6 +113,7 @@ namespace Keytietkiem.Controllers
 
         // GET: /api/faqs/{faqId}
         [HttpGet("{faqId:int}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<ProductFaqDetailDto>> GetById(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -138,6 +144,7 @@ namespace Keytietkiem.Controllers
 
         // POST: /api/faqs
         [HttpPost]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<ProductFaqDetailDto>> Create(ProductFaqCreateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -234,6 +241,7 @@ namespace Keytietkiem.Controllers
 
         // PUT: /api/faqs/{faqId}
         [HttpPut("{faqId:int}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(int faqId, ProductFaqUpdateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -323,6 +331,7 @@ namespace Keytietkiem.Controllers
 
         // DELETE: /api/faqs/{faqId}
         [HttpDelete("{faqId:int}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -337,6 +346,7 @@ namespace Keytietkiem.Controllers
 
         // PATCH: /api/faqs/{faqId}/toggle
         [HttpPatch("{faqId:int}/toggle")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

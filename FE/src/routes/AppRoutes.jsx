@@ -408,43 +408,40 @@ export default function AppRoutes() {
       />
       {/* Post Routes */}
       <Route
-        path="post-dashboard"
+        path="/post-dashboard"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <PostDashboardPage />
         )}
       />
       <Route
-        path="admin-post-list"
+        path="/admin-post-list"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <AdminPostList />
         )}
       />
       <Route
-        path="post-create-edit"
+        path="/post-create-edit"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <PostCreateEdit />
         )}
       />
       <Route
-        path="post-create-edit/:postId"
+        path="/post-create-edit/:postId"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <PostCreateEdit />
         )}
       />
       <Route
-        path="tag-post-type-manage"
+        path="/tag-post-type-manage"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <TagPostTypeManage />
         )}
       />
-
-      {/* 404 - Default to Client Layout - Fallbacks*/}
-      <Route path="*" element={<Page404 />} />
 
       {/* Suppliers */}
       <Route
@@ -540,11 +537,10 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/support-dashboard"
-        element={
-            <AdminLayout moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
-              <SupportDashboardAdminPage />
-            </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <SupportDashboardAdminPage />
+        )}
       />
       <Route
         path="/admin/support-chats"
@@ -592,11 +588,10 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/ticket-subject-templates"
-        element={
-          <AdminLayout>
-            <TicketSubjectTemplatesAdminPage />
-          </AdminLayout>
-        }
+        element={renderAdminPage(
+          MODULE_CODES.SUPPORT_MANAGER,
+          <TicketSubjectTemplatesAdminPage />
+        )}
       />
       <Route
         path="/admin/audit-logs"

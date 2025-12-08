@@ -304,6 +304,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:int}/toggle")]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
     /**
      * Summary: Toggle the IsActive state of a category.
      * Route: PATCH /api/categories/{id}/toggle

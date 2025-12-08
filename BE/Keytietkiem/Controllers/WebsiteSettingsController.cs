@@ -12,6 +12,10 @@ using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Models;
 using Keytietkiem.DTOs;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using System.Text.Json;
 
 namespace Keytietkiem.Controllers
@@ -39,6 +43,7 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always get the first record
         /// </summary>
         [HttpGet]
+        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> Get()
         {
             // ✅ Use service to get settings
@@ -96,6 +101,7 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always update the FIRST record only
         /// </summary>
         [HttpPost]
+        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.EDIT)]
         [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> Save()
         {

@@ -6,6 +6,9 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES, PERMISSION_CODES } from "../../constants/roleConstants";
 import "../admin/admin.css";
 import {
   getAccountStatusColor,
@@ -14,6 +17,11 @@ import {
 
 export default function AccountManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
+
+  // Permission checks
+  const { hasPermission: hasCreatePermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, PERMISSION_CODES.CREATE);
+  const { hasPermission: hasDeletePermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, PERMISSION_CODES.DELETE);
+  const { hasPermission: hasViewDetailPermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, PERMISSION_CODES.VIEW_DETAIL);
 
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState([]);
@@ -150,9 +158,11 @@ export default function AccountManagementPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>Kho Tài khoản</h1>
-          <Link className="btn primary" to="/accounts/add">
-            + Tạo tài khoản mới
-          </Link>
+          <PermissionGuard moduleCode={MODULE_CODES.WAREHOUSE_MANAGER} permissionCode={PERMISSION_CODES.CREATE}>
+            <Link className="btn primary" to="/accounts/add">
+              + Tạo tài khoản mới
+            </Link>
+          </PermissionGuard>
         </div>
 
         <div
@@ -332,29 +342,33 @@ export default function AccountManagementPage() {
                           </td>
                           <td>
                             <div style={{ display: "flex", gap: 6 }}>
-                              <Link
-                                className="btn"
-                                to={`/accounts/${account.productAccountId}`}
-                                style={{ padding: "4px 8px", fontSize: "13px" }}
-                              >
-                                Chi tiết
-                              </Link>
-                              {account.currentUsers === 0 && (
-                                <button
+                              <PermissionGuard moduleCode={MODULE_CODES.WAREHOUSE_MANAGER} permissionCode={PERMISSION_CODES.VIEW_DETAIL}>
+                                <Link
                                   className="btn"
-                                  onClick={() =>
-                                    handleDeleteAccount(
-                                      account.productAccountId
-                                    )
-                                  }
-                                  style={{
-                                    padding: "4px 8px",
-                                    fontSize: "13px",
-                                    color: "#dc2626",
-                                  }}
+                                  to={`/accounts/${account.productAccountId}`}
+                                  style={{ padding: "4px 8px", fontSize: "13px" }}
                                 >
-                                  Xóa
-                                </button>
+                                  Chi tiết
+                                </Link>
+                              </PermissionGuard>
+                              {account.currentUsers === 0 && (
+                                <PermissionGuard moduleCode={MODULE_CODES.WAREHOUSE_MANAGER} permissionCode={PERMISSION_CODES.DELETE}>
+                                  <button
+                                    className="btn"
+                                    onClick={() =>
+                                      handleDeleteAccount(
+                                        account.productAccountId
+                                      )
+                                    }
+                                    style={{
+                                      padding: "4px 8px",
+                                      fontSize: "13px",
+                                      color: "#dc2626",
+                                    }}
+                                  >
+                                    Xóa
+                                  </button>
+                                </PermissionGuard>
                               )}
                             </div>
                           </td>

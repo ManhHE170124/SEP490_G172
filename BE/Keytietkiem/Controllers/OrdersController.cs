@@ -2,6 +2,10 @@
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.DTOs;
 using Keytietkiem.Models;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Services.Interfaces;
@@ -27,6 +31,7 @@ namespace Keytietkiem.Controllers
         /// Admin xem danh sách đơn hàng (read-only)
         /// </summary>
         [HttpGet]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetOrders(
             [FromQuery] string? sortBy,
             [FromQuery] string? sortDir)
@@ -197,6 +202,7 @@ namespace Keytietkiem.Controllers
         /// Xem chi tiết 1 đơn (thông tin tổng + list OrderDetails)
         /// </summary>
         [HttpGet("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetOrderById(Guid id)
         {
             try
@@ -228,6 +234,7 @@ namespace Keytietkiem.Controllers
         /// Chỉ lấy phần chi tiết items của 1 đơn
         /// </summary>
         [HttpGet("{id:guid}/details")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetOrderDetails(Guid id)
         {
             var order = await _context.Orders
@@ -263,6 +270,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{orderId:guid}/details/{orderDetailId:long}/credentials")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetOrderDetailCredentials(Guid orderId, long orderDetailId)
         {
             var orderDetail = await _context.OrderDetails

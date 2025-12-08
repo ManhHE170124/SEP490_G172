@@ -2,6 +2,10 @@ using System;
 using System.Security.Claims;
 using Keytietkiem.DTOs;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +13,6 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Storage Staff,Admin")]
 public class SupplierController : ControllerBase
 {
     private readonly ISupplierService _supplierService;
@@ -26,6 +29,7 @@ public class SupplierController : ControllerBase
     /// <param name="pageSize">Page size (default: 10)</param>
     /// <param name="searchTerm">Optional search term for name or email</param>
     [HttpGet]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<IActionResult> GetAllSuppliers(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -47,6 +51,7 @@ public class SupplierController : ControllerBase
     /// </summary>
     /// <param name="id">Supplier ID</param>
     [HttpGet("{id}")]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
     public async Task<IActionResult> GetSupplierById(int id)
     {
         var supplier = await _supplierService.GetSupplierByIdAsync(id);
@@ -58,6 +63,7 @@ public class SupplierController : ControllerBase
     /// </summary>
     /// <param name="dto">Supplier creation data</param>
     [HttpPost]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.CREATE)]
     public async Task<IActionResult> CreateSupplier([FromBody] CreateSupplierDto dto)
     {
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -73,6 +79,7 @@ public class SupplierController : ControllerBase
     /// <param name="id">Supplier ID</param>
     /// <param name="dto">Supplier update data</param>
     [HttpPut("{id}")]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.EDIT)]
     public async Task<IActionResult> UpdateSupplier(int id, [FromBody] UpdateSupplierDto dto)
     {
         if (id != dto.SupplierId)
@@ -91,6 +98,7 @@ public class SupplierController : ControllerBase
     /// <param name="id">Supplier ID</param>
     /// <param name="dto">Deactivation data with confirmation</param>
     [HttpDelete("{id}")]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.DELETE)]
     public async Task<IActionResult> DeactivateSupplier(int id, [FromBody] DeactivateSupplierDto dto)
     {
         if (id != dto.SupplierId)
@@ -108,6 +116,7 @@ public class SupplierController : ControllerBase
     /// </summary>
     /// <param name="id">Supplier ID</param>
     [HttpPatch("{id}/toggle-status")]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.EDIT)]
     public async Task<IActionResult> ToggleSupplierStatus(int id)
     {
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -121,6 +130,7 @@ public class SupplierController : ControllerBase
     /// Get active suppliers that provide a specific product
     /// </summary>
     [HttpGet("by-product/{productId:guid}")]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
     public async Task<IActionResult> GetSuppliersByProduct(Guid productId)
     {
         if (productId == Guid.Empty)
@@ -136,6 +146,7 @@ public class SupplierController : ControllerBase
     /// <param name="name">Supplier name</param>
     /// <param name="excludeId">Optional supplier ID to exclude (for updates)</param>
     [HttpGet("check-name")]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
     public async Task<IActionResult> CheckSupplierName(
         [FromQuery] string name,
         [FromQuery] int? excludeId = null)
