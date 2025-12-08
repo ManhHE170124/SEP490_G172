@@ -2,6 +2,9 @@
 import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SlaRulesAdminApi } from "../../services/slaRulesAdmin";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
+import useToast from "../../hooks/useToast";
 import "../../styles/SlaRulesAdminPage.css";
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
@@ -118,9 +121,9 @@ const formatMinutes = (value) => {
   const hoursStr = Number.isInteger(rounded)
     ? rounded.toLocaleString("vi-VN")
     : rounded.toLocaleString("vi-VN", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    });
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      });
 
   return `${n.toLocaleString("vi-VN")} phút (${hoursStr} giờ)`;
 };
@@ -307,14 +310,11 @@ function SlaRuleModal({
                   onChange={() => setField("isActive", !form.isActive)}
                 />
                 <span className="slider" />
+                <span className="switch-label">
+                  {form.isActive ? "Đang bật" : "Đang tắt"}
+                </span>
               </label>
-              <span
-                className={form.isActive ? "badge green" : "badge gray"}
-                style={{ textTransform: "none" }}
-              >
-                {form.isActive ? "Đang bật" : "Đang tắt"}
-              </span>
-              {/* <div className="muted sla-modal-note">
+              <div className="muted sla-modal-note">
                 <strong>Quy tắc khi bật SLA rule:</strong>
                 <div>- Mỗi cặp Severity + PriorityLevel chỉ có 1 rule đang bật.</div>
                 <div>
@@ -325,7 +325,7 @@ function SlaRuleModal({
                   - Cùng PriorityLevel: Severity nghiêm trọng hơn (Low → Medium → High
                   → Critical) phải có thời gian phản hồi / xử lý <b>ngắn hơn</b>.
                 </div>
-              </div> */}
+              </div>
             </div>
           </div>
         </div>
@@ -439,8 +439,8 @@ function SlaRuleModal({
                   ? "Đang lưu..."
                   : "Đang tạo..."
                 : isEdit
-                  ? "Lưu thay đổi"
-                  : "Tạo SLA rule"}
+                ? "Lưu thay đổi"
+                : "Tạo SLA rule"}
             </button>
           </div>
         </form>
@@ -451,6 +451,11 @@ function SlaRuleModal({
 
 /* ============ Page: SlaRulesAdminPage ============ */
 export default function SlaRulesAdminPage() {
+  const { showError } = useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
+  const { hasPermission: hasDeletePermission } = usePermission("SUPPORT_MANAGER", "DELETE");
+
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -514,8 +519,8 @@ export default function SlaRulesAdminPage() {
         const items = Array.isArray(res?.items)
           ? res.items
           : Array.isArray(res)
-            ? res
-            : [];
+          ? res
+          : [];
         setRules(items);
         setPage(typeof res?.page === "number" ? res.page : page);
         setPageSize(
@@ -558,10 +563,19 @@ export default function SlaRulesAdminPage() {
   });
   const [ruleSubmitting, setRuleSubmitting] = React.useState(false);
 
-  const openAddRule = () =>
+  const openAddRule = () => {
+    if (!hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo SLA rule");
+      return;
+    }
     setRuleModal({ open: true, mode: "add", data: null });
+  };
 
   const openEditRule = async (r) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa SLA rule");
+      return;
+    }
     try {
       const detail = await SlaRulesAdminApi.get(r.slaRuleId);
       setRuleModal({
@@ -574,13 +588,21 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không tải được chi tiết SLA rule để chỉnh sửa.",
+          "Không tải được chi tiết SLA rule để chỉnh sửa.",
         "Lỗi"
       );
     }
   };
 
   const handleRuleSubmit = async (payload) => {
+    if (ruleModal.mode === "add" && !hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo SLA rule");
+      return;
+    }
+    if (ruleModal.mode === "edit" && !hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa SLA rule");
+      return;
+    }
     setRuleSubmitting(true);
     try {
       if (ruleModal.mode === "add") {
@@ -598,7 +620,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không thể lưu SLA rule. Vui lòng thử lại.",
+          "Không thể lưu SLA rule. Vui lòng thử lại.",
         "Lỗi"
       );
     } finally {
@@ -607,6 +629,10 @@ export default function SlaRulesAdminPage() {
   };
 
   const toggleRuleActive = async (r) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái SLA rule");
+      return;
+    }
     try {
       await SlaRulesAdminApi.toggle(r.slaRuleId);
       addToast("success", "Đã cập nhật trạng thái SLA rule.", "Thành công");
@@ -616,13 +642,17 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không thể cập nhật trạng thái SLA rule.",
+          "Không thể cập nhật trạng thái SLA rule.",
         "Lỗi"
       );
     }
   };
 
   const deleteRule = (r) => {
+    if (!hasDeletePermission) {
+      showError("Không có quyền", "Bạn không có quyền xóa SLA rule");
+      return;
+    }
     openConfirm({
       title: "Xoá SLA rule?",
       message: `Xoá SLA rule "${r.name}" (Severity: ${severityLabel(
@@ -640,7 +670,7 @@ export default function SlaRulesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-            "Không thể xoá SLA rule. Có thể rule đang được tham chiếu bởi ticket.",
+              "Không thể xoá SLA rule. Có thể rule đang được tham chiếu bởi ticket.",
             "Lỗi"
           );
         }
@@ -797,13 +827,24 @@ export default function SlaRulesAdminPage() {
             </div>
 
             {/* Nút Thêm SLA nằm sát phải cùng hàng */}
-            <button
-              className="btn primary"
-              style={{ flexShrink: 0, whiteSpace: "nowrap" }}
-              onClick={openAddRule}
-            >
-              Thêm SLA rule
-            </button>
+            <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="CREATE" fallback={
+              <button
+                className="btn primary disabled"
+                style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                disabled
+                title="Bạn không có quyền tạo SLA rule"
+              >
+                Thêm SLA rule
+              </button>
+            }>
+              <button
+                className="btn primary"
+                style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                onClick={openAddRule}
+              >
+                Thêm SLA rule
+              </button>
+            </PermissionGuard>
           </div>
 
           {/* Bảng SLA rules */}
@@ -875,32 +916,60 @@ export default function SlaRulesAdminPage() {
                     </EllipsisCell>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn ghost status-btn"
-                      onClick={() => toggleRuleActive(r)}
-                    >
-                      <span
-                        className={r.isActive ? "badge green" : "badge gray"}
-                        style={{ textTransform: "none" }}
+                    <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                      <button
+                        type="button"
+                        className="btn ghost status-btn disabled"
+                        disabled
+                        title="Bạn không có quyền thay đổi trạng thái SLA rule"
                       >
-                        {r.isActive ? "Đang bật" : "Đang tắt"}
-                      </span>
-                    </button>
+                        <span
+                          className={r.isActive ? "badge green" : "badge gray"}
+                          style={{ textTransform: "none" }}
+                        >
+                          {r.isActive ? "Đang bật" : "Đang tắt"}
+                        </span>
+                      </button>
+                    }>
+                      <button
+                        type="button"
+                        className="btn ghost status-btn"
+                        onClick={() => toggleRuleActive(r)}
+                      >
+                        <span
+                          className={r.isActive ? "badge green" : "badge gray"}
+                          style={{ textTransform: "none" }}
+                        >
+                          {r.isActive ? "Đang bật" : "Đang tắt"}
+                        </span>
+                      </button>
+                    </PermissionGuard>
                   </td>
                   <td>
                     <div
                       className="row"
                       style={{ gap: 8, justifyContent: "flex-end" }}
                     >
+                      <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                        <button
+                          className="btn secondary disabled"
+                          disabled
+                          title="Bạn không có quyền sửa SLA rule"
+                        >
+                          Sửa
+                        </button>
+                      }>
+                        <button
+                          className="btn secondary"
+                          onClick={() => openEditRule(r)}
+                        >
+                          Sửa
+                        </button>
+                      </PermissionGuard>
                       <button
-                        className="btn secondary"
-                        onClick={() => openEditRule(r)}
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        className="btn danger"
+                        className={`btn danger ${!hasDeletePermission ? 'disabled' : ''}`}
+                        title={!hasDeletePermission ? "Bạn không có quyền xóa SLA rule" : "Xóa"}
+                        disabled={!hasDeletePermission}
                         onClick={() => deleteRule(r)}
                       >
                         Xoá

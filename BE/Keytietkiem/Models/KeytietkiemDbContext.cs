@@ -128,7 +128,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_Accounts_User");
         });
 
-        // Trong KeytietkiemDbContext.OnModelCreating(ModelBuilder modelBuilder)
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F23986F01F4DF");
@@ -151,8 +150,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.UserAgent).HasMaxLength(200);
         });
-
-
 
         modelBuilder.Entity<Badge>(entity =>
         {
@@ -307,12 +304,14 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.FinalAmount)
                 .HasComputedColumnSql("([TotalAmount]-[DiscountAmount])", true)
                 .HasColumnType("decimal(13, 2)");
+            // ĐÃ BỎ Status
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(12, 2)");
 
             entity.HasOne(d => d.User).WithMany(p => p.Orders)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_Orders_User");
         });
+
 
         modelBuilder.Entity<OrderDetail>(entity =>
         {
@@ -863,6 +862,11 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.ToTable("RolePermission");
 
+            entity.HasIndex(e => e.RoleId, "IX_RolePermissions_RoleId");
+            entity.HasIndex(e => e.ModuleId, "IX_RolePermissions_ModuleId");
+            entity.HasIndex(e => e.PermissionId, "IX_RolePermissions_PermissionId");
+            entity.HasIndex(e => e.IsActive, "IX_RolePermissions_IsActive");
+
             entity.Property(e => e.RoleId).HasMaxLength(50);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
 
@@ -1129,7 +1133,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasMaxLength(12)
                 .IsUnicode(false)
                 .HasDefaultValue("Active");
-            entity.Property(e => e.IsTemp).HasDefaultValue(false);
             entity.Property(e => e.TotalProductSpend).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
@@ -1146,6 +1149,8 @@ public partial class KeytietkiemDbContext : DbContext
                     {
                         j.HasKey("UserId", "RoleId").HasName("PK_UserRoles");
                         j.ToTable("UserRole");
+                        j.HasIndex("UserId").HasDatabaseName("IX_UserRoles_UserId");
+                        j.HasIndex("RoleId").HasDatabaseName("IX_UserRoles_RoleId");
                         j.IndexerProperty<string>("RoleId").HasMaxLength(50);
                     });
         });

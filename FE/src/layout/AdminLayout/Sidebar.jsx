@@ -15,7 +15,7 @@ const Sidebar = () => {
   const location = useLocation();
   const currentPage = location.pathname.substring(1) || "home";
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { allowedModuleCodes, loading: permissionsLoading } = usePermissions();
+  const { allowedModuleCodes, moduleAccessPermissions, loading: permissionsLoading } = usePermissions();
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => !prev);
@@ -899,37 +899,6 @@ const Sidebar = () => {
             </svg>
           ),
         }
-        , {
-          id: "audit-logs",
-          label: "Lịch sử thao tác hệ thống",
-          to: "/admin/audit-logs",
-          isActive: currentPage === "admin/audit-logs",
-          icon: (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              style={{ width: 20, height: 20 }}
-            >
-              <rect
-                x="3"
-                y="4"
-                width="18"
-                height="16"
-                rx="2"
-                ry="2"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-              <path
-                d="M7 9h10M7 13h6M7 17h4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          ),
-        }
-
 
       ],
     },
@@ -937,8 +906,10 @@ const Sidebar = () => {
 
   const hasModuleAccess = (moduleCode) => {
     if (!moduleCode) return true;
-    if (permissionsLoading || allowedModuleCodes === null) return true;
-    return allowedModuleCodes.has(moduleCode);
+    if (permissionsLoading || allowedModuleCodes === null || moduleAccessPermissions === null) return true;
+    // Check if module has ACCESS permission
+    const moduleCodeUpper = String(moduleCode).trim().toUpperCase();
+    return moduleAccessPermissions.get(moduleCodeUpper) === true;
   };
 
   const sectionsToRender = (isStorageStaff ? storageSections : defaultSections)

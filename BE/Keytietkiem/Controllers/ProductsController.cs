@@ -32,14 +32,16 @@ using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
@@ -49,21 +51,13 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
-        private readonly IAuditLogger _auditLogger;
-
         private const int MaxProductNameLength = 100; // Đổi đúng với DB
         private const int MaxProductCodeLength = 50;
-
-        public ProductsController(
-            IDbContextFactory<KeytietkiemDbContext> dbFactory,
-            IClock clock,
-            IAuditLogger auditLogger)
+        public ProductsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
         {
             _dbFactory = dbFactory;
             _clock = clock;
-            _auditLogger = auditLogger;
         }
-
         private static string NormalizeProductCode(string? code)
         {
             if (string.IsNullOrWhiteSpace(code)) return string.Empty;
@@ -102,6 +96,7 @@ namespace Keytietkiem.Controllers
             return "ACTIVE";
         }
 
+
         private static string ToggleVisibility(string current, int totalStock)
         {
             if (totalStock <= 0) return "OUT_OF_STOCK";
@@ -111,6 +106,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST (không giá) =====
         [HttpGet("list")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] int? categoryId,
@@ -200,6 +196,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL (Images + FAQs + Variants) =====
         [HttpGet("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<ProductDetailDto>> GetById(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -223,7 +220,7 @@ namespace Keytietkiem.Controllers
                 p.ProductVariants
                     .Select(v => new ProductVariantMiniDto(
                         v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                        v.StockQty, v.Status
+                       v.StockQty, v.Status
                     ))
             );
 
@@ -232,6 +229,7 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE (không giá) =====
         [HttpPost]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<ProductDetailDto>> Create(ProductCreateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType))
@@ -244,7 +242,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "ProductCode is required" });
             if (normalizedCode.Length > MaxProductCodeLength)
                 return BadRequest(new { message = $"ProductCode must not exceed {MaxProductCodeLength} characters." });
-
             var name = (dto.ProductName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(name))
                 return BadRequest(new { message = "ProductName is required" });
@@ -290,26 +287,11 @@ namespace Keytietkiem.Controllers
             entity.Status = ResolveStatusFromTotalStock(totalStock, dto.Status);
             await db.SaveChangesAsync();
 
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Create",
-                entityType: "Product",
-                entityId: entity.ProductId.ToString(),
-                before: null,
-                after: new
-                {
-                    entity.ProductId,
-                    entity.ProductCode,
-                    entity.ProductName,
-                    entity.ProductType,
-                    entity.Status
-                }
-);
-
             return await GetById(entity.ProductId);
         }
 
         [HttpPut("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(Guid id, ProductUpdateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType))
@@ -324,17 +306,6 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(p => p.ProductId == id);
 
             if (e is null) return NotFound();
-
-            var beforeSnapshot = new
-            {
-                e.ProductId,
-                e.ProductCode,
-                e.ProductName,
-                e.ProductType,
-                e.Status,
-                Categories = e.Categories.Select(c => c.CategoryId).ToList(),
-                Badges = e.ProductBadges.Select(b => b.Badge).ToList()
-            };
 
             var newName = dto.ProductName?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(newName))
@@ -351,7 +322,6 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "ProductCode is required" });
             if (normalizedCode.Length > MaxProductCodeLength)
                 return BadRequest(new { message = $"ProductCode must not exceed {MaxProductCodeLength} characters." });
-
             var hasVariants = e.ProductVariants.Any();
             var locked = hasVariants;
 
@@ -420,30 +390,12 @@ namespace Keytietkiem.Controllers
             e.Status = ResolveStatusFromTotalStock(totalStock, dto.Status);
 
             await db.SaveChangesAsync();
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Update",
-                entityType: "Product",
-                entityId: e.ProductId.ToString(),
-                before: beforeSnapshot,
-                after: new
-                {
-                    e.ProductId,
-                    e.ProductCode,
-                    e.ProductName,
-                    e.ProductType,
-                    e.Status,
-                    Categories = e.Categories.Select(c => c.CategoryId).ToList(),
-                    Badges = e.ProductBadges.Select(b => b.Badge).ToList()
-                }
- );
-
             return NoContent();
         }
 
         // ===== TOGGLE PRODUCT VISIBILITY =====
         [HttpPatch("{id:guid}/toggle")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -451,31 +403,17 @@ namespace Keytietkiem.Controllers
                                      .FirstOrDefaultAsync(p => p.ProductId == id);
             if (e is null) return NotFound();
 
-            var beforeSnapshot = new
-            {
-                e.ProductId,
-                e.Status
-            };
-
             var totalStock = e.ProductVariants.Sum(v => v.StockQty);
             e.Status = ToggleVisibility(e.Status, totalStock);
             e.UpdatedAt = _clock.UtcNow;
             await db.SaveChangesAsync();
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "ToggleVisibility",
-                entityType: "Product",
-                entityId: e.ProductId.ToString(),
-                before: beforeSnapshot,
-                after: new { e.ProductId, e.Status }
-);
-
             return Ok(new { e.ProductId, e.Status });
         }
 
+        // ===== DELETE (giữ nguyên) =====
         // ===== DELETE (chặn nếu còn Variant / FAQ / (tuỳ chọn) đơn hàng) =====
         [HttpDelete("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -485,10 +423,7 @@ namespace Keytietkiem.Controllers
                 .Include(x => x.ProductVariants)
                 .FirstOrDefaultAsync(x => x.ProductId == id);
 
-            if (p is null)
-            {
-                return NotFound();
-            }
+            if (p is null) return NotFound();
 
             // Đếm số Variant / FAQ đang gắn với product này
             var variantCount = p.ProductVariants.Count;
@@ -500,7 +435,7 @@ namespace Keytietkiem.Controllers
             var hasVariants = variantCount > 0;
             var hasOrders = false; // set lại nếu bạn có check đơn hàng
 
-            if (hasVariants || hasOrders)
+            if (hasVariants|| hasOrders)
             {
                 var reasons = new List<string>();
 
@@ -522,28 +457,11 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            var beforeSnapshot = new
-            {
-                p.ProductId,
-                p.ProductCode,
-                p.ProductName,
-                p.Status
-            };
-
             // Không còn gì phụ thuộc -> cho xoá
             db.Products.Remove(p);
             await db.SaveChangesAsync();
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Delete",
-                entityType: "Product",
-                entityId: p.ProductId.ToString(),
-                before: beforeSnapshot,
-                after: null
-);
-
             return NoContent();
         }
+
     }
 }

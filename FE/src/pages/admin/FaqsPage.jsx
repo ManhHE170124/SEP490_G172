@@ -4,6 +4,8 @@ import { ProductFaqsApi } from "../../services/productFaqs";
 import { CategoryApi } from "../../services/categories";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
 import "./CategoryPage.css"; // tái dùng CSS card/table hiện có
 
 const QUESTION_MIN = 10;
@@ -436,6 +438,11 @@ const prodListStyle = prodScrollable
 
 /* ============ MAIN PAGE ============ */
 export default function FaqsPage() {
+  // Permission checks
+  const { hasPermission: hasCreatePermission } = usePermission("PRODUCT_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("PRODUCT_MANAGER", "EDIT");
+  const { hasPermission: hasDeletePermission } = usePermission("PRODUCT_MANAGER", "DELETE");
+  
   // ===== Toast & Confirm =====
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
@@ -696,9 +703,11 @@ export default function FaqsPage() {
           >
             <h2>Câu hỏi thường gặp (FAQ)</h2>
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn primary" onClick={openAddFaq}>
-                + Thêm FAQ
-              </button>
+              <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="CREATE">
+                <button className="btn primary" onClick={openAddFaq}>
+                  + Thêm FAQ
+                </button>
+              </PermissionGuard>
             </div>
           </div>
 
@@ -860,28 +869,37 @@ export default function FaqsPage() {
                     }}
                   >
                     <div className="action-buttons">
-                      <button
-                        className="action-btn edit-btn"
-                        type="button"
-                        title="Xem chi tiết / chỉnh sửa"
-                        onClick={() => openEditFaq(f)}
-                      >
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="16"
-                          height="16"
-                          fill="currentColor"
-                          aria-hidden="true"
+                      <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="EDIT">
+                        <button
+                          className="action-btn edit-btn"
+                          type="button"
+                          title="Xem chi tiết / chỉnh sửa"
+                          onClick={() => openEditFaq(f)}
                         >
-                          <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                        </svg>
-                      </button>
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                          </svg>
+                        </button>
+                      </PermissionGuard>
                       <button
                         className="action-btn delete-btn"
-                        title="Xoá FAQ"
+                        title={!hasDeletePermission ? "Bạn không có quyền xóa FAQ" : "Xoá FAQ"}
                         type="button"
-                        onClick={() => deleteFaq(f)}
+                        onClick={() => {
+                          if (!hasDeletePermission) {
+                            addToast("error", "Không có quyền", "Bạn không có quyền xóa FAQ");
+                            return;
+                          }
+                          deleteFaq(f);
+                        }}
+                        disabled={!hasDeletePermission}
                       >
                         <svg
                           viewBox="0 0 24 24"

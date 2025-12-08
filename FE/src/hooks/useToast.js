@@ -47,26 +47,41 @@ const useToast = () => {
    * @returns {number|string} - Generated toast id
    */
   const addToast = useCallback((toast) => {
-    const id = Date.now() + Math.random();
-    const newToast = {
-      id,
-      type: toast.type || 'info',
-      title: toast.title || '',
-      message: toast.message || '',
-      duration: toast.duration || 5000,
-      ...toast
-    };
-
-    setToasts(prev => [...prev, newToast]);
-
-    // Auto remove toast after duration
-    if (newToast.duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
-      }, newToast.duration);
-    }
-
-    return id;
+    // Prevent duplicate toasts: check if same title and message already exists
+    // Check for duplicates before adding
+    setToasts(prev => {
+      const isDuplicate = prev.some(t => 
+        t.type === (toast.type || 'info') &&
+        t.title === (toast.title || '') &&
+        t.message === (toast.message || '')
+      );
+      
+      if (isDuplicate) {
+        return prev; // Don't add duplicate toast
+      }
+      
+      const id = Date.now() + Math.random();
+      const newToast = {
+        id,
+        type: toast.type || 'info',
+        title: toast.title || '',
+        message: toast.message || '',
+        duration: toast.duration || 5000,
+        ...toast
+      };
+      
+      // Auto remove toast after duration
+      if (newToast.duration > 0) {
+        setTimeout(() => {
+          removeToast(id);
+        }, newToast.duration);
+      }
+      
+      return [...prev, newToast];
+    });
+    
+    // Return a dummy ID for compatibility (since we can't return from setState)
+    return Date.now() + Math.random();
   }, [removeToast]);
 
   /**

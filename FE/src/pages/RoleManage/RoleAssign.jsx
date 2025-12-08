@@ -11,6 +11,7 @@ import { roleApi } from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
+import PermissionGuard from "../../components/PermissionGuard";
 import "./RoleAssign.css";
 
 const ADMIN_ROLE_CODE = "ADMIN";
@@ -46,6 +47,9 @@ export default function RoleAssign() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Use ref to preserve selected role ID across re-renders
+  const selectedRoleIdRef = useRef(null);
   
   // Modal states
   const [addRoleOpen, setAddRoleOpen] = useState(false);
@@ -119,13 +123,33 @@ export default function RoleAssign() {
       setPermissions(permissionsData || []);
 
       setSelectedRole((previous) => {
-        if (!previous) {
-          return sanitizedRoles?.[0] ?? null;
+        // If we have a preserved role ID from ref, try to use it first
+        if (selectedRoleIdRef.current) {
+          const preservedRole = sanitizedRoles.find(
+            (role) => role.roleId === selectedRoleIdRef.current
+          );
+          if (preservedRole) {
+            return preservedRole;
+          }
         }
-        const stillExists = sanitizedRoles.find(
-          (role) => role.roleId === previous.roleId
-        );
-        return stillExists ?? sanitizedRoles?.[0] ?? null;
+        
+        // Otherwise, use previous role if it still exists
+        if (previous) {
+          const stillExists = sanitizedRoles.find(
+            (role) => role.roleId === previous.roleId
+          );
+          if (stillExists) {
+            selectedRoleIdRef.current = stillExists.roleId;
+            return stillExists;
+          }
+        }
+        
+        // Fallback to first role
+        const firstRole = sanitizedRoles?.[0] ?? null;
+        if (firstRole) {
+          selectedRoleIdRef.current = firstRole.roleId;
+        }
+        return firstRole;
       });
     } catch (error) {
       // Handle network errors globally - only show one toast
@@ -150,6 +174,7 @@ export default function RoleAssign() {
   // Load role permissions when role is selected
   useEffect(() => {
     if (selectedRole) {
+      selectedRoleIdRef.current = selectedRole.roleId;
       loadRolePermissions(selectedRole.roleId);
       setHasUnsavedChanges(false);
     }
@@ -363,7 +388,13 @@ export default function RoleAssign() {
    * @summary: Save all permission changes by submitting a full matrix to server.
    * @returns {Promise<void>}
    */
-    const handleSaveChanges = async () => {
+    const handleSaveChanges = async (e) => {
+    // Prevent any default form submission behavior
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!selectedRole) {
       showWarning("Chưa chọn Vai trò", "Vui lòng chọn một Vai trò để lưu thay đổi");
       return;
@@ -372,6 +403,10 @@ export default function RoleAssign() {
       showWarning("Quản trị viên", "Quản trị viên đã có toàn quyền hệ thống.");
       return;
     }
+    
+    // Save the current selected role ID to restore it after save
+    const currentRoleId = selectedRole.roleId;
+    const currentRoleName = selectedRole.name;
     
     try {
       setSubmitting(true);
@@ -402,16 +437,40 @@ export default function RoleAssign() {
       });
       
       // Reload from server to get authoritative state
-      await loadRolePermissions(selectedRole.roleId);
+      await loadRolePermissions(currentRoleId);
+      
+      // Ensure selectedRole is still set to the same role after save
+      // Use ref to preserve the role ID even if roles array changes
+      selectedRoleIdRef.current = currentRoleId;
+      const roleStillExists = roles.find(r => r.roleId === currentRoleId);
+      if (roleStillExists) {
+        setSelectedRole(roleStillExists);
+      } else {
+        // If role not found in current roles array, try to reload roles
+        // This handles the case where loadData() might be called by event listener
+        const [rolesData] = await Promise.all([roleApi.getActiveRoles()]);
+        const sanitizedRoles = filterOutCustomerRoles(rolesData);
+        const foundRole = sanitizedRoles.find(r => r.roleId === currentRoleId);
+        if (foundRole) {
+          setRoles(sanitizedRoles);
+          setSelectedRole(foundRole);
+        }
+      }
       
       // Clear unsaved changes flag
       setHasUnsavedChanges(false);
       
       showSuccess(
         "Lưu thay đổi thành công!",
-        `Đã cập nhật tất cả quyền cho Vai trò "${selectedRole.name}"`
+        `Đã cập nhật tất cả quyền cho Vai trò "${currentRoleName}"`
       );
-      window.dispatchEvent(new Event("role-permissions-updated"));
+      
+      // Dispatch event AFTER showing success message and ensuring all state is updated
+      // Use a longer timeout to ensure all React state updates are committed
+      // This prevents ProtectedRoute from re-rendering and potentially redirecting
+      setTimeout(() => {
+        window.dispatchEvent(new Event("role-permissions-updated"));
+      }, 100);
     } catch (error) {
       // Handle network errors globally - only show one toast
       if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
@@ -647,19 +706,21 @@ export default function RoleAssign() {
             >
               {isAllTicked ? "Bỏ chọn tất cả" : "Chọn tất cả"}
             </button>
-            <button
-              className="ra-btn ra-btn--primary"
-              onClick={handleSaveChanges}
-              type="button"
-              disabled={
-                !selectedRole ||
-                submitting ||
-                !hasUnsavedChanges ||
-                isAdminRoleSelected
-              }
-            >
-              {submitting ? "Đang lưu..." : "Lưu thay đổi"}
-            </button>
+            <PermissionGuard moduleCode="ROLE_MANAGER" permissionCode="EDIT">
+              <button
+                className="ra-btn ra-btn--primary"
+                onClick={handleSaveChanges}
+                type="button"
+                disabled={
+                  !selectedRole ||
+                  submitting ||
+                  !hasUnsavedChanges ||
+                  isAdminRoleSelected
+                }
+              >
+                {submitting ? "Đang lưu..." : "Lưu thay đổi"}
+              </button>
+            </PermissionGuard>
           </div>
 
           <div className="ra-permission-scroll">{permissionContent}</div>

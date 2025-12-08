@@ -9,6 +9,7 @@ using Keytietkiem.Repositories;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -50,7 +51,6 @@ builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
 builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
-builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -119,7 +119,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+// ===== Authorization with Permission Handler =====
 builder.Services.AddAuthorization();
+
+// Register permission authorization handler
+builder.Services.AddScoped<IAuthorizationHandler, Keytietkiem.Authorization.PermissionAuthorizationHandler>();
+
+// Register custom policy provider for dynamic RequirePermission policies
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, Keytietkiem.Authorization.PermissionPolicyProvider>();
 
 // ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();

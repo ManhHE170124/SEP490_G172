@@ -10,6 +10,8 @@ import CsvUploadModal from "../../components/Modal/CsvUploadModal";
 import ViewKeysModal from "../../components/Modal/ViewKeysModal";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
+import { usePermission } from "../../hooks/usePermission";
+import PermissionGuard from "../../components/PermissionGuard";
 import { formatDate } from "../../utils/formatDate";
 import "../admin/admin.css";
 
@@ -20,6 +22,8 @@ export default function SupplierDetailPage() {
   const isNew = location.pathname.endsWith("/add") || !id || id === "add";
   const { toasts, showSuccess, showError, showWarning, removeToast } =
     useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("WAREHOUSE_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("WAREHOUSE_MANAGER", "EDIT");
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -233,6 +237,15 @@ export default function SupplierDetailPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isNew && !hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo nhà cung cấp");
+      return;
+    }
+    if (!isNew && !hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa nhà cung cấp");
+      return;
+    }
 
     if (!validateForm()) {
       showWarning("Dữ liệu không hợp lệ", "Vui lòng kiểm tra lại thông tin");
@@ -771,9 +784,15 @@ export default function SupplierDetailPage() {
           )}
 
           <div className="row" style={{ marginTop: 16 }}>
-            <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu"}
-            </button>
+            <PermissionGuard moduleCode="WAREHOUSE_MANAGER" permissionCode={isNew ? "CREATE" : "EDIT"} fallback={
+              <button type="button" className="btn primary disabled" disabled title={isNew ? "Bạn không có quyền tạo nhà cung cấp" : "Bạn không có quyền sửa nhà cung cấp"}>
+                {saving ? "Đang lưu..." : "Lưu"}
+              </button>
+            }>
+              <button type="submit" className="btn primary" disabled={saving}>
+                {saving ? "Đang lưu..." : "Lưu"}
+              </button>
+            </PermissionGuard>
             <button
               type="button"
               className="btn"

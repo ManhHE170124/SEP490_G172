@@ -39,9 +39,8 @@ public interface IEmailService
     /// <param name="accountUsername">Account username (optional)</param>
     /// <param name="accountPassword">Account password</param>
     /// <param name="expiryDate">Account expiry date (optional)</param>
-    /// <param name="notes">Additional notes (optional)</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task SendProductAccountEmailAsync(string toEmail, string productName, string variantTitle, string accountEmail, string? accountUsername, string accountPassword, DateTime? expiryDate = null, string? notes = null, CancellationToken cancellationToken = default);
+    Task SendProductAccountEmailAsync(string toEmail, string productName, string variantTitle, string accountEmail, string? accountUsername, string accountPassword, DateTime? expiryDate = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sends a consolidated email with all products (keys and accounts) from an order
@@ -56,7 +55,7 @@ public class OrderProductEmailDto
 {
     public string ProductName { get; set; } = string.Empty;
     public string VariantTitle { get; set; } = string.Empty;
-    public string ProductType { get; set; } = string.Empty; // "KEY", "ACCOUNT", or "SHARED_ACCOUNT"
+    public string ProductType { get; set; } = string.Empty; // "KEY" or "ACCOUNT"
 
     // For product keys
     public string? KeyString { get; set; }
@@ -67,7 +66,4 @@ public class OrderProductEmailDto
     public string? AccountPassword { get; set; }
 
     public DateTime? ExpiryDate { get; set; }
-
-    // Additional notes (for shared accounts, slot info, etc.)
-    public string? Notes { get; set; }
 }

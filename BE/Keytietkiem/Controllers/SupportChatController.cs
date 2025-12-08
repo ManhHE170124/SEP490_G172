@@ -1,18 +1,16 @@
 ﻿// File: Controllers/SupportChatController.cs
-using Keytietkiem.DTOs;
-using Keytietkiem.DTOs.SupportChat;
-using Keytietkiem.Hubs;
-using Keytietkiem.Infrastructure;
-using Keytietkiem.Models;
-using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.SupportChat;
+using Keytietkiem.Hubs;
+using Keytietkiem.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers;
 
@@ -22,20 +20,15 @@ public class SupportChatController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<SupportChatHub> _hub;
-    private readonly IAuditLogger _auditLogger;
 
     private const string StatusWaiting = "Waiting";
     private const string StatusActive = "Active";
     private const string StatusClosed = "Closed";
 
-    public SupportChatController(
-        KeytietkiemDbContext db,
-        IHubContext<SupportChatHub> hub,
-        IAuditLogger auditLogger)
+    public SupportChatController(KeytietkiemDbContext db, IHubContext<SupportChatHub> hub)
     {
         _db = db;
         _hub = hub;
-        _auditLogger = auditLogger;
     }
 
     // ===== Helpers =====
@@ -368,24 +361,6 @@ public class SupportChatController : ControllerBase
         if (session.AssignedStaffId == me.Value)
         {
             var dtoExisting = MapToSessionItem(session);
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Claim",
-                entityType: "SupportChatSession",
-                entityId: session.ChatSessionId.ToString(),
-                before: new
-                {
-                    ChatSessionId = session.ChatSessionId
-                },
-                after: new
-                {
-                    ChatSessionId = session.ChatSessionId,
-                    AssignedStaffId = session.AssignedStaffId,
-                    Status = session.Status
-                }
-            );
-
             return Ok(dtoExisting);
         }
 
@@ -408,21 +383,6 @@ public class SupportChatController : ControllerBase
 
         await _hub.Clients.Group(BuildSessionGroup(session.ChatSessionId))
             .SendAsync("SupportSessionUpdated", dto);
-
-        await _auditLogger.LogAsync(
-            HttpContext,
-
-            action: "Claim",
-            entityType: "SupportChatSession",
-            entityId: session.ChatSessionId.ToString(),
-            before: null,
-            after: new
-            {
-                ChatSessionId = session.ChatSessionId,
-                AssignedStaffId = session.AssignedStaffId,
-                Status = session.Status
-            }
-        );
 
         return Ok(dto);
     }
@@ -513,8 +473,6 @@ public class SupportChatController : ControllerBase
         var sessionDto = MapToSessionItem(session);
         await _hub.Clients.Group(QueueGroup)
             .SendAsync("SupportSessionUpdated", sessionDto);
-
-        // Không audit log cho PostMessage để tránh spam log
 
         return Ok(dto);
     }
@@ -659,20 +617,6 @@ public class SupportChatController : ControllerBase
         await _hub.Clients.Group(QueueGroup)
             .SendAsync("SupportSessionUpdated", dto);
 
-        await _auditLogger.LogAsync(
-            HttpContext,
-            action: "Unassign",
-            entityType: "SupportChatSession",
-            entityId: session.ChatSessionId.ToString(),
-            before: null,
-            after: new
-            {
-                ChatSessionId = session.ChatSessionId,
-                AssignedStaffId = session.AssignedStaffId,
-                Status = session.Status
-            }
-        );
-
         return Ok(dto);
     }
 
@@ -729,20 +673,6 @@ public class SupportChatController : ControllerBase
 
         await _hub.Clients.Group(QueueGroup)
             .SendAsync("SupportSessionUpdated", dto);
-
-        await _auditLogger.LogAsync(
-            HttpContext,
-            action: "Close",
-            entityType: "SupportChatSession",
-            entityId: session.ChatSessionId.ToString(),
-            before: null,
-            after: new
-            {
-                ChatSessionId = session.ChatSessionId,
-                Status = session.Status,
-                ClosedAt = session.ClosedAt
-            }
-        );
 
         return NoContent();
     }
@@ -1023,8 +953,6 @@ public class SupportChatController : ControllerBase
         await _hub.Clients.Group(QueueGroup)
             .SendAsync("SupportSessionUpdated", sessionDto);
 
-        // Không audit log cho AdminPostMessage để tránh spam log
-
         return Ok(dto);
     }
 
@@ -1116,20 +1044,6 @@ public class SupportChatController : ControllerBase
         await _hub.Clients.Group(QueueGroup)
             .SendAsync("SupportSessionUpdated", dto);
 
-        await _auditLogger.LogAsync(
-            HttpContext,
-            action: "AdminAssignStaff",
-            entityType: "SupportChatSession",
-            entityId: session.ChatSessionId.ToString(),
-            before: null,
-            after: new
-            {
-                ChatSessionId = session.ChatSessionId,
-                AssignedStaffId = session.AssignedStaffId,
-                Status = session.Status
-            }
-        );
-
         return Ok(dto);
     }
 
@@ -1218,20 +1132,6 @@ public class SupportChatController : ControllerBase
 
         await _hub.Clients.Group(QueueGroup)
             .SendAsync("SupportSessionUpdated", dto);
-
-        await _auditLogger.LogAsync(
-            HttpContext,
-            action: "AdminTransferStaff",
-            entityType: "SupportChatSession",
-            entityId: session.ChatSessionId.ToString(),
-            before: null,
-            after: new
-            {
-                ChatSessionId = session.ChatSessionId,
-                AssignedStaffId = session.AssignedStaffId,
-                Status = session.Status
-            }
-        );
 
         return Ok(dto);
     }

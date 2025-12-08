@@ -8,11 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
-using Keytietkiem.DTOs;
-using Keytietkiem.DTOs.Products;
-using Keytietkiem.Services.Interfaces;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
-using Keytietkiem.Services;
 
 namespace Keytietkiem.Controllers
 {
@@ -24,12 +20,6 @@ namespace Keytietkiem.Controllers
         private readonly PayOSService _payOs;
         private readonly IConfiguration _config;
         private readonly IMemoryCache _cache;
-        private readonly ILogger<PaymentsController> _logger;
-        private readonly IProductKeyService _productKeyService;
-        private readonly IProductAccountService _productAccountService;
-        private readonly IEmailService _emailService;
-        private readonly IAuditLogger _auditLogger;
-        private readonly IAccountService _accountService;
 
         private static readonly string[] AllowedPaymentStatuses = new[]
         {
@@ -40,24 +30,12 @@ namespace Keytietkiem.Controllers
             KeytietkiemDbContext context,
             PayOSService payOs,
             IConfiguration config,
-            IMemoryCache cache,
-            ILogger<PaymentsController> logger,
-            IProductKeyService productKeyService,
-            IProductAccountService productAccountService,
-            IEmailService emailService,
-            IAuditLogger auditLogger,
-            IAccountService accountService)
+            IMemoryCache cache)
         {
             _context = context;
             _payOs = payOs;
             _config = config;
             _cache = cache;
-            _logger = logger;
-            _productKeyService = productKeyService;
-            _productAccountService = productAccountService;
-            _emailService = emailService;
-            _auditLogger = auditLogger;
-            _accountService = accountService;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -213,10 +191,7 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookModel payload)
         {
             if (payload == null || payload.Data == null)
-            {
-                // Không log để tránh spam audit log, chỉ trả 400
                 return BadRequest();
-            }
 
             var data = payload.Data;
 
@@ -232,18 +207,14 @@ namespace Keytietkiem.Controllers
 
             if (payment == null)
             {
-                // Không log để tránh spam khi PayOS retry hoặc orderCode không khớp
+                // Không có payment nào khớp orderCode -> bỏ qua
                 return Ok();
             }
-
-            var oldStatus = payment.Status;
 
             // 1. Payment từ Cart (ORDER_PAYMENT với snapshot cart)
             if (string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleCartPaymentWebhook(payment, topCode, dataCode, data.Amount);
-
-                // Bỏ log success ở webhook để tránh spam
                 return Ok();
             }
 
@@ -262,8 +233,6 @@ namespace Keytietkiem.Controllers
             }
 
             await _context.SaveChangesAsync();
-
-            // Bỏ log success ở webhook để tránh spam
             return Ok();
         }
 
@@ -295,18 +264,15 @@ namespace Keytietkiem.Controllers
             // Nếu đã được webhook xử lý rồi thì không làm lại (idempotent)
             if (!string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
             {
-                // Không log success idempotent để tránh spam
                 return Ok(new { message = "Payment đã được xử lý", status = payment.Status });
             }
 
-            var oldStatus = payment.Status;
-
             // Mặc định coi là success khi FE vào trang /cart/payment-result
+            // (có thể kiểm tra thêm dto.Code/dto.Status nếu muốn)
             var amountFromGateway = (long)Math.Round(payment.Amount, 0, MidpointRounding.AwayFromZero);
 
             await HandleCartPaymentWebhook(payment, "00", "00", amountFromGateway);
 
-            // Không audit ở đây để tránh spam
             return Ok(new { message = "Đã xác nhận thanh toán thành công", status = payment.Status });
         }
 
@@ -327,17 +293,14 @@ namespace Keytietkiem.Controllers
 
             if (payment == null)
             {
-                // Không tìm thấy payment -> coi như đã xử lý xong, không audit để tránh spam
+                // Không tìm thấy payment -> coi như đã xử lý xong
                 return Ok(new { message = "Payment không tồn tại" });
             }
 
             if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
-                // Không audit để tránh spam
                 return Ok(new { message = "Không phải payment tạo từ cart" });
             }
-
-            var oldStatus = payment.Status;
 
             // Chỉ xử lý khi còn Pending
             if (string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
@@ -346,7 +309,6 @@ namespace Keytietkiem.Controllers
                 await HandleCartPaymentWebhook(payment, "XX", "XX", 0);
             }
 
-            // Không audit success để tránh spam
             return Ok(new { message = "Cart payment cancelled", status = payment.Status });
         }
 
@@ -398,8 +360,7 @@ namespace Keytietkiem.Controllers
                 return;
             }
 
-            var isSuccess = true;
-                // topCode == "00" && dataCode == "00";
+            var isSuccess = topCode == "00" && dataCode == "00";
 
             if (isSuccess)
             {
@@ -454,7 +415,6 @@ namespace Keytietkiem.Controllers
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
 
-                var orderDetails = new List<OrderDetail>();
                 foreach (var item in items)
                 {
                     if (item.Quantity <= 0) continue;
@@ -467,41 +427,11 @@ namespace Keytietkiem.Controllers
                         UnitPrice = item.UnitPrice
                     };
 
-                    orderDetails.Add(orderDetail);
+                    _context.OrderDetails.Add(orderDetail);
                 }
-                _context.OrderDetails.AddRange(orderDetails);
 
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
-
-                // Process variants: assign products to customer and send email
-                try
-                {
-                    if (orderDetails.Count > 0)
-                    {
-                        // Reload order with details for processing
-                        var orderWithDetails = await _context.Orders
-                            .Include(o => o.OrderDetails)
-                            .FirstOrDefaultAsync(o => o.OrderId == order.OrderId);
-
-                        if (orderWithDetails != null)
-                        {
-                            var variantIds = orderDetails.Select(od => od.VariantId).ToList();
-                            var variants = await _context.ProductVariants
-                                .AsNoTracking()
-                                .Include(v => v.Product)
-                                .Where(v => variantIds.Contains(v.VariantId))
-                                .ToListAsync();
-
-                            await ProcessVariants(variants, orderWithDetails);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to process variants for order {OrderId}", order.OrderId);
-                    // Không audit lỗi để tránh spam
-                }
 
                 ClearCartSnapshot(payment.PaymentId);
                 return;
@@ -533,6 +463,8 @@ namespace Keytietkiem.Controllers
             ClearCartSnapshot(payment.PaymentId);
             await _context.SaveChangesAsync();
         }
+
+
 
         // ===== API: Tạo Payment + PayOS checkoutUrl cho gói hỗ trợ (subscription 1 tháng) =====
         // POST /api/payments/payos/create-support-plan
@@ -579,6 +511,8 @@ namespace Keytietkiem.Controllers
             }
 
             // ================== TÍNH AdjustedAmount (theo số ngày) ==================
+            // 1 gói = 30 ngày. Số ngày còn lại = ExpiresAt.Date - Today.Date
+            // Công thức: Số tiền phải thanh toán = Giá gói được chọn - (Giá gói ban đầu * Số ngày còn lại / 30)
             var basePriority = user.SupportPriorityLevel;
             var targetPriority = plan.PriorityLevel;
 
@@ -650,6 +584,7 @@ namespace Keytietkiem.Controllers
             else if (basePriority > 0)
             {
                 // ==== TRƯỜNG HỢP 2: KHÔNG CÓ SUBSCRIPTION, NHƯNG BASE PRIORITY > 0 ====
+                // (theo note: coi như user có quyền lợi gói base trong full kỳ, luôn tính như còn "max ngày")
                 var basePlan = await _context.SupportPlans
                     .AsNoTracking()
                     .Where(p => p.IsActive && p.PriorityLevel == basePriority)
@@ -670,6 +605,7 @@ namespace Keytietkiem.Controllers
                 remainingDays.Value > 0)
             {
                 // Áp dụng công thức chung:
+                // Số tiền phải thanh toán = Giá gói được chọn - (Giá gói ban đầu * Số ngày còn lại / 30)
                 var ratio = periodDays == 0 ? 0 : (remainingDays.Value / periodDays); // 0..1
                 var discount = basePrice.Value * ratio;
                 adjustedAmount = plan.Price - discount;
@@ -756,7 +692,6 @@ namespace Keytietkiem.Controllers
             {
                 await tx.RollbackAsync();
 
-                // Không audit lỗi để tránh spam
                 return StatusCode(502, new
                 {
                     message = "Không tạo được link thanh toán PayOS (support plan). Chi tiết: " + ex.Message
@@ -775,269 +710,7 @@ namespace Keytietkiem.Controllers
                 PaymentUrl = paymentUrl
             };
 
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "CreateSupportPlanPayOSPayment",
-                entityType: "Payment",
-                entityId: payment.PaymentId.ToString(),
-                before: null,
-                after: new
-                {
-                    payment.PaymentId,
-                    payment.Status,
-                    payment.Amount,
-                    payment.Provider,
-                    payment.ProviderOrderCode,
-                    payment.TransactionType,
-                    UserId = user.UserId,
-                    SupportPlanId = plan.SupportPlanId,
-                    SupportPlanPriority = plan.PriorityLevel,
-                    AdjustedAmount = adjustedAmount
-                });
-
             return Ok(resp);
-        }
-
-        private async Task ProcessVariants(List<ProductVariant> variants, Order order)
-        {
-            var systemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            var userEmail = order.Email;
-
-            // Get the user ID from the order
-            if (!order.UserId.HasValue)
-            {
-                var user = await _accountService.GetUserAsync(userEmail);
-                if (user == null)
-                {
-                    user = await _accountService.CreateTempUserAsync(userEmail);
-                }
-                order.UserId = user.UserId;
-            }
-
-            var userId = order.UserId.Value;
-
-            // Collect all products to send in a single email
-            var orderProducts = new List<OrderProductEmailDto>();
-
-            // Process PERSONAL_KEY type variants
-            var personalKeyVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_KEY).ToList();
-            foreach (var variant in personalKeyVariants)
-            {
-                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
-                if (orderDetail == null) continue;
-
-                var quantity = orderDetail.Quantity;
-
-                // Get available keys for this variant
-                var availableKeys = await _context.ProductKeys
-                    .AsNoTracking()
-                    .Where(pk => pk.VariantId == variant.VariantId &&
-                                 pk.Status == "Available")
-                    .Take(quantity)
-                    .ToListAsync();
-
-                if (availableKeys.Count < quantity)
-                {
-                    _logger.LogWarning("Not enough available keys for variant {VariantId}. Required: {Quantity}, Available: {Available}",
-                        variant.VariantId, quantity, availableKeys.Count);
-                    continue;
-                }
-
-                // Assign keys to order and collect for email
-                foreach (var key in availableKeys)
-                {
-                    try
-                    {
-                        // Assign key to order
-                        var assignDto = new AssignKeyToOrderDto
-                        {
-                            KeyId = key.KeyId,
-                            OrderId = order.OrderId
-                        };
-
-                        await _productKeyService.AssignKeyToOrderAsync(assignDto, systemUserId);
-
-                        // Clear change tracker to prevent tracking conflicts
-                        _context.ChangeTracker.Clear();
-
-                        // Add to products list for consolidated email
-                        orderProducts.Add(new OrderProductEmailDto
-                        {
-                            ProductName = variant.Product.ProductName,
-                            VariantTitle = variant.Title,
-                            ProductType = "KEY",
-                            KeyString = key.KeyString,
-                            ExpiryDate = key.ExpiryDate
-                        });
-
-                        _logger.LogInformation("Assigned key {KeyId} to order {OrderId}",
-                            key.KeyId, order.OrderId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to assign key {KeyId} to order {OrderId}", key.KeyId, order.OrderId);
-                    }
-                }
-            }
-
-            // Process PERSONAL_ACCOUNT type variants
-            var personalAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_ACCOUNT).ToList();
-            foreach (var variant in personalAccountVariants)
-            {
-                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
-                if (orderDetail == null) continue;
-
-                var quantity = orderDetail.Quantity;
-
-                // Get available personal accounts for this variant
-                var availableAccounts = await _context.ProductAccounts
-                    .AsNoTracking()
-                    .Where(pa => pa.VariantId == variant.VariantId &&
-                                 pa.Status == "Active" &&
-                                 pa.MaxUsers == 1) // Personal accounts have MaxUsers = 1
-                    .Include(pa => pa.ProductAccountCustomers)
-                    .Where(pa => !pa.ProductAccountCustomers.Any(pac => pac.IsActive)) // Not assigned to anyone
-                    .Take(quantity)
-                    .ToListAsync();
-
-                if (availableAccounts.Count < quantity)
-                {
-                    _logger.LogWarning("Not enough available personal accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
-                        variant.VariantId, quantity, availableAccounts.Count);
-                    continue;
-                }
-
-                // Assign accounts to order and collect for email
-                foreach (var account in availableAccounts)
-                {
-                    try
-                    {
-                        // Assign account to order
-                        var assignDto = new AssignAccountToOrderDto
-                        {
-                            ProductAccountId = account.ProductAccountId,
-                            OrderId = order.OrderId,
-                            UserId = userId
-                        };
-
-                        await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
-
-                        // Get decrypted password
-                        var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
-
-                        // Clear change tracker to prevent tracking conflicts
-                        _context.ChangeTracker.Clear();
-
-                        // Add to products list for consolidated email
-                        orderProducts.Add(new OrderProductEmailDto
-                        {
-                            ProductName = variant.Product.ProductName,
-                            VariantTitle = variant.Title,
-                            ProductType = "ACCOUNT",
-                            AccountEmail = account.AccountEmail,
-                            AccountUsername = account.AccountUsername,
-                            AccountPassword = decryptedPassword,
-                            ExpiryDate = account.ExpiryDate
-                        });
-
-                        _logger.LogInformation("Assigned account {AccountId} to order {OrderId}",
-                            account.ProductAccountId, order.OrderId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to assign account {AccountId} to order {OrderId}", account.ProductAccountId, order.OrderId);
-                    }
-                }
-            }
-
-            // Process SHARED_ACCOUNT type variants
-            var sharedAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.SHARED_ACCOUNT).ToList();
-            foreach (var variant in sharedAccountVariants)
-            {
-                var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
-                if (orderDetail == null) continue;
-
-                var quantity = orderDetail.Quantity;
-
-                // Get available shared accounts for this variant (not full)
-                var availableAccounts = await _context.ProductAccounts
-                    .AsNoTracking()
-                    .Where(pa => pa.VariantId == variant.VariantId &&
-                                 pa.Status == "Active" &&
-                                 pa.MaxUsers > 1) // Shared accounts have MaxUsers > 1
-                    .Include(pa => pa.ProductAccountCustomers)
-                    .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers) // Not full
-                    .Take(quantity)
-                    .ToListAsync();
-
-                var availableSlot = availableAccounts.Sum(x=> x.MaxUsers) -
-                                availableAccounts.Select(x=> x.ProductAccountCustomers.Count(pac => pac.IsActive)).Sum();
-                if (availableSlot < quantity)
-                {
-                    _logger.LogWarning("Not enough available shared accounts for variant {VariantId}",
-                        variant.VariantId);
-                    continue;
-                }
-
-                // Add customer to shared accounts and collect for email
-                var addedToSharedAccount = false;
-                foreach (var account in availableAccounts)
-                {
-                    try
-                    {
-                        // Add customer to shared account
-                        var assignDto = new AssignAccountToOrderDto
-                        {
-                            ProductAccountId = account.ProductAccountId,
-                            OrderId = order.OrderId,
-                            UserId = userId
-                        };
-
-                        await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
-
-                        // Clear change tracker to prevent tracking conflicts
-                        _context.ChangeTracker.Clear();
-
-                        addedToSharedAccount = true;
-
-                        _logger.LogInformation("Added customer to shared account {AccountId} for order {OrderId}",
-                            account.ProductAccountId, order.OrderId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to add customer to shared account {AccountId} for order {OrderId}",
-                            account.ProductAccountId, order.OrderId);
-                    }
-                }
-
-                // For shared accounts, send email with instructions (no credentials)
-                if (addedToSharedAccount)
-                {
-                    orderProducts.Add(new OrderProductEmailDto
-                    {
-                        ProductName = variant.Product.ProductName,
-                        VariantTitle = variant.Title,
-                        ProductType = "SHARED_ACCOUNT",
-                        ExpiryDate = availableAccounts.FirstOrDefault()?.ExpiryDate,
-                        Notes = $"Tài khoản chia sẻ - Vui lòng làm theo hướng dẫn trong email để hoàn tất việc thêm bạn vào family account."
-                    });
-                }
-            }
-
-            // Send a single consolidated email with all products
-            if (orderProducts.Any())
-            {
-                try
-                {
-                    await _emailService.SendOrderProductsEmailAsync(userEmail, orderProducts);
-                    _logger.LogInformation("Sent consolidated order email with {Count} products to {Email}",
-                        orderProducts.Count, userEmail);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send consolidated order email to {Email}", userEmail);
-                }
-            }
         }
     }
 }

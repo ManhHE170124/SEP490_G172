@@ -1,14 +1,10 @@
 ﻿// File: Controllers/SupportPlansAdminController.cs
+using System;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.SupportPlans;
-using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
 
 namespace Keytietkiem.Controllers
 {
@@ -17,14 +13,11 @@ namespace Keytietkiem.Controllers
     public class SupportPlansAdminController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
-        private readonly IAuditLogger _auditLogger;
 
         public SupportPlansAdminController(
-            IDbContextFactory<KeytietkiemDbContext> dbFactory,
-            IAuditLogger auditLogger)
+            IDbContextFactory<KeytietkiemDbContext> dbFactory)
         {
             _dbFactory = dbFactory;
-            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -232,24 +225,6 @@ namespace Keytietkiem.Controllers
             db.SupportPlans.Add(entity);
             await db.SaveChangesAsync();
 
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Create",
-                entityType: "SupportPlan",
-                entityId: entity.SupportPlanId.ToString(),
-                before: null,
-                after: new
-                {
-                    entity.SupportPlanId,
-                    entity.Name,
-                    entity.Description,
-                    entity.PriorityLevel,
-                    entity.Price,
-                    entity.IsActive,
-                    entity.CreatedAt
-                }
-            );
-
             var result = new SupportPlanAdminDetailDto
             {
                 SupportPlanId = entity.SupportPlanId,
@@ -279,17 +254,6 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(p => p.SupportPlanId == supportPlanId);
 
             if (entity == null) return NotFound();
-
-            // Lưu state trước khi update để audit
-            var before = new
-            {
-                entity.SupportPlanId,
-                entity.Name,
-                entity.Description,
-                entity.PriorityLevel,
-                entity.Price,
-                entity.IsActive
-            };
 
             // Validate Name
             if (string.IsNullOrWhiteSpace(dto.Name))
@@ -385,24 +349,6 @@ namespace Keytietkiem.Controllers
             }
 
             await db.SaveChangesAsync();
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Update",
-                entityType: "SupportPlan",
-                entityId: entity.SupportPlanId.ToString(),
-                before: before,
-                after: new
-                {
-                    entity.SupportPlanId,
-                    entity.Name,
-                    entity.Description,
-                    entity.PriorityLevel,
-                    entity.Price,
-                    entity.IsActive
-                }
-            );
-
             return NoContent();
         }
 
@@ -432,30 +378,8 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            var before = new
-            {
-                entity.SupportPlanId,
-                entity.Name,
-                entity.Description,
-                entity.PriorityLevel,
-                entity.Price,
-                entity.IsActive
-            };
-
             db.SupportPlans.Remove(entity);
             await db.SaveChangesAsync();
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Delete",
-                entityType: "SupportPlan",
-                entityId: entity.SupportPlanId.ToString(),
-                before: before,
-                after: new
-                {
-                    Deleted = true
-                }
-            );
 
             return NoContent();
         }
@@ -475,12 +399,6 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(p => p.SupportPlanId == supportPlanId);
 
             if (entity == null) return NotFound();
-
-            var before = new
-            {
-                entity.SupportPlanId,
-                entity.IsActive
-            };
 
             if (!entity.IsActive)
             {
@@ -519,19 +437,6 @@ namespace Keytietkiem.Controllers
             }
 
             await db.SaveChangesAsync();
-
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Toggle",
-                entityType: "SupportPlan",
-                entityId: entity.SupportPlanId.ToString(),
-                before: before,
-                after: new
-                {
-                    entity.SupportPlanId,
-                    entity.IsActive
-                }
-            );
 
             return Ok(new { entity.SupportPlanId, entity.IsActive });
         }

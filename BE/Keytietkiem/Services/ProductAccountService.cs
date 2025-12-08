@@ -460,15 +460,10 @@ public class ProductAccountService : IProductAccountService
 
         var now = _clock.UtcNow;
 
-        // Use provided notes or default message
-        var notes = string.IsNullOrWhiteSpace(removeDto.Notes)
-            ? "Xóa khách hàng khỏi tài khoản"
-            : removeDto.Notes;
-
         customer.IsActive = false;
         customer.RemovedAt = now;
         customer.RemovedBy = removedBy;
-        customer.Notes = notes;
+        customer.Notes = removeDto.Notes;
 
         _productAccountCustomerRepository.Update(customer);
 
@@ -480,7 +475,7 @@ public class ProductAccountService : IProductAccountService
             Action = nameof(ProductAccountAction.Removed),
             ActionBy = removedBy,
             ActionAt = now,
-            Notes = notes
+            Notes = removeDto.Notes
         };
 
         await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
@@ -516,9 +511,9 @@ public class ProductAccountService : IProductAccountService
             {
                 HistoryId = pah.HistoryId,
                 ProductAccountId = pah.ProductAccountId,
-                UserId = pah.UserId,
-                UserEmail = pah.User != null ? pah.User.Email : null,
-                UserFullName = pah.User != null ? pah.User.FullName : null,
+                UserId = (Guid)pah.UserId,
+                UserEmail = pah.User.Email,
+                UserFullName = pah.User.FullName,
                 Action = pah.Action,
                 ActionBy = pah.ActionBy,
                 ActionAt = pah.ActionAt,
@@ -603,7 +598,7 @@ public class ProductAccountService : IProductAccountService
             AddedBy = assignedBy,
             IsActive = true,
             OrderId =  assignDto.OrderId,
-            Notes = $"Gán cho đơn hàng {assignDto.OrderId}"
+            Notes = $"Assigned to order {assignDto.OrderId}"
         };
 
         await _productAccountCustomerRepository.AddAsync(customer, cancellationToken);
@@ -616,7 +611,7 @@ public class ProductAccountService : IProductAccountService
             Action = nameof(ProductAccountAction.Added),
             ActionBy = assignedBy,
             ActionAt = now,
-            Notes = $"Gán cho đơn hàng {assignDto.OrderId}"
+            Notes = $"Assigned to order {assignDto.OrderId}"
         };
 
         await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
@@ -645,135 +640,6 @@ public class ProductAccountService : IProductAccountService
             IsActive = customer.IsActive,
             Notes = customer.Notes
         };
-    }
-
-    public async Task<ProductAccountResponseDto> ExtendExpiryDateAsync(
-        ExtendExpiryDateDto extendDto,
-        Guid extendedBy,
-        CancellationToken cancellationToken = default)
-    {
-        var account = await _context.ProductAccounts
-            .Include(pa => pa.Variant)
-            .FirstOrDefaultAsync(pa => pa.ProductAccountId == extendDto.ProductAccountId, cancellationToken);
-
-        if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
-
-        var now = _clock.UtcNow;
-        var oldExpiryDate = account.ExpiryDate;
-
-        // Determine days to extend: use provided value or variant's DurationDays
-        int daysToExtend;
-        string extensionSource;
-
-        if (extendDto.DaysToExtend.HasValue && extendDto.DaysToExtend.Value > 0)
-        {
-            // Use custom days provided by user
-            daysToExtend = extendDto.DaysToExtend.Value;
-            extensionSource = "custom";
-        }
-        else if (account.Variant?.DurationDays.HasValue == true && account.Variant.DurationDays.Value > 0)
-        {
-            // Use variant's standard duration
-            daysToExtend = account.Variant.DurationDays.Value;
-            extensionSource = "variant";
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                "Không thể xác định số ngày gia hạn. Vui lòng cung cấp số ngày hoặc đảm bảo sản phẩm có DurationDays.");
-        }
-
-        // Extend from current expiry date if exists, otherwise from now
-        var baseDate = account.ExpiryDate ?? now;
-        account.ExpiryDate = baseDate.AddDays(daysToExtend);
-        account.UpdatedAt = now;
-        account.UpdatedBy = extendedBy;
-
-        _productAccountRepository.Update(account);
-
-        // Log history with source information
-        var extensionInfo = extensionSource == "variant"
-            ? $"Gia hạn {daysToExtend} ngày (theo gói sản phẩm)"
-            : $"Gia hạn {daysToExtend} ngày (tùy chỉnh)";
-
-        var notes = string.IsNullOrWhiteSpace(extendDto.Notes)
-            ? $"{extensionInfo}. Từ {oldExpiryDate:dd/MM/yyyy} đến {account.ExpiryDate:dd/MM/yyyy}"
-            : $"{extensionInfo}. Từ {oldExpiryDate:dd/MM/yyyy} đến {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {extendDto.Notes}";
-
-        var history = new ProductAccountHistory
-        {
-            ProductAccountId = account.ProductAccountId,
-            UserId = null, // System action, not tied to a specific customer
-            Action = "ExtendExpiry",
-            ActionBy = extendedBy,
-            ActionAt = now,
-            Notes = notes
-        };
-
-        await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
-    }
-
-    public async Task<List<ProductAccountResponseDto>> GetAccountsExpiringSoonAsync(
-        int days = 5,
-        CancellationToken cancellationToken = default)
-    {
-        var now = _clock.UtcNow;
-        var futureDate = now.AddDays(days);
-
-        var accounts = await _productAccountRepository.Query()
-            .Include(pa => pa.Variant)
-                .ThenInclude(v => v.Product)
-            .Include(pa => pa.ProductAccountCustomers)
-                .ThenInclude(pac => pac.User)
-            .Where(pa =>
-                pa.ExpiryDate.HasValue &&
-                pa.ExpiryDate.Value >= now &&
-                pa.ExpiryDate.Value <= futureDate &&
-                (pa.Status == nameof(ProductAccountStatus.Active) ||
-                 pa.Status == nameof(ProductAccountStatus.Full)))
-            .OrderBy(pa => pa.ExpiryDate)
-            .ToListAsync(cancellationToken);
-
-        return accounts.Select(account => new ProductAccountResponseDto
-        {
-            ProductAccountId = account.ProductAccountId,
-            ProductId = account.Variant.ProductId,
-            VariantId = account.VariantId,
-            VariantTitle = account.Variant.Title,
-            ProductName = account.Variant.Product.ProductName,
-            AccountEmail = account.AccountEmail,
-            AccountUsername = account.AccountUsername,
-            AccountPassword = "********", // Masked
-            MaxUsers = account.MaxUsers,
-            CurrentUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive),
-            Status = account.Status,
-            CogsPrice = account.Variant.CogsPrice,
-            SellPrice = account.Variant.SellPrice,
-            ExpiryDate = account.ExpiryDate,
-            Notes = account.Notes,
-            CreatedAt = account.CreatedAt,
-            CreatedBy = account.CreatedBy,
-            UpdatedAt = account.UpdatedAt,
-            UpdatedBy = account.UpdatedBy,
-            Customers = account.ProductAccountCustomers
-                .Select(pac => new ProductAccountCustomerDto
-                {
-                    ProductAccountCustomerId = pac.ProductAccountCustomerId,
-                    UserId = pac.UserId,
-                    UserEmail = pac.User.Email,
-                    UserFullName = pac.User.FullName,
-                    AddedAt = pac.AddedAt,
-                    AddedBy = pac.AddedBy,
-                    RemovedAt = pac.RemovedAt,
-                    RemovedBy = pac.RemovedBy,
-                    IsActive = pac.IsActive,
-                    Notes = pac.Notes
-                })
-                .ToList()
-        }).ToList();
     }
 
     private static void ValidateProductAccountEntity(ProductAccount account, bool requireExpiryDate)

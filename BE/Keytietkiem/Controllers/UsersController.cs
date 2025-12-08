@@ -1,14 +1,15 @@
-﻿using Keytietkiem.DTOs.Common;
-using Keytietkiem.DTOs.Enums;
+﻿using System.Security.Cryptography;
+using System.Text;
 using Keytietkiem.DTOs.Users;
-using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
-using System.Text;
+using Keytietkiem.DTOs.Common;
+using Keytietkiem.DTOs.Enums;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 
 namespace Keytietkiem.Controllers
 {
@@ -17,13 +18,7 @@ namespace Keytietkiem.Controllers
     public class UsersController : ControllerBase
     {
         private readonly KeytietkiemDbContext _db;
-        private readonly IAuditLogger _auditLogger;
-
-        public UsersController(KeytietkiemDbContext db, IAuditLogger auditLogger)
-        {
-            _db = db;
-            _auditLogger = auditLogger;
-        }
+        public UsersController(KeytietkiemDbContext db) => _db = db;
 
         // ===== Password hashing (PBKDF2 - 1 chiều) =====
         private static byte[] HashPassword(string password)
@@ -41,7 +36,7 @@ namespace Keytietkiem.Controllers
             var result = new byte[salt.Length + hash.Length];
             Buffer.BlockCopy(salt, 0, result, 0, salt.Length);
             Buffer.BlockCopy(hash, 0, result, salt.Length, hash.Length);
-            return result; // 48 bytes (16 salt + 32 hash)
+            return result; // 48 bytes
         }
 
         private static bool VerifyPassword(string password, byte[]? storedHash)
@@ -76,159 +71,14 @@ namespace Keytietkiem.Controllers
                    ?? "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại các trường thông tin.";
         }
 
-        /// <summary>
-        /// Helper: Admin gán / đổi / huỷ gói hỗ trợ cho user (không áp dụng cho user tạm thời).
-        /// targetSupportPlanId:
-        ///   - null hoặc <= 0  : huỷ mọi subscription đang Active (chỉ còn mức độ ưu tiên gốc / chỉnh tay).
-        ///   - > 0             : chuyển sang gói mới (Cancel gói cũ nếu có, tạo subscription mới 1 tháng,
-        ///                       update SupportPriorityLevel theo PriorityLevel của gói).
-        /// Đồng thời:
-        ///   - Trước khi xử lý, luôn refresh loyalty (TotalProductSpend + SupportPriorityLevel) cho user
-        ///     nếu user đang Active & có role customer, để lấy được mức loyalty base mới nhất.
-        ///   - Không cho phép gán gói hỗ trợ có PriorityLevel thấp hơn mức loyalty base đó.
-        /// </summary>
-        private async Task<(bool ok, string? error)> ApplySupportPlanChangeByAdmin(
-            User user,
-            int? targetSupportPlanId)
-        {
-            var nowUtc = DateTime.UtcNow;
-
-            // Không cho phép đổi gói cho user tạm thời
-            if (user.IsTemp)
-            {
-                return (false, "Không thể thay đổi gói hỗ trợ cho người dùng tạm thời (IsTemp = true).");
-            }
-
-            // ===== Step 0: Refresh loyalty base (TotalProductSpend + SupportPriorityLevel) nếu là Active Customer =====
-            int loyaltyBaseLevel = user.SupportPriorityLevel;
-            var isActiveCustomer =
-                string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
-                user.Roles.Any(r =>
-                    !string.IsNullOrEmpty(r.Code) &&
-                    r.Code.Equals("customer", StringComparison.OrdinalIgnoreCase));
-
-            if (isActiveCustomer && !string.IsNullOrWhiteSpace(user.Email))
-            {
-                // RecalculateUserLoyaltyPriorityLevelAsync sẽ dựa trên ORDER_PAYMENT (Paid)
-                // để cập nhật lại TotalProductSpend + SupportPriorityLevel trong DB cho user này.
-                loyaltyBaseLevel = await SupportPriorityLoyaltyRulesController
-                    .RecalculateUserLoyaltyPriorityLevelAsync(_db, user.Email);
-
-                // Nếu method loyalty dùng cùng DbContext _db, entity 'user' đang track
-                // cũng sẽ được cập nhật SupportPriorityLevel = loyaltyBaseLevel.
-            }
-
-            // Lấy subs đang active (đảm bảo chỉ có 0 hoặc 1 nhưng để chắc ăn vẫn hủy all bên dưới)
-            var activeSub = await _db.UserSupportPlanSubscriptions
-                .Include(s => s.SupportPlan)
-                .Where(s =>
-                    s.UserId == user.UserId &&
-                    s.Status == "Active" &&
-                    (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
-                .OrderByDescending(s => s.StartedAt)
-                .FirstOrDefaultAsync();
-
-            // Nếu target null hoặc <= 0 => huỷ mọi gói hiện tại, không tạo gói mới
-            // (Không check loyaltyBaseLevel ở đây vì việc không có gói vẫn không làm giảm
-            //  quyền lợi loyalty base; priority từ loyalty vẫn đang được áp dụng độc lập.)
-            if (!targetSupportPlanId.HasValue || targetSupportPlanId.Value <= 0)
-            {
-                var allActiveSubsToCancel = await _db.UserSupportPlanSubscriptions
-                    .Where(s => s.UserId == user.UserId && s.Status == "Active")
-                    .ToListAsync();
-
-                foreach (var sub in allActiveSubsToCancel)
-                {
-                    sub.Status = "Cancelled";
-                    if (!sub.ExpiresAt.HasValue || sub.ExpiresAt > nowUtc)
-                    {
-                        sub.ExpiresAt = nowUtc;
-                    }
-                }
-
-                // Khi huỷ gói, SupportPriorityLevel của user sẽ giữ nguyên (đây chính là mức loyalty base).
-                // Nếu bạn muốn có "priority gốc" riêng, cần thêm cột khác, còn hiện tại để nguyên.
-                return (true, null);
-            }
-
-            var planId = targetSupportPlanId.Value;
-
-            // Nếu gói mới trùng với gói hiện đang active thì bỏ qua (không đổi)
-            if (activeSub != null && activeSub.SupportPlanId == planId)
-            {
-                return (false, "Gói hỗ trợ được chọn đang là gói hiện tại của người dùng, không có thay đổi nào được áp dụng.");
-            }
-
-            var plan = await _db.SupportPlans
-                .FirstOrDefaultAsync(p => p.SupportPlanId == planId && p.IsActive);
-
-            if (plan == null)
-            {
-                return (false, "Gói hỗ trợ không tồn tại hoặc đã bị khóa.");
-            }
-
-            // ===== Rule: Không cho phép gán gói có PriorityLevel thấp hơn mức loyalty base =====
-            if (isActiveCustomer && plan.PriorityLevel < loyaltyBaseLevel)
-            {
-                return (false,
-                    $"Không thể gán gói hỗ trợ có PriorityLevel = {plan.PriorityLevel} " +
-                    $"thấp hơn mức loyalty base hiện tại của người dùng (SupportPriorityLevel = {loyaltyBaseLevel}).");
-            }
-
-            // ===== Đảm bảo chỉ có 1 subscription Active tại một thời điểm =====
-            // Huỷ hết các subscription đang Active cho user (nếu còn)
-            var allActiveSubs = await _db.UserSupportPlanSubscriptions
-                .Where(s => s.UserId == user.UserId && s.Status == "Active")
-                .ToListAsync();
-
-            foreach (var sub in allActiveSubs)
-            {
-                sub.Status = "Cancelled";
-                if (!sub.ExpiresAt.HasValue || sub.ExpiresAt > nowUtc)
-                {
-                    sub.ExpiresAt = nowUtc;
-                }
-            }
-
-            // Tạo subscription thủ công cho gói mới (thời hạn 1 tháng)
-            var manualSub = new UserSupportPlanSubscription
-            {
-                SubscriptionId = Guid.NewGuid(),
-                UserId = user.UserId,
-                SupportPlanId = plan.SupportPlanId,
-                Status = "Active",
-                StartedAt = nowUtc,
-                ExpiresAt = nowUtc.AddMonths(1),
-                PaymentId = null,
-                Note = "Assigned/updated by admin từ UsersController."
-            };
-            _db.UserSupportPlanSubscriptions.Add(manualSub);
-
-            // ==== Cập nhật priority hiện tại của user theo gói ====
-            // Tại thời điểm này plan.PriorityLevel luôn >= loyaltyBaseLevel (nếu là customer),
-            // nên có thể hiểu user đang được ưu tiên bằng mức của gói.
-            user.SupportPriorityLevel = plan.PriorityLevel;
-
-            return (true, null);
-        }
-
         // GET /api/users
         [HttpGet]
+        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<PagedResult<UserListItemDto>>> GetUsers(
-            string? q,
-            string? roleId,
-            string? status,
-            bool isTemp = false,
-            int? supportPriorityLevel = null,
-            int page = 1,
-            int pageSize = 10,
-            string? sortBy = "CreatedAt",
-            string? sortDir = "desc")
+            string? q, string? roleId, string? status,
+            int page = 1, int pageSize = 10,
+            string? sortBy = "CreatedAt", string? sortDir = "desc")
         {
-            if (page <= 0) page = 1;
-            if (pageSize <= 0) pageSize = 10;
-            if (pageSize > 100) pageSize = 100;
-
             var users = _db.Users
                 .AsNoTracking()
                 .Include(u => u.Roles)
@@ -259,82 +109,22 @@ namespace Keytietkiem.Controllers
                 users = users.Where(u => u.Roles.Any(r => r.RoleId == roleId));
             }
 
-            // Lọc theo user tạm thời (IsTemp). Mặc định isTemp = false => chỉ hiển thị user thật.
-            users = isTemp
-                ? users.Where(u => u.IsTemp)
-                : users.Where(u => !u.IsTemp);
-
-            // Lọc theo mức độ ưu tiên (SupportPriorityLevel) nếu có
-            if (supportPriorityLevel.HasValue)
-            {
-                var lv = supportPriorityLevel.Value;
-                users = users.Where(u => u.SupportPriorityLevel == lv);
-            }
-
             bool desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
             users = (sortBy ?? "").ToLower() switch
             {
-                "fullname" => desc
-                    ? users.OrderByDescending(u => u.FullName)
-                    : users.OrderBy(u => u.FullName),
-
-                "email" => desc
-                    ? users.OrderByDescending(u => u.Email)
-                    : users.OrderBy(u => u.Email),
-
-                "username" => desc
-                    ? users.OrderByDescending(u => u.Account != null ? u.Account.Username : "")
-                    : users.OrderBy(u => u.Account != null ? u.Account.Username : ""),
-
-                "status" => desc
-                    ? users.OrderByDescending(u => u.Status)
-                    : users.OrderBy(u => u.Status),
-
-                "lastloginat" => desc
-                    ? users.OrderByDescending(u => u.Account != null ? u.Account.LastLoginAt : null)
-                    : users.OrderBy(u => u.Account != null ? u.Account.LastLoginAt : null),
-
-                _ => desc
-                    ? users.OrderByDescending(u => u.CreatedAt)
-                    : users.OrderBy(u => u.CreatedAt),
+                "fullname" => desc ? users.OrderByDescending(u => u.FullName) : users.OrderBy(u => u.FullName),
+                "email" => desc ? users.OrderByDescending(u => u.Email) : users.OrderBy(u => u.Email),
+                "username" => desc ? users.OrderByDescending(u => u.Account!.Username) : users.OrderBy(u => u.Account!.Username),
+                "status" => desc ? users.OrderByDescending(u => u.Status) : users.OrderBy(u => u.Status),
+                "lastloginat" => desc ? users.OrderByDescending(u => u.Account!.LastLoginAt) : users.OrderBy(u => u.Account!.LastLoginAt),
+                _ => desc ? users.OrderByDescending(u => u.CreatedAt) : users.OrderBy(u => u.CreatedAt),
             };
 
             var total = await users.CountAsync();
 
-            // ===== Loyalty: refresh TotalProductSpend + SupportPriorityLevel
-            // cho các user Active + customer trên trang hiện tại =====
-            var pageQuery = users
+            var items = await users
                 .Skip((page - 1) * pageSize)
-                .Take(pageSize);
-
-            var pageUsersMeta = await pageQuery
-                .Select(u => new
-                {
-                    u.Email,
-                    u.Status,
-                    RoleCodes = u.Roles.Select(r => r.Code)
-                })
-                .ToListAsync();
-
-            foreach (var meta in pageUsersMeta)
-            {
-                if (string.IsNullOrWhiteSpace(meta.Email))
-                    continue;
-
-                var isActiveCustomerForPage =
-                    string.Equals(meta.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
-                    meta.RoleCodes.Any(code =>
-                        !string.IsNullOrEmpty(code) &&
-                        code.Equals("customer", StringComparison.OrdinalIgnoreCase));
-
-                if (!isActiveCustomerForPage)
-                    continue;
-
-                await SupportPriorityLoyaltyRulesController
-                    .RecalculateUserLoyaltyPriorityLevelAsync(_db, meta.Email);
-            }
-
-            var items = await pageQuery
+                .Take(pageSize)
                 .Select(u => new UserListItemDto
                 {
                     UserId = u.UserId,
@@ -343,11 +133,7 @@ namespace Keytietkiem.Controllers
                     RoleName = u.Roles.Select(r => r.Name).FirstOrDefault(),
                     LastLoginAt = u.Account != null ? u.Account.LastLoginAt : null,
                     Status = u.Status,
-                    CreatedAt = u.CreatedAt,
-
-                    // ==== Mức độ ưu tiên & cờ user tạm thời ====
-                    SupportPriorityLevel = u.SupportPriorityLevel,
-                    IsTemp = u.IsTemp
+                    CreatedAt = u.CreatedAt
                 })
                 .ToListAsync();
 
@@ -362,48 +148,16 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users/{id}
         [HttpGet("{id:guid}")]
+        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<UserDetailDto>> Get(Guid id)
         {
             var u = await _db.Users
                 .Include(x => x.Roles)
                 .Include(x => x.Account)
-                .Include(x => x.UserSupportPlanSubscriptions)
-                    .ThenInclude(s => s.SupportPlan)
                 .FirstOrDefaultAsync(x => x.UserId == id);
 
-            if (u == null)
-            {
-                return NotFound(new { message = "Không tìm thấy người dùng với Id đã cung cấp." });
-            }
-
-            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin")))
-            {
-                return BadRequest(new { message = "Không được xem chi tiết hoặc thao tác trên tài khoản có vai trò admin." });
-            }
-
-            if (u.IsTemp)
-            {
-                return BadRequest(new { message = "Không thể xem chi tiết người dùng tạm thời (IsTemp = true)." });
-            }
-
-            // ===== Loyalty: nếu là customer đang Active thì refresh loyalty base =====
-            var isActiveCustomerForDetail =
-                string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
-                u.Roles.Any(r =>
-                    !string.IsNullOrEmpty(r.Code) &&
-                    r.Code.Equals("customer", StringComparison.OrdinalIgnoreCase));
-
-            if (isActiveCustomerForDetail && !string.IsNullOrWhiteSpace(u.Email))
-            {
-                await SupportPriorityLoyaltyRulesController
-                    .RecalculateUserLoyaltyPriorityLevelAsync(_db, u.Email);
-            }
-
-            var now = DateTime.UtcNow;
-            var activeSub = u.UserSupportPlanSubscriptions
-                .Where(s => s.Status == "Active" && (!s.ExpiresAt.HasValue || s.ExpiresAt > now))
-                .OrderByDescending(s => s.StartedAt)
-                .FirstOrDefault();
+            if (u == null) return NotFound();
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
 
             return Ok(new UserDetailDto
             {
@@ -418,26 +172,14 @@ namespace Keytietkiem.Controllers
                 LastLoginAt = u.Account?.LastLoginAt,
                 RoleId = u.Roles.Select(r => r.RoleId).FirstOrDefault(),
                 HasAccount = u.Account != null,
-                Username = u.Account?.Username ?? "",
-
-                // ==== Mức độ ưu tiên & user tạm thời ====
-                SupportPriorityLevel = u.SupportPriorityLevel,
-                IsTemp = u.IsTemp,
-
-                // ==== Thông tin gói hỗ trợ đang active (nếu có) ====
-                ActiveSupportPlanId = activeSub?.SupportPlanId,
-                ActiveSupportPlanName = activeSub?.SupportPlan?.Name,
-                ActiveSupportPlanStartedAt = activeSub?.StartedAt,
-                ActiveSupportPlanExpiresAt = activeSub?.ExpiresAt,
-                ActiveSupportPlanStatus = activeSub?.Status,
-
-                // ==== Tổng tiền đã tiêu (TotalProductSpend) ====
-                TotalProductSpend = u.TotalProductSpend
+                Username = u.Account?.Username ?? ""
+                // KHÔNG trả mật khẩu nữa
             });
         }
 
         // POST /api/users
         [HttpPost]
+        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult> Create([FromBody] UserCreateDto dto)
         {
             // Chặn sớm dữ liệu sai format / vượt độ dài DB (DataAnnotations trong DTO)
@@ -455,7 +197,7 @@ namespace Keytietkiem.Controllers
 
             // Email UNIQUE
             if (await _db.Users.AnyAsync(x => x.Email == dto.Email))
-                return Conflict(new { message = "Email đã tồn tại, vui lòng dùng email khác." });
+                return Conflict(new { message = "Email đã tồn tại" });
 
             var now = DateTime.UtcNow;
 
@@ -471,11 +213,7 @@ namespace Keytietkiem.Controllers
                 Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : "Active",
                 EmailVerified = false,
                 CreatedAt = now,
-                UpdatedAt = now,
-
-                // ==== Mức độ ưu tiên gốc & user tạm thời ====
-                SupportPriorityLevel = dto.SupportPriorityLevel,
-                IsTemp = false // Admin tạo mới luôn là user thật
+                UpdatedAt = now
             };
 
             if (!string.IsNullOrEmpty(dto.RoleId))
@@ -486,14 +224,12 @@ namespace Keytietkiem.Controllers
 
             await _db.Users.AddAsync(user);
 
-            bool hasAccount = false;
-
             if (!string.IsNullOrWhiteSpace(dto.NewPassword))
             {
                 // Bảo đảm Username là duy nhất
                 var username = string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim();
                 var exists = await _db.Accounts.AnyAsync(a => a.Username == username);
-                if (exists) return Conflict(new { message = "Username đã tồn tại, vui lòng dùng username khác." });
+                if (exists) return Conflict(new { message = "Username đã tồn tại." });
 
                 await _db.Accounts.AddAsync(new Account
                 {
@@ -504,53 +240,18 @@ namespace Keytietkiem.Controllers
                     CreatedAt = now,
                     UpdatedAt = now
                 });
-
-                hasAccount = true;
-            }
-
-            // Nếu admin chọn gói hỗ trợ khi tạo user -> tạo subscription thủ công
-            if (dto.ActiveSupportPlanId.HasValue && dto.ActiveSupportPlanId.Value > 0)
-            {
-                var (okPlan, planError) =
-                    await ApplySupportPlanChangeByAdmin(user, dto.ActiveSupportPlanId.Value);
-                if (!okPlan)
-                {
-                    return BadRequest(new { message = planError });
-                }
             }
 
             await _db.SaveChangesAsync();
-
-            // 🔐 AUDIT LOG – CREATE USER
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Create",
-                entityType: "User",
-                entityId: user.UserId.ToString(),
-                before: null,
-                after: new
-                {
-                    user.UserId,
-                    user.Email,
-                    user.Status,
-                    user.SupportPriorityLevel,
-                    user.IsTemp,
-                    RoleIds = user.Roles.Select(r => r.RoleId).ToList(),
-                    HasAccount = hasAccount
-                }
-            );
-
             return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
         }
 
         // PUT /api/users/{id}
         [HttpPut("{id:guid}")]
+        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UserUpdateDto dto)
         {
-            if (id != dto.UserId)
-            {
-                return BadRequest(new { message = "UserId trong URL không khớp với UserId trong dữ liệu gửi lên." });
-            }
+            if (id != dto.UserId) return BadRequest();
 
             // Validate theo DTO (length, email, phone, status…)
             if (!ModelState.IsValid)
@@ -563,26 +264,14 @@ namespace Keytietkiem.Controllers
                 .Include(x => x.Account)
                 .FirstOrDefaultAsync(x => x.UserId == id);
 
-            if (u == null)
-            {
-                return NotFound(new { message = "Không tìm thấy người dùng để cập nhật." });
-            }
-
-            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin")))
-            {
-                return BadRequest(new { message = "Không được phép sửa thông tin tài khoản admin." });
-            }
-
-            if (u.IsTemp)
-            {
-                return BadRequest(new { message = "Không thể sửa thông tin người dùng tạm thời (IsTemp = true)." });
-            }
+            if (u == null) return NotFound();
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
 
             if (!string.IsNullOrEmpty(dto.RoleId))
             {
                 var r = await _db.Roles.FirstOrDefaultAsync(x => x.RoleId == dto.RoleId);
                 if (r != null && r.Code.Contains("admin", StringComparison.OrdinalIgnoreCase))
-                    return BadRequest(new { message = "Không được gán vai trò chứa 'admin' cho người dùng." });
+                    return BadRequest(new { message = "Không được gán vai trò chứa 'admin'." });
             }
 
             // Check email UNIQUE khi sửa
@@ -590,19 +279,8 @@ namespace Keytietkiem.Controllers
             {
                 var emailExists = await _db.Users.AnyAsync(x => x.Email == dto.Email && x.UserId != id);
                 if (emailExists)
-                    return Conflict(new { message = "Email đã tồn tại, vui lòng dùng email khác." });
+                    return Conflict(new { message = "Email đã tồn tại" });
             }
-
-            var before = new
-            {
-                u.UserId,
-                u.Email,
-                u.Status,
-                u.SupportPriorityLevel,
-                u.IsTemp,
-                RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
-                HasAccount = u.Account != null
-            };
 
             u.FirstName = dto.FirstName;
             u.LastName = dto.LastName;
@@ -611,10 +289,6 @@ namespace Keytietkiem.Controllers
             u.Phone = dto.Phone;
             u.Address = dto.Address;
             u.Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : u.Status;
-
-            // ==== Cập nhật mức độ ưu tiên gốc (SupportPriorityLevel) (trường hợp không gói hoặc set tay) ====
-            u.SupportPriorityLevel = dto.SupportPriorityLevel;
-
             u.UpdatedAt = DateTime.UtcNow;
 
             u.Roles.Clear();
@@ -635,7 +309,7 @@ namespace Keytietkiem.Controllers
                 {
                     // Kiểm tra trùng username trước khi tạo account
                     var exists = await _db.Accounts.AnyAsync(a => a.Username == newUsername);
-                    if (exists) return Conflict(new { message = "Username đã tồn tại, vui lòng dùng username khác." });
+                    if (exists) return Conflict(new { message = "Username đã tồn tại." });
 
                     u.Account = new Account
                     {
@@ -654,7 +328,7 @@ namespace Keytietkiem.Controllers
                     if (!string.Equals(u.Account.Username, newUsername, StringComparison.Ordinal))
                     {
                         var exists = await _db.Accounts.AnyAsync(a => a.Username == newUsername && a.AccountId != u.Account.AccountId);
-                        if (exists) return Conflict(new { message = "Username đã tồn tại, vui lòng dùng username khác." });
+                        if (exists) return Conflict(new { message = "Username đã tồn tại." });
                         u.Account.Username = newUsername;
                     }
 
@@ -668,108 +342,28 @@ namespace Keytietkiem.Controllers
                 if (u.Account != null && !string.Equals(u.Account.Username, newUsername, StringComparison.Ordinal))
                 {
                     var exists = await _db.Accounts.AnyAsync(a => a.Username == newUsername && a.AccountId != u.Account.AccountId);
-                    if (exists) return Conflict(new { message = "Username đã tồn tại, vui lòng dùng username khác." });
+                    if (exists) return Conflict(new { message = "Username đã tồn tại." });
                     u.Account.Username = newUsername;
                     u.Account.UpdatedAt = DateTime.UtcNow;
                 }
             }
 
-            // Xử lý gói hỗ trợ nếu admin có truyền vào
-            if (dto.ActiveSupportPlanId.HasValue)
-            {
-                int? targetPlanId = dto.ActiveSupportPlanId.Value <= 0
-                    ? (int?)null
-                    : dto.ActiveSupportPlanId.Value;
-
-                var (okPlan, planError) =
-                    await ApplySupportPlanChangeByAdmin(u, targetPlanId);
-
-                if (!okPlan)
-                {
-                    return BadRequest(new { message = planError });
-                }
-            }
-
             await _db.SaveChangesAsync();
-
-            var after = new
-            {
-                u.UserId,
-                u.Email,
-                u.Status,
-                u.SupportPriorityLevel,
-                u.IsTemp,
-                RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
-                HasAccount = u.Account != null
-            };
-
-            // 🔐 AUDIT LOG – UPDATE USER
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "Update",
-                entityType: "User",
-                entityId: u.UserId.ToString(),
-                before: before,
-                after: after
-            );
-
             return NoContent();
         }
 
         // DELETE /api/users/{id}  (giữ behavior toggle Active <-> Disabled như FE đang dùng)
         [HttpDelete("{id:guid}")]
+        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> ToggleActive([FromRoute] Guid id)
         {
-            var u = await _db.Users
-                .Include(x => x.Roles)
-                .FirstOrDefaultAsync(x => x.UserId == id);
+            var u = await _db.Users.Include(x => x.Roles).FirstOrDefaultAsync(x => x.UserId == id);
+            if (u == null) return NotFound();
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
 
-            if (u == null)
-            {
-                return NotFound(new { message = "Không tìm thấy người dùng để thay đổi trạng thái." });
-            }
-
-            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin")))
-            {
-                return BadRequest(new { message = "Không được phép khoá/mở khoá tài khoản có vai trò admin." });
-            }
-
-            if (u.IsTemp)
-            {
-                return BadRequest(new { message = "Không thể khoá/mở khoá người dùng tạm thời (IsTemp = true)." });
-            }
-
-            var before = new
-            {
-                u.UserId,
-                u.Email,
-                Status = u.Status
-            };
-
-            u.Status = string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase)
-                ? "Disabled"
-                : "Active";
-
+            u.Status = string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase) ? "Disabled" : "Active";
             u.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
-
-            var after = new
-            {
-                u.UserId,
-                u.Email,
-                Status = u.Status
-            };
-
-            // 🔐 AUDIT LOG – TOGGLE ACTIVE/DISABLED
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "ToggleActive",
-                entityType: "User",
-                entityId: u.UserId.ToString(),
-                before: before,
-                after: after
-            );
-
             return NoContent();
         }
     }

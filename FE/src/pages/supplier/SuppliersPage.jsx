@@ -5,11 +5,17 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
 import { formatDate } from "../../utils/formatDate";
 import "../admin/admin.css";
 
 export default function SuppliersPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
+  
+  // Permission checks
+  const { hasPermission: hasEditPermission } = usePermission("WAREHOUSE_MANAGER", "EDIT");
+  
   const [suppliers, setSuppliers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -72,6 +78,10 @@ export default function SuppliersPage() {
   }, [query, loadSuppliers]);
 
   const handleToggleStatus = async (supplier) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái nhà cung cấp");
+      return;
+    }
     const isActive = supplier.status === "Active";
     const action = isActive ? "tạm dừng" : "kích hoạt lại";
 
@@ -277,19 +287,24 @@ export default function SuppliersPage() {
                       >
                         Chi tiết
                       </Link>
-                      <button
-                        className="btn"
-                        onClick={() => handleToggleStatus(supplier)}
-                        title={
-                          supplier.status === "Active"
+                      <PermissionGuard moduleCode="WAREHOUSE_MANAGER" permissionCode="EDIT">
+                        <button
+                          className="btn"
+                          onClick={() => handleToggleStatus(supplier)}
+                          disabled={!hasEditPermission}
+                          title={
+                            !hasEditPermission
+                              ? "Bạn không có quyền thay đổi trạng thái"
+                              : supplier.status === "Active"
+                              ? "Tạm dừng"
+                              : "Kích hoạt lại"
+                          }
+                        >
+                          {supplier.status === "Active"
                             ? "Tạm dừng"
-                            : "Kích hoạt lại"
-                        }
-                      >
-                        {supplier.status === "Active"
-                          ? "Tạm dừng"
-                          : "Kích hoạt lại"}
-                      </button>
+                            : "Kích hoạt lại"}
+                        </button>
+                      </PermissionGuard>
                     </div>
                   </td>
                 </tr>

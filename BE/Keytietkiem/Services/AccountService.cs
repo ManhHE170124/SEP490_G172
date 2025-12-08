@@ -85,7 +85,7 @@ public class AccountService : IAccountService
 
         // Check if a temp user exists with this email
         var existingTempUser = await _userRepository.FirstOrDefaultAsync(
-            u => u.Email == registerDto.Email && u.IsTemp,
+            u => u.Email == registerDto.Email && u.Status == "Temp",
             cancellationToken);
 
         User user;
@@ -101,7 +101,6 @@ public class AccountService : IAccountService
             user.Phone = registerDto.Phone;
             user.Address = registerDto.Address;
             user.Status = "Active";
-            user.IsTemp = false;
             user.EmailVerified = true; // Email verified via OTP
             user.UpdatedAt = _clock.UtcNow;
 
@@ -167,7 +166,7 @@ public class AccountService : IAccountService
         var userWithRoles = await LoadUserWithRolesAsync(user.UserId, cancellationToken);
 
         // Generate tokens
-        return GenerateLoginResponse(account, userWithRoles);
+        return await GenerateLoginResponseAsync(account, userWithRoles);
     }
 
     public async Task<LoginResponseDto> LoginAsync(LoginDto loginDto, CancellationToken cancellationToken = default)
@@ -197,7 +196,7 @@ public class AccountService : IAccountService
             // Increment failed login count
             account.FailedLoginCount++;
 
-            // Lock account after 5 failed attempts within 15 minutes
+            // Lock account after 5 failed attempts for 15 minutes
             if (account.FailedLoginCount >= 5)
             {
                 account.LockedUntil = _clock.UtcNow.AddMinutes(15);
@@ -219,7 +218,7 @@ public class AccountService : IAccountService
         await _context.SaveChangesAsync(cancellationToken);
 
         // Generate tokens
-        return GenerateLoginResponse(account, account.User);
+        return await GenerateLoginResponseAsync(account, account.User);
     }
 
     public async Task<LoginResponseDto> RefreshTokenAsync(RefreshTokenDto refreshTokenDto,
@@ -241,7 +240,7 @@ public class AccountService : IAccountService
             throw new UnauthorizedAccessException("Tài khoản không tồn tại hoặc đã bị vô hiệu hóa");
 
         // Generate new tokens
-        return GenerateLoginResponse(account, user);
+        return await GenerateLoginResponseAsync(account, user);
     }
 
     public async Task<AccountProfileDto> GetProfileAsync(Guid accountId, CancellationToken cancellationToken = default)
@@ -359,14 +358,14 @@ public class AccountService : IAccountService
 
     public async Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _userRepository.AnyAsync(u => u.Email == email && !u.IsTemp, cancellationToken);
+        return await _userRepository.AnyAsync(u => u.Email == email && u.Status != "Temp", cancellationToken);
     }
 
     public async Task<User> CreateTempUserAsync(string email, CancellationToken cancellationToken = default)
     {
         // Check if temp user already exists
         var existingTempUser = await _userRepository.FirstOrDefaultAsync(
-            u => u.Email == email && u.IsTemp,
+            u => u.Email == email && u.Status == "Temp",
             cancellationToken);
 
         if (existingTempUser != null)
@@ -379,8 +378,7 @@ public class AccountService : IAccountService
         {
             UserId = Guid.NewGuid(),
             Email = email,
-            Status = "Active",  // Database constraint only allows: Active, Locked, Disabled
-            IsTemp = true,
+            Status = "Temp",
             EmailVerified = false,
             CreatedAt = _clock.UtcNow
         };
@@ -640,10 +638,38 @@ public class AccountService : IAccountService
         return user;
     }
 
-    private LoginResponseDto GenerateLoginResponse(Account account, User user)
+    private async Task<LoginResponseDto> GenerateLoginResponseAsync(Account account, User user)
     {
-        var roles = user.Roles.Select(r => r.RoleId).ToList();
+        // Use RoleId (which should be the same as Code after our recent changes) as role codes
+        // If Code is available, prefer it; otherwise fall back to RoleId
+        var roles = user.Roles.Select(r => !string.IsNullOrWhiteSpace(r.Code) ? r.Code : r.RoleId).ToList();
         var expiresAt = _clock.UtcNow.AddMinutes(_jwtConfig.ExpiryInMinutes);
+
+        // Get role IDs for permission query
+        var roleIds = user.Roles
+            .Where(r => r.IsActive)
+            .Select(r => r.RoleId)
+            .ToList();
+
+        // Fetch all permissions for user's roles
+        var permissions = await _context.RolePermissions
+            .Include(rp => rp.Role)
+            .Include(rp => rp.Module)
+            .Include(rp => rp.Permission)
+            .Where(rp =>
+                rp.IsActive &&
+                roleIds.Contains(rp.RoleId) &&
+                rp.Module != null &&
+                rp.Permission != null &&
+                !string.IsNullOrWhiteSpace(rp.Module.Code) &&
+                !string.IsNullOrWhiteSpace(rp.Permission.Code))
+            .Select(rp => new
+            {
+                ModuleCode = rp.Module!.Code!.Trim().ToUpper(),
+                PermissionCode = rp.Permission!.Code!.Trim().ToUpper()
+            })
+            .Distinct()
+            .ToListAsync();
 
         var claims = new List<Claim>
         {
@@ -657,6 +683,12 @@ public class AccountService : IAccountService
         // Add role claims
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
+        // Add permission claims: "permission:MODULE_CODE:PERMISSION_CODE"
+        foreach (var perm in permissions)
+        {
+            claims.Add(new Claim("permission", $"permission:{perm.ModuleCode}:{perm.PermissionCode}"));
+        }
+
         var accessToken = GenerateJwtToken(claims, expiresAt);
 
         // Generate new claims for refresh token with different JTI
@@ -669,6 +701,12 @@ public class AccountService : IAccountService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         refreshClaims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        
+        // Add permission claims to refresh token as well
+        foreach (var perm in permissions)
+        {
+            refreshClaims.Add(new Claim("permission", $"permission:{perm.ModuleCode}:{perm.PermissionCode}"));
+        }
 
         var refreshTokenExpiresAt = _clock.UtcNow.AddDays(_jwtConfig.RefreshTokenExpiryInDays);
         var refreshToken = GenerateJwtToken(refreshClaims, refreshTokenExpiresAt);
@@ -694,6 +732,7 @@ public class AccountService : IAccountService
             }
         };
     }
+
 
     private string GenerateJwtToken(IEnumerable<Claim> claims, DateTime expiresAt)
     {

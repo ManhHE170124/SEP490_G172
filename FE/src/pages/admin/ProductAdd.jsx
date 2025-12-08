@@ -5,6 +5,8 @@ import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
 import "./admin.css";
 
 // ====== CONST & HELPERS ======
@@ -49,6 +51,9 @@ const FieldError = ({ message }) =>
 
 export default function ProductAdd() {
   const nav = useNavigate();
+
+  // Permission checks
+  const { hasPermission: hasCreatePermission } = usePermission("PRODUCT_MANAGER", "CREATE");
 
   // ===== Toasts =====
   const [toasts, setToasts] = React.useState([]);
@@ -605,16 +610,30 @@ export default function ProductAdd() {
 
         {/* ACTIONS */}
         <div className="row" style={{ marginTop: 16 }}>
-          <button className="btn" disabled={saving} onClick={() => save(false)}>
-            Lưu nháp
-          </button>
-          <button
-            className="btn primary"
-            disabled={saving}
-            onClick={() => save(true)}
-          >
-            Lưu &amp; Xuất bản
-          </button>
+          <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="CREATE">
+            <button className="btn" disabled={saving || !hasCreatePermission} onClick={() => {
+              if (!hasCreatePermission) {
+                addToast("error", "Không có quyền", "Bạn không có quyền tạo sản phẩm");
+                return;
+              }
+              save(false);
+            }}>
+              Lưu nháp
+            </button>
+            <button
+              className="btn primary"
+              disabled={saving || !hasCreatePermission}
+              onClick={() => {
+                if (!hasCreatePermission) {
+                  addToast("error", "Không có quyền", "Bạn không có quyền tạo sản phẩm");
+                  return;
+                }
+                save(true);
+              }}
+            >
+              Lưu &amp; Xuất bản
+            </button>
+          </PermissionGuard>
         </div>
       </div>
 

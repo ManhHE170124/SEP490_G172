@@ -2,6 +2,9 @@
 import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { TicketSubjectTemplatesAdminApi } from "../../services/ticketSubjectTemplatesAdmin";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
+import useToast from "../../hooks/useToast";
 import "../../styles/TicketSubjectTemplatesAdminPage.css";
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
@@ -126,8 +129,8 @@ function TicketSubjectTemplateModal({
             : String(base.severity),
         category:
           base.category === null ||
-            base.category === undefined ||
-            base.category === ""
+          base.category === undefined ||
+          base.category === ""
             ? "General" // null/"" => General
             : String(base.category),
         isActive: typeof base.isActive === "boolean" ? base.isActive : true,
@@ -272,16 +275,13 @@ function TicketSubjectTemplateModal({
                   onChange={() => set("isActive", !form.isActive)}
                 />
                 <span className="slider" />
+                <span className="switch-label">
+                  {form.isActive ? "Đang bật" : "Đang tắt"}
+                </span>
               </label>
-              <span
-                className={form.isActive ? "badge green" : "badge gray"}
-                style={{ textTransform: "none" }}
-              >
-                {form.isActive ? "Đang bật" : "Đang tắt"}
-              </span>
-              {/* <span className="muted">
+              <span className="muted">
                 Chỉ các template đang bật mới hiển thị cho khách khi tạo ticket.
-              </span> */}
+              </span>
             </div>
           </div>
         </div>
@@ -377,8 +377,8 @@ function TicketSubjectTemplateModal({
                   ? "Đang lưu..."
                   : "Đang tạo..."
                 : isEdit
-                  ? "Lưu thay đổi"
-                  : "Tạo template mới"}
+                ? "Lưu thay đổi"
+                : "Tạo template mới"}
             </button>
           </div>
         </form>
@@ -389,6 +389,11 @@ function TicketSubjectTemplateModal({
 
 /* ============ Page: TicketSubjectTemplatesAdminPage ============ */
 export default function TicketSubjectTemplatesAdminPage() {
+  const { showError } = useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
+  const { hasPermission: hasDeletePermission } = usePermission("SUPPORT_MANAGER", "DELETE");
+
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -451,8 +456,8 @@ export default function TicketSubjectTemplatesAdminPage() {
         query.active === ""
           ? undefined
           : query.active === "true"
-            ? true
-            : false,
+          ? true
+          : false,
       sort: query.sort || "templateCode",
       direction: query.direction || "asc",
       page,
@@ -464,8 +469,8 @@ export default function TicketSubjectTemplatesAdminPage() {
         const items = Array.isArray(res?.items)
           ? res.items
           : Array.isArray(res)
-            ? res
-            : [];
+          ? res
+          : [];
         setTemplates(items);
         setPage(typeof res?.page === "number" ? res.page : page);
         setPageSize(
@@ -494,14 +499,23 @@ export default function TicketSubjectTemplatesAdminPage() {
     [total, pageSize]
   );
 
-  const openAdd = () =>
+  const openAdd = () => {
+    if (!hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo template");
+      return;
+    }
     setModalState({
       open: true,
       mode: "add",
       data: null,
     });
+  };
 
   const openEdit = async (tpl) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa template");
+      return;
+    }
     try {
       const detail = await TicketSubjectTemplatesAdminApi.get(
         tpl.templateCode
@@ -516,13 +530,21 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không tải được chi tiết template để chỉnh sửa.",
+          "Không tải được chi tiết template để chỉnh sửa.",
         "Lỗi"
       );
     }
   };
 
   const handleSubmit = async (payload) => {
+    if (modalState.mode === "add" && !hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo template");
+      return;
+    }
+    if (modalState.mode === "edit" && !hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa template");
+      return;
+    }
     setSubmitting(true);
     try {
       if (modalState.mode === "add") {
@@ -564,6 +586,10 @@ export default function TicketSubjectTemplatesAdminPage() {
   };
 
   const toggleActive = async (tpl) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái template");
+      return;
+    }
     try {
       await TicketSubjectTemplatesAdminApi.toggle(tpl.templateCode);
       addToast("success", "Đã cập nhật trạng thái template.", "Thành công");
@@ -573,13 +599,17 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không thể cập nhật trạng thái template.",
+          "Không thể cập nhật trạng thái template.",
         "Lỗi"
       );
     }
   };
 
   const deleteTemplate = (tpl) => {
+    if (!hasDeletePermission) {
+      showError("Không có quyền", "Bạn không có quyền xóa template");
+      return;
+    }
     openConfirm({
       title: "Xoá Ticket Subject Template?",
       message: `Xoá template "${tpl.title}" (mã: ${tpl.templateCode})? Hành động này không thể hoàn tác!`,
@@ -597,7 +627,7 @@ export default function TicketSubjectTemplatesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-            "Xoá Ticket Subject Template thất bại.",
+              "Xoá Ticket Subject Template thất bại.",
             "Lỗi"
           );
         }
@@ -750,13 +780,24 @@ export default function TicketSubjectTemplatesAdminPage() {
             </div>
 
             {/* Nút Thêm template nằm sát phải cùng hàng */}
-            <button
-              className="btn primary"
-              style={{ flexShrink: 0, whiteSpace: "nowrap" }}
-              onClick={openAdd}
-            >
-              Thêm template
-            </button>
+            <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="CREATE" fallback={
+              <button
+                className="btn primary disabled"
+                style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                disabled
+                title="Bạn không có quyền tạo template"
+              >
+                Thêm template
+              </button>
+            }>
+              <button
+                className="btn primary"
+                style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                onClick={openAdd}
+              >
+                Thêm template
+              </button>
+            </PermissionGuard>
           </div>
 
           {/* Bảng templates */}
@@ -822,32 +863,60 @@ export default function TicketSubjectTemplatesAdminPage() {
                       </EllipsisCell>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn ghost status-btn"
-                        onClick={() => toggleActive(t)}
-                      >
-                        <span
-                          className={t.isActive ? "badge green" : "badge gray"}
-                          style={{ textTransform: "none" }}
+                      <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                        <button
+                          type="button"
+                          className="btn ghost status-btn disabled"
+                          disabled
+                          title="Bạn không có quyền thay đổi trạng thái template"
                         >
-                          {t.isActive ? "Đang bật" : "Đang tắt"}
-                        </span>
-                      </button>
+                          <span
+                            className={t.isActive ? "badge green" : "badge gray"}
+                            style={{ textTransform: "none" }}
+                          >
+                            {t.isActive ? "Đang bật" : "Đang tắt"}
+                          </span>
+                        </button>
+                      }>
+                        <button
+                          type="button"
+                          className="btn ghost status-btn"
+                          onClick={() => toggleActive(t)}
+                        >
+                          <span
+                            className={t.isActive ? "badge green" : "badge gray"}
+                            style={{ textTransform: "none" }}
+                          >
+                            {t.isActive ? "Đang bật" : "Đang tắt"}
+                          </span>
+                        </button>
+                      </PermissionGuard>
                     </td>
                     <td>
                       <div
                         className="row"
                         style={{ gap: 8, justifyContent: "flex-end" }}
                       >
+                        <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                          <button
+                            className="btn secondary disabled"
+                            disabled
+                            title="Bạn không có quyền sửa template"
+                          >
+                            Sửa
+                          </button>
+                        }>
+                          <button
+                            className="btn secondary"
+                            onClick={() => openEdit(t)}
+                          >
+                            Sửa
+                          </button>
+                        </PermissionGuard>
                         <button
-                          className="btn secondary"
-                          onClick={() => openEdit(t)}
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          className="btn danger"
+                          className={`btn danger ${!hasDeletePermission ? 'disabled' : ''}`}
+                          title={!hasDeletePermission ? "Bạn không có quyền xóa template" : "Xóa"}
+                          disabled={!hasDeletePermission}
                           onClick={() => deleteTemplate(t)}
                         >
                           Xoá

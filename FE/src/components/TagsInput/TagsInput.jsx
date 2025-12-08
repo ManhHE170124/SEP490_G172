@@ -5,7 +5,8 @@ const TagsInput = ({
   tags = [], 
   setTags, 
   availableTags = [], 
-  onCreateNewTag 
+  onCreateNewTag,
+  disabled = false
 }) => {
   const [tagInput, setTagInput] = useState('');
   const [filteredTags, setFilteredTags] = useState([]);
@@ -191,6 +192,7 @@ const TagsInput = ({
             if (filteredTags.length > 0) setShowDropdown(true);
           }}
           className={error ? 'error' : ''}
+          disabled={disabled}
         />
         
         {showDropdown && filteredTags.length > 0 && (
@@ -230,6 +232,7 @@ const TagsInput = ({
                 className="tag-remove"
                 onClick={() => removeTag(tag)}
                 aria-label={`Remove ${tagName}`}
+                disabled={disabled}
               >
                 ×
               </button>

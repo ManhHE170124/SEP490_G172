@@ -8,6 +8,8 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import { orderApi } from "../../services/orderApi";
 import useToast from "../../hooks/useToast";
+import { usePermission } from "../../hooks/usePermission";
+import PermissionGuard from "../../components/PermissionGuard";
 import formatDateTime from "../../utils/formatDatetime";
 import { getStatusLabel } from "../../utils/productKeyHepler";
 import "../admin/admin.css";
@@ -19,6 +21,8 @@ export default function KeyDetailPage() {
   const isNew = location.pathname.endsWith("/add") || !id || id === "add";
   const { toasts, showSuccess, showError, showWarning, removeToast } =
     useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("WAREHOUSE_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("WAREHOUSE_MANAGER", "EDIT");
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -228,6 +232,15 @@ export default function KeyDetailPage() {
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isNew && !hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo key");
+      return;
+    }
+    if (!isNew && !hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa key");
+      return;
+    }
 
     if (!validateForm()) {
       showWarning("Dữ liệu không hợp lệ", "Vui lòng kiểm tra lại thông tin");
@@ -617,9 +630,15 @@ export default function KeyDetailPage() {
           )}
 
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu"}
-            </button>
+            <PermissionGuard moduleCode="WAREHOUSE_MANAGER" permissionCode={isNew ? "CREATE" : "EDIT"} fallback={
+              <button type="button" className="btn primary disabled" disabled title={isNew ? "Bạn không có quyền tạo key" : "Bạn không có quyền sửa key"}>
+                {saving ? "Đang lưu..." : "Lưu"}
+              </button>
+            }>
+              <button type="submit" className="btn primary" disabled={saving}>
+                {saving ? "Đang lưu..." : "Lưu"}
+              </button>
+            </PermissionGuard>
             <button
               type="button"
               className="btn"

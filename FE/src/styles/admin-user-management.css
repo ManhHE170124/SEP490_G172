@@ -1,376 +1,280 @@
-/* File: admin-user-management.css
- * Purpose: UI for Admin User Management page
- * Style: đồng bộ với TicketSubjectTemplatesAdminPage
- */
+/* Admin User Management Styles - Based on RoleAssign & RBACModal Design System */
 
-:root {
-  --ink: #0b1220;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --page: #f3f6fa;
-  --card: #ffffff;
-  --primary: #2563eb;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --radius: 16px;
-  --shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
 
-  --text-color: var(--ink);
-  --text-muted: var(--muted);
-  --border-color: var(--line);
-  --light: #f9fafb;
+.kt-admin {
+  background: #f8f9fa;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  color: var(--text-color);
+  line-height: 1.6;
 }
 
-* {
+.kt-admin * {
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
-  height: 100%;
+.kt-admin .wrap {
+  display: block;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 }
 
-body {
-  margin: 0;
-  background: var(--page);
-  color: var(--ink);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-}
-
-/* PAGE LAYOUT */
-
-.page {
-  padding: 24px 16px 32px;
-}
-
-@media (min-width: 1024px) {
-  .page {
-    padding: 32px 24px 40px;
+@media (max-width: 1024px) {
+  .kt-admin .wrap {
+    padding: 1rem;
   }
 }
 
-/* CARD */
-
-.card {
-  background: var(--card);
-  border-radius: var(--radius);
+/* Card Styles */
+.kt-admin .card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   box-shadow: var(--shadow);
-  padding: 20px 20px 18px;
+  padding: 24px;
+  margin-bottom: 24px;
 }
 
-/* HEADER */
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.card-header .left h2 {
-  margin: 0;
-  font-size: 20px;
+/* Header Styles */
+.kt-admin .card h2,
+.kt-admin .card h3 {
+  font-size: 18px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--text-color);
+  margin: 0 0 16px 0;
 }
 
-.muted {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 4px;
+/* Form Styles */
+.kt-admin .row {
+  display: grid;
+  grid-template-columns: 1fr 180px 180px auto auto;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-/* ROW + GROUP (FILTER) */
-
-.row {
-  display: flex;
-  align-items: center;
+@media (max-width: 900px) {
+  .kt-admin .row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-}
-
-.group span {
-  display: block;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
-/* INPUTS & SELECTS */
-
-.input,
-.group input,
-.group select {
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
+.kt-admin .input,
+.kt-admin select {
+  height: 40px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
   padding: 0 12px;
-  font-size: 13px;
   outline: none;
-  background: #ffffff;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.input:focus,
-.group input:focus,
-.group select:focus {
-  border-color: #a5b4fc;
-  box-shadow: 0 0 0 1px #c7d2fe;
+.kt-admin .input:focus,
+.kt-admin select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
-/* BUTTONS */
-
-.btn {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: #ffffff;
-  font-size: 13px;
-  height: 36px;
-  padding: 0 14px;
+/* Button Styles */
+.kt-admin .btn {
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0 16px;
+  background: white;
+  color: var(--text-color);
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease,
-    color 0.15s ease, transform 0.05s ease;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-decoration: none;
 }
 
-.btn.primary {
+.kt-admin .btn:hover {
+  background: var(--light);
+  border-color: #adb5bd;
+}
+
+.kt-admin .btn.primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
+  color: white;
 }
 
-.btn.primary:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+.kt-admin .btn.primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
-.btn.ghost {
-  background: #ffffff;
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-.btn.ghost:hover {
-  background: #f3f4ff;
-  border-color: #e0e7ff;
-}
-
-.btn:disabled {
+/* Disabled button (dùng cho nút Lưu khi form lỗi) */
+.kt-admin .btn:disabled,
+.kt-admin .btn[disabled] {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* TABLE */
-
-.table {
+/* Table Styles */
+.kt-admin .table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 12px;
-  font-size: 13px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
-.table th,
-.table td {
-  border-bottom: 1px solid var(--line);
-  padding: 8px 10px;
+.kt-admin .table thead th {
+  background: var(--light);
+  padding: 16px 12px;
   text-align: left;
-}
-
-.table thead th {
-  background: #f9fafb;
   font-weight: 600;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
 }
 
-.table tbody tr:hover {
-  background: #f9fafb;
+.kt-admin .table tbody td {
+  padding: 16px 12px;
+  border-bottom: 1px solid #f1f3f4;
+  font-size: 14px;
 }
 
-/* STATUS PILL */
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.kt-admin .table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.status.s-ok {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+.kt-admin .table tbody tr:hover {
+  background: var(--light);
 }
 
-.status.s-bad {
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-}
-
-/* BADGES (priority, temp...) */
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  border: 1px solid transparent;
-}
-
-.badge.gray {
-  background: #f3f4f6;
-  border-color: #e5e7eb;
-  color: #4b5563;
-}
-
-.badge.purple {
-  background: #eef2ff;
-  border-color: #e0e7ff;
-  color: #4f46e5;
-}
-
-/* ACTIONS COLUMN */
-
-.actions-td {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-/* PAGER */
-
-.pager {
-  margin-top: 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-}
-
-.pager-left {
-  color: var(--muted);
-}
-
-.pager-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.pager-btn {
-  min-width: 32px;
+.kt-admin .actions-td .btn {
   height: 32px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: #ffffff;
-  font-size: 13px;
-  cursor: pointer;
+  padding: 0 10px;
+  margin: 0 2px;
 }
 
-.pager-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+/* Status Styles */
+.kt-admin .status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* MODAL */
+.kt-admin .status.s-ok {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
 
+.kt-admin .status.s-bad {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+/* Modal Styles - Completely Redesigned based on RBACModal */
 .modal-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  top: 0;
+  left: 280px;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
   justify-content: center;
-  z-index: 40;
+  align-items: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
 }
 
 .modal-overlay.active {
   opacity: 1;
-  pointer-events: auto;
+  visibility: visible;
 }
 
 .modal {
-  width: 100%;
-  max-width: 840px;
+  background-color: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  transform: translateY(-20px);
+  transition: transform 0.3s ease;
   max-height: 90vh;
-  background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
-  padding: 20px 22px 18px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.modal-overlay.active .modal {
+  transform: translateY(0);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-title {
-  margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--text-color);
+  margin: 0;
 }
 
 .modal-close {
+  background: none;
   border: none;
-  background: transparent;
+  font-size: 24px;
   cursor: pointer;
-  color: var(--muted);
+  color: var(--text-muted);
   padding: 0;
   width: 30px;
   height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 50%;
   transition: background-color 0.2s;
 }
 
 .modal-close:hover {
   background-color: var(--light);
-  color: var(--ink);
+  color: var(--text-color);
 }
 
 .modal-body {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   flex: 1;
   overflow-y: auto;
 }
 
-/* FORM GRID */
-
+/* Form Grid Layout */
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px 20px;
+  gap: 20px;
 }
 
 .form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  margin-bottom: 20px;
 }
 
 .form-group-full {
@@ -378,72 +282,85 @@ body {
 }
 
 .form-label {
-  font-size: 13px;
+  display: block;
+  margin-bottom: 8px;
   font-weight: 500;
-  color: var(--ink);
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
 .form-input {
-  border-radius: 10px;
+  width: 100%;
+  padding: 12px 16px;
   border: 1px solid var(--border-color);
-  padding: 8px 10px;
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
 }
 
-.form-input.error {
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-input:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Đánh dấu input lỗi (gắn class .error từ JSX) */
+.kt-admin .form-input.error {
   border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
 }
 
-.error-message {
-  font-size: 11px;
-  color: var(--danger);
+/* Password Input Group */
+.password-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.hint-text {
-  font-size: 12px;
-  color: var(--muted);
+.password-input-group .form-input {
+  padding-right: 50px;
 }
 
-/* MODAL FOOTER */
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.password-toggle:hover {
+  background-color: var(--light);
+}
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 12px;
+  padding-top: 16px;
   border-top: 1px solid var(--border-color);
 }
 
 .btn-modal {
-  padding: 8px 18px;
-  border-radius: 999px;
-  font-size: 13px;
-  border: 1px solid transparent;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease,
-    transform 0.05s ease;
-}
-
-.btn-modal-secondary {
-  background: #ffffff;
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-.btn-modal-secondary:hover:not(:disabled) {
-  background: #f3f4ff;
-  border-color: #e0e7ff;
-}
-
-.btn-modal-primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #ffffff;
-}
-
-.btn-modal-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  transition: all 0.2s;
+  border: 1px solid;
 }
 
 .btn-modal:disabled {
@@ -451,23 +368,130 @@ body {
   cursor: not-allowed;
 }
 
-/* RESPONSIVE */
+.btn-modal-secondary {
+  background-color: white;
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+.btn-modal-secondary:hover:not(:disabled) {
+  background-color: var(--light);
+  border-color: #adb5bd;
+}
+
+.btn-modal-primary {
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.btn-modal-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.kt-admin .control select[multiple]{min-height:120px}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .modal-overlay {
+    left: 0;
+    right: 0;
+  }
+}
 
 @media (max-width: 768px) {
-  .card {
-    padding: 16px 14px 14px;
+  .modal {
+    width: 95%;
+    margin: 20px;
+    padding: 16px;
+    max-width: 500px;
   }
-
+  
+  .modal-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+  
+  .modal-title {
+    font-size: 16px;
+  }
+  
+  .modal-body {
+    margin-bottom: 16px;
+  }
+  
   .form-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
-
-  .actions-td {
+  
+  .form-group {
+    margin-bottom: 16px;
+  }
+  
+  .modal-footer {
     flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
   }
+  
+  .btn-modal {
+    width: 100%;
+    padding: 12px 20px;
+  }
+  
+  .kt-admin .table {
+    font-size: 12px;
+  }
+  
+  .kt-admin .table th,
+  .kt-admin .table td {
+    padding: 8px 6px;
+  }
+  
+  .kt-admin .actions-td {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .kt-admin .actions-td .btn {
+    width: 100%;
+    height: 28px;
+    font-size: 12px;
+  }
+}
 
-  .row {
-    flex-wrap: wrap;
-  }
+/* Error Dialog Styles */
+.kt-admin .modal .error-message {
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* (class cũ dùng chung, vẫn giữ) */
+.kt-admin .control input.error,
+.kt-admin .control select.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+}
+
+/* Pagination Styles */
+.kt-admin .pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.kt-admin .pagination .btn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+}
+
+.kt-admin .pagination span {
+  padding: 0 12px;
+  color: var(--text-muted);
+  font-size: 14px;
 }

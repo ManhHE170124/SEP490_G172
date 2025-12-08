@@ -6,6 +6,8 @@ import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import VariantsPanel from "../admin/VariantsPanel";
 import ToastContainer from "../../components/Toast/ToastContainer";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
 import "./admin.css";
 
 // ====== CONST & HELPERS ======
@@ -49,6 +51,9 @@ export default function ProductDetail() {
   const { id } = useParams();
   const productId = id;
   const nav = useNavigate();
+
+  // Permission checks
+  const { hasPermission: hasEditPermission } = usePermission("PRODUCT_MANAGER", "EDIT");
 
   const normalizeList = (data) => {
     if (Array.isArray(data)) return data;
@@ -720,9 +725,17 @@ export default function ProductDetail() {
 
           {/* ACTIONS */}
           <div className="row" style={{ marginTop: 16 }}>
-            <button className="btn primary" disabled={saving} onClick={save}>
-              {saving ? "Đang lưu…" : "Lưu thay đổi"}
-            </button>
+            <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="EDIT">
+              <button className="btn primary" disabled={saving || !hasEditPermission} onClick={() => {
+                if (!hasEditPermission) {
+                  addToast("error", "Không có quyền", "Bạn không có quyền chỉnh sửa sản phẩm");
+                  return;
+                }
+                save();
+              }}>
+                {saving ? "Đang lưu…" : "Lưu thay đổi"}
+              </button>
+            </PermissionGuard>
           </div>
         </div>
       </div>

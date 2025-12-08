@@ -10,6 +10,9 @@ import { useNavigate } from "react-router-dom";
 import "../../styles/staff-ticket-management.css";
 import { ticketsApi } from "../../api/ticketsApi";
 import axiosClient from "../../api/axiosClient";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
+import useToast from "../../hooks/useToast";
 
 // ---- Options & constants ----
 const SLA_OPTIONS = [
@@ -164,6 +167,9 @@ const INITIAL_FILTER = {
 
 export default function StaffTicketManagement() {
   const nav = useNavigate();
+  const { showError } = useToast();
+  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
+  const { hasPermission: hasViewDetailPermission } = usePermission("SUPPORT_MANAGER", "VIEW_DETAIL");
 
   // ---- Filter + paging riêng cho từng list ----
   const [unassignedUi, setUnassignedUi] = useState(INITIAL_FILTER);
@@ -457,6 +463,10 @@ export default function StaffTicketManagement() {
 
   // NEW: staff tự nhận ticket (assign cho chính mình)
   const doAssignMe = async (id) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền nhận ticket");
+      return;
+    }
     try {
       await ticketsApi.assignToMe(id);
       await refresh();
@@ -701,8 +711,9 @@ export default function StaffTicketManagement() {
                       <td className="tk-row-actions">
                         {/* Queue này chủ yếu là NHẬN TICKET */}
                         <button
-                          className="btn icon-btn primary"
-                          title="Nhận ticket"
+                          className={`btn icon-btn primary ${!hasEditPermission ? 'disabled' : ''}`}
+                          title={!hasEditPermission ? "Bạn không có quyền nhận ticket" : "Nhận ticket"}
+                          disabled={!hasEditPermission}
                           onClick={() => doAssignMe(r.ticketId)}
                         >
                           <span aria-hidden="true">👤</span>
@@ -877,15 +888,25 @@ export default function StaffTicketManagement() {
                       </td>
                       <td className="tk-row-actions">
                         {/* YÊU CẦU MỚI: chỉ còn nút Chi tiết */}
-                        <button
-                          className="btn icon-btn ghost"
-                          title="Chi tiết"
-                          onClick={() =>
-                            nav(`/staff/tickets/${r.ticketId}`)
-                          }
-                        >
-                          <span aria-hidden="true">🔍</span>
-                        </button>
+                        <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="VIEW_DETAIL" fallback={
+                          <button
+                            className="btn icon-btn ghost disabled"
+                            title="Bạn không có quyền xem chi tiết ticket"
+                            disabled
+                          >
+                            <span aria-hidden="true">🔍</span>
+                          </button>
+                        }>
+                          <button
+                            className="btn icon-btn ghost"
+                            title="Chi tiết"
+                            onClick={() =>
+                              nav(`/staff/tickets/${r.ticketId}`)
+                            }
+                          >
+                            <span aria-hidden="true">🔍</span>
+                          </button>
+                        </PermissionGuard>
                       </td>
                     </tr>
                   ))}

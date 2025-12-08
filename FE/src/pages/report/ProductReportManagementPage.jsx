@@ -3,10 +3,14 @@ import { Link } from "react-router-dom";
 import { ProductReportApi } from "../../services/productReportApi";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
 import "../admin/admin.css";
 
 export default function ProductReportManagementPage() {
   const { toasts, showError, removeToast } = useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
+  const { hasPermission: hasViewDetailPermission } = usePermission("SUPPORT_MANAGER", "VIEW_DETAIL");
 
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState([]);
@@ -102,9 +106,15 @@ export default function ProductReportManagementPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>Quản lý Báo cáo Sản phẩm</h1>
-          <Link className="btn primary" to="/reports/add">
-            + Tạo báo cáo mới
-          </Link>
+          <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="CREATE" fallback={
+            <button className="btn primary disabled" disabled title="Bạn không có quyền tạo báo cáo">
+              + Tạo báo cáo mới
+            </button>
+          }>
+            <Link className="btn primary" to="/reports/add">
+              + Tạo báo cáo mới
+            </Link>
+          </PermissionGuard>
         </div>
 
         <div
@@ -209,13 +219,24 @@ export default function ProductReportManagementPage() {
                           </td>
                           <td>
                             <div style={{ display: "flex", gap: 6 }}>
-                              <Link
-                                className="btn"
-                                to={`/reports/${report.id}`}
-                                style={{ padding: "4px 8px", fontSize: "13px" }}
-                              >
-                                Chi tiết
-                              </Link>
+                              <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="VIEW_DETAIL" fallback={
+                                <button
+                                  className="btn disabled"
+                                  disabled
+                                  title="Bạn không có quyền xem chi tiết báo cáo"
+                                  style={{ padding: "4px 8px", fontSize: "13px" }}
+                                >
+                                  Chi tiết
+                                </button>
+                              }>
+                                <Link
+                                  className="btn"
+                                  to={`/reports/${report.id}`}
+                                  style={{ padding: "4px 8px", fontSize: "13px" }}
+                                >
+                                  Chi tiết
+                                </Link>
+                              </PermissionGuard>
                             </div>
                           </td>
                         </tr>

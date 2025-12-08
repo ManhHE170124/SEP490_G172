@@ -8,6 +8,8 @@ import { ProductAccountApi } from "../../services/productAccounts";
 import { usersApi } from "../../api/usersApi";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
 import "../admin/admin.css";
 
 export default function ProductReportDetailPage() {
@@ -16,6 +18,8 @@ export default function ProductReportDetailPage() {
   const location = useLocation();
   const isNew = location.pathname.endsWith("/add") || id === "add";
   const { toasts, showSuccess, showError, removeToast } = useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -127,6 +131,10 @@ export default function ProductReportDetailPage() {
   };
 
   const handleSaveStatus = async () => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền cập nhật trạng thái báo cáo");
+      return;
+    }
     if (!report || status === report.status) return;
 
     setSaving(true);
@@ -151,6 +159,11 @@ export default function ProductReportDetailPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+
+    if (!hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo báo cáo");
+      return;
+    }
 
     // Validation
     if (!formData.title || !formData.description || !formData.variantId) {
@@ -613,13 +626,24 @@ export default function ProductReportDetailPage() {
               <Link className="btn" to="/reports">
                 Hủy
               </Link>
-              <button
-                type="submit"
-                className="btn primary"
-                disabled={saving}
-              >
-                {saving ? "Đang tạo..." : "Tạo báo cáo"}
-              </button>
+              <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="CREATE" fallback={
+                <button
+                  type="button"
+                  className="btn primary disabled"
+                  disabled
+                  title="Bạn không có quyền tạo báo cáo"
+                >
+                  Tạo báo cáo
+                </button>
+              }>
+                <button
+                  type="submit"
+                  className="btn primary"
+                  disabled={saving || !hasCreatePermission}
+                >
+                  {saving ? "Đang tạo..." : "Tạo báo cáo"}
+                </button>
+              </PermissionGuard>
             </div>
           </form>
         ) : (
@@ -692,19 +716,31 @@ export default function ProductReportDetailPage() {
                   className="input"
                   value={status}
                   onChange={(e) => handleStatusChange(e.target.value)}
+                  disabled={!hasEditPermission}
                 >
                   <option value="Pending">Chờ xử lý</option>
                   <option value="Processing">Đang xử lý</option>
                   <option value="Resolved">Đã giải quyết</option>
                   <option value="Rejected">Từ chối</option>
                 </select>
-                <button
-                  className="btn primary"
-                  onClick={handleSaveStatus}
-                  disabled={saving || status === report.status}
-                >
-                  {saving ? "Đang lưu..." : "Cập nhật"}
-                </button>
+                <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                  <button
+                    className="btn primary disabled"
+                    disabled
+                    title="Bạn không có quyền cập nhật trạng thái báo cáo"
+                  >
+                    Cập nhật
+                  </button>
+                }>
+                  <button
+                    className="btn primary"
+                    onClick={handleSaveStatus}
+                    disabled={saving || status === report.status || !hasEditPermission}
+                    title={!hasEditPermission ? "Bạn không có quyền cập nhật trạng thái" : ""}
+                  >
+                    {saving ? "Đang lưu..." : "Cập nhật"}
+                  </button>
+                </PermissionGuard>
               </div>
             </div>
 

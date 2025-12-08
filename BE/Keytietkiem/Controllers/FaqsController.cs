@@ -1,8 +1,6 @@
 ﻿using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Services;
-using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +12,6 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
-        private readonly IAuditLogger _auditLogger;
 
         private const int QuestionMinLength = 10;
         private const int QuestionMaxLength = 500;
@@ -22,12 +19,10 @@ namespace Keytietkiem.Controllers
 
         public FaqsController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
-            IClock clock,
-            IAuditLogger auditLogger)
+            IClock clock)
         {
             _dbFactory = dbFactory;
             _clock = clock;
-            _auditLogger = auditLogger;
         }
 
         // GET: /api/faqs
@@ -92,20 +87,21 @@ namespace Keytietkiem.Controllers
             var total = await q.CountAsync();
 
             var items = await q
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(f => new ProductFaqListItemDto(
-                    f.FaqId,
-                    f.Question,
-                    f.Answer ?? string.Empty,
-                    f.SortOrder,
-                    f.IsActive,
-                    f.Categories.Count,   // CategoryCount
-                    f.Products.Count,     // ProductCount
-                    f.CreatedAt,
-                    f.UpdatedAt
-                ))
-                .ToListAsync();
+    .Skip((page - 1) * pageSize)
+    .Take(pageSize)
+    .Select(f => new ProductFaqListItemDto(
+        f.FaqId,
+        f.Question,
+        f.Answer ?? string.Empty,
+        f.SortOrder,
+        f.IsActive,
+        f.Categories.Count,   // CategoryCount
+        f.Products.Count,     // ProductCount
+        f.CreatedAt,
+        f.UpdatedAt
+    ))
+    .ToListAsync();
+
 
             return Ok(new { items, total, page, pageSize });
         }
@@ -117,24 +113,25 @@ namespace Keytietkiem.Controllers
             await using var db = await _dbFactory.CreateDbContextAsync();
 
             var dto = await db.Faqs
-                .AsNoTracking()
-                .Where(f => f.FaqId == faqId)
-                .Select(f => new ProductFaqDetailDto(
-                    f.FaqId,
-                    f.Question,
-                    f.Answer ?? string.Empty,
-                    f.SortOrder,
-                    f.IsActive,
-                    f.Categories
-                        .Select(c => c.CategoryId)
-                        .ToList(),
-                    f.Products
-                        .Select(p => p.ProductId)
-                        .ToList(),
-                    f.CreatedAt,
-                    f.UpdatedAt
-                ))
-                .FirstOrDefaultAsync();
+      .AsNoTracking()
+      .Where(f => f.FaqId == faqId)
+      .Select(f => new ProductFaqDetailDto(
+          f.FaqId,
+          f.Question,
+          f.Answer ?? string.Empty,
+          f.SortOrder,
+          f.IsActive,
+          f.Categories
+              .Select(c => c.CategoryId)
+              .ToList(),
+          f.Products
+              .Select(p => p.ProductId)
+              .ToList(),
+          f.CreatedAt,
+          f.UpdatedAt
+      ))
+      .FirstOrDefaultAsync();
+
 
             return dto is null ? NotFound() : Ok(dto);
         }
@@ -150,28 +147,22 @@ namespace Keytietkiem.Controllers
             var answer = (dto.Answer ?? string.Empty).Trim();
 
             if (string.IsNullOrWhiteSpace(question))
-            {
-                const string msg = "Question is required";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new { message = "Question is required" });
 
             if (question.Length < QuestionMinLength || question.Length > QuestionMaxLength)
-            {
-                var msg = $"Question length must be between {QuestionMinLength} and {QuestionMaxLength} characters.";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new
+                {
+                    message = $"Question length must be between {QuestionMinLength} and {QuestionMaxLength} characters."
+                });
 
             if (string.IsNullOrWhiteSpace(answer))
-            {
-                const string msg = "Answer is required";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new { message = "Answer is required" });
 
             if (answer.Length < AnswerMinLength)
-            {
-                var msg = $"Answer length must be at least {AnswerMinLength} characters.";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new
+                {
+                    message = $"Answer length must be at least {AnswerMinLength} characters."
+                });
 
             var sortOrder = dto.SortOrder < 0 ? 0 : dto.SortOrder;
 
@@ -238,25 +229,6 @@ namespace Keytietkiem.Controllers
                 faq.UpdatedAt
             );
 
-            // AUDIT: tạo FAQ
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "CreateFaq",
-                entityType: "Faq",
-                entityId: faq.FaqId.ToString(),
-                before: null,
-                after: new
-                {
-                    result.FaqId,
-                    result.Question,
-                    result.Answer,
-                    result.SortOrder,
-                    result.IsActive,
-                    result.CategoryIds,
-                    result.ProductIds
-                }
-            );
-
             return CreatedAtAction(nameof(GetById), new { faqId = result.FaqId }, result);
         }
 
@@ -271,56 +243,32 @@ namespace Keytietkiem.Controllers
                 .Include(f => f.Products)
                 .FirstOrDefaultAsync(f => f.FaqId == faqId);
 
-            if (faq is null)
-            {
-                const string msg = "Faq not found";
-                return NotFound(new { message = msg });
-            }
-
-            var beforeSnapshot = new
-            {
-                faq.FaqId,
-                faq.Question,
-                faq.Answer,
-                faq.SortOrder,
-                faq.IsActive,
-                CategoryIds = faq.Categories.Select(c => c.CategoryId).ToList(),
-                ProductIds = faq.Products.Select(p => p.ProductId).ToList()
-            };
+            if (faq is null) return NotFound();
 
             // Validate Question & Answer
             var question = (dto.Question ?? string.Empty).Trim();
             var answer = (dto.Answer ?? string.Empty).Trim();
 
             if (string.IsNullOrWhiteSpace(question))
-            {
-                const string msg = "Question is required";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new { message = "Question is required" });
 
             if (question.Length < QuestionMinLength || question.Length > QuestionMaxLength)
-            {
-                var msg = $"Question length must be between {QuestionMinLength} and {QuestionMaxLength} characters.";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new
+                {
+                    message = $"Question length must be between {QuestionMinLength} and {QuestionMaxLength} characters."
+                });
 
             if (string.IsNullOrWhiteSpace(answer))
-            {
-                const string msg = "Answer is required";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new { message = "Answer is required" });
 
             if (answer.Length < AnswerMinLength)
-            {
-                var msg = $"Answer length must be at least {AnswerMinLength} characters.";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new
+                {
+                    message = $"Answer length must be at least {AnswerMinLength} characters."
+                });
 
             if (dto.SortOrder < 0)
-            {
-                const string msg = "SortOrder must be greater than or equal to 0.";
-                return BadRequest(new { message = msg });
-            }
+                return BadRequest(new { message = "SortOrder must be greater than or equal to 0." });
 
             // Update main fields
             faq.Question = question;
@@ -370,28 +318,6 @@ namespace Keytietkiem.Controllers
             }
 
             await db.SaveChangesAsync();
-
-            var afterSnapshot = new
-            {
-                faq.FaqId,
-                faq.Question,
-                faq.Answer,
-                faq.SortOrder,
-                faq.IsActive,
-                CategoryIds = faq.Categories.Select(c => c.CategoryId).ToList(),
-                ProductIds = faq.Products.Select(p => p.ProductId).ToList()
-            };
-
-            // AUDIT: cập nhật FAQ
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "UpdateFaq",
-                entityType: "Faq",
-                entityId: faqId.ToString(),
-                before: beforeSnapshot,
-                after: afterSnapshot
-            );
-
             return NoContent();
         }
 
@@ -402,34 +328,10 @@ namespace Keytietkiem.Controllers
             await using var db = await _dbFactory.CreateDbContextAsync();
 
             var faq = await db.Faqs.FirstOrDefaultAsync(f => f.FaqId == faqId);
-            if (faq is null)
-            {
-                const string msg = "Faq not found";
-                return NotFound(new { message = msg });
-            }
-
-            var beforeSnapshot = new
-            {
-                faq.FaqId,
-                faq.Question,
-                faq.Answer,
-                faq.SortOrder,
-                faq.IsActive
-            };
+            if (faq is null) return NotFound();
 
             db.Faqs.Remove(faq);
             await db.SaveChangesAsync();
-
-            // AUDIT: xóa FAQ
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "DeleteFaq",
-                entityType: "Faq",
-                entityId: faqId.ToString(),
-                before: beforeSnapshot,
-                after: null
-            );
-
             return NoContent();
         }
 
@@ -440,39 +342,12 @@ namespace Keytietkiem.Controllers
             await using var db = await _dbFactory.CreateDbContextAsync();
 
             var faq = await db.Faqs.FirstOrDefaultAsync(f => f.FaqId == faqId);
-            if (faq is null)
-            {
-                const string msg = "Faq not found";
-                return NotFound(new { message = msg });
-            }
-
-            var beforeSnapshot = new
-            {
-                faq.FaqId,
-                faq.IsActive
-            };
+            if (faq is null) return NotFound();
 
             faq.IsActive = !faq.IsActive;
             faq.UpdatedAt = _clock.UtcNow;
 
             await db.SaveChangesAsync();
-
-            var afterSnapshot = new
-            {
-                faq.FaqId,
-                faq.IsActive
-            };
-
-            // AUDIT: bật/tắt FAQ
-            await _auditLogger.LogAsync(
-                HttpContext,
-                action: "ToggleFaq",
-                entityType: "Faq",
-                entityId: faqId.ToString(),
-                before: beforeSnapshot,
-                after: afterSnapshot
-            );
-
             return Ok(new { faq.FaqId, faq.IsActive });
         }
     }

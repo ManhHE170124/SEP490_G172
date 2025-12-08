@@ -2,6 +2,9 @@
 import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SupportPlansAdminApi } from "../../services/supportPlansAdmin";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
+import useToast from "../../hooks/useToast";
 import "../../styles/SupportPlansAdminPage.css"; // dùng CSS riêng cho màn này
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
@@ -257,14 +260,11 @@ function SupportPlanModal({
                   onChange={() => set("isActive", !form.isActive)}
                 />
                 <span className="slider" />
+                <span className="switch-label">
+                  {form.isActive ? "Đang bật" : "Đang tắt"}
+                </span>
               </label>
-              <span
-                className={form.isActive ? "badge green" : "badge gray"}
-                style={{ textTransform: "none" }}
-              >
-                {form.isActive ? "Đang bật" : "Đang tắt"}
-              </span>
-              {/* <div className="muted support-plan-modal-note">
+              <div className="muted support-plan-modal-note">
                 <strong>Quy tắc khi bật gói:</strong>
                 <div>- Mỗi PriorityLevel chỉ có tối đa 1 gói đang bật.</div>
                 <div>
@@ -279,7 +279,7 @@ function SupportPlanModal({
                   - Các gói đang tắt không bị ràng buộc về giá; hệ thống chỉ
                   kiểm tra khi lưu / bật gói ở trạng thái hoạt động.
                 </div>
-              </div> */}
+              </div>
             </div>
           </div>
         </div>
@@ -381,6 +381,11 @@ function SupportPlanModal({
 
 /* ============ Page: SupportPlansAdminPage ============ */
 export default function SupportPlansAdminPage() {
+  const { showError } = useToast();
+  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
+  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
+  const { hasPermission: hasDeletePermission } = usePermission("SUPPORT_MANAGER", "DELETE");
+
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -474,10 +479,19 @@ export default function SupportPlansAdminPage() {
     [total, pageSize]
   );
 
-  const openAddPlan = () =>
+  const openAddPlan = () => {
+    if (!hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo gói hỗ trợ");
+      return;
+    }
     setPlanModal({ open: true, mode: "add", data: null });
+  };
 
   const openEditPlan = async (p) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa gói hỗ trợ");
+      return;
+    }
     try {
       const detail = await SupportPlansAdminApi.get(p.supportPlanId);
       setPlanModal({
@@ -497,6 +511,14 @@ export default function SupportPlansAdminPage() {
   };
 
   const handlePlanSubmit = async (payload) => {
+    if (planModal.mode === "add" && !hasCreatePermission) {
+      showError("Không có quyền", "Bạn không có quyền tạo gói hỗ trợ");
+      return;
+    }
+    if (planModal.mode === "edit" && !hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền sửa gói hỗ trợ");
+      return;
+    }
     setPlanSubmitting(true);
     try {
       if (planModal.mode === "add") {
@@ -525,6 +547,10 @@ export default function SupportPlansAdminPage() {
   };
 
   const togglePlanActive = async (p) => {
+    if (!hasEditPermission) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái gói hỗ trợ");
+      return;
+    }
     try {
       await SupportPlansAdminApi.toggle(p.supportPlanId);
       addToast("success", "Đã cập nhật trạng thái gói hỗ trợ.", "Thành công");
@@ -541,6 +567,10 @@ export default function SupportPlansAdminPage() {
   };
 
   const deletePlan = (p) => {
+    if (!hasDeletePermission) {
+      showError("Không có quyền", "Bạn không có quyền xóa gói hỗ trợ");
+      return;
+    }
     openConfirm({
       title: "Xoá gói hỗ trợ?",
       message: `Xoá gói "${p.name}" với mức ưu tiên ${priorityLabel(
@@ -713,13 +743,24 @@ export default function SupportPlansAdminPage() {
             </div>
 
             {/* Nút Thêm gói nằm sát phải cùng hàng */}
-            <button
-              className="btn primary"
-              style={{ flexShrink: 0, whiteSpace: "nowrap" }}
-              onClick={openAddPlan}
-            >
-              Thêm gói hỗ trợ
-            </button>
+            <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="CREATE" fallback={
+              <button
+                className="btn primary disabled"
+                style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                disabled
+                title="Bạn không có quyền tạo gói hỗ trợ"
+              >
+                Thêm gói hỗ trợ
+              </button>
+            }>
+              <button
+                className="btn primary"
+                style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                onClick={openAddPlan}
+              >
+                Thêm gói hỗ trợ
+              </button>
+            </PermissionGuard>
           </div>
 
           {/* Bảng plans */}
@@ -777,32 +818,60 @@ export default function SupportPlansAdminPage() {
                     </EllipsisCell>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn ghost status-btn"
-                      onClick={() => togglePlanActive(p)}
-                    >
-                      <span
-                        className={p.isActive ? "badge green" : "badge gray"}
-                        style={{ textTransform: "none" }}
+                    <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                      <button
+                        type="button"
+                        className="btn ghost status-btn disabled"
+                        disabled
+                        title="Bạn không có quyền thay đổi trạng thái gói hỗ trợ"
                       >
-                        {p.isActive ? "Đang bật" : "Đang tắt"}
-                      </span>
-                    </button>
+                        <span
+                          className={p.isActive ? "badge green" : "badge gray"}
+                          style={{ textTransform: "none" }}
+                        >
+                          {p.isActive ? "Đang bật" : "Đang tắt"}
+                        </span>
+                      </button>
+                    }>
+                      <button
+                        type="button"
+                        className="btn ghost status-btn"
+                        onClick={() => togglePlanActive(p)}
+                      >
+                        <span
+                          className={p.isActive ? "badge green" : "badge gray"}
+                          style={{ textTransform: "none" }}
+                        >
+                          {p.isActive ? "Đang bật" : "Đang tắt"}
+                        </span>
+                      </button>
+                    </PermissionGuard>
                   </td>
                   <td>
                     <div
                       className="row"
                       style={{ gap: 8, justifyContent: "flex-end" }}
                     >
+                      <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
+                        <button
+                          className="btn secondary disabled"
+                          disabled
+                          title="Bạn không có quyền sửa gói hỗ trợ"
+                        >
+                          Sửa
+                        </button>
+                      }>
+                        <button
+                          className="btn secondary"
+                          onClick={() => openEditPlan(p)}
+                        >
+                          Sửa
+                        </button>
+                      </PermissionGuard>
                       <button
-                        className="btn secondary"
-                        onClick={() => openEditPlan(p)}
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        className="btn danger"
+                        className={`btn danger ${!hasDeletePermission ? 'disabled' : ''}`}
+                        title={!hasDeletePermission ? "Bạn không có quyền xóa gói hỗ trợ" : "Xóa"}
+                        disabled={!hasDeletePermission}
                         onClick={() => deletePlan(p)}
                       >
                         Xoá

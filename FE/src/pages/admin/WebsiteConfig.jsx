@@ -2,12 +2,15 @@ import React, { useEffect, useState, useRef } from 'react';
 import '../../styles/WebsiteConfig.css';
 import { settingsApi } from '../../services/settings';
 import { useToast } from '../../contexts/ToastContext';
+import { usePermission } from '../../hooks/usePermission';
+import PermissionGuard from '../../components/PermissionGuard';
 import LayoutSectionsManager from './LayoutSectionsManager';
 import PaymentGatewaysManager from './PaymentGatewaysManager';
 
 const WebsiteConfig = () => {
     // Toast
     const { showToast } = useToast();
+    const { hasPermission: hasEditPermission } = usePermission("SETTINGS_MANAGER", "EDIT");
 
     // State management
     const [config, setConfig] = useState({
@@ -188,6 +191,10 @@ const WebsiteConfig = () => {
 
     // Save settings
     const onSave = async () => {
+        if (!hasEditPermission) {
+            showToast({ type: 'error', title: 'Không có quyền', message: 'Bạn không có quyền chỉnh sửa cấu hình' });
+            return;
+        }
         // Validate form fields
         if (!validateAll()) {
             const firstErr = Object.values(formErrors)[0] || 'Vui lòng kiểm tra các trường';
@@ -706,13 +713,23 @@ const WebsiteConfig = () => {
                 <button className="btn" onClick={onExport}>
                     Xuất cấu hình
                 </button>
-                <button
-                    className="btn primary"
-                    onClick={onSave}
-                    disabled={saving}
-                >
-                    {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
-                </button>
+                <PermissionGuard moduleCode="SETTINGS_MANAGER" permissionCode="EDIT" fallback={
+                    <button
+                        className="btn primary disabled"
+                        disabled
+                        title="Bạn không có quyền chỉnh sửa cấu hình"
+                    >
+                        {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
+                    </button>
+                }>
+                    <button
+                        className="btn primary"
+                        onClick={onSave}
+                        disabled={saving}
+                    >
+                        {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
+                    </button>
+                </PermissionGuard>
             </div>
         </main>
     );
