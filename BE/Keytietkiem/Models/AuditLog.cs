@@ -19,6 +19,8 @@ public partial class AuditLog
 
     public string? IpAddress { get; set; }
 
+    public string? UserAgent { get; set; }
+
     public string? ActorRole { get; set; }
 
     public string? SessionId { get; set; }

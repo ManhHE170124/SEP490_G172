@@ -314,12 +314,13 @@ namespace Keytietkiem.Controllers
             {
                 return BadRequest(new { message = "Payment không thuộc loại ORDER_PAYMENT (cart checkout)" });
             }
-
+            await SupportPriorityLoyaltyRulesController.RecalculateUserSupportPriorityLevelAsync(_context, payment.Email);
             // Không tự xử lý nữa – chỉ trả về trạng thái hiện tại
             return Ok(new
             {
                 message = "Cart payment status",
                 status = payment.Status ?? "Pending"
+
             });
         }
 

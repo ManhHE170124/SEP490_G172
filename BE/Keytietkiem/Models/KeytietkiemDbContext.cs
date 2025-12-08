@@ -162,6 +162,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.SessionId).HasMaxLength(100);
+            entity.Property(e => e.UserAgent).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Badge>(entity =>
@@ -497,9 +498,9 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime");
-            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.Description).HasMaxLength(255);
             entity.Property(e => e.PostTypeName).HasMaxLength(100);
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -950,7 +951,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportChatPriorityWeeklyStat>(entity =>
         {
-            entity.HasKey(e => new { e.WeekStartDate, e.PriorityLevel });
+            entity.HasKey(e => new { e.WeekStartDate, e.PriorityLevel }).HasName("PK_SupportChatPriorityWeeklyStats");
+
+            entity.ToTable("SupportChatPriorityWeeklyStat");
 
             entity.Property(e => e.AvgDurationMinutes).HasColumnType("decimal(10, 2)");
             entity.Property(e => e.AvgFirstResponseMinutes).HasColumnType("decimal(10, 2)");
@@ -996,6 +999,8 @@ public partial class KeytietkiemDbContext : DbContext
         {
             entity.HasKey(e => e.StatDate).HasName("PK__SupportD__255A932C90088A6C");
 
+            entity.ToTable("SupportDailyStat");
+
             entity.Property(e => e.AvgChatDurationMinutes).HasColumnType("decimal(10, 2)");
             entity.Property(e => e.AvgChatFirstResponseMinutes).HasColumnType("decimal(10, 2)");
             entity.Property(e => e.AvgChatMessagesPerSession).HasColumnType("decimal(10, 2)");
@@ -1022,7 +1027,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportPlanMonthlyStat>(entity =>
         {
-            entity.HasKey(e => new { e.YearMonth, e.SupportPlanId });
+            entity.HasKey(e => new { e.YearMonth, e.SupportPlanId }).HasName("PK_SupportPlanMonthlyStats");
+
+            entity.ToTable("SupportPlanMonthlyStat");
 
             entity.Property(e => e.YearMonth)
                 .HasMaxLength(7)
@@ -1043,7 +1050,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportStaffDailyStat>(entity =>
         {
-            entity.HasKey(e => new { e.StatDate, e.StaffId });
+            entity.HasKey(e => new { e.StatDate, e.StaffId }).HasName("PK_SupportStaffDailyStats");
+
+            entity.ToTable("SupportStaffDailyStat");
 
             entity.Property(e => e.AvgChatDurationMinutes).HasColumnType("decimal(10, 2)");
             entity.Property(e => e.AvgChatFirstResponseMinutes).HasColumnType("decimal(10, 2)");
@@ -1053,7 +1062,9 @@ public partial class KeytietkiemDbContext : DbContext
 
         modelBuilder.Entity<SupportTicketSeverityPriorityWeeklyStat>(entity =>
         {
-            entity.HasKey(e => new { e.WeekStartDate, e.Severity, e.PriorityLevel });
+            entity.HasKey(e => new { e.WeekStartDate, e.Severity, e.PriorityLevel }).HasName("PK_SupportTicketSeverityPriorityWeeklyStats");
+
+            entity.ToTable("SupportTicketSeverityPriorityWeeklyStat");
 
             entity.Property(e => e.Severity).HasMaxLength(50);
             entity.Property(e => e.AvgFirstResponseMinutes).HasColumnType("decimal(10, 2)");
@@ -1072,11 +1083,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("TagID");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Slug).HasMaxLength(150);
             entity.Property(e => e.TagName).HasMaxLength(100);
+            entity.Property(e => e.UpdatedAt).HasPrecision(3);
         });
 
         modelBuilder.Entity<Ticket>(entity =>
@@ -1194,7 +1205,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasMaxLength(12)
                 .IsUnicode(false)
                 .HasDefaultValue("Active");
-            entity.Property(e => e.IsTemp).HasDefaultValue(false);
             entity.Property(e => e.TotalProductSpend).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
 
