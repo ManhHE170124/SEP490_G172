@@ -37,6 +37,7 @@ import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
 import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx"; 
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -528,6 +529,13 @@ export default function AppRoutes() {
         element={renderAdminPage(
           MODULE_CODES.SETTINGS_MANAGER,
           <WebsiteConfig />
+        )}
+      />
+       <Route
+        path="/admin/notifications"
+        element={renderAdminPage(
+          MODULE_CODES.SETTINGS_MANAGER,
+          <AdminNotificationsPage />
         )}
       />
       <Route

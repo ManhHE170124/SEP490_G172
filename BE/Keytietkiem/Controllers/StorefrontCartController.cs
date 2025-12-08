@@ -40,6 +40,8 @@ namespace Keytietkiem.Controllers
         private static readonly TimeSpan CartPaymentSnapshotTtl = TimeSpan.FromMinutes(5);
 
         private const string AnonymousCartCookieName = "ktk_anon_cart";
+        // NEW: header giữ ID cart cho guest, FE sẽ set qua axios
+        private const string AnonymousCartHeaderName = "X-Guest-Cart-Id";
 
         public StorefrontCartController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
@@ -559,7 +561,7 @@ namespace Keytietkiem.Controllers
 
         // Lấy context cart hiện tại:
         //  - Nếu đã đăng nhập: dùng userId.
-        //  - Nếu chưa đăng nhập: dùng cookie ẩn ktk_anon_cart.
+        //  - Nếu chưa đăng nhập: dùng header/cookie anon cart.
         private (string CacheKey, Guid? UserId, bool IsAuthenticated) GetCartContext()
         {
             var userId = GetCurrentUserId();
@@ -580,15 +582,27 @@ namespace Keytietkiem.Controllers
         private string GetAnonymousCacheKey(string anonId)
             => $"cart:anon:{anonId}";
 
+        // NEW: ưu tiên header X-Guest-Cart-Id, fallback cookie cũ
         private string GetOrCreateAnonymousCartId()
         {
+            // 1) Nếu FE gửi header X-Guest-Cart-Id thì ưu tiên dùng cái đó
+            if (Request.Headers.TryGetValue(AnonymousCartHeaderName, out var headerValues))
+            {
+                var headerId = headerValues.ToString();
+                if (!string.IsNullOrWhiteSpace(headerId))
+                {
+                    return headerId;
+                }
+            }
+
+            // 2) Nếu không có header thì dùng cookie cũ nếu tồn tại
             if (Request.Cookies.TryGetValue(AnonymousCartCookieName, out var existing) &&
                 !string.IsNullOrWhiteSpace(existing))
             {
-                // Browser đã có cookie ktk_anon_cart -> dùng lại ID cũ
                 return existing;
             }
 
+            // 3) Cuối cùng: tạo mới ID, set cookie (cho tương thích cũ)
             var newId = Guid.NewGuid().ToString("N");
 
             

@@ -4,7 +4,7 @@
   --muted: #6b7280;
   --line: #e5e7eb;
   --page: #f3f6fa;
-  --card: #fff;
+  --card: #ffffff;
   --primary: #2563eb;
   --success: #10b981;
   --warning: #f59e0b;
@@ -13,7 +13,9 @@
   --shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -27,351 +29,380 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Arial, sans-serif;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* helper text */
-.muted {
+/* ===== Text helpers ===== */
+.support-plans-page .muted {
   color: var(--muted);
   font-size: 13px;
 }
 
 /* ===== Layout & card ===== */
-.page>.card {
-  max-width: 1280px;
-  margin-inline: auto;
-  padding: 16px;
+.support-plans-page {
+  min-height: 100vh;
+  padding: 24px 16px 40px;
+  background: var(--page);
 }
 
-.card {
+.support-plans-page > .card {
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 16px;
+  border: 1px solid var(--line);
+  padding: 20px 20px 24px;
+  margin: 0 auto;
+  max-width: 1120px;
 }
 
-.card h2 {
-  margin: 0 0 12px 0;
+.support-plans-page .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-/* ===== Grid / form ===== */
-.grid {
-  display: grid;
-  gap: 12px;
+.support-plans-page .card-header .left h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
 }
 
-.grid.cols-2 {
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
+.support-plans-page .card-header .left p {
+  margin: 0;
 }
 
-@media (max-width: 1024px) {
-  .grid.cols-2 {
-    grid-template-columns: 1fr;
-  }
+/* ===== Support plan rules note (giống SLA note) ===== */
+.support-plans-page .support-plan-rules-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  font-size: 12px;
+  color: #1e3a8a;
 }
 
-.input-group .group {
+.support-plans-page .support-plan-rules-note-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.support-plans-page .support-plan-rules-note ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.support-plans-page .support-plan-rules-note li {
+  margin-bottom: 2px;
+}
+
+/* ===== Flex helpers ===== */
+.support-plans-page .row,
+.cat-modal-card .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.support-plans-page .col,
+.cat-modal-card .col {
   display: flex;
   flex-direction: column;
 }
 
-.input-group .group>span {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
+/* group field (label + input) */
+.support-plans-page .group,
+.cat-modal-card .group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
 }
 
-label {
-  display: block;
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 4px;
+.support-plans-page .group > span,
+.cat-modal-card .group > span {
+  font-weight: 500;
+  color: var(--ink);
 }
 
-/* Controls */
-input[type="text"],
-input[type="number"],
-input[type="file"],
-select,
-textarea {
+/* ===== Form controls ===== */
+.support-plans-page input,
+.support-plans-page select,
+.support-plans-page textarea,
+.cat-modal-card input,
+.cat-modal-card select,
+.cat-modal-card textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
+  font-size: 14px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.support-plans-page input::placeholder,
+.support-plans-page textarea::placeholder,
+.cat-modal-card input::placeholder,
+.cat-modal-card textarea::placeholder {
+  color: #9ca3af;
+}
+
+.support-plans-page input:focus,
+.support-plans-page select:focus,
+.support-plans-page textarea:focus,
+.cat-modal-card input:focus,
+.cat-modal-card select:focus,
+.cat-modal-card textarea:focus {
   outline: none;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-textarea {
-  min-height: 110px;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
-.mono {
+.support-plans-page textarea,
+.cat-modal-card textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.support-plans-page .mono,
+.cat-modal-card .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* ===== Flex row ===== */
-.row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
 /* ===== Buttons ===== */
-.btn {
+.support-plans-page .btn,
+.cat-modal-card .btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: #fff;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #ffffff;
+  color: var(--ink);
   cursor: pointer;
   transition:
-    transform 0.02s ease,
-    box-shadow 0.2s ease,
-    background-color 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
-  font-size: 13px;
+    background-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.02s ease;
 }
 
-.btn.primary {
+.support-plans-page .btn:hover:not(:disabled),
+.cat-modal-card .btn:hover:not(:disabled) {
+  background: #f3f4ff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  transform: translateY(-0.5px);
+}
+
+.support-plans-page .btn:active:not(:disabled),
+.cat-modal-card .btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.support-plans-page .btn:disabled,
+.cat-modal-card .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Variants */
+.support-plans-page .btn.primary,
+.cat-modal-card .btn.primary {
   background: var(--primary);
-  color: #fff;
   border-color: var(--primary);
+  color: #ffffff;
 }
 
-.btn.ghost {
-  background: #f9fafb;
-  border-color: #e5e7eb;
-  color: #111827;
+.support-plans-page .btn.primary:hover:not(:disabled),
+.cat-modal-card .btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
-.btn.secondary {
-  background: #eef2ff;
-  border-color: #e0e7ff;
+.support-plans-page .btn.secondary,
+.cat-modal-card .btn.secondary {
+  background: #eff6ff;
+  border-color: #dbeafe;
   color: #1d4ed8;
 }
 
-.btn.danger {
+.support-plans-page .btn.secondary:hover:not(:disabled),
+.cat-modal-card .btn.secondary:hover:not(:disabled) {
+  background: #e0ebff;
+}
+
+.support-plans-page .btn.danger,
+.cat-modal-card .btn.danger {
   background: #fef2f2;
   border-color: #fecaca;
   color: #b91c1c;
 }
 
-.btn:hover {
-  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.08);
+.support-plans-page .btn.danger:hover:not(:disabled),
+.cat-modal-card .btn.danger:hover:not(:disabled) {
+  background: #fee2e2;
 }
 
-.btn:active {
-  transform: translateY(1px);
+.support-plans-page .btn.ghost,
+.cat-modal-card .btn.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
 }
 
-/* nút trạng thái nhỏ hơn một chút */
-.status-btn {
-  padding-inline: 8px;
+.support-plans-page .btn.ghost:hover:not(:disabled),
+.cat-modal-card .btn.ghost:hover:not(:disabled) {
+  background: #f9fafb;
 }
 
-/* ===== Table ===== */
-.table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 8px;
+.support-plans-page .btn.status-btn,
+.cat-modal-card .btn.status-btn {
+  padding: 2px 8px;
 }
 
-.table thead th {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 600;
-  text-align: left;
-  padding: 8px 10px;
-  user-select: none;
-}
-
-.table tbody tr {
-  background: #fff;
-  box-shadow: var(--shadow);
-  transition: transform 0.05s ease;
-}
-
-.table tbody tr:hover {
-  transform: translateY(-1px);
-}
-
-.table tbody td {
-  padding: 12px 10px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-/* ===== Badge / label ===== */
-.badge {
+/* ===== Badge ===== */
+.support-plans-page .badge,
+.cat-modal-card .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  padding: 2px 8px;
   border-radius: 999px;
-  padding: 4px 10px;
-  background: #eef2ff;
-  color: #1e40af;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-.badge.green {
-  background: #ecfdf5;
-  color: #065f46;
+.support-plans-page .badge.green,
+.cat-modal-card .badge.green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
 }
 
-.badge.gray {
+.support-plans-page .badge.gray,
+.cat-modal-card .badge.gray {
   background: #f3f4f6;
-  color: #374151;
+  color: #4b5563;
 }
 
-/* phân biệt level trong bảng */
-.badge.level-priority {
+/* Priority level badges */
+.support-plans-page .badge.level-priority,
+.cat-modal-card .badge.level-priority {
   background: rgba(37, 99, 235, 0.12);
   color: #1d4ed8;
 }
 
-.badge.level-vip {
-  background: rgba(234, 179, 8, 0.14);
-  color: #92400e;
+.support-plans-page .badge.level-vip,
+.cat-modal-card .badge.level-vip {
+  background: rgba(129, 140, 248, 0.16);
+  color: #4c1d95;
 }
 
-.badge.level-other {
-  background: #e5e7eb;
+.support-plans-page .badge.level-other,
+.cat-modal-card .badge.level-other {
+  background: rgba(55, 65, 81, 0.12);
   color: #111827;
 }
 
-.label-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #1e40af;
-  color: #fff;
+/* ===== Table ===== */
+.support-plans-page .table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.support-plans-page .table th,
+.support-plans-page .table td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.support-plans-page .table thead th {
+  background: #f9fafb;
   font-size: 12px;
-  line-height: 1;
-  font-weight: 600;
-  border: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 
 /* ===== Pager ===== */
-.pager {
+.support-plans-page .pager {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
   gap: 12px;
-  margin: 16px 0 4px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #f9fafb;
-  border: 1px solid var(--line);
+  font-size: 13px;
 }
 
-/* nhóm bên trái: nút + số trang */
-.pager-left {
+.support-plans-page .pager-left,
+.support-plans-page .pager-right {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* nhóm bên phải: chọn số dòng / trang */
-.pager-right {
-  display: flex;
+.support-plans-page .pager-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.pager-btn {
-  padding: 6px 10px;
+  justify-content: center;
+  min-width: 80px;
   border-radius: 999px;
   border: 1px solid var(--line);
+  padding: 4px 10px;
+  font-size: 13px;
   background: #ffffff;
-  font-size: 12px;
   cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.02s ease;
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
-.pager-btn:hover:not(:disabled) {
+.support-plans-page .pager-btn:hover:not(:disabled) {
   background: #eef2ff;
   border-color: #e0e7ff;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
 }
 
-.pager-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.pager-btn:disabled {
-  opacity: 0.5;
+.support-plans-page .pager-btn:disabled {
+  opacity: 0.6;
   cursor: default;
   box-shadow: none;
 }
 
-.pager-current {
-  font-size: 13px;
-  color: var(--muted);
+.support-plans-page .pager-info {
+  white-space: nowrap;
 }
 
-.pager-current b {
-  color: var(--ink);
-}
-
-.pager-page-size-label {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.pager-page-size {
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: #ffffff;
-  font-size: 12px;
-  outline: none;
-  cursor: pointer;
-  min-width: 80px;
-}
-
-.pager-page-size:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-}
-
-/* ===== Toggle switch ===== */
-.switch {
+/* ===== Toggle switch – giống SLA / Category ===== */
+/* Switch trong bảng support plans */
+.support-plans-page .switch {
   position: relative;
   display: inline-block;
   width: 42px;
   height: 24px;
 }
 
-.switch input {
+.support-plans-page .switch input {
   display: none;
 }
 
-.switch .slider {
+/* Dùng chung slider cho bảng & modal */
+.support-plans-page .slider,
+.cat-modal-card .slider {
   position: absolute;
   cursor: pointer;
   top: 0;
@@ -383,7 +414,8 @@ textarea:focus {
   transition: background 0.18s ease;
 }
 
-.switch .slider:before {
+.support-plans-page .slider::before,
+.cat-modal-card .slider::before {
   content: "";
   position: absolute;
   left: 3px;
@@ -396,22 +428,33 @@ textarea:focus {
   transition: transform 0.18s ease;
 }
 
-.switch input:checked+.slider {
+.support-plans-page .switch input:checked + .slider,
+.cat-modal-card .switch input:checked + .slider {
   background: var(--primary);
 }
 
-.switch input:checked+.slider:before {
+.support-plans-page .switch input:checked + .slider::before,
+.cat-modal-card .switch input:checked + .slider::before {
   transform: translateX(18px);
 }
 
-/* ===== Action buttons (dùng chung chỗ khác, giữ nguyên) ===== */
-.action-buttons {
+/* Switch trong modal (cat-modal-card) */
+.cat-modal-card .switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+}
+
+/* ===== Action buttons (Sửa / Xoá) – giống SLA ===== */
+.support-plans-page .action-buttons {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  justify-content: flex-end;
 }
 
-.action-btn {
+.support-plans-page .action-btn {
   width: 32px;
   height: 32px;
   border: none;
@@ -423,34 +466,32 @@ textarea:focus {
   transition: all 0.2s ease;
 }
 
-.action-btn svg {
+.support-plans-page .action-btn svg {
   width: 16px;
   height: 16px;
 }
 
-.edit-btn {
+.support-plans-page .edit-btn {
   background: rgba(37, 99, 235, 0.1);
   color: var(--primary);
 }
 
-.edit-btn:hover {
+.support-plans-page .edit-btn:hover {
   background: var(--primary);
   color: #fff;
 }
 
-.delete-btn {
+.support-plans-page .delete-btn {
   background: rgba(239, 68, 68, 0.1);
   color: var(--danger);
 }
 
-.delete-btn:hover {
+.support-plans-page .delete-btn:hover {
   background: var(--danger);
   color: #fff;
 }
 
-/* ===== Modal (to, không che nội dung) ===== */
-/* --- Modal: backdrop full màn hình, card to, body cuộn --- */
-/* ===== Modal riêng cho CategoryPage (to, không bị kẹt) ===== */
+/* ===== Modal (cat-modal-*) – dùng cho SupportPlanModal ===== */
 .cat-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -464,33 +505,20 @@ textarea:focus {
 
 .cat-modal-card {
   width: min(960px, 96vw);
-  /* modal rộng hơn */
   max-height: 90vh;
-  /* không vượt quá viewport */
   background: var(--card);
   border-radius: 20px;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.32);
   display: flex;
   flex-direction: column;
-  /* header / body / footer theo cột */
   overflow: hidden;
-  /* scroll nằm trong body */
 }
 
-/* Form bên trong modal chiếm toàn bộ chiều cao còn lại */
 .cat-modal-card form {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  /* quan trọng để body co lại và scroll */
-}
-
-/* Body cuộn, footer luôn cố định ở đáy card */
-.cat-modal-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 .cat-modal-header {
@@ -508,10 +536,11 @@ textarea:focus {
 }
 
 .cat-modal-body {
+  flex: 1;
+  min-height: 0;
   padding: 16px 20px;
   color: var(--ink);
   overflow-y: auto;
-  /* nội dung dài (màu, form) cuộn ở đây */
 }
 
 .cat-modal-footer {
@@ -528,108 +557,29 @@ textarea:focus {
   .cat-modal-backdrop {
     padding: 12px;
   }
-
   .cat-modal-card {
     width: 100%;
     border-radius: 16px;
   }
 }
 
-.input-readonly {
-  border-color: #e5e7eb;
-  font-weight: 500;
-}
+/* ===== Responsive main page ===== */
+@media (max-width: 768px) {
+  .support-plans-page {
+    padding: 16px 10px 32px;
+  }
 
-/* Grid cho 3 trường: Câu hỏi, Trả lời, Thứ tự (FAQ dùng chung) */
-.faq-fields-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: 12px;
-  row-gap: 10px;
-}
+  .support-plans-page > .card {
+    padding: 16px 14px 20px;
+  }
 
-/* Câu hỏi + Thứ tự cùng cột (trái) */
-.faq-fields-grid .faq-q {
-  grid-column: 1 / 2;
-}
+  .support-plans-page .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-.faq-fields-grid .faq-sort {
-  grid-column: 1 / 2;
-}
-
-/* Trả lời cùng hàng, cùng độ rộng với cột trái, nhưng chiếm 2 hàng */
-.faq-fields-grid .faq-answer {
-  grid-column: 2 / 3;
-  grid-row: 1 / 3;
-}
-
-/* Danh mục & Sản phẩm cùng hàng (2 cột) */
-.faq-apply-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-  margin-top: 12px;
-}
-
-/* Mặc định: không scroll, chiều cao auto */
-.faq-scroll-panel {
-  max-height: none;
-  overflow-y: visible;
-}
-
-/* Khi danh sách > 3 mục: giới hạn chiều cao ~3 dòng, bật scroll */
-.faq-scroll-panel-limit {
-  max-height: 180px;
-  /* tuỳ UI thực tế, khoảng này thường ~3 item */
-  overflow-y: auto;
-}
-
-.cat-modal-card .panel-body {
-  overflow-x: hidden;
-}
-
-/* thanh scroll đẹp hơn một chút */
-.cat-modal-card .panel-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.cat-modal-card .panel-body::-webkit-scrollbar-track {
-  background: #f3f4f6;
-  border-radius: 999px;
-}
-
-.cat-modal-card .panel-body::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 999px;
-}
-/* Ghi chú luật gói hỗ trợ */
-.support-plan-rules-note {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
-  font-size: 12px;
-  color: #1e3a8a;
-}
-
-.support-plan-rules-note-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.support-plan-rules-note ul {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.support-plan-rules-note li {
-  margin-bottom: 2px;
-}
-
-/* Ghi chú trong modal (ở cạnh switch) */
-.support-plan-modal-note {
-  font-size: 11.5px;
-  line-height: 1.4;
-  max-width: 520px;
+  .support-plans-page .pager {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

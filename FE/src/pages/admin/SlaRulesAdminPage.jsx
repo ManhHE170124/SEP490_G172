@@ -297,9 +297,9 @@ function SlaRuleModal({
   if (!open) return null;
 
   return (
-    <div className="cat-modal-backdrop">
-      <div className="cat-modal-card">
-        <div className="cat-modal-header">
+    <div className="sla-modal-backdrop">
+      <div className="sla-modal-card">
+        <div className="sla-modal-header">
           <h3>{isEdit ? "Chỉnh sửa SLA rule" : "Thêm SLA rule"}</h3>
           <div className="group" style={{ marginTop: 8 }}>
             <div className="row" style={{ gap: 8, alignItems: "center" }}>
@@ -326,12 +326,18 @@ function SlaRuleModal({
                   → Critical) phải có thời gian phản hồi / xử lý <b>ngắn hơn</b>.
                 </div>
               </div>
+              <span
+                className={form.isActive ? "badge green" : "badge gray"}
+                style={{ textTransform: "none" }}
+              >
+                {form.isActive ? "Đang bật" : "Đang tắt"}
+              </span>
             </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="cat-modal-body input-group">
+          <div className="sla-modal-body input-group">
             <div className="row" style={{ gap: 16 }}>
               <div className="group" style={{ flex: 1 }}>
                 <span>
@@ -420,7 +426,7 @@ function SlaRuleModal({
             </div>
           </div>
 
-          <div className="cat-modal-footer">
+          <div className="sla-modal-footer">
             <button
               type="button"
               className="btn"
@@ -680,14 +686,8 @@ export default function SlaRulesAdminPage() {
 
   return (
     <>
-      <div className="page">
-        <div
-          className="card"
-          style={{
-            margin: "0 auto",
-            maxWidth: 1120,
-          }}
-        >
+      <div className="page sla-rules-page">
+        <div className="card">
           <div className="card-header">
             <div className="left">
               <h2>Cấu hình SLA Rule</h2>
@@ -857,11 +857,10 @@ export default function SlaRulesAdminPage() {
                 <th style={{ width: 150 }}>Mức ưu tiên</th>
                 <th style={{ width: 180 }}>Phản hồi đầu tiên</th>
                 <th style={{ width: 180 }}>Xử lý / giải quyết</th>
-                <th style={{ width: 140 }}>Trạng thái</th>
+                <th style={{ width: 120 }}>Trạng thái</th>
                 <th
                   style={{
-                    width: 180,
-                    textAlign: "right",
+                    width: 160,
                     paddingRight: 10,
                   }}
                 >
@@ -915,64 +914,76 @@ export default function SlaRulesAdminPage() {
                       {formatMinutes(r.resolutionMinutes)}
                     </EllipsisCell>
                   </td>
+                  {/* Cột Trạng thái: chỉ hiển thị badge Hiển thị / Ẩn */}
                   <td>
-                    <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
-                      <button
-                        type="button"
-                        className="btn ghost status-btn disabled"
-                        disabled
-                        title="Bạn không có quyền thay đổi trạng thái SLA rule"
-                      >
-                        <span
-                          className={r.isActive ? "badge green" : "badge gray"}
-                          style={{ textTransform: "none" }}
-                        >
-                          {r.isActive ? "Đang bật" : "Đang tắt"}
-                        </span>
-                      </button>
-                    }>
-                      <button
-                        type="button"
-                        className="btn ghost status-btn"
-                        onClick={() => toggleRuleActive(r)}
-                      >
-                        <span
-                          className={r.isActive ? "badge green" : "badge gray"}
-                          style={{ textTransform: "none" }}
-                        >
-                          {r.isActive ? "Đang bật" : "Đang tắt"}
-                        </span>
-                      </button>
-                    </PermissionGuard>
-                  </td>
-                  <td>
-                    <div
-                      className="row"
-                      style={{ gap: 8, justifyContent: "flex-end" }}
+                    <span
+                      className={r.isActive ? "badge green" : "badge gray"}
+                      style={{ textTransform: "none" }}
                     >
-                      <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
-                        <button
-                          className="btn secondary disabled"
-                          disabled
-                          title="Bạn không có quyền sửa SLA rule"
-                        >
-                          Sửa
-                        </button>
-                      }>
-                        <button
-                          className="btn secondary"
-                          onClick={() => openEditRule(r)}
-                        >
-                          Sửa
-                        </button>
-                      </PermissionGuard>
-                      <button
-                        className={`btn danger ${!hasDeletePermission ? 'disabled' : ''}`}
-                        title={!hasDeletePermission ? "Bạn không có quyền xóa SLA rule" : "Xóa"}
-                        disabled={!hasDeletePermission}
-                        onClick={() => deleteRule(r)}
+                      {r.isActive ? "Hiển thị" : "Ẩn"}
+                    </span>
+                  </td>
+                  {/* Cột Thao tác: Switch + Edit + Delete */}
+                  <td>
+                    <div className="action-buttons">
+                      {/* Switch đổi trạng thái */}
+                      <label
+                        className="switch"
+                        title={r.isActive ? "Đang bật" : "Đang tắt"}
                       >
-                        Xoá
+                        <input
+                          type="checkbox"
+                          checked={!!r.isActive}
+                          onChange={() => toggleRuleActive(r)}
+                        />
+                        <span className="slider" />
+                      </label>
+
+                      {/* Nút Sửa */}
+                      <button
+                        type="button"
+                        className="action-btn edit-btn"
+                        onClick={() => openEditRule(r)}
+                        title="Chỉnh sửa SLA rule"
+                      >
+                        {/* icon bút chì */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                        </svg>
+                      </button>
+
+                      {/* Nút Xoá */}
+                      <button
+                        type="button"
+                        className="action-btn delete-btn"
+                        onClick={() => deleteRule(r)}
+                        title="Xoá SLA rule"
+                      >
+                        {/* icon thùng rác */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                        </svg>
                       </button>
                     </div>
                   </td>

@@ -764,8 +764,12 @@ export default function FaqsPage() {
             </button>
           </div>
 
-          {/* Bảng FAQ */}
-          <table className="table" style={{ marginTop: 10 }}>
+      {/* Bảng FAQ */}
+<table
+  className="table variants-table faq-table"
+  style={{ marginTop: 10 }}
+>
+
             <thead>
               <tr>
                 <th

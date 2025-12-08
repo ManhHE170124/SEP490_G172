@@ -913,6 +913,64 @@ const Sidebar = () => {
             </svg>
           ),
         }
+        , {
+          id: "notifications-admin",
+          label: "Thông báo hệ thống",
+          to: "/admin/notifications",
+          isActive: currentPage === "admin/notifications",
+          icon: (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ width: 20, height: 20 }}
+            >
+              <path
+                d="M12 3a6 6 0 0 0-6 6v3.5L4 15v1h16v-1l-2-2.5V9a6 6 0 0 0-6-6Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M10 19a2 2 0 0 0 4 0"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ),
+        }, {
+          id: "audit-logs",
+          label: "Lịch sử thao tác hệ thống",
+          to: "/admin/audit-logs",
+          isActive: currentPage === "admin/audit-logs",
+          icon: (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ width: 20, height: 20 }}
+            >
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="16"
+                rx="2"
+                ry="2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M7 9h10M7 13h6M7 17h4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          ),
+        }
+
 
       ],
     },
