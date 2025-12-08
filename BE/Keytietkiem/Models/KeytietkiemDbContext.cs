@@ -172,7 +172,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.SessionId).HasMaxLength(100);
-            entity.Property(e => e.UserAgent).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Badge>(entity =>
