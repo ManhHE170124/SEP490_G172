@@ -4,9 +4,9 @@
 import axiosClient from "../api/axiosClient";
 
 const NOTIFICATION_ENDPOINTS = {
-  ROOT: "notifications",                  // /api/notifications
-  MY: "notifications/my",                 // /api/notifications/my
-  MANUAL_TARGET_OPTIONS: "notifications/manual-target-options", // /api/notifications/manual-target-options
+  ROOT: "/notifications", // /api/notifications
+  MY: "/notifications/my", // /api/notifications/my
+  MANUAL_TARGET_OPTIONS: "/notifications/manual-target-options", // /api/notifications/manual-target-options
 };
 
 export const NotificationsApi = {
@@ -25,7 +25,9 @@ export const NotificationsApi = {
    * - pageNumber/pageSize suy ra từ params hoặc mặc định.
    */
   listAdminPaged: async (params = {}) => {
-    const data = await axiosClient.get(NOTIFICATION_ENDPOINTS.ROOT, { params });
+    const data = await axiosClient.get(NOTIFICATION_ENDPOINTS.ROOT, {
+      params,
+    });
     // data ~= { totalCount, items }
 
     const items = Array.isArray(data.items) ? data.items : [];
@@ -75,11 +77,13 @@ export const NotificationsApi = {
    *       items: NotificationUserListItemDto[]
    *     }
    *
-   * Hàm này cũng normalize về:
+   * Hàm này normalize về:
    *   { items, total, pageNumber, pageSize }
    */
   listMyPaged: async (params = {}) => {
-    const data = await axiosClient.get(NOTIFICATION_ENDPOINTS.MY, { params });
+    const data = await axiosClient.get(NOTIFICATION_ENDPOINTS.MY, {
+      params,
+    });
     // data ~= { totalCount, items }
 
     const items = Array.isArray(data.items) ? data.items : [];
@@ -110,7 +114,6 @@ export const NotificationsApi = {
       pageSize,
     };
   },
-
   /**
    * Tạo thông báo thủ công (Admin) và gán cho danh sách user.
    * POST /api/notifications
@@ -126,11 +129,16 @@ export const NotificationsApi = {
    *
    * GET /api/notifications/manual-target-options
    * Backend trả: NotificationManualTargetOptionsDto
-   *   {
-   *     roles: NotificationTargetRoleOptionDto[],
-   *     users: NotificationTargetUserOptionDto[]
-   *   }
    */
   getManualTargetOptions: () =>
     axiosClient.get(NOTIFICATION_ENDPOINTS.MANUAL_TARGET_OPTIONS),
+
+  /**
+   * Đánh dấu 1 thông báo của user hiện tại là ĐÃ ĐỌC.
+   * POST /api/notifications/my/{notificationUserId}/read
+   */
+  markMyNotificationRead: (notificationUserId) =>
+    axiosClient.post(
+      `${NOTIFICATION_ENDPOINTS.MY}/${notificationUserId}/read`
+    ),
 };

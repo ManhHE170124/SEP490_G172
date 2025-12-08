@@ -1,4 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿// File: DTOs/NotificationDtos.cs
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs
 {
@@ -88,6 +91,23 @@ namespace Keytietkiem.DTOs
     }
 
     /// <summary>
+    /// Người nhận chi tiết trong 1 thông báo.
+    /// </summary>
+    public class NotificationRecipientDto
+    {
+        public Guid UserId { get; set; }
+        public string? FullName { get; set; }
+        public string Email { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Tên các role của user, gộp dạng "Admin, Customer".
+        /// </summary>
+        public string RoleNames { get; set; } = string.Empty;
+
+        public bool IsRead { get; set; }
+    }
+
+    /// <summary>
     /// Chi tiết thông báo (admin view).
     /// </summary>
     public class NotificationDetailDto
@@ -114,6 +134,11 @@ namespace Keytietkiem.DTOs
         public int UnreadCount { get; set; }
 
         public List<NotificationTargetRoleDto> TargetRoles { get; set; } = new();
+
+        /// <summary>
+        /// Danh sách người nhận chi tiết (dùng cho bảng trong modal).
+        /// </summary>
+        public List<NotificationRecipientDto> Recipients { get; set; } = new();
     }
 
     /// <summary>
@@ -215,7 +240,8 @@ namespace Keytietkiem.DTOs
     public class NotificationListResponseDto
     {
         public int TotalCount { get; set; }
-        public IReadOnlyList<NotificationListItemDto> Items { get; set; } = Array.Empty<NotificationListItemDto>();
+        public IReadOnlyList<NotificationListItemDto> Items { get; set; } =
+            Array.Empty<NotificationListItemDto>();
     }
 
     /// <summary>
@@ -224,8 +250,10 @@ namespace Keytietkiem.DTOs
     public class NotificationUserListResponseDto
     {
         public int TotalCount { get; set; }
-        public IReadOnlyList<NotificationUserListItemDto> Items { get; set; } = Array.Empty<NotificationUserListItemDto>();
+        public IReadOnlyList<NotificationUserListItemDto> Items { get; set; } =
+            Array.Empty<NotificationUserListItemDto>();
     }
+
     public class NotificationTargetRoleOptionDto
     {
         public string RoleId { get; set; } = string.Empty;

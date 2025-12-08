@@ -104,7 +104,7 @@ const AdminNotificationsPage = () => {
           users: Array.isArray(data.users) ? data.users : [],
         });
       } catch (err) {
-        console.error("Failed to load manual target options", err);
+        console.error("Không thể tải danh sách user/role", err);
         setTargetOptionsError(
           "Không tải được danh sách người dùng / quyền. Bạn sẽ không thể chọn người nhận."
         );
@@ -148,7 +148,7 @@ const AdminNotificationsPage = () => {
         setItems(result.items || []);
         setTotal(result.total || 0);
       } catch (err) {
-        console.error("Failed to load notifications", err);
+        console.error("Không thể tải danh sách thông báo", err);
         setError("Không tải được danh sách thông báo. Vui lòng thử lại.");
       } finally {
         setLoading(false);
@@ -214,7 +214,7 @@ const AdminNotificationsPage = () => {
       const data = await NotificationsApi.getDetail(id);
       setSelectedNotification(data);
     } catch (err) {
-      console.error("Failed to load notification detail", err);
+      console.error("Không thể tải chi tiết thông báo", err);
       setDetailError("Không tải được chi tiết thông báo.");
     } finally {
       setDetailLoading(false);
@@ -301,15 +301,15 @@ const AdminNotificationsPage = () => {
     const errs = {};
 
     if (!createForm.title.trim()) {
-      errs.title = "Title is required.";
+      errs.title = "Vui lòng nhập tiêu đề thông báo.";
     } else if (createForm.title.trim().length > 200) {
-      errs.title = "Title must be at most 200 characters.";
+      errs.title = "Tiêu đề tối đa 200 ký tự.";
     }
 
     if (!createForm.message.trim()) {
-      errs.message = "Message is required.";
+      errs.message = "Vui lòng nhập nội dung chi tiết.";
     } else if (createForm.message.trim().length > 1000) {
-      errs.message = "Message must be at most 1000 characters.";
+      errs.message = "Nội dung tối đa 1000 ký tự.";
     }
 
     // Nếu KHÔNG gửi toàn hệ thống thì bắt buộc phải chọn ít nhất 1 user
@@ -324,11 +324,11 @@ const AdminNotificationsPage = () => {
 
     const sevNum = Number(createForm.severity);
     if (Number.isNaN(sevNum) || sevNum < 0 || sevNum > 3) {
-      errs.severity = "Severity must be between 0 and 3.";
+      errs.severity = "Mức độ phải nằm trong khoảng từ 0 đến 3.";
     }
 
     if (createForm.relatedUrl && createForm.relatedUrl.length > 500) {
-      errs.relatedUrl = "Related url is too long.";
+      errs.relatedUrl = "Đường dẫn liên quan quá dài (tối đa 500 ký tự).";
     }
 
     setCreateErrors(errs);
@@ -372,12 +372,17 @@ const AdminNotificationsPage = () => {
       await refreshList();
       window.alert("Tạo thông báo thành công.");
     } catch (err) {
-      console.error("Failed to create notification", err);
+      console.error("Không thể tạo thông báo", err);
       window.alert("Tạo thông báo thất bại. Vui lòng kiểm tra lại dữ liệu.");
     } finally {
       setCreateSubmitting(false);
     }
   };
+
+  const recipients =
+    selectedNotification && Array.isArray(selectedNotification.recipients)
+      ? selectedNotification.recipients
+      : [];
 
   return (
     <div className="admin-notifications-page">
@@ -575,7 +580,7 @@ const AdminNotificationsPage = () => {
                   <tr key={n.id}>
                     <td>
                       <span className="notif-date">
-                        {new Date(n.createdAtUtc).toLocaleString()}
+                        {new Date(n.createdAtUtc).toLocaleString("vi-VN")}
                       </span>
                     </td>
                     <td className="notif-title-cell">
@@ -594,11 +599,10 @@ const AdminNotificationsPage = () => {
                       </span>
                     </td>
                     <td>{n.isSystemGenerated ? "Hệ thống" : "Thủ công"}</td>
-                    <td>{n.isGlobal ? "Toàn hệ thống" : "User cụ thể"}</td>
+                    <td>{n.isGlobal ? "Toàn hệ thống" : "Người dùng cụ thể"}</td>
                     <td>
                       <span className="notif-targets">
-                        Người dùng: {n.totalTargetUsers} | Đã đọc:{" "}
-                        {n.readCount}
+                        Người dùng: {n.totalTargetUsers} | Đã đọc: {n.readCount}
                       </span>
                     </td>
                     <td className="notif-actions-cell">
@@ -664,7 +668,6 @@ const AdminNotificationsPage = () => {
                   />
                   <span className="slider" />
                 </label>
-                {/* Không có nút X bên phải */}
               </div>
             </div>
 
@@ -766,8 +769,7 @@ const AdminNotificationsPage = () => {
                           Áp dụng cho người dùng
                         </span>
                         <span className="notif-dropdown-count">
-                          (
-                          {createForm.selectedUserIds.length}/
+                          ({createForm.selectedUserIds.length}/
                           {targetOptions.users.length} đã chọn)
                         </span>
                       </div>
@@ -797,9 +799,7 @@ const AdminNotificationsPage = () => {
                         <div className="notif-dropdown-list">
                           {targetOptions.users.map((u) => {
                             const selected =
-                              createForm.selectedUserIds.includes(
-                                u.userId
-                              );
+                              createForm.selectedUserIds.includes(u.userId);
                             return (
                               <div
                                 key={u.userId}
@@ -859,8 +859,7 @@ const AdminNotificationsPage = () => {
                           Áp dụng cho nhóm quyền
                         </span>
                         <span className="notif-dropdown-count">
-                          (
-                          {createForm.selectedRoleIds.length}/
+                          ({createForm.selectedRoleIds.length}/
                           {targetOptions.roles.length} đã chọn)
                         </span>
                       </div>
@@ -879,11 +878,9 @@ const AdminNotificationsPage = () => {
                         <div className="notif-dropdown-list">
                           {targetOptions.roles.map((r) => {
                             const selected =
-                              createForm.selectedRoleIds.includes(
-                                r.roleId
-                              );
+                              createForm.selectedRoleIds.includes(r.roleId);
                             const roleName =
-                              r.roleName || r.roleId || "Role";
+                              r.roleName || r.roleId || "Quyền";
                             return (
                               <div
                                 key={r.roleId}
@@ -971,14 +968,19 @@ const AdminNotificationsPage = () => {
         <div className="notif-modal-backdrop">
           <div className="notif-modal notif-modal-detail">
             <div className="notif-modal-header">
-              <h2>Chi tiết thông báo</h2>
-              <button
-                type="button"
-                className="notif-modal-close"
-                onClick={() => setIsDetailModalOpen(false)}
-              >
-                ×
-              </button>
+              <div className="notif-modal-header-left">
+                <h2>Chi tiết thông báo</h2>
+              </div>
+              {selectedNotification && (
+                <div className="notif-modal-header-right">
+                  <span
+                    className={severityClass(selectedNotification.severity)}
+                    title="Mức độ thông báo"
+                  >
+                    {severityLabel(selectedNotification.severity)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="notif-modal-body notif-detail-body">
@@ -990,104 +992,131 @@ const AdminNotificationsPage = () => {
               )}
               {!detailLoading && !detailError && selectedNotification && (
                 <>
-                  <div className="detail-row">
-                    <span className="detail-label">ID:</span>
-                    <span className="detail-value">
-                      {selectedNotification.id}
-                    </span>
+                  {/* Lưới 2 cột cho thông tin meta */}
+                  <div className="notif-detail-grid">
+                    <div className="detail-row">
+                      <span className="detail-label">Tiêu đề:</span>
+                      <span className="detail-value">
+                        {selectedNotification.title}
+                      </span>
+                    </div>
+
+                    <div className="detail-row">
+                      <span className="detail-label">Phạm vi:</span>
+                      <span className="detail-value">
+                        {selectedNotification.isGlobal
+                          ? "Toàn hệ thống"
+                          : "Người dùng cụ thể"}
+                      </span>
+                    </div>
+
+                    <div className="detail-row">
+                      <span className="detail-label">Nguồn tạo:</span>
+                      <span className="detail-value">
+                        {selectedNotification.isSystemGenerated
+                          ? "Hệ thống"
+                          : "Thủ công"}
+                      </span>
+                    </div>
+
+                    <div className="detail-row">
+                      <span className="detail-label">Người tạo:</span>
+                      <span className="detail-value">
+                        {selectedNotification.createdByUserEmail ||
+                          selectedNotification.createdByUserId ||
+                          "-"}
+                      </span>
+                    </div>
+
+                    <div className="detail-row">
+                      <span className="detail-label">Thời gian tạo:</span>
+                      <span className="detail-value">
+                        {new Date(
+                          selectedNotification.createdAtUtc
+                        ).toLocaleString("vi-VN")}
+                      </span>
+                    </div>
+
+                    <div className="detail-row">
+                      <span className="detail-label">
+                        Đường dẫn liên quan:
+                      </span>
+                      <span className="detail-value">
+                        {selectedNotification.relatedUrl || "-"}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="detail-row">
-                    <span className="detail-label">Title:</span>
-                    <span className="detail-value">
-                      {selectedNotification.title}
-                    </span>
-                  </div>
-
+                  {/* Nội dung đầy đủ */}
                   <div className="detail-row detail-row-message">
-                    <span className="detail-label">Message:</span>
+                    <span className="detail-label">Nội dung:</span>
                     <div className="detail-value detail-value-message">
                       {selectedNotification.message}
                     </div>
                   </div>
 
+                  {/* Thống kê người nhận */}
                   <div className="detail-row">
-                    <span className="detail-label">Severity:</span>
+                    <span className="detail-label">Tổng kết:</span>
                     <span className="detail-value">
-                      <span
-                        className={severityClass(
-                          selectedNotification.severity
-                        )}
-                      >
-                        {severityLabel(selectedNotification.severity)}
-                      </span>
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">System generated:</span>
-                    <span className="detail-value">
-                      {selectedNotification.isSystemGenerated
-                        ? "Yes"
-                        : "No"}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">Global:</span>
-                    <span className="detail-value">
-                      {selectedNotification.isGlobal ? "Yes" : "No"}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">Created At:</span>
-                    <span className="detail-value">
-                      {new Date(
-                        selectedNotification.createdAtUtc
-                      ).toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">Created By:</span>
-                    <span className="detail-value">
-                      {selectedNotification.createdByUserEmail ||
-                        selectedNotification.createdByUserId ||
-                        "-"}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">Related Entity:</span>
-                    <span className="detail-value">
-                      {selectedNotification.relatedEntityType ||
-                      selectedNotification.relatedEntityId
-                        ? `${selectedNotification.relatedEntityType || ""} ${
-                            selectedNotification.relatedEntityId || ""
-                          }`.trim()
-                        : "-"}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">Related Url:</span>
-                    <span className="detail-value">
-                      {selectedNotification.relatedUrl || "-"}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <span className="detail-label">Targets:</span>
-                    <span className="detail-value">
-                      Users: {selectedNotification.totalTargetUsers} | Read:{" "}
-                      {selectedNotification.readCount} | Unread:{" "}
+                      Người dùng: {selectedNotification.totalTargetUsers} | Đã
+                      đọc: {selectedNotification.readCount} | Chưa đọc:{" "}
                       {selectedNotification.unreadCount}
                     </span>
                   </div>
 
+                  {/* Bảng người nhận chi tiết */}
+                  <div className="notif-recipient-section">
+                    <div className="detail-row">
+                      <span className="detail-label">Người nhận chi tiết:</span>
+                      <span className="detail-value">
+                        &nbsp;
+                        {/* chỉ để label nằm cùng hàng, bảng nằm bên dưới */}
+                      </span>
+                    </div>
+                    <div className="notif-recipient-table-wrapper">
+                      {recipients.length === 0 ? (
+                        <div className="notif-empty-inline">
+                          Không có dữ liệu người nhận.
+                        </div>
+                      ) : (
+                        <table className="notif-recipient-table">
+                          <thead>
+                            <tr>
+                              <th>Tên người nhận</th>
+                              <th>Email</th>
+                              <th>Nhóm quyền</th>
+                              <th>Tình trạng</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recipients.map((r, idx) => (
+                              <tr key={idx}>
+                                <td>{r.fullName || "(Chưa có tên)"}</td>
+                                <td>{r.email}</td>
+                                <td>{r.roleName || "-"}</td>
+                                <td>
+                                  {r.isRead ? (
+                                    <span className="recipient-status-read">
+                                      Đã đọc
+                                    </span>
+                                  ) : (
+                                    <span className="recipient-status-unread">
+                                      Chưa đọc
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Danh sách nhóm quyền (tổng quát) */}
                   <div className="detail-row detail-row-roles">
-                    <span className="detail-label">Target Roles:</span>
+                    <span className="detail-label">Nhóm quyền nhận:</span>
                     <div className="detail-value">
                       {selectedNotification.targetRoles &&
                       selectedNotification.targetRoles.length > 0 ? (

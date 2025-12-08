@@ -1,8 +1,10 @@
 ﻿// File: Controllers/NotificationsController.cs
 using Keytietkiem.DTOs;
+using Keytietkiem.Hubs;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
@@ -18,13 +20,16 @@ namespace Keytietkiem.Controllers
     {
         private readonly KeytietkiemDbContext _db;
         private readonly ILogger<NotificationsController> _logger;
+        private readonly IHubContext<NotificationHub> _notificationHub;
 
         public NotificationsController(
             KeytietkiemDbContext db,
-            ILogger<NotificationsController> logger)
+            ILogger<NotificationsController> logger,
+            IHubContext<NotificationHub> notificationHub)
         {
             _db = db;
             _logger = logger;
+            _notificationHub = notificationHub;
         }
 
         #region Helpers
@@ -44,18 +49,6 @@ namespace Keytietkiem.Controllers
 
         /// <summary>
         /// Áp dụng sort cho danh sách Notification (Admin).
-        /// sortBy (case-insensitive) hỗ trợ:
-        ///   - "createdAt", "createdAtUtc"
-        ///   - "title"
-        ///   - "severity"
-        ///   - "system", "isSystemGenerated"
-        ///   - "global", "isGlobal"
-        ///   - "targets", "totalTargetUsers"
-        ///   - "read", "readCount"
-        /// sortDescending:
-        ///   - false: ASC
-        ///   - true : DESC
-        /// Mặc định: createdAt DESC
         /// </summary>
         private static IQueryable<Notification> ApplyAdminSort(
             IQueryable<Notification> query,
@@ -145,6 +138,9 @@ namespace Keytietkiem.Controllers
                     : query.OrderBy(nu => nu.CreatedAtUtc),
             };
         }
+
+        #endregion
+
         /// <summary>
         /// Dữ liệu dropdown phục vụ tạo thông báo thủ công:
         ///  - Roles: danh sách role (RoleId + RoleName).
@@ -169,9 +165,6 @@ namespace Keytietkiem.Controllers
             // Users – tuỳ schema mà chỉnh lại FullName, IsActive...
             var usersQuery = _db.Users.AsNoTracking();
 
-            // Nếu muốn chỉ lấy user đang hoạt động thì thêm điều kiện:
-            // usersQuery = usersQuery.Where(u => u.IsActive);
-
             var users = await usersQuery
                 .OrderBy(u => u.FullName)   // nếu không có FullName thì OrderBy(u => u.Email)
                 .ThenBy(u => u.Email)
@@ -192,20 +185,8 @@ namespace Keytietkiem.Controllers
             return Ok(result);
         }
 
-        #endregion
-
         /// <summary>
         /// Danh sách thông báo (Admin) với filter + phân trang + sort + search.
-        /// Query param (tương ứng NotificationAdminFilterDto):
-        ///   - search
-        ///   - severity (0..3)
-        ///   - isSystemGenerated (true/false)
-        ///   - isGlobal (true/false)
-        ///   - createdFromUtc, createdToUtc
-        ///   - sortBy: createdAt|title|severity|system|global|targets|read
-        ///   - sortDescending: true/false
-        ///   - pageNumber (>=1)
-        ///   - pageSize  (1..200)
         /// </summary>
         [HttpGet]
         [Authorize(Roles = "Admin")]
@@ -321,6 +302,48 @@ namespace Keytietkiem.Controllers
             var totalTargetUsers = notification.NotificationUsers.Count;
             var readCount = notification.NotificationUsers.Count(x => x.IsRead);
 
+            // Lấy danh sách userId trong thông báo này
+            var userIds = notification.NotificationUsers
+                .Select(nu => nu.UserId)
+                .Distinct()
+                .ToList();
+
+            // Lấy thông tin user (FullName, Email)
+            var users = await _db.Users
+                .Where(u => userIds.Contains(u.UserId))
+                .Select(u => new
+                {
+                    u.UserId,
+                    u.FullName,
+                    u.Email
+                })
+                .ToListAsync();
+
+            var usersDict = users.ToDictionary(x => x.UserId, x => x);
+
+            // Map ra danh sách Recipients cho bảng chi tiết
+            var recipients = notification.NotificationUsers
+                .Select(nu =>
+                {
+                    usersDict.TryGetValue(nu.UserId, out var userInfo);
+
+                    return new NotificationRecipientDto
+                    {
+                        UserId = nu.UserId,
+                        FullName = userInfo?.FullName,
+                        Email = userInfo?.Email ?? string.Empty,
+
+                        // TODO: Nếu sau này có bảng UserRoles / navigation User.UserRoles
+                        // thì map RoleNames ở đây, ví dụ:
+                        // RoleNames = roleNamesDict.TryGetValue(nu.UserId, out var rn) ? rn : string.Empty,
+                        RoleNames = string.Empty,
+
+                        IsRead = nu.IsRead
+                    };
+                })
+                .OrderBy(r => r.FullName ?? r.Email)
+                .ToList();
+
             var dto = new NotificationDetailDto
             {
                 Id = notification.Id,
@@ -344,7 +367,8 @@ namespace Keytietkiem.Controllers
                         RoleId = tr.RoleId,
                         RoleName = tr.Role?.Name
                     })
-                    .ToList()
+                    .ToList(),
+                Recipients = recipients
             };
 
             return Ok(dto);
@@ -443,6 +467,43 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
+        /// Đánh dấu 1 thông báo của user hiện tại là đã đọc.
+        /// </summary>
+        [HttpPost("my/{notificationUserId:long}/read")]
+        [Authorize]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<ActionResult> MarkMyNotificationAsRead(long notificationUserId)
+        {
+            Guid userId;
+            try
+            {
+                userId = GetCurrentUserId();
+            }
+            catch
+            {
+                return Unauthorized();
+            }
+
+            var notifUser = await _db.NotificationUsers
+                .FirstOrDefaultAsync(nu => nu.Id == notificationUserId && nu.UserId == userId);
+
+            if (notifUser == null)
+            {
+                return NotFound();
+            }
+
+            if (!notifUser.IsRead)
+            {
+                notifUser.IsRead = true;
+                notifUser.ReadAtUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+
+            return NoContent();
+        }
+
+        /// <summary>
         /// Tạo thông báo thủ công và gán cho danh sách user cụ thể.
         /// </summary>
         [HttpPost]
@@ -538,7 +599,37 @@ namespace Keytietkiem.Controllers
 
             _db.Notifications.Add(notification);
             await _db.SaveChangesAsync();
+            try
+            {
+                foreach (var nu in notification.NotificationUsers)
+                {
+                    var dtoUser = new NotificationUserListItemDto
+                    {
+                        NotificationUserId = nu.Id,
+                        NotificationId = nu.NotificationId,
+                        Title = notification.Title,
+                        Message = notification.Message,
+                        Severity = notification.Severity,
+                        IsRead = nu.IsRead,
+                        CreatedAtUtc = nu.CreatedAtUtc,
+                        ReadAtUtc = nu.ReadAtUtc,
+                        IsSystemGenerated = notification.IsSystemGenerated,
+                        IsGlobal = notification.IsGlobal,
+                        RelatedEntityType = notification.RelatedEntityType,
+                        RelatedEntityId = notification.RelatedEntityId,
+                        RelatedUrl = notification.RelatedUrl
+                    };
 
+                    await _notificationHub
+                        .Clients
+                        .Group(NotificationHub.UserGroup(nu.UserId))
+                        .SendAsync("ReceiveNotification", dtoUser);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to push realtime notifications");
+            }
             // Trả về 201 + id của thông báo vừa tạo
             return CreatedAtAction(
                 nameof(GetNotificationDetail),
