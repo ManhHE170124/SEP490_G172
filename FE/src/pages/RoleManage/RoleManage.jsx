@@ -161,6 +161,18 @@ export default function RoleManagement() {
       setSortOrder("asc");
     }
   };
+
+  // Handle reset filters
+  const handleReset = () => {
+    setSearch("");
+    setSortKey("");
+    setSortOrder("asc");
+    setPage(1);
+    setRoleStatus("all");
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = search || sortKey || (activeTab === TABS.ROLES && roleStatus !== "all");
   /**
    * @summary  Dynamically generates column definitions and the "Add" button label 
    * based on the currently active tab (Modules, Permissions, or Roles).
@@ -607,6 +619,20 @@ export default function RoleManagement() {
               }}
             />
           </div>
+          {hasActiveFilters && (
+            <button 
+              className="role-reset-button" 
+              onClick={handleReset}
+              title="Đặt lại bộ lọc"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              Đặt lại
+            </button>
+          )}
         </div>
         <div className="role-controls-right">
           {activeTab === TABS.ROLES && (
@@ -732,41 +758,64 @@ export default function RoleManagement() {
         )}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            className="role-btn-secondary"
-            onClick={() => setPage(1)}
-            disabled={currentPage === 1}
-          >
-            «
-          </button>
-          <button
-            className="role-btn-secondary"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            ‹
-          </button>
-          <span style={{ padding: "0 8px" }}>
-            Trang {currentPage}/{totalPages} ({total} bản ghi)
-          </span>
-          <button
-            className="role-btn-secondary"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-          >
-            ›
-          </button>
-          <button
-            className="role-btn-secondary"
-            onClick={() => setPage(totalPages)}
-            disabled={currentPage >= totalPages}
-          >
-            »
-          </button>
+      {/* Pagination */}
+      {!loading && !error && (
+        <div className="role-pagination">
+          <div className="role-pagination-info">
+            Hiển thị {total === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, total)}/{total} {activeTab === TABS.MODULES ? "mô-đun" : activeTab === TABS.PERMISSIONS ? "quyền" : "vai trò"}
+          </div>
+          <div className="role-pagination-controls">
+            <button
+              className="role-pagination-btn"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+              title="Trang trước"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              Trước
+            </button>
+            
+            <div className="role-pagination-numbers">
+              {[...Array(totalPages)].map((_, idx) => {
+                const pageNum = idx + 1;
+                // Show first, last, current, and ±1 around current
+                if (
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= page - 1 && pageNum <= page + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      className={`role-pagination-number ${page === pageNum ? "active" : ""}`}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (pageNum === page - 2 || pageNum === page + 2) {
+                  return <span key={pageNum} className="role-pagination-ellipsis">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <button
+              className="role-pagination-btn"
+              onClick={() => setPage(page + 1)}
+              disabled={page >= totalPages}
+              title="Trang sau"
+            >
+              Sau
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       <RoleModal
         isOpen={editOpen}
         title={editTitle}

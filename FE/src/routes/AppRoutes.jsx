@@ -24,6 +24,7 @@ import RoleManage from "../pages/RoleManage/RoleManage";
 import AdminPostList from "../pages/PostManage/AdminPostList";
 import PostCreateEdit from "../pages/PostManage/CreateEditPost";
 import TagPostTypeManage from "../pages/PostManage/TagAndPostTypeManage";
+import PostDashboardPage from "../pages/PostManage/PostDashboardPage";
 
 // Admin pages
 import CategoryPage from "../pages/admin/CategoryPage.jsx";
@@ -406,6 +407,13 @@ export default function AppRoutes() {
         )}
       />
       {/* Post Routes */}
+      <Route
+        path="post-dashboard"
+        element={renderAdminPage(
+          MODULE_CODES.POST_MANAGER,
+          <PostDashboardPage />
+        )}
+      />
       <Route
         path="admin-post-list"
         element={renderAdminPage(

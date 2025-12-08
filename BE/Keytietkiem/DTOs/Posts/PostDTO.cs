@@ -112,8 +112,8 @@ namespace Keytietkiem.DTOs.Post
         public Guid PostTypeId { get; set; }
         public string PostTypeName { get; set; } = null!;
         public string? Description { get; set; }
-        public string Slug { get; set; } = null!;
-        public DateTime? CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
     // public class PostTypeDto
     // {
@@ -131,14 +131,7 @@ namespace Keytietkiem.DTOs.Post
         public string PostTypeName { get; set; }
 
         [StringLength(500, ErrorMessage = "Mô tả không được vượt quá 500 ký tự.")]
-        public string Description { get; set; }
-        
-        [Required(ErrorMessage = "Slug không được để trống.")]
-        [StringLength(100, MinimumLength = 2, ErrorMessage = "Slug phải có từ 2 đến 100 ký tự.")]
-        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Slug chỉ được chứa chữ thường, số và dấu gạch ngang.")]
-        public string Slug { get; set; }
-        public DateTime CreatedAt { get; set; }
-
+        public string? Description { get; set; }
     }
 
     public class UpdatePostTypeDTO
@@ -149,12 +142,6 @@ namespace Keytietkiem.DTOs.Post
 
         [StringLength(500, ErrorMessage = "Mô tả không được vượt quá 500 ký tự.")]
         public string Description { get; set; }
-        
-        [Required(ErrorMessage = "Slug không được để trống.")]
-        [StringLength(100, MinimumLength = 2, ErrorMessage = "Slug phải có từ 2 đến 100 ký tự.")]
-        [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Slug chỉ được chứa chữ thường, số và dấu gạch ngang.")]
-        public string Slug { get; set; }
-
     }
 
     public class TagDto

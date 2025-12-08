@@ -1705,6 +1705,13 @@ const handlePublish = () =>
 
   return (
     <main className="cep-main">
+      {/* Page Header */}
+      <div className="cep-page-header">
+        <h1 className="cep-page-title">
+          {isEditMode ? 'Cập nhật bài viết' : 'Tạo bài viết mới'}
+        </h1>
+      </div>
+      
       <div className="cep-blog-create-container">
         {/* Left Column */}
         <div className="cep-main-content">

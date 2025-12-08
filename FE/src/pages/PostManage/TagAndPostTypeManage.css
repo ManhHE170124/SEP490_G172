@@ -111,6 +111,32 @@
   width: auto;
 }
 
+.tag-pt-reset-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--page);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tag-pt-reset-button:hover {
+  background: var(--card);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tag-pt-reset-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .tag-pt-search-box {
   position: relative;
   display: flex;
@@ -613,6 +639,119 @@
   }
 }
 
+/* Pagination */
+.tag-pt-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.tag-pt-pagination-info {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.tag-pt-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tag-pt-pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tag-pt-pagination-btn:hover:not(:disabled) {
+  background: var(--card);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tag-pt-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tag-pt-pagination-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tag-pt-pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tag-pt-pagination-number {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tag-pt-pagination-number:hover {
+  background: var(--card);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tag-pt-pagination-number.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.tag-pt-pagination-ellipsis {
+  padding: 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .tag-pt-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tag-pt-pagination-info {
+    text-align: center;
+  }
+
+  .tag-pt-pagination-controls {
+    justify-content: center;
+  }
+}
+
 @media (max-width: 480px) {
   .tag-pt-stats {
     grid-template-columns: 1fr;
@@ -630,5 +769,15 @@
   .tag-pt-card-icon svg {
     width: 20px;
     height: 20px;
+  }
+
+  .tag-pt-pagination-numbers {
+    gap: 0.125rem;
+  }
+
+  .tag-pt-pagination-number {
+    min-width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
   }
 }

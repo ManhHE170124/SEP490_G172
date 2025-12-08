@@ -473,7 +473,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.IsApproved).HasDefaultValue(false);
 
-            entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
+            entity.HasOne(d => d.ParentComment).WithMany(p => p.Replies)
                 .HasForeignKey(d => d.ParentCommentId)
                 .HasConstraintName("FK_PostComments_ParentComment");
 
@@ -492,17 +492,15 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.ToTable("PostType");
 
-            entity.HasIndex(e => e.Slug, "UQ__PostType__BC7B5FB626D7DA7A").IsUnique();
-
             entity.Property(e => e.PostTypeId)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("PostTypeID");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.Description).HasMaxLength(255);
             entity.Property(e => e.PostTypeName).HasMaxLength(100);
-            entity.Property(e => e.Slug).HasMaxLength(150);
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -1074,6 +1072,10 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.TagId)
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("TagID");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.Slug).HasMaxLength(150);
             entity.Property(e => e.TagName).HasMaxLength(100);
         });

@@ -1,0 +1,118 @@
+/**
+ * File: PerformanceStatistics.css
+ * Purpose: Styles for Performance Statistics component
+ */
+
+.performance-statistics {
+  background: var(--card, #ffffff);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--line, #e5e7eb);
+  margin-bottom: 2rem;
+}
+
+.performance-statistics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--line, #e5e7eb);
+}
+
+.performance-statistics-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink, #111827);
+  margin: 0;
+}
+
+.performance-time-range-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.time-range-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 6px;
+  background: var(--card, #ffffff);
+  color: var(--ink, #111827);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.time-range-btn:hover {
+  background: var(--page, #f5f5f5);
+  border-color: var(--primary, #007bff);
+}
+
+.time-range-btn.active {
+  background: var(--primary, #007bff);
+  color: white;
+  border-color: var(--primary, #007bff);
+}
+
+.performance-charts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.performance-chart-card {
+  background: var(--page, #f5f5f5);
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid var(--line, #e5e7eb);
+}
+
+.chart-card-header {
+  margin-bottom: 1rem;
+}
+
+.chart-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink, #111827);
+  margin: 0 0 0.25rem 0;
+}
+
+.chart-card-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted, #6b7280);
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .performance-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .performance-statistics {
+    padding: 1rem;
+  }
+
+  .performance-statistics-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .performance-time-range-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .time-range-btn {
+    flex: 1;
+    text-align: center;
+  }
+}
+
+
