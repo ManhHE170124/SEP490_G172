@@ -31,6 +31,12 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Module> Modules { get; set; }
 
+    public virtual DbSet<Notification> Notifications { get; set; }
+
+    public virtual DbSet<NotificationTargetRole> NotificationTargetRoles { get; set; }
+
+    public virtual DbSet<NotificationUser> NotificationUsers { get; set; }
+
     public virtual DbSet<Order> Orders { get; set; }
 
     public virtual DbSet<OrderDetail> OrderDetails { get; set; }
@@ -110,6 +116,10 @@ public partial class KeytietkiemDbContext : DbContext
     public virtual DbSet<WarrantyClaim> WarrantyClaims { get; set; }
 
     public virtual DbSet<WebsiteSetting> WebsiteSettings { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+        => optionsBuilder.UseSqlServer("Server=DESKTOP-VIO3U0P\\SQLEXPRESS;Database=KeytietkiemDB;User Id=thanbd;Password=123;TrustServerCertificate=True;Encrypt=False");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -301,6 +311,62 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(200);
             entity.Property(e => e.ModuleName).HasMaxLength(80);
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Notifica__3214EC0728470C4B");
+
+            entity.ToTable("Notification");
+
+            entity.HasIndex(e => e.CreatedAtUtc, "IX_Notification_CreatedAtUtc").IsDescending();
+
+            entity.Property(e => e.CreatedAtUtc)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsSystemGenerated).HasDefaultValue(true);
+            entity.Property(e => e.Message).HasMaxLength(1000);
+            entity.Property(e => e.RelatedEntityId).HasMaxLength(64);
+            entity.Property(e => e.RelatedEntityType).HasMaxLength(100);
+            entity.Property(e => e.RelatedUrl).HasMaxLength(512);
+            entity.Property(e => e.Title).HasMaxLength(200);
+
+            entity.HasOne(d => d.CreatedByUser).WithMany(p => p.Notifications).HasForeignKey(d => d.CreatedByUserId);
+        });
+
+        modelBuilder.Entity<NotificationTargetRole>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Notifica__3214EC071A6CF8FB");
+
+            entity.ToTable("NotificationTargetRole");
+
+            entity.HasIndex(e => new { e.NotificationId, e.RoleId }, "UX_NotificationTargetRole_Notification_Role").IsUnique();
+
+            entity.Property(e => e.RoleId).HasMaxLength(50);
+
+            entity.HasOne(d => d.Notification).WithMany(p => p.NotificationTargetRoles).HasForeignKey(d => d.NotificationId);
+
+            entity.HasOne(d => d.Role).WithMany(p => p.NotificationTargetRoles).HasForeignKey(d => d.RoleId);
+        });
+
+        modelBuilder.Entity<NotificationUser>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Notifica__3214EC074E20D9CE");
+
+            entity.ToTable("NotificationUser");
+
+            entity.HasIndex(e => new { e.UserId, e.IsRead, e.CreatedAtUtc }, "IX_NotificationUser_User_Read").IsDescending(false, false, true);
+
+            entity.HasIndex(e => new { e.NotificationId, e.UserId }, "UX_NotificationUser_Notification_User").IsUnique();
+
+            entity.Property(e => e.CreatedAtUtc)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.ReadAtUtc).HasPrecision(0);
+
+            entity.HasOne(d => d.Notification).WithMany(p => p.NotificationUsers).HasForeignKey(d => d.NotificationId);
+
+            entity.HasOne(d => d.User).WithMany(p => p.NotificationUsers).HasForeignKey(d => d.UserId);
         });
 
         modelBuilder.Entity<Order>(entity =>

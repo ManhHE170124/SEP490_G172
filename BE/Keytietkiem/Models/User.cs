@@ -37,6 +37,10 @@ public partial class User
 
     public virtual Account? Account { get; set; }
 
+    public virtual ICollection<NotificationUser> NotificationUsers { get; set; } = new List<NotificationUser>();
+
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
 
     public virtual ICollection<PostComment> PostComments { get; set; } = new List<PostComment>();
