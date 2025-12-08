@@ -88,7 +88,6 @@ namespace Keytietkiem.Services
                 // ==== Request context ====
                 var sessionId = GetSessionId(httpContext);
                 var ipAddress = GetClientIp(httpContext);
-                var userAgent = httpContext.Request.Headers["User-Agent"].ToString();
 
                 string? beforeJson = SerializeObjectSafe(before);
                 string? afterJson = SerializeObjectSafe(after);
@@ -103,7 +102,6 @@ namespace Keytietkiem.Services
 
                     SessionId = sessionId,
                     IpAddress = ipAddress,
-                    UserAgent = userAgent,
 
                     Action = action,
                     EntityType = entityType,

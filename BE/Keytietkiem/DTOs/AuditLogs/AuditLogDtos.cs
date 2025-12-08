@@ -5,6 +5,27 @@ using System.Collections.Generic;
 namespace Keytietkiem.DTOs.AuditLogs
 {
     /// <summary>
+    /// Một field thay đổi trong audit log.
+    /// </summary>
+    public class AuditChangeDto
+    {
+        /// <summary>
+        /// Đường dẫn field, ví dụ: "email", "status", "roles[0].code"
+        /// </summary>
+        public string FieldPath { get; set; } = null!;
+
+        /// <summary>
+        /// Giá trị trước khi thay đổi (string hóa).
+        /// </summary>
+        public string? Before { get; set; }
+
+        /// <summary>
+        /// Giá trị sau khi thay đổi (string hóa).
+        /// </summary>
+        public string? After { get; set; }
+    }
+
+    /// <summary>
     /// Filter query khi search/list audit logs.
     /// Dùng với [FromQuery] trong controller.
     /// </summary>
@@ -74,13 +95,17 @@ namespace Keytietkiem.DTOs.AuditLogs
 
         public string? IpAddress { get; set; }
 
-        public string? UserAgent { get; set; }
-
         public string Action { get; set; } = null!;
 
         public string? EntityType { get; set; }
 
         public string? EntityId { get; set; }
+
+        /// <summary>
+        /// Danh sách field có thay đổi (chỉ phần diff).
+        /// Dùng để hiển thị tóm tắt trên màn list.
+        /// </summary>
+        public List<AuditChangeDto> Changes { get; set; } = new();
     }
 
     public class AuditLogDetailDto
@@ -99,17 +124,26 @@ namespace Keytietkiem.DTOs.AuditLogs
 
         public string? IpAddress { get; set; }
 
-        public string? UserAgent { get; set; }
-
         public string Action { get; set; } = null!;
 
         public string? EntityType { get; set; }
 
         public string? EntityId { get; set; }
 
+        /// <summary>
+        /// JSON trước khi thay đổi (full, dùng cho view chi tiết).
+        /// </summary>
         public string? BeforeDataJson { get; set; }
 
+        /// <summary>
+        /// JSON sau khi thay đổi (full, dùng cho view chi tiết).
+        /// </summary>
         public string? AfterDataJson { get; set; }
+
+        /// <summary>
+        /// Danh sách field có diff (giống list, nhưng detail có thể show đầy đủ).
+        /// </summary>
+        public List<AuditChangeDto> Changes { get; set; } = new();
     }
 
     public class AuditLogListResponseDto
@@ -120,6 +154,7 @@ namespace Keytietkiem.DTOs.AuditLogs
 
         public int TotalItems { get; set; }
 
-        public IReadOnlyList<AuditLogListItemDto> Items { get; set; } = Array.Empty<AuditLogListItemDto>();
+        public IReadOnlyList<AuditLogListItemDto> Items { get; set; }
+            = Array.Empty<AuditLogListItemDto>();
     }
 }

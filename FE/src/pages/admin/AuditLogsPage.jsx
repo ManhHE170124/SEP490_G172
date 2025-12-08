@@ -37,34 +37,170 @@ const SortableHeader = ({ label, field, sortBy, sortDirection, onSort }) => {
   );
 };
 
+/* ============ Helpers cho modal JSON ============ */
+
+const tryParseJsonSafe = (json) => {
+  if (!json) return null;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+const tryParseLooseJsonValue = (raw) => {
+  if (raw === null || raw === undefined) return raw;
+  const text = String(raw).trim();
+  if (!text) return text;
+
+  // Nếu là object/array thì parse
+  if (text.startsWith("{") || text.startsWith("[")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  // number
+  const num = Number(text);
+  if (!Number.isNaN(num) && text === String(num)) {
+    return num;
+  }
+
+  // bool
+  if (text === "true") return true;
+  if (text === "false") return false;
+
+  return text;
+};
+
+const buildPartialObjectFromChanges = (changes, side) => {
+  const root = {};
+  if (!Array.isArray(changes)) return root;
+
+  const assignValue = (obj, path, rawValue) => {
+    if (rawValue === undefined || rawValue === null) return;
+
+    const segments = (path || "").split(".").filter(Boolean);
+    const value = tryParseLooseJsonValue(rawValue);
+
+    // Nếu path trống → merge root
+    if (segments.length === 0) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        Object.assign(obj, value);
+      } else {
+        obj.value = value;
+      }
+      return;
+    }
+
+    let current = obj;
+    for (let i = 0; i < segments.length; i += 1) {
+      const key = segments[i];
+      if (i === segments.length - 1) {
+        current[key] = value;
+      } else {
+        if (
+          !current[key] ||
+          typeof current[key] !== "object" ||
+          Array.isArray(current[key])
+        ) {
+          current[key] = {};
+        }
+        current = current[key];
+      }
+    }
+  };
+
+  changes.forEach((c) => {
+    if (!c) return;
+    const raw =
+      side === "before" ? c.before : side === "after" ? c.after : undefined;
+    if (raw === undefined || raw === null) return;
+    assignValue(root, c.fieldPath || "", raw);
+  });
+
+  return root;
+};
+
+const getViewLabel = (mode) => {
+  if (mode === "hidden") return "Hiển thị";
+  if (mode === "filtered") return "Chi tiết";
+  return "Ẩn";
+};
+
+const cycleViewMode = (mode, hasTwoSideChanges) => {
+  if (hasTwoSideChanges) {
+    // filtered -> full -> hidden -> filtered
+    if (mode === "filtered") return "full";
+    if (mode === "full") return "hidden";
+    return "filtered";
+  }
+  // Không có diff 2 bên: full <-> hidden
+  if (mode === "full") return "hidden";
+  return "full";
+};
+
 /* ============ Modal: Audit Log Detail ============ */
 function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
   const [parsedBefore, setParsedBefore] = React.useState(null);
   const [parsedAfter, setParsedAfter] = React.useState(null);
+  const [filteredBefore, setFilteredBefore] = React.useState(null);
+  const [filteredAfter, setFilteredAfter] = React.useState(null);
+  const [hasTwoSideChanges, setHasTwoSideChanges] = React.useState(false);
+
+  // viewMode: filtered | full | hidden
+  const [beforeViewMode, setBeforeViewMode] = React.useState("filtered");
+  const [afterViewMode, setAfterViewMode] = React.useState("filtered");
+
+  const item = detail || log;
+  const changes = (detail && detail.changes) || (log && log.changes) || [];
 
   React.useEffect(() => {
     if (!detail) {
       setParsedBefore(null);
       setParsedAfter(null);
+      setFilteredBefore(null);
+      setFilteredAfter(null);
+      setHasTwoSideChanges(false);
+      setBeforeViewMode("filtered");
+      setAfterViewMode("filtered");
       return;
     }
 
-    const tryParse = (json) => {
-      if (!json) return null;
-      try {
-        return JSON.parse(json);
-      } catch {
-        return null;
-      }
-    };
+    const pb = tryParseJsonSafe(detail.beforeDataJson);
+    const pa = tryParseJsonSafe(detail.afterDataJson);
+    setParsedBefore(pb);
+    setParsedAfter(pa);
 
-    setParsedBefore(tryParse(detail.beforeDataJson));
-    setParsedAfter(tryParse(detail.afterDataJson));
-  }, [detail]);
+    const hasTwoSide =
+      Array.isArray(changes) &&
+      changes.some(
+        (c) =>
+          c &&
+          c.before !== null &&
+          c.before !== undefined &&
+          c.after !== null &&
+          c.after !== undefined
+      );
+
+    setHasTwoSideChanges(hasTwoSide);
+
+    if (hasTwoSide) {
+      setFilteredBefore(buildPartialObjectFromChanges(changes, "before"));
+      setFilteredAfter(buildPartialObjectFromChanges(changes, "after"));
+      setBeforeViewMode("filtered");
+      setAfterViewMode("filtered");
+    } else {
+      setFilteredBefore(null);
+      setFilteredAfter(null);
+      setBeforeViewMode("full");
+      setAfterViewMode("full");
+    }
+  }, [detail, log, changes]);
 
   if (!open || !log) return null;
-
-  const item = detail || log;
 
   const formatDateTime = (value) => {
     if (!value) return "-";
@@ -77,12 +213,39 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
     }
   };
 
+  const beforeLabel = getViewLabel(beforeViewMode);
+  const afterLabel = getViewLabel(afterViewMode);
+
+  const shouldShowBeforeBlock = beforeViewMode !== "hidden" && !!detail;
+  const shouldShowAfterBlock = afterViewMode !== "hidden" && !!detail;
+
+  const beforeContent = (() => {
+    if (!detail) return "Đang tải chi tiết…";
+
+    if (hasTwoSideChanges && beforeViewMode === "filtered" && filteredBefore) {
+      return JSON.stringify(filteredBefore, null, 2);
+    }
+
+    if (parsedBefore) return JSON.stringify(parsedBefore, null, 2);
+    return detail.beforeDataJson || "(empty)";
+  })();
+
+  const afterContent = (() => {
+    if (!detail) return "Đang tải chi tiết…";
+
+    if (hasTwoSideChanges && afterViewMode === "filtered" && filteredAfter) {
+      return JSON.stringify(filteredAfter, null, 2);
+    }
+
+    if (parsedAfter) return JSON.stringify(parsedAfter, null, 2);
+    return detail.afterDataJson || "(empty)";
+  })();
+
   return (
     <div className="cat-modal-backdrop">
       <div className="cat-modal-card audit-detail-card">
         <div className="cat-modal-header">
           <div className="audit-detail-title">
-            {/* Đổi title, bỏ hiển thị id và mô tả nhỏ */}
             <h3>Chi tiết thao tác hệ thống</h3>
           </div>
           <button type="button" className="btn ghost small" onClick={onClose}>
@@ -97,6 +260,7 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
         )}
 
         <div className="cat-modal-body audit-detail-body">
+          {/* Thông tin meta */}
           <div className="grid cols-2 input-group audit-detail-grid">
             <div className="group">
               <span>Thời gian</span>
@@ -136,34 +300,60 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
               <div className="mono">{item.ipAddress || "-"}</div>
             </div>
 
-            <div className="group" style={{ gridColumn: "1 / 3" }}>
-              <span>Thông tin trình duyệt</span>
-              <div className="mono wrap">{item.userAgent || "-"}</div>
-            </div>
           </div>
 
+
+          {/* JSON BEFORE / AFTER – mặc định chỉ field thay đổi nếu có diff 2 phía */}
           <div className="audit-json-columns">
             <div className="group">
-              <span>Dữ liệu trước</span>
-              <pre className="audit-json">
-                {parsedBefore
-                  ? JSON.stringify(parsedBefore, null, 2)
-                  : detail?.beforeDataJson || "(empty)"}
-              </pre>
+              <div className="audit-json-header">
+                <span>Dữ liệu trước</span>
+                <div className="audit-json-header-actions">
+                  <span className="muted small">{beforeLabel}</span>
+                  <button
+                    type="button"
+                    className="audit-json-toggle"
+                    onClick={() =>
+                      setBeforeViewMode((mode) =>
+                        cycleViewMode(mode, hasTwoSideChanges)
+                      )
+                    }
+                    title="Chuyển chế độ hiển thị dữ liệu trước"
+                  >
+                    ⋯
+                  </button>
+                </div>
+              </div>
+              {shouldShowBeforeBlock && (
+                <pre className="audit-json">{beforeContent}</pre>
+              )}
             </div>
+
             <div className="group">
-              <span>Dữ liệu sau</span>
-              <pre className="audit-json">
-                {parsedAfter
-                  ? JSON.stringify(parsedAfter, null, 2)
-                  : detail?.afterDataJson || "(empty)"}
-              </pre>
+              <div className="audit-json-header">
+                <span>Dữ liệu sau</span>
+                <div className="audit-json-header-actions">
+                  <span className="muted small">{afterLabel}</span>
+                  <button
+                    type="button"
+                    className="audit-json-toggle"
+                    onClick={() =>
+                      setAfterViewMode((mode) =>
+                        cycleViewMode(mode, hasTwoSideChanges)
+                      )
+                    }
+                    title="Chuyển chế độ hiển thị dữ liệu sau"
+                  >
+                    ⋯
+                  </button>
+                </div>
+              </div>
+              {shouldShowAfterBlock && (
+                <pre className="audit-json">{afterContent}</pre>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Bỏ nút Đóng ở footer, chỉ dùng nút trên header */}
-        {/* <div className="cat-modal-footer" ...> */}
       </div>
     </div>
   );
@@ -293,7 +483,14 @@ export default function AuditLogsPage() {
   // Reset page khi filter thay đổi
   React.useEffect(() => {
     setPage(1);
-  }, [query.actorEmail, query.actorRole, query.action, query.entityType, query.from, query.to]);
+  }, [
+    query.actorEmail,
+    query.actorRole,
+    query.action,
+    query.entityType,
+    query.from,
+    query.to,
+  ]);
 
   const formatDateTime = (value) => {
     if (!value) return "";
@@ -524,7 +721,6 @@ export default function AuditLogsPage() {
                     onSort={handleSort}
                   />
                 </th>
-                {/* Bỏ cột Địa chỉ IP ở danh sách */}
                 <th style={{ textAlign: "center" }}>Chi tiết</th>
               </tr>
             </thead>

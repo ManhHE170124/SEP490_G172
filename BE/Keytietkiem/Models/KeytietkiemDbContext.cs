@@ -162,7 +162,6 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.SessionId).HasMaxLength(100);
-            entity.Property(e => e.UserAgent).HasMaxLength(200);
         });
 
         modelBuilder.Entity<Badge>(entity =>
@@ -473,7 +472,7 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.IsApproved).HasDefaultValue(false);
 
-            entity.HasOne(d => d.ParentComment).WithMany(p => p.Replies)
+            entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
                 .HasForeignKey(d => d.ParentCommentId)
                 .HasConstraintName("FK_PostComments_ParentComment");
 

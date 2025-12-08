@@ -215,9 +215,83 @@ namespace Keytietkiem.Controllers
             return Ok(dto);
         }
 
+        // =========================================================
+        //          WEBHOOK PayOS – CHUẨN CHO ORDER_PAYMENT
+        // =========================================================
+        // URL cấu hình trong PayOS: POST /api/payments/payos/webhook
+        [HttpPost("payos/webhook")]
+        [AllowAnonymous]
+        public async Task<IActionResult> HandlePayOSWebhook([FromBody] PayOSWebhookModel payload)
+        {
+            if (payload == null || payload.Data == null)
+            {
+                return BadRequest(new { message = "Payload từ PayOS không hợp lệ." });
+            }
+
+            var orderCode = payload.Data.OrderCode;
+            if (orderCode <= 0)
+            {
+                _logger.LogWarning("PayOS webhook thiếu hoặc sai orderCode: {@Payload}", payload);
+                return BadRequest(new { message = "orderCode không hợp lệ." });
+            }
+
+            // Tìm payment theo ProviderOrderCode + Provider = PayOS
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p =>
+                    p.Provider == "PayOS" &&
+                    p.ProviderOrderCode == orderCode);
+
+            if (payment == null)
+            {
+                _logger.LogWarning(
+                    "PayOS webhook cho orderCode {OrderCode} nhưng không tìm thấy Payment.",
+                    orderCode);
+
+                // Vẫn trả 200 để PayOS không retry vô hạn
+                return Ok(new { message = "Không tìm thấy payment, đã bỏ qua." });
+            }
+
+            // Hiện tại chỉ xử lý chuẩn cho ORDER_PAYMENT (cart).
+            if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation(
+                    "Nhận PayOS webhook cho payment {PaymentId} với TransactionType {Type} – chưa có logic xử lý riêng, bỏ qua.",
+                    payment.PaymentId,
+                    payment.TransactionType);
+
+                return Ok(new { message = "Đã bỏ qua vì không phải ORDER_PAYMENT." });
+            }
+
+            var topCode = payload.Code ?? string.Empty; // code tổng
+            var dataCode = !string.IsNullOrWhiteSpace(payload.Data.Code)
+                ? payload.Data.Code
+                : topCode; // code chi tiết nếu có
+            var amountFromGateway = (long)payload.Data.Amount;
+
+            try
+            {
+                // Dùng wrapper có SemaphoreSlim để tránh xử lý trùng
+                await HandleCartPaymentWebhook(payment, topCode, dataCode, amountFromGateway);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Lỗi khi xử lý PayOS webhook cho payment {PaymentId}, orderCode {OrderCode}",
+                    payment.PaymentId, orderCode);
+
+                // Cho PayOS biết là lỗi để nó có thể retry
+                return StatusCode(500, new { message = "Lỗi nội bộ khi xử lý webhook." });
+            }
+
+            return Ok(new { message = "Webhook đã được xử lý." });
+        }
+
         // ===== API: FE xác nhận thanh toán Cart sau khi PayOS redirect (SUCCESS) =====
         // POST /api/payments/cart/confirm-from-return
-        // Không dùng webhook nữa. Nếu Payment còn Pending thì xử lý luôn như SUCCESS.
+        //
+        // MỚI: Không còn tự đổi trạng thái nữa.
+        // - Trạng thái chuẩn được cập nhật bởi webhook PayOS.
+        // - API này chỉ đọc status hiện tại cho FE hiển thị.
         [HttpPost("cart/confirm-from-return")]
         [AllowAnonymous]
         public async Task<IActionResult> ConfirmCartPaymentFromReturn(
@@ -241,34 +315,19 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Payment không thuộc loại ORDER_PAYMENT (cart checkout)" });
             }
 
-            // Nếu đã được xử lý rồi (Paid / Cancelled / ...) thì không làm lại (idempotent)
-            if (!string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
-            {
-                return Ok(new
-                {
-                    message = "Payment đã được xử lý",
-                    status = payment.Status
-                });
-            }
-
-            // Đến được đây nghĩa là:
-            // - PayOS redirect về FE (user đang ở /cart/payment-result, success)
-            // - Và trước đó chưa có ai xử lý Payment này.
-            // Fallback: xử lý như SUCCESS, dùng Amount đã lưu trong Payment.
-            var amountFromGateway = (long)Math.Round(payment.Amount, 0, MidpointRounding.AwayFromZero);
-
-            await HandleCartPaymentWebhook(payment, "00", "00", amountFromGateway);
-
+            // Không tự xử lý nữa – chỉ trả về trạng thái hiện tại
             return Ok(new
             {
-                message = "Đã xác nhận thanh toán thành công",
-                status = payment.Status
+                message = "Cart payment status",
+                status = payment.Status ?? "Pending"
             });
         }
 
         // ===== API: FE huỷ thanh toán Cart sau khi PayOS redirect (CANCEL) =====
         // POST /api/payments/cart/cancel-from-return
-        // Không dùng webhook nữa. Nếu Payment còn Pending thì xử lý luôn như CANCEL (hoàn kho).
+        //
+        // Nếu Payment vẫn Pending: coi như CANCEL (user hủy / đóng tab),
+        // gọi HandleCartPaymentWebhook với code lỗi để hoàn kho + set Cancelled.
         [HttpPost("cart/cancel-from-return")]
         [AllowAnonymous]
         public async Task<IActionResult> CancelCartPaymentFromReturn(
@@ -304,7 +363,7 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            // Thanh toán bị huỷ / thất bại: xử lý như CANCEL
+            // Thanh toán bị huỷ / user đóng tab: xử lý như CANCEL
             await HandleCartPaymentWebhook(payment, "99", "99", 0L);
 
             return Ok(new
@@ -415,7 +474,6 @@ namespace Keytietkiem.Controllers
                     // Không clear snapshot nữa (đa phần đã null rồi), tránh mất thêm dữ liệu nếu còn gì đó.
                     return;
                 }
-
 
                 decimal totalListAmount = 0m;
                 decimal totalAmount = 0m;
