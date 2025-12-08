@@ -108,21 +108,27 @@
 
 /* Vùng tin nhắn: có scroll */
 .thread-messages{
-  padding:8px 0;
-  max-height:420px;            /* chỉ xem 1 lượng tin, nhiều hơn thì scroll */
+  padding:12px 16px 8px;      /* giống khung customer */
+  max-height:420px;
   overflow-y:auto;
 }
 
-/* ===== Chat bubbles ===== */
-.msg{
+/* ===== Chat bubbles (dựa mẫu customer) ===== */
+.thread .msg{
   display:flex;
-  gap:10px;
-  padding:8px 16px;
-  width:100%;
+  align-items:flex-start;
+  gap:8px;
+  margin:0 0 8px 0 !important;   /* xoá mọi margin auto/global */
+  padding:0;
+  width:100% !important;         /* hàng chat full chiều rộng khung */
+  max-width:none !important;     /* không bị bó hẹp giữa khung */
+  box-sizing:border-box;
 }
-.msg + .msg{margin-top:4px}
+.thread .msg + .msg{
+  margin-top:0;
+}
 
-.msg .avatar{
+.thread .msg .avatar{
   width:32px;
   height:32px;
   border-radius:50%;
@@ -135,58 +141,61 @@
   flex-shrink:0;
 }
 
-.bubble{
+.thread .bubble{
   max-width:70%;
   padding:8px 12px;
   border-radius:18px;
   background:#f3f4f6;
 }
 
-.head{
+.thread .head{
   display:flex;
   justify-content:space-between;
   margin-bottom:4px;
   font-size:12px;
 }
-.name{font-weight:700}
-.time{color:#9ca3af;margin-left:8px}
+.thread .name{font-weight:700}
+.thread .time{color:#9ca3af;margin-left:8px}
 
-.text{
+.thread .text{
   white-space:pre-wrap;
   font-size:14px;
   word-break:break-word;
-  overflow-wrap:anywhere;      /* không cho chữ thò ra ngoài bubble */
+  overflow-wrap:anywhere;
 }
 
 /* Bên trái: khách hàng */
-.msg-other{
+.thread .msg-other{
+  flex-direction:row;
   justify-content:flex-start;
 }
-.msg-other .bubble{
+.thread .msg-other .bubble{
   background:#f3f4f6;
   color:#111827;
   border-radius:18px 18px 18px 4px;
 }
 
-/* Bên phải: mình (staff / user hiện tại) */
-.msg-me{
-  justify-content:flex-end;    /* cả avatar + bubble sát lề phải */
+/* Bên phải: mình (staff / user hiện tại) – giống customer */
+.thread .msg-me{
+  flex-direction:row-reverse;    /* bubble trước, avatar sau (bên phải) */
+  justify-content:flex-start;    /* với row-reverse => cụm chat bám lề phải */
 }
-.msg-me .bubble{
-  order:1;                     /* bubble nằm bên trái avatar */
-  background:#2563eb;          /* xanh chủ đạo (primary) */
+.thread .msg-me .bubble{
+  background:#2563eb;
   color:#ffffff;
   border-radius:18px 18px 4px 18px;
 }
-.msg-me .avatar{
-  order:2;                     /* avatar ngoài cùng bên phải */
+.thread .msg-me .avatar{
   background:#0d6efd;
   color:#ffffff;
 }
-.msg-me .time{color:#e5e7eb}
+.thread .msg-me .time{
+  color:#e5e7eb;
+}
 
 /* không cần border cuối */
 .thread .msg:last-child{border-bottom:none}
+
 
 /* ===== Card bên phải ===== */
 .card{
