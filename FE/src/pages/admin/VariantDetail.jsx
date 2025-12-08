@@ -3,8 +3,6 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import ProductVariantsApi from "../../services/productVariants";
 import ProductSectionsPanel from "../admin/ProductSectionsPanel";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
 import "../admin/admin.css";
 
 const TITLE_MAX = 60;
@@ -53,9 +51,6 @@ const isValidDecimal18_2 = (raw) => {
 export default function VariantDetail() {
   const { id: productId, variantId } = useParams();
   const nav = useNavigate();
-
-  // Permission checks
-  const { hasPermission: hasEditPermission } = usePermission("PRODUCT_MANAGER", "EDIT");
 
   const [loading, setLoading] = React.useState(true);
   const [notFound, setNotFound] = React.useState(false);
@@ -873,17 +868,9 @@ export default function VariantDetail() {
           </div>
 
           <div className="row" style={{ marginTop: 12 }}>
-            <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="EDIT">
-              <button className="btn primary" disabled={saving || !hasEditPermission} onClick={() => {
-                if (!hasEditPermission) {
-                  addToast("error", "Không có quyền", "Bạn không có quyền chỉnh sửa biến thể");
-                  return;
-                }
-                save();
-              }}>
-                {saving ? "Đang lưu…" : "Lưu thay đổi"}
-              </button>
-            </PermissionGuard>
+            <button className="btn primary" disabled={saving} onClick={save}>
+              {saving ? "Đang lưu…" : "Lưu thay đổi"}
+            </button>
           </div>
         </div>
       </div>

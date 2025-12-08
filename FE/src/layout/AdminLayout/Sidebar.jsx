@@ -15,7 +15,7 @@ const Sidebar = () => {
   const location = useLocation();
   const currentPage = location.pathname.substring(1) || "home";
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { allowedModuleCodes, moduleAccessPermissions, loading: permissionsLoading } = usePermissions();
+  const { allowedModuleCodes, loading: permissionsLoading } = usePermissions();
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => !prev);
@@ -978,10 +978,8 @@ const Sidebar = () => {
 
   const hasModuleAccess = (moduleCode) => {
     if (!moduleCode) return true;
-    if (permissionsLoading || allowedModuleCodes === null || moduleAccessPermissions === null) return true;
-    // Check if module has ACCESS permission
-    const moduleCodeUpper = String(moduleCode).trim().toUpperCase();
-    return moduleAccessPermissions.get(moduleCodeUpper) === true;
+    if (permissionsLoading || allowedModuleCodes === null) return true;
+    return allowedModuleCodes.has(moduleCode);
   };
 
   const sectionsToRender = (isStorageStaff ? storageSections : defaultSections)

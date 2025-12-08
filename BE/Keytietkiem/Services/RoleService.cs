@@ -32,38 +32,10 @@ public class RoleService : IRoleService
     {
         _logger.LogInformation("Checking default roles (Admin, Staff, Customer)...");
 
-        // Map RoleId to Code
-        var roleCodeMap = new Dictionary<string, string>
-        {
-            { "Admin", "ADMIN" },
-            { "Storage Staff", "STORAGE_STAFF" },
-            { "Customer", "CUSTOMER" },
-            { "Content Creator", "CONTENT_CREATOR" },
-            { "Customer Care Staff", "CUSTOMER_CARE" }
-        };
-
-        var existingRoles = await _context.Roles
+        var existingRoleIds = await _context.Roles
             .Where(r => DefaultRoles.Contains(r.RoleId))
+            .Select(r => r.RoleId)
             .ToListAsync(cancellationToken);
-
-        var existingRoleIds = existingRoles.Select(r => r.RoleId).ToList();
-
-        // Update Code for existing roles that don't have Code set
-        var rolesToUpdate = existingRoles
-            .Where(r => string.IsNullOrWhiteSpace(r.Code) && roleCodeMap.ContainsKey(r.RoleId))
-            .ToList();
-
-        if (rolesToUpdate.Any())
-        {
-            _logger.LogInformation("Updating Code for {Count} existing roles", rolesToUpdate.Count);
-            foreach (var role in rolesToUpdate)
-            {
-                role.Code = roleCodeMap[role.RoleId];
-                role.UpdatedAt = _clock.UtcNow;
-            }
-            _context.Roles.UpdateRange(rolesToUpdate);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
 
         var missingRoles = DefaultRoles
             .Where(roleId => !existingRoleIds.Contains(roleId))
@@ -81,7 +53,6 @@ public class RoleService : IRoleService
         {
             RoleId = roleId,
             Name = roleId,
-            Code = roleCodeMap.TryGetValue(roleId, out var code) ? code : roleId.ToUpper().Replace(" ", "_"),
             IsSystem = true,
             IsActive = true,
             CreatedAt = _clock.UtcNow

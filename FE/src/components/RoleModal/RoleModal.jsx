@@ -222,7 +222,6 @@ const RoleModal = ({
                     placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
                     rows={4}
                     maxLength={maxLength}
-                    disabled={field.disabled}
                   />
                 ) : field.type === 'checkbox' ? (
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -233,23 +232,6 @@ const RoleModal = ({
                     />
                     <span>{field.label}</span>
                   </label>
-                ) : field.type === 'select' ? (
-                  <select
-                    className={`form-input ${errors[field.name] ? 'error' : ''}`}
-                    value={fieldValue}
-                    onChange={(e) => handleInputChange(field.name, e.target.value)}
-                    disabled={field.disabled}
-                  >
-                    {field.options && field.options.length > 0 ? (
-                      field.options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">Không có lựa chọn</option>
-                    )}
-                  </select>
                 ) : (
                   <input
                     type={field.type || 'text'}

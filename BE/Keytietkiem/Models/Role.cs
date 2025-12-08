@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
+
 public partial class Role
 {
     public string RoleId { get; set; } = null!;

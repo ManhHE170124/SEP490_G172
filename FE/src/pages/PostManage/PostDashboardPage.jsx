@@ -11,8 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { postsApi } from "../../services/postsApi";
 import useToast from "../../hooks/useToast";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import PerformanceStatistics from "../../components/PostManage/PerformanceStatistics";
-import PermissionGuard from "../../components/PermissionGuard";
+import PerformanceStatistics from "../../components/PostPerformanceStatistics/PerformanceStatistics";
 import "./PostDashboardPage.css";
 
 export default function PostDashboardPage() {
@@ -90,14 +89,12 @@ export default function PostDashboardPage() {
           >
             Quản lý bài viết
           </button>
-          <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-            <button 
-              className="pdp-btn-primary" 
-              onClick={() => navigate("/post-create-edit")}
-            >
-              + Tạo bài viết mới
-            </button>
-          </PermissionGuard>
+          <button 
+            className="pdp-btn-primary" 
+            onClick={() => navigate("/post-create-edit")}
+          >
+            + Tạo bài viết mới
+          </button>
         </div>
       </div>
 

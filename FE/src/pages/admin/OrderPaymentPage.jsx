@@ -3,8 +3,6 @@ import React from "react";
 import { orderApi } from "../../services/orderApi";
 import { paymentApi } from "../../services/paymentApi";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
 import "./OrderPaymentPage.css";
 
 /* ===== Helpers nhỏ ===== */
@@ -447,8 +445,6 @@ function PaymentDetailModal({
 /* ===== MAIN PAGE ===== */
 
 export default function OrderPaymentPage() {
-  const { hasPermission: hasViewDetailPermission } = usePermission("PRODUCT_MANAGER", "VIEW_DETAIL");
-
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -844,43 +840,23 @@ export default function OrderPaymentPage() {
                     <td>{formatVnDateTime(o.createdAt)}</td>
                     <td>
                       <div className="action-buttons">
-                        <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="VIEW_DETAIL" fallback={
-                          <button
-                            className="action-btn edit-btn disabled"
-                            type="button"
-                            title="Bạn không có quyền xem chi tiết đơn hàng"
-                            disabled
+                        <button
+                          className="action-btn edit-btn"
+                          type="button"
+                          title="Xem chi tiết đơn hàng"
+                          onClick={() => openOrderDetail(o.orderId)}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            aria-hidden="true"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                              <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                            </svg>
-                          </button>
-                        }>
-                          <button
-                            className="action-btn edit-btn"
-                            type="button"
-                            title="Xem chi tiết đơn hàng"
-                            onClick={() => openOrderDetail(o.orderId)}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                              <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                            </svg>
-                          </button>
-                        </PermissionGuard>
+                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1146,45 +1122,25 @@ export default function OrderPaymentPage() {
                   <td>{formatVnDateTime(p.createdAt)}</td>
                   <td>
                     <div className="action-buttons">
-                      <PermissionGuard moduleCode="PRODUCT_MANAGER" permissionCode="VIEW_DETAIL" fallback={
-                        <button
-                          className="action-btn edit-btn disabled"
-                          type="button"
-                          title="Bạn không có quyền xem chi tiết thanh toán"
-                          disabled
+                      <button
+                        className="action-btn edit-btn"
+                        type="button"
+                        title="Xem chi tiết / đối chiếu"
+                        onClick={() =>
+                          openPaymentDetail(p.paymentId)
+                        }
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="16"
+                          height="16"
+                          fill="currentColor"
+                          aria-hidden="true"
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            fill="currentColor"
-                            aria-hidden="true"
-                          >
-                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                          </svg>
-                        </button>
-                      }>
-                        <button
-                          className="action-btn edit-btn"
-                          type="button"
-                          title="Xem chi tiết / đối chiếu"
-                          onClick={() =>
-                            openPaymentDetail(p.paymentId)
-                          }
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            fill="currentColor"
-                            aria-hidden="true"
-                          >
-                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                          </svg>
-                        </button>
-                      </PermissionGuard>
+                          <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                        </svg>
+                      </button>
                     </div>
                   </td>
                 </tr>

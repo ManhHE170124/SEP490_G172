@@ -1,10 +1,6 @@
 ﻿// File: Controllers/NotificationsController.cs
 using Keytietkiem.DTOs;
 using Keytietkiem.Models;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -155,7 +151,7 @@ namespace Keytietkiem.Controllers
         ///  - Users: danh sách user (UserId + FullName + Email).
         /// </summary>
         [HttpGet("manual-target-options")]
-        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(NotificationManualTargetOptionsDto), 200)]
         public async Task<ActionResult<NotificationManualTargetOptionsDto>> GetManualTargetOptions()
         {
@@ -212,7 +208,7 @@ namespace Keytietkiem.Controllers
         ///   - pageSize  (1..200)
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.VIEW_LIST)]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(NotificationListResponseDto), 200)]
         public async Task<ActionResult<NotificationListResponseDto>> GetNotifications(
             [FromQuery] NotificationAdminFilterDto filter)
@@ -304,7 +300,7 @@ namespace Keytietkiem.Controllers
         /// Chi tiết thông báo (Admin).
         /// </summary>
         [HttpGet("{id:int}")]
-        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(NotificationDetailDto), 200)]
         [ProducesResponseType(404)]
         public async Task<ActionResult<NotificationDetailDto>> GetNotificationDetail(int id)
@@ -450,7 +446,7 @@ namespace Keytietkiem.Controllers
         /// Tạo thông báo thủ công và gán cho danh sách user cụ thể.
         /// </summary>
         [HttpPost]
-        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.CREATE)]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(object), 201)]
         [ProducesResponseType(400)]
         public async Task<ActionResult> CreateManualNotification(

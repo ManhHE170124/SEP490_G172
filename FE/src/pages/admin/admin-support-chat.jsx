@@ -17,9 +17,6 @@ import "../../styles/staff-support-chat.css";
 // ⚠️ Điều chỉnh lại path cho đúng với project của bạn
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import Toast from "../../components/Toast/Toast";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
-import useToast from "../../hooks/useToast";
 
 // ---- Helpers ----
 
@@ -143,8 +140,6 @@ export default function AdminSupportChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSelectedId = searchParams.get("sessionId") || null;
   const initialActiveTab = getTabFromQuery(searchParams) || "unassigned";
-  const { showError } = useToast();
-  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
 
   const [activeTab, setActiveTab] = useState(initialActiveTab); // "unassigned" | "assigned"
 
@@ -353,10 +348,6 @@ export default function AdminSupportChatPage() {
   // ---- Admin assign / transfer helpers ----
 
   const doAdminAssign = async (sessionId, assigneeId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền gán nhân viên cho phiên chat");
-      return;
-    }
     if (!sessionId || !assigneeId) return;
     try {
       setStateText("Đang gán nhân viên cho phiên chat...");
@@ -381,10 +372,6 @@ export default function AdminSupportChatPage() {
   };
 
   const doAdminTransfer = async (sessionId, assigneeId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền chuyển nhân viên phụ trách phiên chat");
-      return;
-    }
     if (!sessionId || !assigneeId) return;
     try {
       setStateText("Đang chuyển nhân viên phụ trách...");
@@ -794,10 +781,6 @@ export default function AdminSupportChatPage() {
 
   // TÁCH logic cũ ra hàm riêng, dùng ConfirmDialog để xác nhận
   const doUnassign = async (sessionId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền trả lại phiên chat về hàng chờ");
-      return;
-    }
     if (!sessionId) return;
 
     try {
@@ -824,10 +807,6 @@ export default function AdminSupportChatPage() {
   };
 
   const handleUnassign = (sessionId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền trả lại phiên chat về hàng chờ");
-      return;
-    }
     if (!sessionId) return;
     openConfirm(
       "Trả lại phiên chat về hàng chờ",
@@ -837,10 +816,6 @@ export default function AdminSupportChatPage() {
   };
 
   const doClose = async (sessionId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền đóng phiên chat");
-      return;
-    }
     if (!sessionId) return;
 
     try {
@@ -867,10 +842,6 @@ export default function AdminSupportChatPage() {
   };
 
   const handleClose = (sessionId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền đóng phiên chat");
-      return;
-    }
     if (!sessionId) return;
     openConfirm(
       "Đóng phiên chat",
@@ -883,10 +854,6 @@ export default function AdminSupportChatPage() {
   // và dùng API adminPostMessage để KHÔNG đổi AssignedStaff/Status
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền gửi tin nhắn");
-      return;
-    }
     if (!selectedSession) return;
 
     const text = (newMessage || "").trim();
@@ -1006,31 +973,16 @@ export default function AdminSupportChatPage() {
         </div>
         <div className="session-actions">
           {isQueue && (
-            <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
-              <button
-                type="button"
-                className="btn-xs-primary disabled"
-                disabled
-                title="Bạn không có quyền gán nhân viên"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  showError("Không có quyền", "Bạn không có quyền gán nhân viên cho phiên chat");
-                }}
-              >
-                Gán
-              </button>
-            }>
-              <button
-                type="button"
-                className="btn-xs-primary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenAssignModalForSession(s);
-                }}
-              >
-                Gán
-              </button>
-            </PermissionGuard>
+            <button
+              type="button"
+              className="btn-xs-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenAssignModalForSession(s);
+              }}
+            >
+              Gán
+            </button>
           )}
         </div>
       </div>
@@ -1392,9 +1344,7 @@ export default function AdminSupportChatPage() {
                     <div className="chat-header-actions">
                       <button
                         type="button"
-                        className={`btn ghost ${!hasEditPermission ? 'disabled' : ''}`}
-                        title={!hasEditPermission ? "Bạn không có quyền trả lại phiên chat về hàng chờ" : "Trả lại hàng chờ"}
-                        disabled={!hasEditPermission}
+                        className="btn ghost"
                         onClick={() =>
                           selectedSession &&
                           handleUnassign(selectedSession.chatSessionId)
@@ -1406,9 +1356,7 @@ export default function AdminSupportChatPage() {
                       {selectedSession.assignedStaffId && (
                         <button
                           type="button"
-                          className={`btn warning ${!hasEditPermission ? 'disabled' : ''}`}
-                          title={!hasEditPermission ? "Bạn không có quyền chuyển nhân viên phụ trách" : "Chuyển nhân viên"}
-                          disabled={!hasEditPermission}
+                          className="btn warning"
                           onClick={() =>
                             handleOpenTransferModalForSession(
                               selectedSession
@@ -1421,9 +1369,7 @@ export default function AdminSupportChatPage() {
 
                       <button
                         type="button"
-                        className={`btn danger ${!hasEditPermission ? 'disabled' : ''}`}
-                        title={!hasEditPermission ? "Bạn không có quyền đóng phiên chat" : "Đóng phiên"}
-                        disabled={!hasEditPermission}
+                        className="btn danger"
                         onClick={() =>
                           selectedSession &&
                           handleClose(selectedSession.chatSessionId)
@@ -1442,23 +1388,20 @@ export default function AdminSupportChatPage() {
                     <textarea
                       className="chat-input"
                       placeholder={
-                        !hasEditPermission
-                          ? "Bạn không có quyền gửi tin nhắn"
-                          : canSend
+                        canSend
                           ? "Nhập nội dung tin nhắn..."
                           : "Phiên chat đã đóng, không thể gửi thêm."
                       }
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      disabled={!canSend || sending || !hasEditPermission}
+                      disabled={!canSend || sending}
                     />
                     <div className="chat-footer-actions">
                       <div className="chat-footer-row">
                         <button
                           type="submit"
-                          className={`btn primary ${!hasEditPermission ? 'disabled' : ''}`}
-                          disabled={!canSend || sending || !hasEditPermission}
-                          title={!hasEditPermission ? "Bạn không có quyền gửi tin nhắn" : ""}
+                          className="btn primary"
+                          disabled={!canSend || sending}
                         >
                           {sending ? "Đang gửi..." : "Gửi"}
                         </button>

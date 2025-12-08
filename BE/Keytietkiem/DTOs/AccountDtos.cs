@@ -81,9 +81,13 @@ public class RegisterDto
 public class LoginDto
 {
     [Required(ErrorMessage = "Username là bắt buộc")]
+    [MinLength(1, ErrorMessage = "Username không được để trống")]
+    [RegularExpression(@"^\S+.*", ErrorMessage = "Username không được chỉ chứa khoảng trắng")]
     public string Username { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password là bắt buộc")]
+    [MinLength(1, ErrorMessage = "Password không được để trống")]
+    [RegularExpression(@"^\S+.*", ErrorMessage = "Password không được chỉ chứa khoảng trắng")]
     public string Password { get; set; } = string.Empty;
 }
 
@@ -210,4 +214,10 @@ public class RevokeTokenDto
 
     [Required(ErrorMessage = "RefreshToken là bắt buộc")]
     public string RefreshToken { get; set; } = string.Empty;
+}
+public class ResetPasswordResultDto
+{
+    public Guid UserId { get; set; }
+    public Guid AccountId { get; set; }
+    public string Email { get; set; } = string.Empty;
 }

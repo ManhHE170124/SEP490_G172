@@ -9,11 +9,9 @@
  *   - POST    /api/postimages/uploadImage              : Upload image to Cloudinary cloud storage and return the image URL.
  *   - DELETE  /api/postimages/deleteImage              : Delete image from Cloudinary using public ID.
  */
-using Azure.Core;
 using Keytietkiem.DTOs.Post;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,17 +23,19 @@ namespace Keytietkiem.Controllers
     {
         private readonly KeytietkiemDbContext _context;
         private readonly IPhotoService _photoService;
-        public PostImagesController(KeytietkiemDbContext context, IPhotoService photoService)
+
+        public PostImagesController(
+            KeytietkiemDbContext context,
+            IPhotoService photoService)
         {
             _context = context;
             _photoService = photoService;
         }
 
-
         /**
          * Summary: Upload an image file.
-         * Route: POST /api/uploadImage
-         * Body: IFormFile file {"path": "res.cloudinary.com/doifb7f6k/image/upload/v1762196927/posts/abc123xyz.png" }
+         * Route: POST /api/postimages/uploadImage
+         * Body: multipart/form-data with file
          * Returns: 200 OK with image path, 400 on errors
          */
         [HttpPost("uploadImage")]
@@ -51,16 +51,16 @@ namespace Keytietkiem.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log error
+                // Có thể log lỗi bằng ILogger nếu cần
                 return StatusCode(500, new { message = "Error uploading file." });
             }
         }
 
         /**
          * Summary: Delete an image from Cloudinary.
-         * Route: DELETE /api/deleteImage
+         * Route: DELETE /api/postimages/deleteImage
          * Body: JSON { "publicId": "posts/abc123xyz" }
          * Returns: 200 OK on success, 400 or 500 on error.
          */
@@ -79,10 +79,9 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                // Bạn có thể log lỗi ở đây nếu cần
+                // Có thể log lỗi bằng ILogger nếu cần
                 return StatusCode(500, new { message = $"Error deleting image: {ex.Message}" });
             }
         }
-
     }
 }

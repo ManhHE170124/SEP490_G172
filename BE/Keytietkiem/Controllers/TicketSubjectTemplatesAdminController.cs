@@ -1,17 +1,14 @@
-﻿// File: Controllers/TicketSubjectTemplatesAdminController.cs
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
-using Keytietkiem.DTOs.Common;
+﻿using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers
 {
@@ -20,6 +17,7 @@ namespace Keytietkiem.Controllers
     public class TicketSubjectTemplatesAdminController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
+        private readonly IAuditLogger _auditLogger;
 
         // ==== CONSTANTS: Severity & Category fix-cứng ====
 
@@ -43,9 +41,11 @@ namespace Keytietkiem.Controllers
         };
 
         public TicketSubjectTemplatesAdminController(
-            IDbContextFactory<KeytietkiemDbContext> dbFactory)
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IAuditLogger auditLogger)
         {
             _dbFactory = dbFactory;
+            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -54,7 +54,6 @@ namespace Keytietkiem.Controllers
         /// Sort mặc định: Category -> Severity -> TemplateCode.
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<TicketSubjectTemplateAdminListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] string? severity,
@@ -242,7 +241,6 @@ namespace Keytietkiem.Controllers
         /// Lấy chi tiết 1 TicketSubjectTemplate.
         /// </summary>
         [HttpGet("{templateCode}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<TicketSubjectTemplateAdminDetailDto>> GetByCode(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -280,7 +278,6 @@ namespace Keytietkiem.Controllers
         /// Tạo mới 1 TicketSubjectTemplate.
         /// </summary>
         [HttpPost]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<TicketSubjectTemplateAdminDetailDto>> Create(
             TicketSubjectTemplateAdminCreateDto dto)
         {
@@ -423,6 +420,23 @@ namespace Keytietkiem.Controllers
             db.TicketSubjectTemplates.Add(entity);
             await db.SaveChangesAsync();
 
+            // 🔐 AUDIT LOG – CREATE TEMPLATE
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "TicketSubjectTemplate",
+                entityId: entity.TemplateCode,
+                before: null,
+                after: new
+                {
+                    entity.TemplateCode,
+                    entity.Title,
+                    entity.Severity,
+                    entity.Category,
+                    entity.IsActive
+                }
+            );
+
             var result = new TicketSubjectTemplateAdminDetailDto
             {
                 TemplateCode = entity.TemplateCode,
@@ -443,7 +457,6 @@ namespace Keytietkiem.Controllers
         /// Cập nhật TicketSubjectTemplate (không cho đổi TemplateCode).
         /// </summary>
         [HttpPut("{templateCode}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(
             string templateCode,
             TicketSubjectTemplateAdminUpdateDto dto)
@@ -464,6 +477,15 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(t => t.TemplateCode == code);
 
             if (entity == null) return NotFound();
+
+            var before = new
+            {
+                entity.TemplateCode,
+                entity.Title,
+                entity.Severity,
+                entity.Category,
+                entity.IsActive
+            };
 
             // TemplateCode không đổi
 
@@ -556,6 +578,26 @@ namespace Keytietkiem.Controllers
             entity.IsActive = dto.IsActive;
 
             await db.SaveChangesAsync();
+
+            var after = new
+            {
+                entity.TemplateCode,
+                entity.Title,
+                entity.Severity,
+                entity.Category,
+                entity.IsActive
+            };
+
+            // 🔐 AUDIT LOG – UPDATE TEMPLATE
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "TicketSubjectTemplate",
+                entityId: entity.TemplateCode,
+                before: before,
+                after: after
+            );
+
             return NoContent();
         }
 
@@ -565,7 +607,6 @@ namespace Keytietkiem.Controllers
         /// Nếu sau này có FK từ Ticket -> TemplateCode thì nên bổ sung check trước khi xoá.
         /// </summary>
         [HttpDelete("{templateCode}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -585,8 +626,27 @@ namespace Keytietkiem.Controllers
 
             if (entity == null) return NotFound();
 
+            var before = new
+            {
+                entity.TemplateCode,
+                entity.Title,
+                entity.Severity,
+                entity.Category,
+                entity.IsActive
+            };
+
             db.TicketSubjectTemplates.Remove(entity);
             await db.SaveChangesAsync();
+
+            // 🔐 AUDIT LOG – DELETE TEMPLATE
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Delete",
+                entityType: "TicketSubjectTemplate",
+                entityId: code,
+                before: before,
+                after: null
+            );
 
             return NoContent();
         }
@@ -596,7 +656,6 @@ namespace Keytietkiem.Controllers
         /// Bật / tắt IsActive cho TicketSubjectTemplate.
         /// </summary>
         [HttpPatch("{templateCode}/toggle")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -616,9 +675,37 @@ namespace Keytietkiem.Controllers
 
             if (entity == null) return NotFound();
 
+            var before = new
+            {
+                entity.TemplateCode,
+                entity.Title,
+                entity.Severity,
+                entity.Category,
+                entity.IsActive
+            };
+
             entity.IsActive = !entity.IsActive;
 
             await db.SaveChangesAsync();
+
+            var after = new
+            {
+                entity.TemplateCode,
+                entity.Title,
+                entity.Severity,
+                entity.Category,
+                entity.IsActive
+            };
+
+            // 🔐 AUDIT LOG – TOGGLE TEMPLATE
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Toggle",
+                entityType: "TicketSubjectTemplate",
+                entityId: entity.TemplateCode,
+                before: before,
+                after: after
+            );
 
             return NoContent();
         }

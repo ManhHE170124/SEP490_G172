@@ -12,9 +12,6 @@ import { roleApi } from "../../services/roleApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
-import { usePermission } from "../../hooks/usePermission";
-import { ROLE_CODES, PERMISSION_CODES, MODULE_CODES_LIST } from "../../constants/roleConstants";
-import PermissionGuard from "../../components/PermissionGuard";
 import "./RoleManage.css"
 
 /** 
@@ -123,7 +120,6 @@ function removeDiacritics(str) {
 export default function RoleManagement() {
   const [activeTab, setActiveTab] = useState(TABS.MODULES);
   const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
-  const { hasPermission: hasDeletePermission } = usePermission("ROLE_MANAGER", "DELETE");
   
   // Global network error handler - only show one toast for network errors
   const networkErrorShownRef = useRef(false);
@@ -178,14 +174,14 @@ export default function RoleManagement() {
   // Check if any filters are active
   const hasActiveFilters = search || sortKey || (activeTab === TABS.ROLES && roleStatus !== "all");
   /**
-   * @summary  Dynamically generates column definitions and the "Assign" button label 
+   * @summary  Dynamically generates column definitions and the "Add" button label 
    * based on the currently active tab (Modules, Permissions, or Roles).
    * @returns column definitions and button labels dynamically per active tab.
    */
   const { columns, addButtonText } = useMemo(() => {
     if (activeTab === TABS.MODULES) {
       return {
-        addButtonText: "Gán Mô-đun",
+        addButtonText: "Thêm Mô-đun",
         columns: [
           { key: "moduleName", label: "Tên Mô-đun" },
           { key: "code", label: "Mã" },
@@ -197,7 +193,7 @@ export default function RoleManagement() {
     }
     if (activeTab === TABS.PERMISSIONS) {
       return {
-        addButtonText: "Gán Quyền",
+        addButtonText: "Thêm Quyền",
         columns: [
           { key: "permissionName", label: "Tên quyền" },
           { key: "code", label: "Mã" },
@@ -208,7 +204,7 @@ export default function RoleManagement() {
       };
     }
     return {
-      addButtonText: "Gán Vai trò",
+      addButtonText: "Thêm Vai trò",
       columns: [
         { key: "name", label: "Tên Vai trò" },
         { key: "code", label: "Mã" },
@@ -219,22 +215,6 @@ export default function RoleManagement() {
       ],
     };
   }, [activeTab]);
-
-  // Get available codes that are not yet in database
-  const availableCodes = useMemo(() => {
-    const existingCodes = new Set(data.map(item => String(item.code || "").toUpperCase()));
-    let allCodes = [];
-    
-    if (activeTab === TABS.MODULES) {
-      allCodes = MODULE_CODES_LIST;
-    } else if (activeTab === TABS.PERMISSIONS) {
-      allCodes = PERMISSION_CODES;
-    } else if (activeTab === TABS.ROLES) {
-      allCodes = ROLE_CODES.filter(code => code !== HIDDEN_ROLE_CODE);
-    }
-    
-    return allCodes.filter(code => !existingCodes.has(code.toUpperCase()));
-  }, [data, activeTab]);
 
   const filteredSorted = useMemo(() => {
     const normalized = (v) => (v ?? "").toString().toLowerCase();
@@ -320,15 +300,14 @@ export default function RoleManagement() {
   }
 
   /**
-   * @summary: Assign a new Role entity (create with fixed code).
-   * @param {{ name: string, code: string, description?: string }} form - Role form payload
+   * @summary: Create a new Role entity.
+   * @param {{ name: string, isSystem?: boolean }} form - Role form payload
    * @returns {Promise<void>}
    */
   async function handleCreateRole(form) {
     try {
       setSubmitting(true);
       const created = await roleApi.createRole({
-        roleId: form.code, // Use code as roleId
         name: form.name,
         code: form.code,
         isSystem: form.isSystem || false
@@ -338,8 +317,8 @@ export default function RoleManagement() {
       );
       setAddRoleOpen(false);
       showSuccess(
-        "Gán Vai trò thành công!",
-        `Vai trò "${form.name}" đã được gán và tự động gán quyền cho tất cả Mô-đun và Quyền.`
+        "Tạo Vai trò thành công!",
+        `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
       );
     } catch (e) {
       // Handle network errors globally - only show one toast
@@ -349,8 +328,8 @@ export default function RoleManagement() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể gán Vai trò";
-        showError("Gán Vai trò thất bại!", errorMessage);
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
+        showError("Tạo Vai trò thất bại!", errorMessage);
       }
     } finally {
       setSubmitting(false);
@@ -358,8 +337,8 @@ export default function RoleManagement() {
   }
 
   /**
-   * @summary: Assign a new Module entity (create with fixed code).
-   * @param {{ moduleName: string, code: string, description?: string }} form - Module form payload
+   * @summary: Create a new Module entity.
+   * @param {{ moduleName: string, description?: string }} form - Module form payload
    * @returns {Promise<void>}
    */
   async function handleCreateModule(form) {
@@ -373,8 +352,8 @@ export default function RoleManagement() {
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddModuleOpen(false);
       showSuccess(
-        "Gán Mô-đun thành công!",
-        `Mô-đun "${form.moduleName}" đã được gán và tự động gán quyền cho tất cả Vai trò và quyền.`
+        "Tạo Mô-đun thành công!",
+        `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và quyền.`
       );
     } catch (e) {
       // Handle network errors globally - only show one toast
@@ -384,8 +363,8 @@ export default function RoleManagement() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể gán Mô-đun";
-        showError("Gán Mô-đun thất bại!", errorMessage);
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
+        showError("Tạo Mô-đun thất bại!", errorMessage);
       }
     } finally {
       setSubmitting(false);
@@ -393,8 +372,8 @@ export default function RoleManagement() {
   }
 
   /**
-   * @summary: Assign a new Permission entity (create with fixed code).
-   * @param {{ permissionName: string, code: string, description?: string }} form - Permission form payload
+   * @summary: Create a new Permission entity.
+   * @param {{ permissionName: string, description?: string }} form - Permission form payload
    * @returns {Promise<void>}
    */
   async function handleCreatePermission(form) {
@@ -408,8 +387,8 @@ export default function RoleManagement() {
       setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
       setAddPermissionOpen(false);
       showSuccess(
-        "Gán Quyền thành công!",
-        `Quyền "${form.permissionName}" đã được gán và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
+        "Tạo Quyền thành công!",
+        `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
       );
     } catch (e) {
       // Handle network errors globally - only show one toast
@@ -419,8 +398,8 @@ export default function RoleManagement() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể gán Quyền";
-        showError("Gán Quyền thất bại!", errorMessage);
+        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
+        showError("Tạo Quyền thất bại!", errorMessage);
       }
     } finally {
       setSubmitting(false);
@@ -444,21 +423,21 @@ export default function RoleManagement() {
       setEditTitle("Sửa Mô-đun");
       setEditFields([
         { name: "moduleName", label: "Tên mô-đun", required: true, minLength: 2, maxLength: 80, defaultValue: row.moduleName },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", disabled: true },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
         { name: "description", label: "Mô tả", type: "textarea", maxLength: 200, defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
       setEditTitle("Sửa Quyền");
       setEditFields([
         { name: "permissionName", label: "Tên quyền", required: true, minLength: 2, maxLength: 100, defaultValue: row.permissionName },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", disabled: true },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
         { name: "description", label: "Mô tả", type: "textarea", maxLength: 300, defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
         { name: "name", label: "Tên vai trò", required: true, minLength: 2, maxLength: 60, defaultValue: row.name },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", disabled: true },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
         { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
@@ -471,10 +450,6 @@ export default function RoleManagement() {
    * @returns {Promise<void>}
    */
   async function onDelete(row) {
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa");
-      return;
-    }
     const label = activeTab === TABS.MODULES ? row.moduleName : activeTab === TABS.PERMISSIONS ? row.permissionName : row.name;
     const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
 
@@ -543,38 +518,35 @@ export default function RoleManagement() {
       const entityName = activeTab === TABS.MODULES ? form.moduleName : activeTab === TABS.PERMISSIONS ? form.permissionName : form.name;
 
       if (activeTab === TABS.MODULES) {
-        // Code cannot be changed during update, use original code from editingRow
         await roleApi.updateModule(editingRow.moduleId, {
           moduleName: form.moduleName,
-          code: editingRow.code, // Use original code, not from form
+          code: form.code,
           description: form.description || ""
         });
         setData((prev) => prev.map((x) => x.moduleId === editingRow.moduleId ? {
           ...x,
           moduleName: form.moduleName,
-          code: editingRow.code, // Keep original code
+          code: form.code,
           description: form.description,
           updatedAt: new Date().toISOString(),
         } : x));
       } else if (activeTab === TABS.PERMISSIONS) {
-        // Code cannot be changed during update, use original code from editingRow
         await roleApi.updatePermission(editingRow.permissionId, {
           permissionName: form.permissionName,
-          code: editingRow.code, // Use original code, not from form
+          code: form.code,
           description: form.description || ""
         });
         setData((prev) => prev.map((x) => x.permissionId === editingRow.permissionId ? {
           ...x,
           permissionName: form.permissionName,
-          code: editingRow.code, // Keep original code
+          code: form.code,
           description: form.description,
           updatedAt: new Date().toISOString(),
         } : x));
       } else {
-        // Code cannot be changed during update, use original code from editingRow
         const payload = {
           name: form.name,
-          code: editingRow.code, // Use original code, not from form
+          code: form.code,
           isActive: form.isActive
         };
         await roleApi.updateRole(editingRow.roleId, payload);
@@ -680,26 +652,16 @@ export default function RoleManagement() {
               </select>
             </div>
           )}
-          <PermissionGuard moduleCode="ROLE_MANAGER" permissionCode="CREATE">
-            <button className="role-add-button" onClick={onClickAdd}>{addButtonText}</button>
-          </PermissionGuard>
+          <button className="role-add-button" onClick={onClickAdd}>{addButtonText}</button>
         </div>
       </div>
       {activeTab === TABS.ROLES && (
         <RoleModal
           isOpen={addRoleOpen}
-          title="Gán Vai trò"
+          title="Thêm Vai trò"
           fields={[
-            { 
-              name: "code", 
-              label: "Mã", 
-              required: true, 
-              type: "select",
-              options: availableCodes.map(code => ({ value: code, label: code })),
-              defaultValue: availableCodes[0] || ""
-            },
             { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
-            { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
             { name: "isSystem", label: "System Role", type: "checkbox" },
           ]}
           onClose={() => setAddRoleOpen(false)}
@@ -710,17 +672,10 @@ export default function RoleManagement() {
       {activeTab === TABS.MODULES && (
         <RoleModal
           isOpen={addModuleOpen}
-          title="Gán Mô-đun"
+          title="Thêm Mô-đun"
           fields={[
-            { 
-              name: "code", 
-              label: "Mã", 
-              required: true, 
-              type: "select",
-              options: availableCodes.map(code => ({ value: code, label: code })),
-              defaultValue: availableCodes[0] || ""
-            },
             { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
             { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
           ]}
           onClose={() => setAddModuleOpen(false)}
@@ -731,17 +686,10 @@ export default function RoleManagement() {
       {activeTab === TABS.PERMISSIONS && (
         <RoleModal
           isOpen={addPermissionOpen}
-          title="Gán Quyền"
+          title="Thêm Quyền"
           fields={[
-            { 
-              name: "code", 
-              label: "Mã", 
-              required: true, 
-              type: "select",
-              options: availableCodes.map(code => ({ value: code, label: code })),
-              defaultValue: availableCodes[0] || ""
-            },
             { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
+            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
             { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
           ]}
           onClose={() => setAddPermissionOpen(false)}
@@ -795,18 +743,10 @@ export default function RoleManagement() {
                   })}
                   <td>
                     <div className="role-action-buttons">
-                      <PermissionGuard moduleCode="ROLE_MANAGER" permissionCode="EDIT">
-                        <button className="role-action-btn role-update-btn" title="Sửa" onClick={() => onEdit(row)}>
-                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
-                        </button>
-                      </PermissionGuard>
-                      <button 
-                        className={`role-action-btn role-delete-btn ${!hasDeletePermission ? 'disabled' : ''}`}
-                        title={!hasDeletePermission ? "Bạn không có quyền xóa" : "Xoá"}
-                        onClick={() => onDelete(row)}
-                        disabled={!hasDeletePermission}
-                        style={{ opacity: !hasDeletePermission ? 0.5 : 1, cursor: !hasDeletePermission ? 'not-allowed' : 'pointer' }}
-                      >
+                      <button className="role-action-btn role-update-btn" title="Sửa" onClick={() => onEdit(row)}>
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
+                      </button>
+                      <button className="role-action-btn role-delete-btn" title="Xoá" onClick={() => onDelete(row)}>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" /></svg>
                       </button>
                     </div>
@@ -825,7 +765,7 @@ export default function RoleManagement() {
             Hiển thị {total === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, total)}/{total} {activeTab === TABS.MODULES ? "mô-đun" : activeTab === TABS.PERMISSIONS ? "quyền" : "vai trò"}
           </div>
           <div className="role-pagination-controls">
-          <button
+            <button
               className="role-pagination-btn"
               onClick={() => setPage(page - 1)}
               disabled={page <= 1}
@@ -835,7 +775,7 @@ export default function RoleManagement() {
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
               Trước
-          </button>
+            </button>
             
             <div className="role-pagination-numbers">
               {[...Array(totalPages)].map((_, idx) => {
@@ -847,13 +787,13 @@ export default function RoleManagement() {
                   (pageNum >= page - 1 && pageNum <= page + 1)
                 ) {
                   return (
-          <button
+                    <button
                       key={pageNum}
                       className={`role-pagination-number ${page === pageNum ? "active" : ""}`}
                       onClick={() => setPage(pageNum)}
                     >
                       {pageNum}
-          </button>
+                    </button>
                   );
                 } else if (pageNum === page - 2 || pageNum === page + 2) {
                   return <span key={pageNum} className="role-pagination-ellipsis">...</span>;
@@ -862,7 +802,7 @@ export default function RoleManagement() {
               })}
             </div>
 
-          <button
+            <button
               className="role-pagination-btn"
               onClick={() => setPage(page + 1)}
               disabled={page >= totalPages}
@@ -872,9 +812,9 @@ export default function RoleManagement() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-          </button>
+            </button>
+          </div>
         </div>
-      </div>
       )}
       <RoleModal
         isOpen={editOpen}

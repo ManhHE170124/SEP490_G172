@@ -4,8 +4,6 @@ import useToast from "../../hooks/useToast";
 import "./TagAndPostTypeManage.css"
 import { postsApi } from "../../services/postsApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
 
 /** 
  * @summary Tab constants for switching between different management views 
@@ -55,11 +53,6 @@ function useFetchData(activeTab, showError, networkErrorShownRef) {
 export default function TagAndPosttypeManage() {
     const [activeTab, setActiveTab] = useState(TABS.TAGS);
     const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
-    
-    // Permission checks
-    const { hasPermission: hasCreatePermission } = usePermission("POST_MANAGER", "CREATE");
-    const { hasPermission: hasEditPermission } = usePermission("POST_MANAGER", "EDIT");
-    const { hasPermission: hasDeletePermission } = usePermission("POST_MANAGER", "DELETE");
     
     // Global network error handler - only show one toast for network errors
     const networkErrorShownRef = useRef(false);
@@ -483,11 +476,9 @@ export default function TagAndPosttypeManage() {
                     )}
                 </div>
                 <div className="tag-pt-controls-right">
-                    <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-                        <button className="tag-pt-add-button" onClick={onClickAdd} >
-                            {addButtonText}
-                        </button>
-                    </PermissionGuard>
+                    <button className="tag-pt-add-button" onClick={onClickAdd} >
+                        {addButtonText}
+                    </button>
                 </div>
             </div>
             {activeTab === TABS.TAGS && (
@@ -562,23 +553,10 @@ export default function TagAndPosttypeManage() {
                                     })}
                                     <td>
                                         <div className="tag-pt-action-buttons">
-                                            <PermissionGuard moduleCode="POST_MANAGER" permissionCode="EDIT">
-                                                <button className="tag-pt-action-btn tag-pt-update-btn" title="Sửa" onClick={() => onEdit(row)}>
-                                                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
-                                                </button>
-                                            </PermissionGuard>
-                                            <button 
-                                                className="tag-pt-action-btn tag-pt-delete-btn" 
-                                                title={!hasDeletePermission ? "Bạn không có quyền xóa" : "Xoá"} 
-                                                onClick={() => {
-                                                    if (!hasDeletePermission) {
-                                                        showError("Không có quyền", "Bạn không có quyền xóa");
-                                                        return;
-                                                    }
-                                                    onDelete(row);
-                                                }}
-                                                disabled={!hasDeletePermission}
-                                            >
+                                            <button className="tag-pt-action-btn tag-pt-update-btn" title="Sửa" onClick={() => onEdit(row)}>
+                                                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
+                                            </button>
+                                            <button className="tag-pt-action-btn tag-pt-delete-btn" title="Xoá" onClick={() => onDelete(row)}>
                                                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" /></svg>
                                             </button>
                                         </div>

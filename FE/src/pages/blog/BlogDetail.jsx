@@ -13,32 +13,6 @@ const BlogDetail = () => {
     const [relatedPosts, setRelatedPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [isAdminUser, setIsAdminUser] = useState(false);
-
-    // Check if user is admin/staff (not guest or customer)
-    useEffect(() => {
-        try {
-            const userStr = localStorage.getItem("user");
-            if (!userStr) {
-                setIsAdminUser(false);
-                return;
-            }
-            
-            const user = JSON.parse(userStr);
-            const roles = user?.roles || (user?.role ? [user.role] : []);
-            
-            // Check if user has any role other than CUSTOMER or is guest
-            const hasNonCustomerRole = roles.some(role => {
-                const roleCode = typeof role === 'string' ? role : (role?.code || role?.roleCode || role?.roleId || '');
-                return roleCode && roleCode.toUpperCase() !== 'CUSTOMER';
-            });
-            
-            setIsAdminUser(hasNonCustomerRole);
-        } catch (err) {
-            console.error('Error checking user role:', err);
-            setIsAdminUser(false);
-        }
-    }, []);
 
     useEffect(() => {
         loadPost();
@@ -125,14 +99,9 @@ const BlogDetail = () => {
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>📄</div>
                     <h2>Không tìm thấy bài viết</h2>
                     <p style={{ color: '#666', marginBottom: '24px' }}>{error}</p>
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                        <button className="btn primary" onClick={() => navigate('/blogs')}>
-                            ← Quay lại danh sách
-                        </button>
-                        <button className="btn secondary" onClick={() => navigate(-1)}>
-                            ← Quay lại
-                        </button>
-                    </div>
+                    <button className="btn primary" onClick={() => navigate('/blogs')}>
+                        ← Quay lại danh sách
+                    </button>
                 </div>
             </div>
         );
@@ -141,33 +110,12 @@ const BlogDetail = () => {
     return (
         <div className="blog-detail-container">
             {/* Breadcrumb */}
-            <div className="breadcrumb" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <Link to="/">Trang chủ</Link>
-                    <span> › </span>
-                    <Link to="/blogs">Blog</Link>
-                    <span> › </span>
-                    <span>{post.title}</span>
-                </div>
-                {isAdminUser && (
-                    <button
-                        className="btn secondary"
-                        onClick={() => navigate('/admin-post-list')}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '8px 16px',
-                            fontSize: '14px'
-                        }}
-                        title="Quay lại danh sách bài viết (Admin)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M19 12H5M12 19l-7-7 7-7"/>
-                        </svg>
-                        Quay lại Admin
-                    </button>
-                )}
+            <div className="breadcrumb">
+                <Link to="/">Trang chủ</Link>
+                <span> › </span>
+                <Link to="/blogs">Blog</Link>
+                <span> › </span>
+                <span>{post.title}</span>
             </div>
 
             {/* Post Header */}
@@ -287,12 +235,9 @@ const BlogDetail = () => {
             )}
 
             {/* Navigation */}
-            <div className="post-navigation" style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '40px', padding: '20px' }}>
-                <button className="btn secondary" onClick={() => navigate('/blogs')}>
+            <div className="post-navigation">
+                <button className="btn" onClick={() => navigate('/blogs')}>
                     ← Quay lại danh sách
-                </button>
-                <button className="btn secondary" onClick={() => navigate(-1)}>
-                    ← Quay lại
                 </button>
             </div>
         </div>

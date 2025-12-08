@@ -1,17 +1,14 @@
-﻿// File: Controllers/TicketsController.cs
-using Keytietkiem.DTOs.Common;
+﻿using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Hubs;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Controllers;
 
@@ -21,11 +18,16 @@ public class TicketsController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<TicketHub> _ticketHub;
+    private readonly IAuditLogger _auditLogger;
 
-    public TicketsController(KeytietkiemDbContext db, IHubContext<TicketHub> ticketHub)
+    public TicketsController(
+        KeytietkiemDbContext db,
+        IHubContext<TicketHub> ticketHub,
+        IAuditLogger auditLogger)
     {
         _db = db;
         _ticketHub = ticketHub;
+        _auditLogger = auditLogger;
     }
 
     // ============ Helpers ============
@@ -81,24 +83,7 @@ public class TicketsController : ControllerBase
     }
 
     // ============ LIST ============
-    /// <summary>
-    /// Danh sách ticket chung (dùng cho Admin & Staff list).
-    /// Hỗ trợ:
-    /// - q: search
-    /// - status: New / InProgress / Completed / Closed
-    /// - severity: Low/Medium/High/Critical
-    /// - sla: OK/Warning/Overdue
-    /// - assignmentState: Unassigned/Assigned/Technical hoặc "Mine" (AssigneeId = user hiện tại)
-    /// 
-    /// Sắp xếp ưu tiên:
-    /// 1) SLA: Overdue -> Warning -> OK -> khác
-    /// 2) Ticket chưa gán (Unassigned) trước, ticket đã gán sau
-    /// 3) Với ticket chưa gán: Hạn phản hồi (FirstResponseDueAt) tăng dần
-    ///    Với ticket đã gán: Hạn giải quyết (ResolutionDueAt) tăng dần
-    /// 4) Cuối cùng theo TicketCode giảm dần (để ổn định thứ tự)
-    /// </summary>
     [HttpGet]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
         [FromQuery] string? q,
         [FromQuery] string? status,
@@ -283,7 +268,6 @@ public class TicketsController : ControllerBase
 
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
     public async Task<ActionResult<TicketDetailDto>> Detail(Guid id)
     {
         var t = await _db.Tickets
@@ -370,18 +354,6 @@ public class TicketsController : ControllerBase
     }
 
     // ============ CUSTOMER CREATE ============
-    /// <summary>
-    /// Customer tạo ticket mới từ màn hình customer-ticket.
-    /// - Chỉ cho phép user đang đăng nhập có role "Customer".
-    /// - Severity mặc định = Medium (không cho customer chọn).
-    /// - PriorityLevel lấy từ SupportPriorityLevel của user.
-    /// - Tự sinh TicketCode dạng "TCK-0001" dựa trên mã lớn nhất hiện có.
-    /// - Tự áp dụng SLA (SlaRuleId, FirstResponseDueAt, ResolutionDueAt, SlaStatus).
-    /// </summary>
-    /// <remarks>
-    /// POST /api/Tickets/create
-    /// Body: { "templateCode": "...", "description": "..." }
-    /// </remarks>
     [HttpPost("create")]
     public async Task<ActionResult<CustomerTicketCreatedDto>> CreateCustomerTicket([FromBody] CustomerCreateTicketDto dto)
     {
@@ -466,8 +438,6 @@ public class TicketsController : ControllerBase
         };
 
         // Áp dụng logic SLA chung:
-        // - Severity lấy theo template (Low/Medium/High/Critical)
-        // - PriorityLevel = sender.SupportPriorityLevel
         TicketSlaHelper.ApplyOnCreate(
             _db,
             ticket,
@@ -545,12 +515,39 @@ public class TicketsController : ControllerBase
                 u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
+        var before = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
         t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
+        // 🔐 AUDIT LOG – ASSIGN TICKET
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "Assign",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 
@@ -592,6 +589,14 @@ public class TicketsController : ControllerBase
                 new { message = "Bạn không có quyền nhận ticket này." });
         }
 
+        var before = new
+        {
+            ticket.TicketId,
+            ticket.AssigneeId,
+            AssignmentState = ticket.AssignmentState,
+            Status = ticket.Status
+        };
+
         ticket.AssigneeId = currentUserId;
 
         if (asg == "Unassigned")
@@ -607,6 +612,24 @@ public class TicketsController : ControllerBase
         ticket.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            ticket.TicketId,
+            ticket.AssigneeId,
+            AssignmentState = ticket.AssignmentState,
+            Status = ticket.Status
+        };
+
+        // 🔐 AUDIT LOG – ASSIGN TO ME
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "AssignToMe",
+            entityType: "Ticket",
+            entityId: ticket.TicketId.ToString(),
+            before: before,
+            after: after
+        );
 
         return NoContent();
     }
@@ -637,12 +660,39 @@ public class TicketsController : ControllerBase
                 u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
+        var before = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
         if (asg != "Technical") t.AssignmentState = "Technical";
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
         t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
+        // 🔐 AUDIT LOG – TRANSFER TO TECH
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "TransferToTech",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 
@@ -658,6 +708,14 @@ public class TicketsController : ControllerBase
         if (st != "InProgress")
             return BadRequest(new { message = "Chỉ hoàn thành khi trạng thái Đang xử lý." });
 
+        var before = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
+
         var now = DateTime.UtcNow;
 
         t.Status = "Completed";
@@ -672,6 +730,25 @@ public class TicketsController : ControllerBase
         TicketSlaHelper.UpdateSlaStatus(t, now);
 
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
+
+        // 🔐 AUDIT LOG – COMPLETE TICKET
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "Complete",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 
@@ -687,6 +764,14 @@ public class TicketsController : ControllerBase
         if (st != "New")
             return BadRequest(new { message = "Chỉ đóng khi trạng thái Mới." });
 
+        var before = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
+
         var now = DateTime.UtcNow;
 
         t.Status = "Closed";
@@ -700,6 +785,25 @@ public class TicketsController : ControllerBase
         TicketSlaHelper.UpdateSlaStatus(t, now);
 
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
+
+        // 🔐 AUDIT LOG – CLOSE TICKET
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "Close",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 

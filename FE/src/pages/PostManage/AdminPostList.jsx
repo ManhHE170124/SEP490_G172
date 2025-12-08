@@ -12,16 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { postsApi } from "../../services/postsApi";
 import useToast from "../../hooks/useToast";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
 import "./AdminPostList.css";
 
 export default function AdminPostList() {
   const navigate = useNavigate();
   const { toasts, showInfo, showSuccess, showError, removeToast, confirmDialog, showConfirm } = useToast();
-  
-  // Permission checks
-  const { hasPermission: hasDeletePermission } = usePermission("POST_MANAGER", "DELETE");
   
   // Global network error handler - only show one toast for network errors
   const networkErrorShownRef = useRef(false);
@@ -216,28 +211,10 @@ export default function AdminPostList() {
   };
 
   const handlePreview = (post) => {
-    // Generate slug from title if not available
-    const slug = post.slug || post.title
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
-      .replace(/[^a-zA-Z0-9\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
-    
-    // Open in new tab
-    window.open(`/blog/${slug}`, '_blank');
+    showInfo("Preview", "Chức năng xem trước đang được phát triển.");
   };
 
   const handleDelete = (postId) => {
-    // Check permission before proceeding
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa bài viết");
-      return;
-    }
-    
     const post = posts.find(p => p.postId === postId);
     showConfirm(
       "Xác nhận xóa",
@@ -265,12 +242,6 @@ export default function AdminPostList() {
   };
 
   const handleBulkDelete = () => {
-    // Check permission before proceeding
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa bài viết");
-      return;
-    }
-    
     if (selectedPosts.length === 0) {
       showError("Lỗi", "Vui lòng chọn ít nhất một bài viết");
       return;
@@ -424,11 +395,9 @@ export default function AdminPostList() {
             </svg>
             Dashboard
           </button>
-          <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-            <button className="apl-add-button" onClick={handleCreate}>
-              + Tạo bài viết mới
-            </button>
-          </PermissionGuard>
+          <button className="apl-add-button" onClick={handleCreate}>
+            + Tạo bài viết mới
+          </button>
         </div>
       </div>
 
@@ -442,8 +411,6 @@ export default function AdminPostList() {
                 className="apl-btn-secondary apl-btn-danger"
                 onClick={handleBulkDelete}
                 style={{ marginLeft: "8px" }}
-                disabled={!hasDeletePermission}
-                title={!hasDeletePermission ? "Bạn không có quyền xóa bài viết" : ""}
               >
                 Xóa đã chọn
               </button>
@@ -555,11 +522,9 @@ export default function AdminPostList() {
         ) : paginated.length === 0 ? (
           <div className="apl-empty-state">
             <div>Không có bài viết nào</div>
-            <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-              <button className="apl-add-button" onClick={handleCreate} style={{ marginTop: "12px" }}>
-                Tạo bài viết đầu tiên
-              </button>
-            </PermissionGuard>
+            <button className="apl-add-button" onClick={handleCreate} style={{ marginTop: "12px" }}>
+              Tạo bài viết đầu tiên
+            </button>
           </div>
         ) : viewMode === "table" ? (
           <table className="apl-post-list-table">
@@ -716,23 +681,19 @@ export default function AdminPostList() {
                           <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                         </svg>
                       </button>
-                      <PermissionGuard moduleCode="POST_MANAGER" permissionCode="EDIT">
-                        <button
-                          className="apl-action-btn apl-update-btn"
-                          title="Sửa"
-                          onClick={() => handleEdit(post.postId)}
-                        >
-                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
-                          </svg>
-                        </button>
-                      </PermissionGuard>
+                      <button
+                        className="apl-action-btn apl-update-btn"
+                        title="Sửa"
+                        onClick={() => handleEdit(post.postId)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
+                        </svg>
+                      </button>
                       <button
                         className="apl-action-btn apl-delete-btn"
-                        title={!hasDeletePermission ? "Bạn không có quyền xóa bài viết" : "Xóa"}
+                        title="Xóa"
                         onClick={() => handleDelete(post.postId)}
-                        disabled={!hasDeletePermission}
-                        style={{ opacity: !hasDeletePermission ? 0.5 : 1, cursor: !hasDeletePermission ? 'not-allowed' : 'pointer' }}
                       >
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                           <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z"/>
@@ -809,23 +770,19 @@ export default function AdminPostList() {
                           <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                         </svg>
                       </button>
-                      <PermissionGuard moduleCode="POST_MANAGER" permissionCode="EDIT">
-                        <button
-                          className="apl-action-btn apl-update-btn"
-                          onClick={() => handleEdit(post.postId)}
-                          title="Sửa"
-                        >
-                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
-                          </svg>
-                        </button>
-                      </PermissionGuard>
+                      <button
+                        className="apl-action-btn apl-update-btn"
+                        onClick={() => handleEdit(post.postId)}
+                        title="Sửa"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
+                        </svg>
+                      </button>
                       <button
                         className="apl-action-btn apl-delete-btn"
                         onClick={() => handleDelete(post.postId)}
-                        title={!hasDeletePermission ? "Bạn không có quyền xóa bài viết" : "Xóa"}
-                        disabled={!hasDeletePermission}
-                        style={{ opacity: !hasDeletePermission ? 0.5 : 1, cursor: !hasDeletePermission ? 'not-allowed' : 'pointer' }}
+                        title="Xóa"
                       >
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                           <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z"/>
@@ -846,8 +803,8 @@ export default function AdminPostList() {
           <div className="apl-pagination-info">
             Hiển thị {total === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, total)}/{total} bài viết
           </div>
-        <div className="apl-pagination-controls">
-          <button
+          <div className="apl-pagination-controls">
+            <button
               className="apl-pagination-btn"
               onClick={() => setPage(page - 1)}
               disabled={page <= 1}
@@ -857,7 +814,7 @@ export default function AdminPostList() {
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
               Trước
-          </button>
+            </button>
             
             <div className="apl-pagination-numbers">
               {[...Array(totalPages)].map((_, idx) => {
@@ -869,13 +826,13 @@ export default function AdminPostList() {
                   (pageNum >= page - 1 && pageNum <= page + 1)
                 ) {
                   return (
-          <button
+                    <button
                       key={pageNum}
                       className={`apl-pagination-number ${page === pageNum ? "active" : ""}`}
                       onClick={() => setPage(pageNum)}
                     >
                       {pageNum}
-          </button>
+                    </button>
                   );
                 } else if (pageNum === page - 2 || pageNum === page + 2) {
                   return <span key={pageNum} className="apl-pagination-ellipsis">...</span>;
@@ -884,7 +841,7 @@ export default function AdminPostList() {
               })}
             </div>
 
-          <button
+            <button
               className="apl-pagination-btn"
               onClick={() => setPage(page + 1)}
               disabled={page >= totalPages}
@@ -894,9 +851,9 @@ export default function AdminPostList() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-          </button>
+            </button>
+          </div>
         </div>
-      </div>
       )}
     </div>
   );

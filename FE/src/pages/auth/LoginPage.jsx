@@ -76,38 +76,14 @@ export default function LoginPage() {
 
       // Redirect based on user role
       const userRoles = response.user.roles || [];
-      
-      // Normalize roles to uppercase for comparison
-      const normalizedRoles = userRoles.map(role => {
-        // Handle both string and object roles
-        if (typeof role === 'string') {
-          return role.toUpperCase();
-        }
-        // If role is an object, try to get code or roleId
-        return (role.code || role.roleId || role.name || '').toString().toUpperCase();
-      });
-
-      // Check if user has Admin, Customer Care, or Storage Staff role (priority)
-      const isSupportRole = normalizedRoles.some(role => 
-        role === 'ADMIN' || 
-        role === 'CUSTOMER_CARE' || 
-        role.includes('CUSTOMER_CARE') ||
-        role === 'STORAGE_STAFF' ||
-        role.includes('STORAGE_STAFF')
-      );
-
-      // Check if user has Content Creator role
-      const isContentCreator = normalizedRoles.some(role => 
-        role === 'CONTENT_CREATOR' || role.includes('CONTENT_CREATOR')
-      );
-
-      // Redirect based on role priority: Support roles first, then Content Creator
-      if (isSupportRole) {
-        navigate("/admin/support-dashboard");
-      } else if (isContentCreator) {
-        navigate("/post-dashboard");
-      } else {
-        navigate("/");
+      switch (userRoles[0]) {
+        case "Admin":
+        case "Storage Staff":
+          navigate("/key-monitor");
+          break;
+        default:
+          navigate("/");
+          break;
       }
     } catch (error) {
       const responseData = error?.response?.data;

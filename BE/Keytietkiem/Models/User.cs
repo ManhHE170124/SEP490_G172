@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
+
 public partial class User
 {
     public Guid UserId { get; set; }

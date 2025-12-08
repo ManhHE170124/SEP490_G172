@@ -3,8 +3,7 @@ import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SupportPlansAdminApi } from "../../services/supportPlansAdmin";
 import "../../styles/SupportPlansAdminPage.css";
-import { usePermission } from "../../hooks/usePermission";
-import useToast from "../../hooks/useToast";
+
 /* ============ Helpers: Label + Error + Ellipsis ============ */
 const RequiredMark = () => (
   <span style={{ color: "#dc2626", marginLeft: 4 }}>*</span>
@@ -258,9 +257,6 @@ function SupportPlanModal({
                   onChange={() => set("isActive", !form.isActive)}
                 />
                 <span className="slider" />
-                <span className="switch-label">
-                  {form.isActive ? "Đang bật" : "Đang tắt"}
-                </span>
               </label>
               <span
                 className={form.isActive ? "badge green" : "badge gray"}
@@ -369,11 +365,6 @@ function SupportPlanModal({
 
 /* ============ Page: SupportPlansAdminPage ============ */
 export default function SupportPlansAdminPage() {
-  const { showError } = useToast();
-  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
-  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
-  const { hasPermission: hasDeletePermission } = usePermission("SUPPORT_MANAGER", "DELETE");
-
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -467,19 +458,10 @@ export default function SupportPlansAdminPage() {
     [total, pageSize]
   );
 
-  const openAddPlan = () => {
-    if (!hasCreatePermission) {
-      showError("Không có quyền", "Bạn không có quyền tạo gói hỗ trợ");
-      return;
-    }
+  const openAddPlan = () =>
     setPlanModal({ open: true, mode: "add", data: null });
-  };
 
   const openEditPlan = async (p) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền sửa gói hỗ trợ");
-      return;
-    }
     try {
       const detail = await SupportPlansAdminApi.get(p.supportPlanId);
       setPlanModal({
@@ -499,14 +481,6 @@ export default function SupportPlansAdminPage() {
   };
 
   const handlePlanSubmit = async (payload) => {
-    if (planModal.mode === "add" && !hasCreatePermission) {
-      showError("Không có quyền", "Bạn không có quyền tạo gói hỗ trợ");
-      return;
-    }
-    if (planModal.mode === "edit" && !hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền sửa gói hỗ trợ");
-      return;
-    }
     setPlanSubmitting(true);
     try {
       if (planModal.mode === "add") {
@@ -535,10 +509,6 @@ export default function SupportPlansAdminPage() {
   };
 
   const togglePlanActive = async (p) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái gói hỗ trợ");
-      return;
-    }
     try {
       await SupportPlansAdminApi.toggle(p.supportPlanId);
       addToast("success", "Đã cập nhật trạng thái gói hỗ trợ.", "Thành công");
@@ -555,10 +525,6 @@ export default function SupportPlansAdminPage() {
   };
 
   const deletePlan = (p) => {
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa gói hỗ trợ");
-      return;
-    }
     openConfirm({
       title: "Xoá gói hỗ trợ?",
       message: `Xoá gói "${p.name}" với mức ưu tiên ${priorityLabel(

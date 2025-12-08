@@ -2,33 +2,24 @@
  * File: CategoriesController.cs
  * Author: ManhLDHE170124
  * Created: 24/10/2025
- * Last Updated: 13/11/2025
- * Version: 1.1.0
- * Purpose: Manage product categories (CRUD, toggle), bulk upsert, and CSV import/export.
+ * Last Updated: 07/12/2025
+ * Version: 1.3.0
+ * Purpose: Manage product categories (CRUD + toggle) with audit logging on important operations.
  * Endpoints:
- *   - GET    /api/categories                     : List categories (keyword/active filter, sort)
- *   - GET    /api/categories/{id}                : Get category by id
- *   - POST   /api/categories                     : Create a new category
- *   - PUT    /api/categories/{id}                : Update a category
- *   - DELETE /api/categories/{id}                : Delete a category
- *   - PATCH  /api/categories/{id}/toggle         : Toggle IsActive
- *   - POST   /api/categories/bulk-upsert         : Bulk upsert categories
- *   - GET    /api/categories/export.csv          : Export categories to CSV
- *   - POST   /api/categories/import.csv          : Import categories from CSV
+ *   - GET    /api/categories              : List categories (keyword/active filter, sort, paging)
+ *   - GET    /api/categories/{id}         : Get category by id
+ *   - POST   /api/categories              : Create a new category
+ *   - PUT    /api/categories/{id}         : Update a category
+ *   - DELETE /api/categories/{id}         : Delete a category
+ *   - PATCH  /api/categories/{id}/toggle  : Toggle IsActive
  */
-using CsvHelper;
-using CsvHelper.Configuration;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Keytietkiem.Controllers;
@@ -39,15 +30,22 @@ public class CategoriesController : ControllerBase
 {
     private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
     private readonly IClock _clock;
+    private readonly IAuditLogger _auditLogger;
+
     private const int CategoryCodeMaxLength = 50;
     private const int CategoryNameMaxLength = 100;
     private const int CategoryDescriptionMaxLength = 200;
-    public CategoriesController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
+
+    public CategoriesController(
+        IDbContextFactory<KeytietkiemDbContext> dbFactory,
+        IClock clock,
+        IAuditLogger auditLogger)
     {
         _dbFactory = dbFactory;
         _clock = clock;
+        _auditLogger = auditLogger;
     }
- 
+
     private static string NormalizeSlug(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
@@ -59,7 +57,6 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
     /**
      * Summary: Retrieve category list with optional keyword/active filters; supports sorting & pagination.
      * Route: GET /api/categories
@@ -69,9 +66,9 @@ public class CategoriesController : ControllerBase
      *   - sort      (query, optional): one of [name|code|active], default "name"
      *   - direction (query, optional): "asc" | "desc", default "asc"
      *   - page      (query, optional): page index starts from 1, default 1
-     *   - pageSize  (query, optional): page size (1..200), default 20
+     *   - pageSize  (query, optional): page size (1..200), default 10
      * Returns:
-     *   - 200 OK with { items, total, page, pageSize } where items is IEnumerable<CategoryListItemDto>
+     *   - 200 OK with { items, total, page, pageSize } where items is IEnumerable<CategoryListItemDto-like>
      */
     public async Task<IActionResult> Get(
         [FromQuery] string? keyword,
@@ -100,7 +97,6 @@ public class CategoriesController : ControllerBase
         sort = sort?.Trim().ToLowerInvariant();
         direction = direction?.Trim().ToLowerInvariant();
 
-        // Sort không còn dùng DisplayOrder – fallback dùng CategoryName / CategoryId
         q = (sort, direction) switch
         {
             ("name", "asc") => q.OrderBy(c => c.CategoryName),
@@ -112,7 +108,6 @@ public class CategoriesController : ControllerBase
             _ => q.OrderBy(c => c.CategoryId)
         };
 
-        // ===== Pagination =====
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 200) pageSize = 200;
@@ -120,25 +115,23 @@ public class CategoriesController : ControllerBase
         var total = await q.CountAsync();
 
         var items = await q
-     .Skip((page - 1) * pageSize)
-     .Take(pageSize)
-     .Select(c => new
-     {
-         c.CategoryId,
-         c.CategoryCode,
-         c.CategoryName,
-         c.Description,
-         c.IsActive,
-         ProductsCount = c.Products.Count()
-     })
-     .ToListAsync();
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new
+            {
+                c.CategoryId,
+                c.CategoryCode,
+                c.CategoryName,
+                c.Description,
+                c.IsActive,
+                ProductsCount = c.Products.Count()
+            })
+            .ToListAsync();
 
         return Ok(new { items, total, page, pageSize });
-
     }
 
     [HttpGet("{id:int}")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
     /**
      * Summary: Retrieve a single category by id (includes ProductCount).
      * Route: GET /api/categories/{id}
@@ -167,7 +160,6 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPost]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
     /**
      * Summary: Create a new category.
      * Route: POST /api/categories
@@ -181,25 +173,44 @@ public class CategoriesController : ControllerBase
 
         var name = dto.CategoryName?.Trim();
         if (string.IsNullOrWhiteSpace(name))
-            return BadRequest(new { message = "CategoryName is required" });
+        {
+            const string msg = "CategoryName is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (name.Length > CategoryNameMaxLength)
-            return BadRequest(new { message = $"CategoryName cannot exceed {CategoryNameMaxLength} characters" });
+        {
+            var msg = $"CategoryName cannot exceed {CategoryNameMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         var rawCode = dto.CategoryCode ?? "";
         var code = NormalizeSlug(rawCode);
+
         if (string.IsNullOrEmpty(code))
-            return BadRequest(new { message = "CategoryCode (slug) is required" });
+        {
+            const string msg = "CategoryCode (slug) is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (code.Length > CategoryCodeMaxLength)
-            return BadRequest(new { message = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters" });
+        {
+            var msg = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         var desc = dto.Description;
         if (desc != null && desc.Length > CategoryDescriptionMaxLength)
-            return BadRequest(new { message = $"Description cannot exceed {CategoryDescriptionMaxLength} characters" });
+        {
+            var msg = $"Description cannot exceed {CategoryDescriptionMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         if (await db.Categories.AnyAsync(c => c.CategoryCode == code))
-            return Conflict(new { message = "CategoryCode already exists" });
+        {
+            const string msg = "CategoryCode already exists";
+            return Conflict(new { message = msg });
+        }
 
         var e = new Category
         {
@@ -213,6 +224,23 @@ public class CategoriesController : ControllerBase
         db.Categories.Add(e);
         await db.SaveChangesAsync();
 
+        // AUDIT: tạo category mới
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "CreateCategory",
+            entityType: "Category",
+            entityId: e.CategoryId.ToString(),
+            before: null,
+            after: new
+            {
+                e.CategoryId,
+                e.CategoryCode,
+                e.CategoryName,
+                e.Description,
+                e.IsActive
+            }
+        );
+
         return CreatedAtAction(nameof(GetById), new { id = e.CategoryId },
             new CategoryDetailDto(
                 e.CategoryId,
@@ -224,51 +252,80 @@ public class CategoriesController : ControllerBase
             ));
     }
 
-
     [HttpPut("{id:int}")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
     /**
      * Summary: Update an existing category by id.
      * Route: PUT /api/categories/{id}
      * Params:
      *   - id (route, int): category identifier
-     * Body: CategoryUpdateDto { CategoryName, Description?, IsActive }
+     * Body: CategoryUpdateDto { CategoryCode?, CategoryName, Description?, IsActive }
      * Returns: 204 No Content, 404 Not Found
      */
     public async Task<IActionResult> Update(int id, CategoryUpdateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Categories.FirstOrDefaultAsync(c => c.CategoryId == id);
-        if (e is null) return NotFound();
+        if (e is null)
+        {
+            const string msg = "Category not found";
+            return NotFound(new { message = msg });
+        }
+
+        var beforeSnapshot = new
+        {
+            e.CategoryId,
+            e.CategoryCode,
+            e.CategoryName,
+            e.Description,
+            e.IsActive
+        };
 
         var name = dto.CategoryName?.Trim();
         if (string.IsNullOrWhiteSpace(name))
-            return BadRequest(new { message = "CategoryName is required" });
+        {
+            const string msg = "CategoryName is required";
+            return BadRequest(new { message = msg });
+        }
 
         if (name.Length > CategoryNameMaxLength)
-            return BadRequest(new { message = $"CategoryName cannot exceed {CategoryNameMaxLength} characters" });
+        {
+            var msg = $"CategoryName cannot exceed {CategoryNameMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
         var desc = dto.Description;
         if (desc != null && desc.Length > CategoryDescriptionMaxLength)
-            return BadRequest(new { message = $"Description cannot exceed {CategoryDescriptionMaxLength} characters" });
+        {
+            var msg = $"Description cannot exceed {CategoryDescriptionMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
 
-        // ===== Xử lý CategoryCode (cho phép sửa bất kể có sản phẩm hay không) =====
+        // Optional update of CategoryCode
         if (dto.CategoryCode is not null)
         {
             var rawCode = dto.CategoryCode;
             var code = NormalizeSlug(rawCode);
 
             if (string.IsNullOrEmpty(code))
-                return BadRequest(new { message = "CategoryCode (slug) is required" });
+            {
+                const string msg = "CategoryCode (slug) is required";
+                return BadRequest(new { message = msg });
+            }
 
             if (code.Length > CategoryCodeMaxLength)
-                return BadRequest(new { message = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters" });
+            {
+                var msg = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters";
+                return BadRequest(new { message = msg });
+            }
 
             var exists = await db.Categories
                 .AnyAsync(c => c.CategoryCode == code && c.CategoryId != id);
 
             if (exists)
-                return Conflict(new { message = "CategoryCode already exists" });
+            {
+                const string msg = "CategoryCode already exists";
+                return Conflict(new { message = msg });
+            }
 
             e.CategoryCode = code;
         }
@@ -279,12 +336,30 @@ public class CategoriesController : ControllerBase
         e.UpdatedAt = _clock.UtcNow;
 
         await db.SaveChangesAsync();
+
+        var afterSnapshot = new
+        {
+            e.CategoryId,
+            e.CategoryCode,
+            e.CategoryName,
+            e.Description,
+            e.IsActive
+        };
+
+        // AUDIT: cập nhật category
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "UpdateCategory",
+            entityType: "Category",
+            entityId: id.ToString(),
+            before: beforeSnapshot,
+            after: afterSnapshot
+        );
+
         return NoContent();
     }
 
-
     [HttpDelete("{id:int}")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
     /**
      * Summary: Delete a category by id.
      * Route: DELETE /api/categories/{id}
@@ -296,15 +371,38 @@ public class CategoriesController : ControllerBase
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Categories.FindAsync(id);
-        if (e is null) return NotFound();
+        if (e is null)
+        {
+            const string msg = "Category not found";
+            return NotFound(new { message = msg });
+        }
+
+        var beforeSnapshot = new
+        {
+            e.CategoryId,
+            e.CategoryCode,
+            e.CategoryName,
+            e.Description,
+            e.IsActive
+        };
 
         db.Categories.Remove(e);
         await db.SaveChangesAsync();
+
+        // AUDIT: xóa category
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "DeleteCategory",
+            entityType: "Category",
+            entityId: id.ToString(),
+            before: beforeSnapshot,
+            after: null
+        );
+
         return NoContent();
     }
 
     [HttpPatch("{id:int}/toggle")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
     /**
      * Summary: Toggle the IsActive state of a category.
      * Route: PATCH /api/categories/{id}/toggle
@@ -316,155 +414,38 @@ public class CategoriesController : ControllerBase
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var e = await db.Categories.FirstOrDefaultAsync(c => c.CategoryId == id);
-        if (e is null) return NotFound();
+        if (e is null)
+        {
+            const string msg = "Category not found";
+            return NotFound(new { message = msg });
+        }
+
+        var beforeSnapshot = new
+        {
+            e.CategoryId,
+            e.IsActive
+        };
 
         e.IsActive = !e.IsActive;
         e.UpdatedAt = _clock.UtcNow;
         await db.SaveChangesAsync();
 
-        return Ok(new { e.CategoryId, e.IsActive });
-    }
-
-    [HttpPost("bulk-upsert")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
-    /**
-     * Summary: Bulk upsert categories from payload items.
-     * Route: POST /api/categories/bulk-upsert
-     * Body: CategoryBulkUpsertDto { Items: List<{ CategoryCode, CategoryName, Description?, IsActive }> }
-     * Behavior: Insert if not exists (by normalized CategoryCode), else update fields.
-     * Returns: 200 OK with { created, updated, changed }
-     */
-    public async Task<ActionResult<object>> BulkUpsert(CategoryBulkUpsertDto dto)
-    {
-        if (dto.Items is null || dto.Items.Count == 0)
-            return BadRequest(new { message = "Empty payload" });
-
-        await using var db = await _dbFactory.CreateDbContextAsync();
-
-        int created = 0, updated = 0;
-        foreach (var item in dto.Items)
+        var afterSnapshot = new
         {
-            var code = NormalizeSlug(item.CategoryCode);
-            if (string.IsNullOrEmpty(code)) continue;
-
-            var e = await db.Categories.FirstOrDefaultAsync(c => c.CategoryCode == code);
-            if (e is null)
-            {
-                db.Categories.Add(new Category
-                {
-                    CategoryCode = code,
-                    CategoryName = item.CategoryName.Trim(),
-                    Description = item.Description,
-                    IsActive = item.IsActive,
-                    CreatedAt = _clock.UtcNow
-                });
-                created++;
-            }
-            else
-            {
-                e.CategoryName = item.CategoryName.Trim();
-                e.Description = item.Description;
-                e.IsActive = item.IsActive;
-                e.UpdatedAt = _clock.UtcNow;
-                updated++;
-            }
-        }
-
-        var changed = await db.SaveChangesAsync();
-        return Ok(new { created, updated, changed });
-    }
-
-    // CSV row không còn DisplayOrder
-    public record CategoryCsvRow(string CategoryCode, string CategoryName, string Description, bool IsActive);
-
-    [HttpGet("export.csv")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
-    /**
-     * Summary: Export categories as CSV.
-     * Route: GET /api/categories/export.csv
-     * Params: none
-     * Returns: 200 OK with CSV file (text/csv)
-     */
-    public async Task<IActionResult> ExportCsv()
-    {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var rows = await db.Categories.AsNoTracking()
-            .OrderBy(x => x.CategoryName)
-            .Select(x => new CategoryCsvRow(
-                x.CategoryCode,
-                x.CategoryName,
-                x.Description ?? "",
-                x.IsActive
-            ))
-            .ToListAsync();
-
-        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
-        await using var ms = new MemoryStream();
-        await using (var writer = new StreamWriter(ms, new UTF8Encoding(true)))
-        await using (var csv = new CsvWriter(writer, cfg))
-        {
-            csv.WriteRecords(rows);
-            await writer.FlushAsync();
-        }
-        return File(ms.ToArray(), "text/csv", "categories.csv");
-    }
-
-    [HttpPost("import.csv")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
-    /**
-     * Summary: Import categories from a CSV file.
-     * Route: POST /api/categories/import.csv
-     * Body: IFormFile file (CSV with headers: CategoryCode,CategoryName,Description,IsActive)
-     * Behavior: Upserts by normalized CategoryCode.
-     * Returns: 200 OK with { created, updated, total }
-     */
-    public async Task<IActionResult> ImportCsv(IFormFile file)
-    {
-        if (file == null || file.Length == 0)
-            return BadRequest(new { message = "CSV file is required" });
-
-        var cfg = new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true,
-            MissingFieldFound = null,
-            BadDataFound = null
+            e.CategoryId,
+            e.IsActive
         };
-        using var stream = file.OpenReadStream();
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        using var csv = new CsvReader(reader, cfg);
 
-        var rows = csv.GetRecords<CategoryCsvRow>().ToList();
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        // AUDIT: bật/tắt category
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "ToggleCategory",
+            entityType: "Category",
+            entityId: id.ToString(),
+            before: beforeSnapshot,
+            after: afterSnapshot
+        );
 
-        int created = 0, updated = 0;
-        foreach (var r in rows)
-        {
-            var code = NormalizeSlug(r.CategoryCode);
-            if (string.IsNullOrWhiteSpace(code)) continue;
-
-            var e = await db.Categories.FirstOrDefaultAsync(x => x.CategoryCode == code);
-            if (e == null)
-            {
-                db.Categories.Add(new Category
-                {
-                    CategoryCode = code,
-                    CategoryName = r.CategoryName.Trim(),
-                    Description = r.Description,
-                    IsActive = r.IsActive,
-                    CreatedAt = _clock.UtcNow
-                });
-                created++;
-            }
-            else
-            {
-                e.CategoryName = r.CategoryName.Trim();
-                e.Description = r.Description;
-                e.IsActive = r.IsActive;
-                e.UpdatedAt = _clock.UtcNow;
-                updated++;
-            }
-        }
-        await db.SaveChangesAsync();
-        return Ok(new { created, updated, total = rows.Count });
+        return Ok(new { e.CategoryId, e.IsActive });
     }
 }

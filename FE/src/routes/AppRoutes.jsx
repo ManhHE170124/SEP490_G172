@@ -93,6 +93,7 @@ import SupportPriorityLoyaltyRulesPage from "../pages/admin/SupportPriorityLoyal
 import SupportPlansAdminPage from "../pages/admin/SupportPlansAdminPage.jsx";
 import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplatesAdminPage.jsx";
 import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
+import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
 import SupportDashboardAdminPage from "../pages/admin/SupportDashboardAdminPage";
 
@@ -251,21 +252,20 @@ export default function AppRoutes() {
       {/* Staff Tickets */}
       <Route
         path="/staff/tickets"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <StaffTicketManagement />
-        )}
+        element={
+          <AdminLayout>
+            <StaffTicketManagement />
+          </AdminLayout>
+        }
       />
       <Route
         path="/staff/tickets/:id"
         element={
-          <ProtectedRoute moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
-            <Suspense fallback={<div>Đang tải chi tiết...</div>}>
-              <AdminLayout>
-                <StaffTicketDetail />
-              </AdminLayout>
-            </Suspense>
-          </ProtectedRoute>
+          <Suspense fallback={<div>Đang tải chi tiết...</div>}>
+            <AdminLayout>
+              <StaffTicketDetail />
+            </AdminLayout>
+          </Suspense>
         }
       />
 
@@ -367,10 +367,11 @@ export default function AppRoutes() {
       {/* FAQs */}
       <Route
         path="/admin/faqs"
-        element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
-          <FaqsPage />
-        )}
+        element={
+          <AdminLayout>
+            <FaqsPage />
+          </AdminLayout>
+        }
       />
 
       {/* Admin Routes */}
@@ -408,40 +409,43 @@ export default function AppRoutes() {
       />
       {/* Post Routes */}
       <Route
-        path="/post-dashboard"
+        path="post-dashboard"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <PostDashboardPage />
         )}
       />
       <Route
-        path="/admin-post-list"
+        path="admin-post-list"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <AdminPostList />
         )}
       />
       <Route
-        path="/post-create-edit"
+        path="post-create-edit"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <PostCreateEdit />
         )}
       />
       <Route
-        path="/post-create-edit/:postId"
+        path="post-create-edit/:postId"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <PostCreateEdit />
         )}
       />
       <Route
-        path="/tag-post-type-manage"
+        path="tag-post-type-manage"
         element={renderAdminPage(
           MODULE_CODES.POST_MANAGER,
           <TagPostTypeManage />
         )}
       />
+
+      {/* 404 - Default to Client Layout - Fallbacks*/}
+      <Route path="*" element={<Page404 />} />
 
       {/* Suppliers */}
       <Route
@@ -537,24 +541,27 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/support-dashboard"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <SupportDashboardAdminPage />
-        )}
+        element={
+            <AdminLayout moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+              <SupportDashboardAdminPage />
+            </AdminLayout>
+        }
       />
       <Route
         path="/admin/support-chats"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <AdminSupportChatPage />
-        )}
+        element={
+          <AdminLayout>
+            <AdminSupportChatPage />
+          </AdminLayout>
+        }
       />
       <Route
         path="/staff/support-chats"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <StaffSupportChatPage />
-        )}
+        element={
+          <AdminLayout>
+            <StaffSupportChatPage />
+          </AdminLayout>
+        }
       />
       {/* Support plan subscription (gói hỗ trợ) */}
       <Route
@@ -567,39 +574,44 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/support-priority-loyalty-rules"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <SupportPriorityLoyaltyRulesPage />
-        )}
+        element={
+          <AdminLayout>
+            <SupportPriorityLoyaltyRulesPage />
+          </AdminLayout>
+        }
       />
       <Route
         path="/admin/support-plans"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <SupportPlansAdminPage />
-        )}
+        element={
+          <AdminLayout>
+            <SupportPlansAdminPage />
+          </AdminLayout>
+        }
       />
       <Route
         path="/admin/sla-rules"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <SlaRulesAdminPage />
-        )}
+        element={
+          <AdminLayout>
+            <SlaRulesAdminPage />
+          </AdminLayout>
+        }
       />
       <Route
         path="/admin/ticket-subject-templates"
-        element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <TicketSubjectTemplatesAdminPage />
-        )}
+        element={
+          <AdminLayout>
+            <TicketSubjectTemplatesAdminPage />
+          </AdminLayout>
+        }
       />
       <Route
         path="/admin/audit-logs"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
-          <TicketSubjectTemplatesAdminPage />
+          MODULE_CODES.SETTINGS_MANAGER,
+          <AuditLogsPage />
         )}
       />
+
 
 
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />

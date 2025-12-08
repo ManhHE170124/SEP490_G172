@@ -22,24 +22,16 @@ import { postsApi, extractPublicId } from '../../services/postsApi';
 import useToast from '../../hooks/useToast';
 import ToastContainer from '../../components/Toast/ToastContainer';
 import TagsInput from '../../components/TagsInput/TagsInput';
-import PermissionGuard from '../../components/PermissionGuard';
-import { usePermission } from '../../hooks/usePermission';
 
 const CreateEditPost = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
   const isEditMode = Boolean(postId);
-  
-  // Permission checks
-  const { hasPermission: hasCreatePermission } = usePermission("POST_MANAGER", "CREATE");
-  const { hasPermission: hasEditPermission } = usePermission("POST_MANAGER", "EDIT");
-  const { hasPermission: hasDeletePermission } = usePermission("POST_MANAGER", "DELETE");
 
   const [title, setTitle] = useState('');
   const [metaTitle, setMetaTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
-  const [slug, setSlug] = useState('');
   const { toasts, showSuccess, showError, showInfo, removeToast, confirmDialog, showConfirm } = useToast();
   const [status, setStatus] = useState('Draft');
   const [posttypeId, setPosttypeId] = useState('');
@@ -66,9 +58,6 @@ const CreateEditPost = () => {
   const [openDropdown, setOpenDropdown] = useState(null); // CommentId with open dropdown
   const [seoScore, setSeoScore] = useState(null); // null = chưa đánh giá, object = đã đánh giá
   const [isEvaluatingSeo, setIsEvaluatingSeo] = useState(false);
-  
-  // Determine if form should be disabled (must be after all state declarations)
-  const isFormDisabled = saving || isEvaluatingSeo || (isEditMode && !hasEditPermission) || (!isEditMode && !hasCreatePermission);
 
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -84,7 +73,6 @@ const CreateEditPost = () => {
     setContent('');
     setStatus('Draft');
     setPosttypeId('');
-    setSlug('');
     setErrors({ title: '', description: '' });
     setTags([]);
     setFeaturedImage(null);
@@ -181,7 +169,6 @@ const CreateEditPost = () => {
         setDescription(postData.shortDescription || '');
         setContent(postData.content || '');
         setStatus(postData.status || 'Draft');
-        setSlug(postData.slug || '');
         // Handle different possible property names for posttype ID
         setPosttypeId(postData.posttypeId || postData.postTypeId || postData.PosttypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
@@ -1071,30 +1058,12 @@ const handlePublish = () =>
   );
 
   const handlePreview = () => {
-    if (!isEditMode || !postId) {
-      showError('Lỗi', 'Chỉ có thể xem trước bài viết đã được lưu');
-      return;
-    }
-    
-    // Use existing slug if available, otherwise generate from title
-    const postSlug = slug || toSlug(title);
-    
-    if (!postSlug) {
-      showError('Lỗi', 'Không thể tạo đường dẫn xem trước. Vui lòng đảm bảo bài viết có tiêu đề.');
-      return;
-    }
-    
-    // Open in new tab
-    window.open(`/blog/${postSlug}`, '_blank');
+    // TODO: Open preview in new tab
+    console.log('Previewing post...', { title, content, thumbnail: featuredImageUrl });
+    showInfo('Preview', 'Chức năng xem trước đang được phát triển.');
   };
 
   const handleDelete = () => {
-    // Check permission before proceeding
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa bài viết");
-      return;
-    }
-    
     showConfirm(
       'Xác nhận xóa bài viết',
       `Bạn có chắc chắn muốn xóa bài viết "${title}"?\n\nHành động này sẽ xóa vĩnh viễn bài viết và tất cả ảnh liên quan. Không thể hoàn tác.`,
@@ -1620,9 +1589,7 @@ const handlePublish = () =>
           container: toolbarOptions,
           handlers: {
             image: function () {
-              if (!isFormDisabled && imageInputRef.current) {
-                imageInputRef.current.click();
-              }
+              imageInputRef.current && imageInputRef.current.click();
             }
           }
         }
@@ -1701,13 +1668,6 @@ const handlePublish = () =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update Quill editor readOnly state when form disabled state changes
-  useEffect(() => {
-    if (quillRef.current) {
-      quillRef.current.enable(!isFormDisabled);
-    }
-  }, [isFormDisabled]);
-
   const handleQuillImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !quillRef.current) return;
@@ -1781,7 +1741,7 @@ const handlePublish = () =>
                 }
               }}
               className={errors.title ? 'error' : ''}
-              disabled={isFormDisabled}
+              disabled={saving}
             />
             {errors.title && <div className="cep-error-message">{errors.title}</div>}
           </div>
@@ -1802,7 +1762,7 @@ const handlePublish = () =>
                 const newMetaTitle = e.target.value;
                 setMetaTitle(newMetaTitle);
               }}
-              disabled={isFormDisabled}
+              disabled={saving}
             />
             <div className="cep-field-hint" style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
               Từ khóa này sẽ hiển thị trong thẻ title của trang web (SEO)
@@ -1831,7 +1791,7 @@ const handlePublish = () =>
               maxLength={256}
               rows={4}
               className={errors.description ? 'error' : ''}
-              disabled={isFormDisabled}
+              disabled={saving}
             />
             {errors.description && <div className="cep-error-message">{errors.description}</div>}
           </div>
@@ -2107,52 +2067,46 @@ const handlePublish = () =>
           <div className="cep-sidebar-section">
             <div className="cep-action-buttons">
               {!isEditMode && (
-                <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-                  <button
-                    className="btn secondary"
-                    onClick={handleSaveDraft}
-                    disabled={saving || !hasCreatePermission}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {saving ? 'Đang lưu...' : 'Lưu nháp'}
-                  </button>
-                </PermissionGuard>
+                <button
+                  className="btn secondary"
+                  onClick={handleSaveDraft}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {saving ? 'Đang lưu...' : 'Lưu nháp'}
+                </button>
               )}
               {!isEditMode && (
-                <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-                  <button
-                    className="btn primary"
-                    onClick={handlePublish}
-                    disabled={saving || !hasCreatePermission}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {saving ? 'Đang lưu...' : 'Đăng bài'}
-                  </button>
-                </PermissionGuard>
+                <button
+                  className="btn primary"
+                  onClick={handlePublish}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {saving ? 'Đang lưu...' : 'Đăng bài'}
+                </button>
               )}
               {isEditMode && (
-                <PermissionGuard moduleCode="POST_MANAGER" permissionCode="EDIT">
-                  <button
-                    className="btn primary"
-                    onClick={handleSaveChange}
-                    disabled={saving || !hasEditPermission}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-                  </button>
-                </PermissionGuard>
+                <button
+                  className="btn primary"
+                  onClick={handleSaveChange}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
               )}
               {isEditMode && (
                 <button
                   className="btn secondary"
                   onClick={handlePreview}
-                  disabled={isFormDisabled}
+                  disabled={saving}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12Zm11 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -2161,31 +2115,28 @@ const handlePublish = () =>
                 </button>
               )}
               {isEditMode && (
-                <PermissionGuard moduleCode="POST_MANAGER" permissionCode="CREATE">
-                  <button
-                    className="btn secondary"
-                    onClick={() => {
-                      resetForm();
-                      navigate('/post-create-edit');
-                    }}
-                    disabled={isFormDisabled || !hasCreatePermission}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Tạo bài viết mới
-                  </button>
-                </PermissionGuard>
+                <button
+                  className="btn secondary"
+                  onClick={() => {
+                    resetForm();
+                    navigate('/post-create-edit');
+                  }}
+                  disabled={saving}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Tạo bài viết mới
+                </button>
               )}
             </div>
 
             {isEditMode && (
               <button
                 className="btn danger"
-                style={{ width: '100%', marginTop: '12px', opacity: !hasDeletePermission ? 0.5 : 1, cursor: !hasDeletePermission ? 'not-allowed' : 'pointer' }}
+                style={{ width: '100%', marginTop: '12px' }}
                 onClick={handleDelete}
-                disabled={saving || !hasDeletePermission}
-                title={!hasDeletePermission ? "Bạn không có quyền xóa bài viết" : ""}
+                disabled={saving}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -2203,7 +2154,7 @@ const handlePublish = () =>
                 id="post-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                disabled={isFormDisabled}
+                disabled={saving}
               >
                 <option value="Private">Riêng tư</option>
                 <option value="Published">Công khai</option>
@@ -2221,7 +2172,7 @@ const handlePublish = () =>
                 id="post-category"
                 value={posttypeId}
                 onChange={(e) => setPosttypeId(e.target.value)}
-                disabled={isFormDisabled}
+                disabled={saving}
               >
                 <option value="">Chọn danh mục</option>
                 {posttypes.map((type) => (
@@ -2244,7 +2195,6 @@ const handlePublish = () =>
               setTags={setTags}
               availableTags={availableTags}
               onCreateNewTag={handleCreateNewTag}
-              disabled={isFormDisabled}
             />
           </div>
 
@@ -2260,14 +2210,14 @@ const handlePublish = () =>
               accept="image/*"
             />
             <div
-              className={`cep-featured-image-upload ${featuredImage ? 'has-image' : ''} ${isFormDisabled ? 'disabled' : ''}`}
-              onClick={isFormDisabled ? undefined : handleImageClick}
-              onDragOver={isFormDisabled ? undefined : handleDragOver}
-              onDrop={isFormDisabled ? undefined : handleDrop}
-              onPaste={isFormDisabled ? undefined : handlePaste}
-              tabIndex={isFormDisabled ? -1 : 0}
+              className={`cep-featured-image-upload ${featuredImage ? 'has-image' : ''}`}
+              onClick={handleImageClick}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onPaste={handlePaste}
+              tabIndex="0"
               role="button"
-              style={{ outline: 'none', pointerEvents: isFormDisabled ? 'none' : 'auto', opacity: isFormDisabled ? 0.6 : 1 }}
+              style={{ outline: 'none' }}
             >
               {featuredImage ? (
                 <img
@@ -2289,7 +2239,7 @@ const handlePublish = () =>
               <button
                 className="cep-remove-image-btn"
                 onClick={removeImage}
-                disabled={isFormDisabled}
+                disabled={saving}
               >
                 Xóa ảnh
               </button>
@@ -2311,7 +2261,7 @@ const handlePublish = () =>
               <button
                 className="cep-btn primary"
                 onClick={handleEvaluateSeo}
-                disabled={isFormDisabled}
+                disabled={saving}
                 style={{ width: '100%' }}
               >
                 Đánh giá điểm
@@ -2403,7 +2353,7 @@ const handlePublish = () =>
                 <button
                   className="cep-btn secondary"
                   onClick={handleEvaluateSeo}
-                  disabled={isFormDisabled}
+                  disabled={isEvaluatingSeo || saving}
                   style={{ width: '100%', marginTop: '12px' }}
                 >
                   {isEvaluatingSeo ? 'Đang đánh giá...' : 'Đánh giá lại'}

@@ -5,9 +5,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ticketsApi } from "../../api/ticketsApi";
 import axiosClient from "../../api/axiosClient";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
-import useToast from "../../hooks/useToast";
 
 const MAP_STATUS = {
   New: "Mới",
@@ -112,9 +109,6 @@ function fmtPriority(level) {
 export default function AdminTicketDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { showError } = useToast();
-  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
-  const { hasPermission: hasViewDetailPermission } = usePermission("SUPPORT_MANAGER", "VIEW_DETAIL");
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -321,10 +315,6 @@ export default function AdminTicketDetail() {
   }, [data?.status]);
 
   const doAssign = async (assigneeId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền gán ticket");
-      return;
-    }
     try {
       await ticketsApi.assign(id, assigneeId);
       await load();
@@ -334,10 +324,6 @@ export default function AdminTicketDetail() {
   };
 
   const doTransfer = async (assigneeId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền chuyển hỗ trợ ticket");
-      return;
-    }
     try {
       await ticketsApi.transferTech(id, assigneeId);
       await load();
@@ -349,10 +335,6 @@ export default function AdminTicketDetail() {
   };
 
   const doComplete = async () => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền hoàn thành ticket");
-      return;
-    }
     if (!window.confirm("Xác nhận đánh dấu Hoàn thành?")) return;
     try {
       await ticketsApi.complete(id);
@@ -363,10 +345,6 @@ export default function AdminTicketDetail() {
   };
 
   const doClose = async () => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền đóng ticket");
-      return;
-    }
     if (!window.confirm("Xác nhận Đóng ticket?")) return;
     try {
       await ticketsApi.close(id);
@@ -385,10 +363,6 @@ export default function AdminTicketDetail() {
   };
 
   const handleSendReply = async () => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền gửi phản hồi ticket");
-      return;
-    }
     const msg = replyText.trim();
 
     // 🔐 Chưa đăng nhập -> báo lỗi trên màn hình, không gọi API
@@ -480,36 +454,26 @@ export default function AdminTicketDetail() {
           </div>
         </div>
         <div className="right">
-          <button
-            className={`btn primary ${!hasEditPermission || !actions.canAssign ? 'disabled' : ''}`}
-            title={!hasEditPermission ? "Bạn không có quyền gán ticket" : !actions.canAssign ? "Không thể gán ticket này" : "Gán"}
-            disabled={!hasEditPermission || !actions.canAssign}
-            onClick={() => {
-              if (!hasEditPermission) {
-                showError("Không có quyền", "Bạn không có quyền gán ticket");
-                return;
+          {actions.canAssign && (
+            <button
+              className="btn primary"
+              onClick={() =>
+                setModal({ open: true, mode: "assign", excludeUserId: null })
               }
-              setModal({ open: true, mode: "assign", excludeUserId: null });
-            }}
-          >
-            Gán
-          </button>
-          <button
-            className={`btn success ${!hasEditPermission || !actions.canComplete ? 'disabled' : ''}`}
-            title={!hasEditPermission ? "Bạn không có quyền hoàn thành ticket" : !actions.canComplete ? "Không thể hoàn thành ticket này" : "Hoàn thành"}
-            disabled={!hasEditPermission || !actions.canComplete}
-            onClick={doComplete}
-          >
-            Hoàn thành
-          </button>
-          <button
-            className={`btn danger ${!hasEditPermission || !actions.canClose ? 'disabled' : ''}`}
-            title={!hasEditPermission ? "Bạn không có quyền đóng ticket" : !actions.canClose ? "Chỉ có thể đóng ticket ở trạng thái Mới" : "Đóng"}
-            disabled={!hasEditPermission || !actions.canClose}
-            onClick={doClose}
-          >
-            Đóng
-          </button>
+            >
+              Gán
+            </button>
+          )}
+          {actions.canComplete && (
+            <button className="btn success" onClick={doComplete}>
+              Hoàn thành
+            </button>
+          )}
+          {actions.canClose && (
+            <button className="btn danger" onClick={doClose}>
+              Đóng
+            </button>
+          )}
           <button className="btn ghost" onClick={() => nav(-1)}>
             Quay lại
           </button>
@@ -575,30 +539,17 @@ export default function AdminTicketDetail() {
 
             {/* Reply box – chỉ hiển thị nếu ticket chưa hoàn thành/đóng */}
             {canReply && (
-              <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
-                <div className="reply-box">
-                  <div className="reply-title">Phản hồi khách hàng</div>
-                  <textarea
-                    className="reply-textarea"
-                    placeholder="Bạn không có quyền phản hồi ticket"
-                    value=""
-                    disabled
-                    readOnly
-                  />
-                  <div className="reply-error">Bạn không có quyền phản hồi ticket này</div>
-                </div>
-              }>
-                <div className="reply-box">
-                  <div className="reply-title">Phản hồi khách hàng</div>
-                  <textarea
-                    className="reply-textarea"
-                    placeholder="Nhập nội dung phản hồi cho khách hàng..."
-                    value={replyText}
-                    onChange={(e) => {
-                      setReplyText(e.target.value);
-                      if (replyError) setReplyError("");
-                    }}
-                  />
+              <div className="reply-box">
+                <div className="reply-title">Phản hồi khách hàng</div>
+                <textarea
+                  className="reply-textarea"
+                  placeholder="Nhập nội dung phản hồi cho khách hàng..."
+                  value={replyText}
+                  onChange={(e) => {
+                    setReplyText(e.target.value);
+                    if (replyError) setReplyError("");
+                  }}
+                />
                 <div className="reply-quick">
                   <span>Mẫu phản hồi nhanh</span>
                   <div className="reply-quick-buttons">
@@ -676,15 +627,13 @@ export default function AdminTicketDetail() {
                       type="button"
                       className="btn primary"
                       onClick={handleSendReply}
-                      disabled={sending || !hasEditPermission}
-                      title={!hasEditPermission ? "Bạn không có quyền gửi phản hồi" : ""}
+                      disabled={sending}
                     >
                       {sending ? "Đang gửi..." : "Gửi phản hồi"}
                     </button>
                   </div>
                 </div>
               </div>
-              </PermissionGuard>
             )}
           </div>
         </div>

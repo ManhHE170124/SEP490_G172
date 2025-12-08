@@ -5,9 +5,6 @@ import { useNavigate } from "react-router-dom";
 import "../../styles/admin-ticket-management.css";
 import { ticketsApi } from "../../api/ticketsApi";
 import axiosClient from "../../api/axiosClient";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
-import useToast from "../../hooks/useToast";
 
 // Filters default
 const initialFilters = {
@@ -120,9 +117,6 @@ function AssignPill({ value }) {
 
 export default function AdminTicketManagement() {
   const nav = useNavigate();
-  const { showError } = useToast();
-  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
-  const { hasPermission: hasViewDetailPermission } = usePermission("SUPPORT_MANAGER", "VIEW_DETAIL");
 
   const [ui, setUi] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
@@ -214,10 +208,6 @@ export default function AdminTicketManagement() {
   });
 
   const doAssign = async (id, assigneeId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền gán ticket");
-      return;
-    }
     try {
       await ticketsApi.assign(id, assigneeId);
       await fetchList();
@@ -228,10 +218,6 @@ export default function AdminTicketManagement() {
     }
   };
   const doTransfer = async (id, assigneeId) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền chuyển hỗ trợ ticket");
-      return;
-    }
     try {
       await ticketsApi.transferTech(id, assigneeId);
       await fetchList();
@@ -242,10 +228,6 @@ export default function AdminTicketManagement() {
     }
   };
   const doComplete = async (id) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền hoàn thành ticket");
-      return;
-    }
     if (!window.confirm("Xác nhận đánh dấu Hoàn thành?")) return;
     try {
       await ticketsApi.complete(id);
@@ -259,10 +241,6 @@ export default function AdminTicketManagement() {
     }
   };
   const doClose = async (id) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền đóng ticket");
-      return;
-    }
     if (!window.confirm("Xác nhận Đóng ticket?")) return;
     try {
       await ticketsApi.close(id);
@@ -447,81 +425,67 @@ export default function AdminTicketManagement() {
 
                     {/* Thao tác – icon + tooltip, luôn cùng hàng với Ngày tạo */}
                     <td className="tk-row-actions">
-                      <button
-                        className={`btn icon-btn primary ${!hasEditPermission || !a.canAssign ? 'disabled' : ''}`}
-                        title={!hasEditPermission ? "Bạn không có quyền gán ticket" : !a.canAssign ? "Không thể gán ticket này" : "Gán"}
-                        disabled={!hasEditPermission || !a.canAssign}
-                        onClick={() => {
-                          if (!hasEditPermission) {
-                            showError("Không có quyền", "Bạn không có quyền gán ticket");
-                            return;
-                          }
-                          setModal({
-                            open: true,
-                            mode: "assign",
-                            id: r.ticketId,
-                            currentAssigneeId: r.assigneeId,
-                          });
-                        }}
-                      >
-                        <span aria-hidden="true">👤</span>
-                      </button>
-
-                      <button
-                        className={`btn icon-btn warning ${!hasEditPermission || !a.canTransfer ? 'disabled' : ''}`}
-                        title={!hasEditPermission ? "Bạn không có quyền chuyển hỗ trợ ticket" : !a.canTransfer ? "Không thể chuyển hỗ trợ ticket này" : "Chuyển hỗ trợ"}
-                        disabled={!hasEditPermission || !a.canTransfer}
-                        onClick={() => {
-                          if (!hasEditPermission) {
-                            showError("Không có quyền", "Bạn không có quyền chuyển hỗ trợ ticket");
-                            return;
-                          }
-                          setModal({
-                            open: true,
-                            mode: "transfer",
-                            id: r.ticketId,
-                            currentAssigneeId: r.assigneeId,
-                          });
-                        }}
-                      >
-                        <span aria-hidden="true">🔁</span>
-                      </button>
-
-                      <button
-                        className={`btn icon-btn success ${!hasEditPermission || !a.canComplete ? 'disabled' : ''}`}
-                        title={!hasEditPermission ? "Bạn không có quyền hoàn thành ticket" : !a.canComplete ? "Không thể hoàn thành ticket này" : "Hoàn thành"}
-                        disabled={!hasEditPermission || !a.canComplete}
-                        onClick={() => doComplete(r.ticketId)}
-                      >
-                        <span aria-hidden="true">✔</span>
-                      </button>
-
-                      <button
-                        className={`btn icon-btn danger ${!hasEditPermission || normalizeStatus(r.status) !== "New" ? 'disabled' : ''}`}
-                        title={!hasEditPermission ? "Bạn không có quyền đóng ticket" : normalizeStatus(r.status) !== "New" ? "Chỉ có thể đóng ticket ở trạng thái Mới" : "Đóng"}
-                        disabled={!hasEditPermission || normalizeStatus(r.status) !== "New"}
-                        onClick={() => doClose(r.ticketId)}
-                      >
-                        <span aria-hidden="true">✖</span>
-                      </button>
-
-                      <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="VIEW_DETAIL" fallback={
+                      {a.canAssign && (
                         <button
-                          className="btn icon-btn ghost disabled"
-                          title="Bạn không có quyền xem chi tiết ticket"
-                          disabled
+                          className="btn icon-btn primary"
+                          title="Gán"
+                          onClick={() =>
+                            setModal({
+                              open: true,
+                              mode: "assign",
+                              id: r.ticketId,
+                              currentAssigneeId: r.assigneeId,
+                            })
+                          }
                         >
-                          <span aria-hidden="true">🔍</span>
+                          <span aria-hidden="true">👤</span>
                         </button>
-                      }>
+                      )}
+
+                      {a.canTransfer && (
                         <button
-                          className="btn icon-btn ghost"
-                          title="Chi tiết"
-                          onClick={() => nav(`/admin/tickets/${r.ticketId}`)}
+                          className="btn icon-btn warning"
+                          title="Chuyển hỗ trợ"
+                          onClick={() =>
+                            setModal({
+                              open: true,
+                              mode: "transfer",
+                              id: r.ticketId,
+                              currentAssigneeId: r.assigneeId,
+                            })
+                          }
                         >
-                          <span aria-hidden="true">🔍</span>
+                          <span aria-hidden="true">🔁</span>
                         </button>
-                      </PermissionGuard>
+                      )}
+
+                      {a.canComplete && (
+                        <button
+                          className="btn icon-btn success"
+                          title="Hoàn thành"
+                          onClick={() => doComplete(r.ticketId)}
+                        >
+                          <span aria-hidden="true">✔</span>
+                        </button>
+                      )}
+
+                      {normalizeStatus(r.status) === "New" && (
+                        <button
+                          className="btn icon-btn danger"
+                          title="Đóng"
+                          onClick={() => doClose(r.ticketId)}
+                        >
+                          <span aria-hidden="true">✖</span>
+                        </button>
+                      )}
+
+                      <button
+                        className="btn icon-btn ghost"
+                        title="Chi tiết"
+                        onClick={() => nav(`/admin/tickets/${r.ticketId}`)}
+                      >
+                        <span aria-hidden="true">🔍</span>
+                      </button>
                     </td>
                   </tr>
                 );

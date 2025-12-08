@@ -1,7 +1,7 @@
 ﻿// File: DTOs/SupportPlans/SupportPlanDTOs.cs
 using System;
 
-namespace Keytietkiem.DTOs.SupportPlans
+namespace Keytietkiem.DTOs.Support
 {
     /// <summary>
     /// Dùng cho màn FE list các gói hỗ trợ.

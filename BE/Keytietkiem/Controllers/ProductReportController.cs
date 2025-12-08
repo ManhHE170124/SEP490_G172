@@ -1,12 +1,13 @@
-using System.Security.Claims;
 using Keytietkiem.DTOs;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers;
 
@@ -16,10 +17,14 @@ namespace Keytietkiem.Controllers;
 public class ProductReportController : ControllerBase
 {
     private readonly IProductReportService _productReportService;
+    private readonly IAuditLogger _auditLogger;
 
-    public ProductReportController(IProductReportService productReportService)
+    public ProductReportController(
+        IProductReportService productReportService,
+        IAuditLogger auditLogger)
     {
         _productReportService = productReportService ?? throw new ArgumentNullException(nameof(productReportService));
+        _auditLogger = auditLogger;
     }
 
     /// <summary>
@@ -30,7 +35,6 @@ public class ProductReportController : ControllerBase
     /// <param name="status">Optional status filter (Pending, Processing, Resolved)</param>
     /// <param name="userId">Optional user ID filter (for getting user's own reports)</param>
     [HttpGet]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<IActionResult> GetAllProductReports(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -57,7 +61,6 @@ public class ProductReportController : ControllerBase
     /// </summary>
     /// <param name="id">Product report ID</param>
     [HttpGet("{id:guid}")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
     public async Task<IActionResult> GetProductReportById(Guid id)
     {
         if (id == Guid.Empty)
@@ -74,8 +77,26 @@ public class ProductReportController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateProductReport([FromBody] CreateProductReportDto dto)
     {
-        var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId.Value);
-        return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
+        try
+        {
+            var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId!.Value);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "ProductReport",
+                entityId: report.Id.ToString(),
+                before: null,
+                after: report
+);
+
+            return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
+        }
+        catch (Exception)
+        {
+            // Giữ nguyên behavior: exception -> 500, không log để tránh spam
+            throw;
+        }
     }
 
     /// <summary>
@@ -84,17 +105,38 @@ public class ProductReportController : ControllerBase
     /// <param name="id">Product report ID</param>
     /// <param name="dto">Product report update data</param>
     [HttpPatch("{id:guid}/status")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
+    [Authorize(Roles = "Admin,Support Staff")]
     public async Task<IActionResult> UpdateProductReportStatus(Guid id, [FromBody] UpdateProductReportDto dto)
     {
         if (id != dto.Id)
+        {
+            // Không log 400 để tránh spam log
             return BadRequest(new { message = "ID trong URL và body không khớp" });
+        }
 
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
 
-        var report = await _productReportService.UpdateProductReportStatusAsync(dto, actorId, actorEmail);
-        return Ok(report);
+        try
+        {
+            var report = await _productReportService.UpdateProductReportStatusAsync(dto, actorId, actorEmail);
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdateStatus",
+                entityType: "ProductReport",
+                entityId: report.Id.ToString(),
+                before: null,
+                after: report
+);
+
+            return Ok(report);
+        }
+        catch (Exception)
+        {
+            // Giữ nguyên behavior cũ (exception -> 500), không log để tránh spam
+            throw;
+        }
     }
 
     /// <summary>
@@ -132,7 +174,7 @@ public class ProductReportController : ControllerBase
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10)</param>
     [HttpGet("key-errors")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+    [Authorize(Roles = "Admin,Support Staff")]
     public async Task<IActionResult> GetKeyErrors(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
@@ -153,7 +195,7 @@ public class ProductReportController : ControllerBase
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10)</param>
     [HttpGet("account-errors")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+    [Authorize(Roles = "Admin,Support Staff")]
     public async Task<IActionResult> GetAccountErrors(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
@@ -172,7 +214,7 @@ public class ProductReportController : ControllerBase
     /// Get total count of key error reports
     /// </summary>
     [HttpGet("key-errors/count")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+    [Authorize(Roles = "Admin,Support Staff")]
     public async Task<IActionResult> CountKeyErrors()
     {
         var count = await _productReportService.CountKeyErrorsAsync();
@@ -183,7 +225,7 @@ public class ProductReportController : ControllerBase
     /// Get total count of account error reports
     /// </summary>
     [HttpGet("account-errors/count")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+    [Authorize(Roles = "Admin,Support Staff")]
     public async Task<IActionResult> CountAccountErrors()
     {
         var count = await _productReportService.CountAccountErrorsAsync();

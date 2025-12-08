@@ -5,16 +5,11 @@ import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
 import "../admin/admin.css";
 import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
 
 export default function KeyManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
-
-  // Permission checks
-  const { hasPermission: hasDeletePermission } = usePermission("WAREHOUSE_MANAGER", "DELETE");
 
   const [loading, setLoading] = useState(false);
   const [keys, setKeys] = useState([]);
@@ -98,10 +93,6 @@ export default function KeyManagementPage() {
   };
 
   const handleDeleteKey = (keyId) => {
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa key");
-      return;
-    }
     setConfirmDialog({
       isOpen: true,
       title: "Xác nhận xóa key",
@@ -370,14 +361,10 @@ export default function KeyManagementPage() {
                                 <button
                                   className="btn"
                                   onClick={() => handleDeleteKey(key.keyId)}
-                                  disabled={!hasDeletePermission}
-                                  title={!hasDeletePermission ? "Bạn không có quyền xóa key" : "Xóa"}
                                   style={{
                                     padding: "4px 8px",
                                     fontSize: "13px",
                                     color: "#dc2626",
-                                    opacity: !hasDeletePermission ? 0.5 : 1,
-                                    cursor: !hasDeletePermission ? "not-allowed" : "pointer",
                                   }}
                                 >
                                   Xóa

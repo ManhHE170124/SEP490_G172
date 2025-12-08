@@ -5,8 +5,6 @@ import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import PermissionGuard from "../../components/PermissionGuard";
-import { MODULE_CODES, PERMISSION_CODES } from "../../constants/roleConstants";
 import "./admin.css";
 
 export default function ProductsPage() {
@@ -327,11 +325,9 @@ export default function ProductsPage() {
             }}
           >
             <h2>Danh sách sản phẩm</h2>
-            <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.CREATE}>
-              <Link className="btn primary" to="/admin/products/add">
-                + Thêm sản phẩm
-              </Link>
-            </PermissionGuard>
+            <Link className="btn primary" to="/admin/products/add">
+              + Thêm sản phẩm
+            </Link>
           </div>
 
           {/* Filters */}
@@ -595,37 +591,33 @@ export default function ProductsPage() {
                       }}
                     >
                       <div className="action-buttons">
-                        <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.VIEW_DETAIL}>
-                          <Link
-                            className="action-btn edit-btn"
-                            to={`/admin/products/${p.productId}`}
-                            title="Chi tiết / Biến thể"
+                        <Link
+                          className="action-btn edit-btn"
+                          to={`/admin/products/${p.productId}`}
+                          title="Chi tiết / Biến thể"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                              <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                            </svg>
-                          </Link>
-                        </PermissionGuard>
-                        <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.DELETE}>
-                          <button
-                            className="action-btn delete-btn"
-                            title="Xoá sản phẩm"
-                            onClick={() => deleteProduct(p)}
+                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                          </svg>
+                        </Link>
+                        <button
+                          className="action-btn delete-btn"
+                          title="Xoá sản phẩm"
+                          onClick={() => deleteProduct(p)}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
-                            </svg>
-                          </button>
-                        </PermissionGuard>
+                            <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
+                          </svg>
+                        </button>
                       </div>
 
                       <label

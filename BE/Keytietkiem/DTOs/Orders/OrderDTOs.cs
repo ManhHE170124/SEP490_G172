@@ -1,5 +1,4 @@
-﻿// Keytietkiem/DTOs/Orders/OrderDtos.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Keytietkiem.DTOs.Orders
@@ -10,12 +9,8 @@ namespace Keytietkiem.DTOs.Orders
     public class OrderDetailDTO
     {
         public long OrderDetailId { get; set; }
-
-        // Dùng VariantId
         public Guid VariantId { get; set; }
         public string VariantTitle { get; set; } = null!;
-
-        // Info Product để FE hiển thị
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = null!;
         public string? ProductCode { get; set; }
@@ -37,13 +32,10 @@ namespace Keytietkiem.DTOs.Orders
     {
         public Guid OrderId { get; set; }
 
-        // UserId cho phép null
         public Guid? UserId { get; set; }
 
-        // Email gắn với đơn hàng
         public string Email { get; set; } = null!;
 
-        // Info user (nếu có)
         public string? UserName { get; set; }
         public string? UserEmail { get; set; }
         public string? UserPhone { get; set; }
@@ -56,8 +48,6 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
 
         public List<OrderDetailDTO> OrderDetails { get; set; } = new();
-        // Không embed danh sách payments vì bảng Payments đã tách hoàn toàn
-        // và Orders hiện chỉ đóng vai trò log immutable sau khi Payment Paid.
     }
 
     /// <summary>
@@ -68,7 +58,6 @@ namespace Keytietkiem.DTOs.Orders
         public Guid OrderId { get; set; }
         public Guid? UserId { get; set; }
 
-        // Email đơn hàng
         public string Email { get; set; } = null!;
 
         public string? UserName { get; set; }

@@ -1,9 +1,6 @@
 import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SupportPriorityLoyaltyRulesApi } from "../../services/supportPriorityLoyaltyRules";
-import PermissionGuard from "../../components/PermissionGuard";
-import { usePermission } from "../../hooks/usePermission";
-import useToast from "../../hooks/useToast";
 import "../../styles/SupportPriorityLoyaltyRulesPage.css";
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
@@ -230,7 +227,7 @@ function RuleModal({
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
 
-              <div className="muted support-priority-modal-note">
+              {/* <div className="muted support-priority-modal-note">
                 <strong>Quy tắc khi bật rule:</strong>
                 <div>
                   - Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>1 rule đang bật</b>.
@@ -248,7 +245,7 @@ function RuleModal({
                   - Các rule đang tắt không bị ràng buộc; hệ thống chỉ kiểm tra
                   khi <b>lưu / bật</b> rule.
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -320,11 +317,6 @@ function RuleModal({
 
 /* ============ Page: SupportPriorityLoyaltyRules ============ */
 export default function SupportPriorityLoyaltyRulesPage() {
-  const { showError } = useToast();
-  const { hasPermission: hasCreatePermission } = usePermission("SUPPORT_MANAGER", "CREATE");
-  const { hasPermission: hasEditPermission } = usePermission("SUPPORT_MANAGER", "EDIT");
-  const { hasPermission: hasDeletePermission } = usePermission("SUPPORT_MANAGER", "DELETE");
-
   // ===== Toast & Confirm =====
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
@@ -421,19 +413,10 @@ export default function SupportPriorityLoyaltyRulesPage() {
   );
 
   // ===== CRUD Handlers =====
-  const openAddRule = () => {
-    if (!hasCreatePermission) {
-      showError("Không có quyền", "Bạn không có quyền tạo rule ưu tiên");
-      return;
-    }
+  const openAddRule = () =>
     setRuleModal({ open: true, mode: "add", data: null });
-  };
 
   const openEditRule = async (r) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền sửa rule ưu tiên");
-      return;
-    }
     try {
       const detail = await SupportPriorityLoyaltyRulesApi.get(r.ruleId);
       setRuleModal({
@@ -453,14 +436,6 @@ export default function SupportPriorityLoyaltyRulesPage() {
   };
 
   const handleRuleSubmit = async (payload) => {
-    if (ruleModal.mode === "add" && !hasCreatePermission) {
-      showError("Không có quyền", "Bạn không có quyền tạo rule ưu tiên");
-      return;
-    }
-    if (ruleModal.mode === "edit" && !hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền sửa rule ưu tiên");
-      return;
-    }
     setRuleSubmitting(true);
     try {
       if (ruleModal.mode === "add") {
@@ -489,10 +464,6 @@ export default function SupportPriorityLoyaltyRulesPage() {
   };
 
   const toggleRuleActive = async (r) => {
-    if (!hasEditPermission) {
-      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái rule");
-      return;
-    }
     try {
       await SupportPriorityLoyaltyRulesApi.toggle(r.ruleId);
       addToast("success", "Đã cập nhật trạng thái rule.", "Thành công");
@@ -508,10 +479,6 @@ export default function SupportPriorityLoyaltyRulesPage() {
   };
 
   const deleteRule = (r) => {
-    if (!hasDeletePermission) {
-      showError("Không có quyền", "Bạn không có quyền xóa rule ưu tiên");
-      return;
-    }
     openConfirm({
       title: "Xoá rule?",
       message: `Xoá rule ưu tiên với ngưỡng chi tiêu ${formatCurrency(
@@ -655,15 +622,9 @@ export default function SupportPriorityLoyaltyRulesPage() {
             {/* Nút Thêm rule: sát phải hàng */}
             <div className="group filter-add">
               <span>&nbsp;</span>
-              <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="CREATE" fallback={
-                <button className="btn primary disabled" disabled title="Bạn không có quyền tạo rule ưu tiên">
-                  Thêm rule ưu tiên
-                </button>
-              }>
-                <button className="btn primary" onClick={openAddRule}>
-                  Thêm rule ưu tiên
-                </button>
-              </PermissionGuard>
+              <button className="btn primary" onClick={openAddRule}>
+                Thêm rule ưu tiên
+              </button>
             </div>
           </div>
 
@@ -789,64 +750,34 @@ export default function SupportPriorityLoyaltyRulesPage() {
                     </span>
                   </td>
                   <td>
-                    <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
-                      <button
-                        type="button"
-                        className="btn ghost status-btn disabled"
-                        disabled
-                        title="Bạn không có quyền thay đổi trạng thái rule"
+                    <button
+                      type="button"
+                      className="btn ghost status-btn"
+                      onClick={() => toggleRuleActive(r)}
+                    >
+                      <span
+                        className={
+                          r.isActive ? "badge green" : "badge gray"
+                        }
+                        style={{ textTransform: "none" }}
                       >
-                        <span
-                          className={
-                            r.isActive ? "badge green" : "badge gray"
-                          }
-                          style={{ textTransform: "none" }}
-                        >
-                          {r.isActive ? "Đang bật" : "Đang tắt"}
-                        </span>
-                      </button>
-                    }>
-                      <button
-                        type="button"
-                        className="btn ghost status-btn"
-                        onClick={() => toggleRuleActive(r)}
-                      >
-                        <span
-                          className={
-                            r.isActive ? "badge green" : "badge gray"
-                          }
-                          style={{ textTransform: "none" }}
-                        >
-                          {r.isActive ? "Đang bật" : "Đang tắt"}
-                        </span>
-                      </button>
-                    </PermissionGuard>
+                        {r.isActive ? "Đang bật" : "Đang tắt"}
+                      </span>
+                    </button>
                   </td>
                   <td>
                     <div
                       className="row"
                       style={{ gap: 8, justifyContent: "flex-end" }}
                     >
-                      <PermissionGuard moduleCode="SUPPORT_MANAGER" permissionCode="EDIT" fallback={
-                        <button
-                          className="btn secondary disabled"
-                          disabled
-                          title="Bạn không có quyền sửa rule"
-                        >
-                          Sửa
-                        </button>
-                      }>
-                        <button
-                          className="btn secondary"
-                          onClick={() => openEditRule(r)}
-                        >
-                          Sửa
-                        </button>
-                      </PermissionGuard>
                       <button
-                        className={`btn danger ${!hasDeletePermission ? 'disabled' : ''}`}
-                        title={!hasDeletePermission ? "Bạn không có quyền xóa rule" : "Xóa"}
-                        disabled={!hasDeletePermission}
+                        className="btn secondary"
+                        onClick={() => openEditRule(r)}
+                      >
+                        Sửa
+                      </button>
+                      <button
+                        className="btn danger"
                         onClick={() => deleteRule(r)}
                       >
                         Xoá

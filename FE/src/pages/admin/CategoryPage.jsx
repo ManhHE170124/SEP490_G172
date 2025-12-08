@@ -6,8 +6,6 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ColorPickerTabs, {
   bestTextColor,
 } from "../../components/color/ColorPickerTabs";
-import PermissionGuard from "../../components/PermissionGuard";
-import { MODULE_CODES, PERMISSION_CODES } from "../../constants/roleConstants";
 import "./CategoryPage.css";
 
 /* ============ Helpers: Label + Error ============ */
@@ -1018,11 +1016,9 @@ export default function CategoryPage() {
               <button className="btn" onClick={catExportCsv}>
                 ⬇ Xuất CSV
               </button>
-              <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.CREATE}>
-                <button className="btn primary" onClick={openAddCategory}>
-                  + Thêm danh mục
-                </button>
-              </PermissionGuard>
+              <button className="btn primary" onClick={openAddCategory}>
+                + Thêm danh mục
+              </button>
             </div>
           </div>
 
@@ -1464,55 +1460,49 @@ export default function CategoryPage() {
                       }}
                     >
                       <div className="action-buttons">
-                        <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.EDIT}>
-                          <button
-                            className="action-btn edit-btn"
-                            type="button"
-                            title="Xem chi tiết / chỉnh sửa"
-                            onClick={() => openEditBadge(b)}
+                        <button
+                          className="action-btn edit-btn"
+                          type="button"
+                          title="Xem chi tiết / chỉnh sửa"
+                          onClick={() => openEditBadge(b)}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            aria-hidden="true"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                              <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                            </svg>
-                          </button>
-                        </PermissionGuard>
-                        <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.DELETE}>
-                          <button
-                            className="action-btn delete-btn"
-                            title="Xoá nhãn"
-                            type="button"
-                            onClick={() => deleteBadge(b)}
+                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                          </svg>
+                        </button>
+                        <button
+                          className="action-btn delete-btn"
+                          title="Xoá nhãn"
+                          type="button"
+                          onClick={() => deleteBadge(b)}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            aria-hidden="true"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="16"
-                              height="16"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
-                            </svg>
-                          </button>
-                        </PermissionGuard>
+                            <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
+                          </svg>
+                        </button>
                       </div>
 
-                      <PermissionGuard moduleCode={MODULE_CODES.PRODUCT_MANAGER} permissionCode={PERMISSION_CODES.EDIT}>
-                        <label className="switch" title="Bật/Tắt nhãn">
-                          <input
-                            type="checkbox"
-                            checked={!!b.isActive}
-                            onChange={() => toggleBadge(b.badgeCode)}
-                          />
-                          <span className="slider" />
-                        </label>
-                      </PermissionGuard>
+                      <label className="switch" title="Bật/Tắt nhãn">
+                        <input
+                          type="checkbox"
+                          checked={!!b.isActive}
+                          onChange={() => toggleBadge(b.badgeCode)}
+                        />
+                        <span className="slider" />
+                      </label>
                     </td>
                   </tr>
                 );
