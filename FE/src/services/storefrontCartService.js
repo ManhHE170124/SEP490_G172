@@ -4,6 +4,33 @@ import axiosClient from "../api/axiosClient";
 // Sự kiện global dùng để thông báo cart thay đổi
 export const CART_UPDATED_EVENT = "storefront_cart_updated";
 
+// NEW: cấu hình guest cart id gửi qua header cho BE
+const GUEST_CART_STORAGE_KEY = "ktk_guest_cart_id";
+const GUEST_CART_HEADER_NAME = "X-Guest-Cart-Id";
+
+// Khởi tạo 1 lần khi file này được import (chỉ chạy trên browser)
+if (typeof window !== "undefined") {
+  try {
+    let anonId = window.localStorage.getItem(GUEST_CART_STORAGE_KEY);
+    if (!anonId) {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        anonId = window.crypto.randomUUID();
+      } else {
+        anonId =
+          Date.now().toString(16) +
+          "-" +
+          Math.random().toString(16).slice(2);
+      }
+      window.localStorage.setItem(GUEST_CART_STORAGE_KEY, anonId);
+    }
+
+    // Gắn header cho mọi request dùng axiosClient
+    axiosClient.defaults.headers.common[GUEST_CART_HEADER_NAME] = anonId;
+  } catch (err) {
+    console.error("Failed to init guest cart id header", err);
+  }
+}
+
 // ==== Chuẩn hoá 1 item trong cart (StorefrontCartItemDto) ====
 const normalizeCartItem = (i = {}) => {
   const quantity = i.quantity ?? i.Quantity ?? 0;
