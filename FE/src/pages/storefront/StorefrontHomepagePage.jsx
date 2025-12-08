@@ -521,11 +521,11 @@ const StorefrontHomepagePage = () => {
               className="sf-home-service-card"
               role="button"
               tabIndex={0}
-              onClick={() => navigate("/support-service")}
+              onClick={() => window.open('https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view', '_blank', 'noopener,noreferrer')}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  navigate("/support-service");
+                  window.open('https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view', '_blank', 'noopener,noreferrer');
                 }
               }}
             >
