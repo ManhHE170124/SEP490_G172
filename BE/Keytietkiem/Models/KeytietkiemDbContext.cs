@@ -79,11 +79,21 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<SupportChatMessage> SupportChatMessages { get; set; }
 
+    public virtual DbSet<SupportChatPriorityWeeklyStat> SupportChatPriorityWeeklyStats { get; set; }
+
     public virtual DbSet<SupportChatSession> SupportChatSessions { get; set; }
+
+    public virtual DbSet<SupportDailyStat> SupportDailyStats { get; set; }
 
     public virtual DbSet<SupportPlan> SupportPlans { get; set; }
 
+    public virtual DbSet<SupportPlanMonthlyStat> SupportPlanMonthlyStats { get; set; }
+
     public virtual DbSet<SupportPriorityLoyaltyRule> SupportPriorityLoyaltyRules { get; set; }
+
+    public virtual DbSet<SupportStaffDailyStat> SupportStaffDailyStats { get; set; }
+
+    public virtual DbSet<SupportTicketSeverityPriorityWeeklyStat> SupportTicketSeverityPriorityWeeklyStats { get; set; }
 
     public virtual DbSet<Tag> Tags { get; set; }
 
@@ -128,47 +138,32 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_Accounts_User");
         });
 
-        // Trong KeytietkiemDbContext.OnModelCreating(ModelBuilder modelBuilder)
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.AuditId).HasName("PK_AuditLog");
+            entity.HasKey(e => e.AuditId).HasName("PK__AuditLog__A17F2398B6C01443");
 
             entity.ToTable("AuditLog");
-
-            entity.Property(e => e.OccurredAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(sysutcdatetime())");
-
-            entity.Property(e => e.ActorEmail)
-                .HasMaxLength(254);
-
-            entity.Property(e => e.ActorRole)
-                .HasMaxLength(50)
-                .IsUnicode(false);
-
-            entity.Property(e => e.SessionId)
-                .HasMaxLength(100);
-
-            entity.Property(e => e.IpAddress)
-                .HasMaxLength(45)
-                .IsUnicode(false);
-
-            entity.Property(e => e.UserAgent)
-                .HasMaxLength(200);
 
             entity.Property(e => e.Action)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
+            entity.Property(e => e.ActorEmail).HasMaxLength(254);
+            entity.Property(e => e.ActorRole)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.EntityId).HasMaxLength(128);
             entity.Property(e => e.EntityType)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-
-            entity.Property(e => e.EntityId)
-                .HasMaxLength(128);
+            entity.Property(e => e.IpAddress)
+                .HasMaxLength(45)
+                .IsUnicode(false);
+            entity.Property(e => e.OccurredAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.SessionId).HasMaxLength(100);
+            entity.Property(e => e.UserAgent).HasMaxLength(200);
         });
-
-
 
         modelBuilder.Entity<Badge>(entity =>
         {
@@ -956,6 +951,18 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_SupportChatMessages_Sender");
         });
 
+        modelBuilder.Entity<SupportChatPriorityWeeklyStat>(entity =>
+        {
+            entity.HasKey(e => new { e.WeekStartDate, e.PriorityLevel });
+
+            entity.Property(e => e.AvgDurationMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgFirstResponseMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.Duration05Count).HasColumnName("Duration_0_5_Count");
+            entity.Property(e => e.Duration1020Count).HasColumnName("Duration_10_20_Count");
+            entity.Property(e => e.Duration20plusCount).HasColumnName("Duration_20Plus_Count");
+            entity.Property(e => e.Duration510Count).HasColumnName("Duration_5_10_Count");
+        });
+
         modelBuilder.Entity<SupportChatSession>(entity =>
         {
             entity.HasKey(e => e.ChatSessionId).HasName("PK_SupportChatSessions");
@@ -988,6 +995,19 @@ public partial class KeytietkiemDbContext : DbContext
                 .HasConstraintName("FK_SupportChatSessions_Customer");
         });
 
+        modelBuilder.Entity<SupportDailyStat>(entity =>
+        {
+            entity.HasKey(e => e.StatDate).HasName("PK__SupportD__255A932C90088A6C");
+
+            entity.Property(e => e.AvgChatDurationMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgChatFirstResponseMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgChatMessagesPerSession).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgTicketFirstResponseMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgTicketFirstResponseSlaRatio).HasColumnType("decimal(10, 4)");
+            entity.Property(e => e.AvgTicketResolutionMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgTicketResolutionSlaRatio).HasColumnType("decimal(10, 4)");
+        });
+
         modelBuilder.Entity<SupportPlan>(entity =>
         {
             entity.HasKey(e => e.SupportPlanId).HasName("PK_SupportPlans");
@@ -1003,6 +1023,17 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.Price).HasColumnType("decimal(18, 2)");
         });
 
+        modelBuilder.Entity<SupportPlanMonthlyStat>(entity =>
+        {
+            entity.HasKey(e => new { e.YearMonth, e.SupportPlanId });
+
+            entity.Property(e => e.YearMonth)
+                .HasMaxLength(7)
+                .IsUnicode(false)
+                .IsFixedLength();
+            entity.Property(e => e.SupportPlanRevenue).HasColumnType("decimal(18, 2)");
+        });
+
         modelBuilder.Entity<SupportPriorityLoyaltyRule>(entity =>
         {
             entity.HasKey(e => e.RuleId).HasName("PK_SupportPriorityLoyaltyRules");
@@ -1011,6 +1042,25 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.MinTotalSpend).HasColumnType("decimal(18, 2)");
+        });
+
+        modelBuilder.Entity<SupportStaffDailyStat>(entity =>
+        {
+            entity.HasKey(e => new { e.StatDate, e.StaffId });
+
+            entity.Property(e => e.AvgChatDurationMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgChatFirstResponseMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgTicketFirstResponseMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgTicketResolutionMinutes).HasColumnType("decimal(10, 2)");
+        });
+
+        modelBuilder.Entity<SupportTicketSeverityPriorityWeeklyStat>(entity =>
+        {
+            entity.HasKey(e => new { e.WeekStartDate, e.Severity, e.PriorityLevel });
+
+            entity.Property(e => e.Severity).HasMaxLength(50);
+            entity.Property(e => e.AvgFirstResponseMinutes).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.AvgResolutionMinutes).HasColumnType("decimal(10, 2)");
         });
 
         modelBuilder.Entity<Tag>(entity =>

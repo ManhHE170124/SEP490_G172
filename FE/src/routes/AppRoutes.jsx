@@ -93,6 +93,9 @@ import TicketSubjectTemplatesAdminPage from "../pages/admin/TicketSubjectTemplat
 import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
 import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
+import SupportDashboardAdminPage from "../pages/admin/SupportDashboardAdminPage";
+
+
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -521,6 +524,14 @@ export default function AppRoutes() {
         )}
       />
       <Route
+        path="/admin/support-dashboard"
+        element={
+            <AdminLayout moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+              <SupportDashboardAdminPage />
+            </AdminLayout>
+        }
+      />
+      <Route
         path="/admin/support-chats"
         element={
           <AdminLayout>
@@ -577,7 +588,7 @@ export default function AppRoutes() {
           </AdminLayout>
         }
       />
-            <Route
+      <Route
         path="/admin/audit-logs"
         element={renderAdminPage(
           MODULE_CODES.SETTINGS_MANAGER,

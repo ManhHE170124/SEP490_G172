@@ -1,6 +1,6 @@
 ﻿// File: Controllers/SupportPlansController.cs
 using Keytietkiem.DTOs.Payments;
-using Keytietkiem.DTOs.SupportPlans;
+using Keytietkiem.DTOs.Support;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;

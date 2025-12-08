@@ -51,6 +51,8 @@ builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();
+builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -120,6 +122,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// Clock
+builder.Services.AddSingleton<IClock, SystemClock>();
+
+// Stats service + background job
+builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();
+builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+builder.Services.AddHostedService<BackgroundJobScheduler>();
 
 // ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
