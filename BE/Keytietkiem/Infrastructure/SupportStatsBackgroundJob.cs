@@ -837,7 +837,7 @@ namespace Keytietkiem.Infrastructure
                 var revenue = subsForPlan
                     .Where(s => s.Payment != null)
                     .Where(s =>
-                        s.Payment!.TransactionType == "SUPPORT_PLAN" &&
+                        s.Payment!.TransactionType == "SERVICE_PAYMENT" &&
                         s.Payment.Status == "Paid" &&
                         s.Payment.CreatedAt >= monthStart &&
                         s.Payment.CreatedAt < monthEnd)

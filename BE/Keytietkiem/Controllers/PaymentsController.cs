@@ -216,7 +216,7 @@ namespace Keytietkiem.Controllers
         }
 
         // =========================================================
-        //          WEBHOOK PayOS – CHUẨN CHO ORDER_PAYMENT
+        //          WEBHOOK PayOS – ORDER_PAYMENT + SERVICE_PAYMENT
         // =========================================================
         // URL cấu hình trong PayOS: POST /api/payments/payos/webhook
         [HttpPost("payos/webhook")]
@@ -251,17 +251,6 @@ namespace Keytietkiem.Controllers
                 return Ok(new { message = "Không tìm thấy payment, đã bỏ qua." });
             }
 
-            // Hiện tại chỉ xử lý chuẩn cho ORDER_PAYMENT (cart).
-            if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation(
-                    "Nhận PayOS webhook cho payment {PaymentId} với TransactionType {Type} – chưa có logic xử lý riêng, bỏ qua.",
-                    payment.PaymentId,
-                    payment.TransactionType);
-
-                return Ok(new { message = "Đã bỏ qua vì không phải ORDER_PAYMENT." });
-            }
-
             var topCode = payload.Code ?? string.Empty; // code tổng
             var dataCode = !string.IsNullOrWhiteSpace(payload.Data.Code)
                 ? payload.Data.Code
@@ -270,8 +259,27 @@ namespace Keytietkiem.Controllers
 
             try
             {
-                // Dùng wrapper có SemaphoreSlim để tránh xử lý trùng
-                await HandleCartPaymentWebhook(payment, topCode, dataCode, amountFromGateway);
+                // 1. Thanh toán từ Cart (ORDER_PAYMENT) → tạo Order + gắn key/account
+                if (string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Dùng wrapper có SemaphoreSlim để tránh xử lý trùng
+                    await HandleCartPaymentWebhook(payment, topCode, dataCode, amountFromGateway);
+                }
+                // 2. Thanh toán gói support / service (SERVICE_PAYMENT) → chỉ cập nhật Payment.Status
+                else if (string.Equals(payment.TransactionType, "SERVICE_PAYMENT", StringComparison.OrdinalIgnoreCase))
+                {
+                    await HandleServicePaymentWebhook(payment, topCode, dataCode, amountFromGateway);
+                }
+                // 3. Các loại khác (nếu có) → xử lý generic giống SERVICE_PAYMENT
+                else
+                {
+                    _logger.LogInformation(
+                        "Nhận PayOS webhook cho payment {PaymentId} với TransactionType {Type} – xử lý generic.",
+                        payment.PaymentId,
+                        payment.TransactionType);
+
+                    await HandleServicePaymentWebhook(payment, topCode, dataCode, amountFromGateway);
+                }
             }
             catch (Exception ex)
             {
@@ -314,13 +322,14 @@ namespace Keytietkiem.Controllers
             {
                 return BadRequest(new { message = "Payment không thuộc loại ORDER_PAYMENT (cart checkout)" });
             }
+
             await SupportPriorityLoyaltyRulesController.RecalculateUserSupportPriorityLevelAsync(_context, payment.Email);
+
             // Không tự xử lý nữa – chỉ trả về trạng thái hiện tại
             return Ok(new
             {
                 message = "Cart payment status",
                 status = payment.Status ?? "Pending"
-
             });
         }
 
@@ -594,6 +603,48 @@ namespace Keytietkiem.Controllers
             }
 
             ClearCartSnapshot(payment.PaymentId);
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Xử lý webhook cho các Payment KHÔNG phải ORDER_PAYMENT
+        /// (ví dụ: SERVICE_PAYMENT – gói support).
+        /// - Success (00/00): Payment = Paid, cập nhật Amount theo gateway.
+        /// - Ngược lại: nếu còn Pending thì set Cancelled.
+        /// </summary>
+        private async Task HandleServicePaymentWebhook(
+            Payment payment,
+            string topCode,
+            string dataCode,
+            long amountFromGateway)
+        {
+            var currentStatus = payment.Status ?? "Pending";
+            if (!string.Equals(currentStatus, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                // Đã xử lý rồi (Paid/Cancelled/Failed/...)
+                return;
+            }
+
+            var isSuccess = topCode == "00" && dataCode == "00";
+
+            if (isSuccess)
+            {
+                payment.Status = "Paid";
+                payment.Amount = (decimal)amountFromGateway;
+
+                _logger.LogInformation(
+                    "SERVICE_PAYMENT {PaymentId} được PayOS xác nhận thành công. Amount = {Amount}.",
+                    payment.PaymentId, payment.Amount);
+            }
+            else
+            {
+                payment.Status = "Cancelled";
+
+                _logger.LogWarning(
+                    "SERVICE_PAYMENT {PaymentId} PayOS trả về trạng thái thất bại/topCode={TopCode}, dataCode={DataCode}. Đã set Cancelled.",
+                    payment.PaymentId, topCode, dataCode);
+            }
+
             await _context.SaveChangesAsync();
         }
 
