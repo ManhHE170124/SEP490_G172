@@ -519,6 +519,9 @@ namespace Keytietkiem.Controllers
         //  LOYALTY HELPER FUNCTIONS
         // =========================
 
+        /// <summary>
+        /// Tính tổng tiền ORDER_PAYMENT (Paid) theo email.
+        /// </summary>
         [NonAction]
         public static async Task<decimal> CalculateUserTotalPaidOrderAmountAsync(
             KeytietkiemDbContext db,
@@ -539,6 +542,13 @@ namespace Keytietkiem.Controllers
             return total ?? 0m;
         }
 
+        /// <summary>
+        /// CHỈ tính loyalty base:
+        /// - Cập nhật TotalProductSpend.
+        /// - Tính level dựa trên bảng SupportPriorityLoyaltyRules (IsActive, PriorityLevel &gt; 0).
+        /// - KHÔNG quan tâm tới gói hỗ trợ đang active.
+        /// Dùng cho các rule kiểu "không cho gán gói thấp hơn mức loyalty".
+        /// </summary>
         [NonAction]
         public static async Task<int> RecalculateUserLoyaltyPriorityLevelAsync(
             KeytietkiemDbContext db,
@@ -591,6 +601,81 @@ namespace Keytietkiem.Controllers
             }
 
             return newLevel;
+        }
+
+        /// <summary>
+        /// Tính level hiệu lực cuối cùng cho user:
+        /// finalLevel = max(loyaltyLevel, activeSupportPlanLevel)
+        /// - Vẫn cập nhật TotalProductSpend (giống loyalty).
+        /// - Không bao giờ hạ level thấp hơn level của gói đang ACTIVE.
+        /// Dùng cho các chỗ hiển thị / refresh level trong UsersController.
+        /// </summary>
+        [NonAction]
+        public static async Task<int> RecalculateUserSupportPriorityLevelAsync(
+            KeytietkiemDbContext db,
+            string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return 0;
+
+            var normalizedEmail = email.Trim();
+
+            var user = await db.Users
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+            if (user == null)
+                return 0;
+
+            // 1. Tính tổng tiền user đã tiêu (ORDER_PAYMENT, Paid)
+            var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
+
+            var needSave = false;
+
+            // 1.1. Cập nhật TotalProductSpend nếu thay đổi
+            if (user.TotalProductSpend != totalSpend)
+            {
+                user.TotalProductSpend = totalSpend;
+                needSave = true;
+            }
+
+            // 2. Loyalty level (như helper cũ)
+            var loyaltyLevel = await db.SupportPriorityLoyaltyRules
+                .Where(r =>
+                    r.IsActive &&
+                    r.PriorityLevel > 0 &&
+                    r.MinTotalSpend <= totalSpend)
+                .OrderByDescending(r => r.PriorityLevel)
+                .Select(r => (int?)r.PriorityLevel)
+                .FirstOrDefaultAsync() ?? 0;
+
+            // 3. Level từ gói hỗ trợ đang ACTIVE (nếu có)
+            var nowUtc = DateTime.UtcNow;
+
+            var activePlanLevel = await db.UserSupportPlanSubscriptions
+                .Include(s => s.SupportPlan)
+                .Where(s =>
+                    s.UserId == user.UserId &&
+                    s.Status == "Active" &&
+                    (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
+                .OrderByDescending(s => s.StartedAt)
+                .Select(s => (int?)s.SupportPlan.PriorityLevel)
+                .FirstOrDefaultAsync() ?? 0;
+
+            // 4. Level cuối cùng = max(loyalty, plan)
+            var finalLevel = Math.Max(loyaltyLevel, activePlanLevel);
+
+            if (user.SupportPriorityLevel != finalLevel)
+            {
+                user.SupportPriorityLevel = finalLevel;
+                needSave = true;
+            }
+
+            if (needSave)
+            {
+                await db.SaveChangesAsync();
+            }
+
+            return finalLevel;
         }
     }
 }
