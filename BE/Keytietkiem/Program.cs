@@ -51,6 +51,9 @@ builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
 builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
+builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();
+builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
 // Clock (mockable for tests)
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -122,11 +125,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // ===== Authorization with Permission Handler =====
 builder.Services.AddAuthorization();
 
-// Register permission authorization handler
-builder.Services.AddScoped<IAuthorizationHandler, Keytietkiem.Authorization.PermissionAuthorizationHandler>();
+// Clock
+builder.Services.AddSingleton<IClock, SystemClock>();
 
-// Register custom policy provider for dynamic RequirePermission policies
-builder.Services.AddSingleton<IAuthorizationPolicyProvider, Keytietkiem.Authorization.PermissionPolicyProvider>();
+// Stats service + background job
+builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();
+builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+builder.Services.AddHostedService<BackgroundJobScheduler>();
 
 // ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();

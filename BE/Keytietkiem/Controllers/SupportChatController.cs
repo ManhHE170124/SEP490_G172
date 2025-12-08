@@ -1,4 +1,14 @@
 ﻿// File: Controllers/SupportChatController.cs
+using Keytietkiem.DTOs;
+using Keytietkiem.DTOs.Support;
+using Keytietkiem.Hubs;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Security.Claims;

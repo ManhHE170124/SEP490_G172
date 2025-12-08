@@ -71,6 +71,141 @@ namespace Keytietkiem.Controllers
                    ?? "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại các trường thông tin.";
         }
 
+        /// <summary>
+        /// Helper: Admin gán / đổi / huỷ gói hỗ trợ cho user (không áp dụng cho user tạm thời).
+        /// targetSupportPlanId:
+        ///   - null hoặc <= 0  : huỷ mọi subscription đang Active (chỉ còn mức độ ưu tiên gốc / chỉnh tay).
+        ///   - > 0             : chuyển sang gói mới (Cancel gói cũ nếu có, tạo subscription mới 1 tháng,
+        ///                       update SupportPriorityLevel theo PriorityLevel của gói).
+        /// Đồng thời:
+        ///   - Trước khi xử lý, luôn refresh loyalty (TotalProductSpend + SupportPriorityLevel) cho user
+        ///     nếu user đang Active & có role customer, để lấy được mức loyalty base mới nhất.
+        ///   - Không cho phép gán gói hỗ trợ có PriorityLevel thấp hơn mức loyalty base đó.
+        /// </summary>
+        private async Task<(bool ok, string? error)> ApplySupportPlanChangeByAdmin(
+            User user,
+            int? targetSupportPlanId)
+        {
+            var nowUtc = DateTime.UtcNow;
+
+            // Không cho phép đổi gói cho user tạm thời
+            if (user.IsTemp)
+            {
+                return (false, "Không thể thay đổi gói hỗ trợ cho người dùng tạm thời (IsTemp = true).");
+            }
+
+            // ===== Step 0: Refresh loyalty base (TotalProductSpend + SupportPriorityLevel) nếu là Active Customer =====
+            int loyaltyBaseLevel = user.SupportPriorityLevel;
+            var isActiveCustomer =
+                string.Equals(user.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                user.Roles.Any(r =>
+                    !string.IsNullOrEmpty(r.Code) &&
+                    r.Code.Equals("customer", StringComparison.OrdinalIgnoreCase));
+
+            if (isActiveCustomer && !string.IsNullOrWhiteSpace(user.Email))
+            {
+                // RecalculateUserLoyaltyPriorityLevelAsync: chỉ loyalty base, KHÔNG tính gói
+                loyaltyBaseLevel = await SupportPriorityLoyaltyRulesController
+                    .RecalculateUserLoyaltyPriorityLevelAsync(_db, user.Email);
+
+                // Nếu method loyalty dùng cùng DbContext _db, entity 'user' đang track
+                // cũng sẽ được cập nhật SupportPriorityLevel = loyaltyBaseLevel.
+            }
+
+            // Lấy subs đang active (đảm bảo chỉ có 0 hoặc 1 nhưng để chắc ăn vẫn hủy all bên dưới)
+            var activeSub = await _db.UserSupportPlanSubscriptions
+                .Include(s => s.SupportPlan)
+                .Where(s =>
+                    s.UserId == user.UserId &&
+                    s.Status == "Active" &&
+                    (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
+                .OrderByDescending(s => s.StartedAt)
+                .FirstOrDefaultAsync();
+
+            // Nếu target null hoặc <= 0 => huỷ mọi gói hiện tại, không tạo gói mới
+            // (Không check loyaltyBaseLevel ở đây vì việc không có gói vẫn không làm giảm
+            //  quyền lợi loyalty base; priority từ loyalty vẫn đang được áp dụng độc lập.)
+            if (!targetSupportPlanId.HasValue || targetSupportPlanId.Value <= 0)
+            {
+                var allActiveSubsToCancel = await _db.UserSupportPlanSubscriptions
+                    .Where(s => s.UserId == user.UserId && s.Status == "Active")
+                    .ToListAsync();
+
+                foreach (var sub in allActiveSubsToCancel)
+                {
+                    sub.Status = "Cancelled";
+                    if (!sub.ExpiresAt.HasValue || sub.ExpiresAt > nowUtc)
+                    {
+                        sub.ExpiresAt = nowUtc;
+                    }
+                }
+
+                // Khi huỷ gói, SupportPriorityLevel của user sẽ giữ nguyên (đây chính là mức loyalty base).
+                // Nếu bạn muốn có "priority gốc" riêng, cần thêm cột khác, còn hiện tại để nguyên.
+                return (true, null);
+            }
+
+            var planId = targetSupportPlanId.Value;
+
+            // Nếu gói mới trùng với gói hiện đang active thì bỏ qua (không đổi)
+            if (activeSub != null && activeSub.SupportPlanId == planId)
+            {
+                return (false, "Gói hỗ trợ được chọn đang là gói hiện tại của người dùng, không có thay đổi nào được áp dụng.");
+            }
+
+            var plan = await _db.SupportPlans
+                .FirstOrDefaultAsync(p => p.SupportPlanId == planId && p.IsActive);
+
+            if (plan == null)
+            {
+                return (false, "Gói hỗ trợ không tồn tại hoặc đã bị khóa.");
+            }
+
+            // ===== Rule: Không cho phép gán gói có PriorityLevel thấp hơn mức loyalty base =====
+            if (isActiveCustomer && plan.PriorityLevel < loyaltyBaseLevel)
+            {
+                return (false,
+                    $"Không thể gán gói hỗ trợ có PriorityLevel = {plan.PriorityLevel} " +
+                    $"thấp hơn mức loyalty base hiện tại của người dùng (SupportPriorityLevel = {loyaltyBaseLevel}).");
+            }
+
+            // ===== Đảm bảo chỉ có 1 subscription Active tại một thời điểm =====
+            // Huỷ hết các subscription đang Active cho user (nếu còn)
+            var allActiveSubs = await _db.UserSupportPlanSubscriptions
+                .Where(s => s.UserId == user.UserId && s.Status == "Active")
+                .ToListAsync();
+
+            foreach (var sub in allActiveSubs)
+            {
+                sub.Status = "Cancelled";
+                if (!sub.ExpiresAt.HasValue || sub.ExpiresAt > nowUtc)
+                {
+                    sub.ExpiresAt = nowUtc;
+                }
+            }
+
+            // Tạo subscription thủ công cho gói mới (thời hạn 1 tháng)
+            var manualSub = new UserSupportPlanSubscription
+            {
+                SubscriptionId = Guid.NewGuid(),
+                UserId = user.UserId,
+                SupportPlanId = plan.SupportPlanId,
+                Status = "Active",
+                StartedAt = nowUtc,
+                ExpiresAt = nowUtc.AddMonths(1),
+                PaymentId = null,
+                Note = "Assigned/updated by admin từ UsersController."
+            };
+            _db.UserSupportPlanSubscriptions.Add(manualSub);
+
+            // ==== Cập nhật priority hiện tại của user theo gói ====
+            // Tại thời điểm này plan.PriorityLevel luôn >= loyaltyBaseLevel (nếu là customer),
+            // nên có thể hiểu user đang được ưu tiên bằng mức của gói.
+            user.SupportPriorityLevel = plan.PriorityLevel;
+
+            return (true, null);
+        }
+
         // GET /api/users
         [HttpGet]
         [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_DETAIL)]
@@ -122,9 +257,41 @@ namespace Keytietkiem.Controllers
 
             var total = await users.CountAsync();
 
-            var items = await users
+            // ===== Loyalty + SupportPlan: refresh SupportPriorityLevel
+            // cho các user Active + customer trên trang hiện tại =====
+            var pageQuery = users
                 .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Take(pageSize);
+
+            var pageUsersMeta = await pageQuery
+                .Select(u => new
+                {
+                    u.Email,
+                    u.Status,
+                    RoleCodes = u.Roles.Select(r => r.Code)
+                })
+                .ToListAsync();
+
+            foreach (var meta in pageUsersMeta)
+            {
+                if (string.IsNullOrWhiteSpace(meta.Email))
+                    continue;
+
+                var isActiveCustomerForPage =
+                    string.Equals(meta.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                    meta.RoleCodes.Any(code =>
+                        !string.IsNullOrEmpty(code) &&
+                        code.Equals("customer", StringComparison.OrdinalIgnoreCase));
+
+                if (!isActiveCustomerForPage)
+                    continue;
+
+                // DÙNG helper mới: tính max(loyalty, active plan)
+                await SupportPriorityLoyaltyRulesController
+                    .RecalculateUserSupportPriorityLevelAsync(_db, meta.Email);
+            }
+
+            var items = await pageQuery
                 .Select(u => new UserListItemDto
                 {
                     UserId = u.UserId,
@@ -156,8 +323,40 @@ namespace Keytietkiem.Controllers
                 .Include(x => x.Account)
                 .FirstOrDefaultAsync(x => x.UserId == id);
 
-            if (u == null) return NotFound();
-            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin"))) return NotFound();
+            if (u == null)
+            {
+                return NotFound(new { message = "Không tìm thấy người dùng với Id đã cung cấp." });
+            }
+
+            if (u.Roles.Any(r => r.Code.ToLower().Contains("admin")))
+            {
+                return BadRequest(new { message = "Không được xem chi tiết hoặc thao tác trên tài khoản có vai trò admin." });
+            }
+
+            if (u.IsTemp)
+            {
+                return BadRequest(new { message = "Không thể xem chi tiết người dùng tạm thời (IsTemp = true)." });
+            }
+
+            // ===== Loyalty + SupportPlan: nếu là customer đang Active thì refresh final level =====
+            var isActiveCustomerForDetail =
+                string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                u.Roles.Any(r =>
+                    !string.IsNullOrEmpty(r.Code) &&
+                    r.Code.Equals("customer", StringComparison.OrdinalIgnoreCase));
+
+            if (isActiveCustomerForDetail && !string.IsNullOrWhiteSpace(u.Email))
+            {
+                // DÙNG helper mới: max(loyalty, active plan)
+                await SupportPriorityLoyaltyRulesController
+                    .RecalculateUserSupportPriorityLevelAsync(_db, u.Email);
+            }
+
+            var now = DateTime.UtcNow;
+            var activeSub = u.UserSupportPlanSubscriptions
+                .Where(s => s.Status == "Active" && (!s.ExpiresAt.HasValue || s.ExpiresAt > now))
+                .OrderByDescending(s => s.StartedAt)
+                .FirstOrDefault();
 
             return Ok(new UserDetailDto
             {
@@ -240,9 +439,52 @@ namespace Keytietkiem.Controllers
                     CreatedAt = now,
                     UpdatedAt = now
                 });
+
+                hasAccount = true;
+            }
+            var createdUsername = !string.IsNullOrWhiteSpace(dto.NewPassword)
+    ? (string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim())
+    : null;
+
+            // Nếu admin chọn gói hỗ trợ khi tạo user -> tạo subscription thủ công
+            if (dto.ActiveSupportPlanId.HasValue && dto.ActiveSupportPlanId.Value > 0)
+            {
+                var (okPlan, planError) =
+                    await ApplySupportPlanChangeByAdmin(user, dto.ActiveSupportPlanId.Value);
+                if (!okPlan)
+                {
+                    return BadRequest(new { message = planError });
+                }
             }
 
             await _db.SaveChangesAsync();
+
+            // 🔐 AUDIT LOG – CREATE USER
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "User",
+                entityId: user.UserId.ToString(),
+                before: null,
+                after: new
+                {
+                    user.UserId,
+                    user.FirstName,
+                    user.LastName,
+                    user.FullName,
+                    user.Email,
+                    user.Phone,
+                    user.Address,
+                    user.Status,
+                    user.SupportPriorityLevel,
+                    user.IsTemp,
+                    RoleIds = user.Roles.Select(r => r.RoleId).ToList(),
+                    HasAccount = hasAccount,
+                    Username = createdUsername
+                }
+            );
+
+
             return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
         }
 
@@ -281,6 +523,24 @@ namespace Keytietkiem.Controllers
                 if (emailExists)
                     return Conflict(new { message = "Email đã tồn tại" });
             }
+
+            var before = new
+            {
+                u.UserId,
+                u.FirstName,
+                u.LastName,
+                u.FullName,
+                u.Email,
+                u.Phone,
+                u.Address,
+                u.Status,
+                u.SupportPriorityLevel,
+                u.IsTemp,
+                RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
+                HasAccount = u.Account != null,
+                Username = u.Account?.Username
+            };
+
 
             u.FirstName = dto.FirstName;
             u.LastName = dto.LastName;
@@ -349,6 +609,35 @@ namespace Keytietkiem.Controllers
             }
 
             await _db.SaveChangesAsync();
+
+            var after = new
+            {
+                u.UserId,
+                u.FirstName,
+                u.LastName,
+                u.FullName,
+                u.Email,
+                u.Phone,
+                u.Address,
+                u.Status,
+                u.SupportPriorityLevel,
+                u.IsTemp,
+                RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
+                HasAccount = u.Account != null,
+                Username = u.Account?.Username
+            };
+
+            // 🔐 AUDIT LOG – UPDATE USER
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "User",
+                entityId: u.UserId.ToString(),
+                before: before,
+                after: after
+            );
+
+
             return NoContent();
         }
 
