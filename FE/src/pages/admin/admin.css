@@ -424,6 +424,7 @@ textarea {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
+   white-space: nowrap;
 }
 
 /* Input & Select: cùng chiều cao, bo góc, padding
@@ -475,12 +476,14 @@ table .row select {
   min-width: 160px;
 }
 
-/* ==== Action buttons (match style RBAC) ==== */
 .action-buttons {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;   /* luôn 1 hàng */
+  white-space: nowrap; /* tránh xuống dòng */
 }
+
 .action-btn {
   width: 32px;
   height: 32px;
@@ -959,4 +962,45 @@ label {
 .variants-table tbody td:last-child {
   border-right: 1px solid var(--line);
   border-radius: 0 10px 10px 0;
+}
+/* Giữ label + dấu * trên cùng 1 dòng, dùng cho mọi form */
+.input-group .group > span {
+  display: inline-flex;       /* span trở thành 1 khối inline */
+  align-items: center;        /* căn giữa theo chiều dọc */
+  gap: 4px;                   /* khoảng cách giữa text và * */
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  white-space: nowrap;        /* không cho tự xuống dòng trong label */
+}
+/* Bảng FAQ + Biến thể (dùng chung class .variants-table) */
+.variants-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  table-layout: fixed; /* chia cột cố định, không bóp cột Thao tác quá nhỏ */
+}
+
+/* Cell & header căn giữa chiều dọc, nhìn giống UI mẫu */
+.variants-table th,
+.variants-table td {
+  padding: 12px 10px;
+  vertical-align: middle;
+}
+
+/* Cột THAO TÁC: đủ chỗ cho 3 nút, không cho xuống dòng */
+.variants-table th:last-child,
+.variants-table td:last-child,
+.variants-table .td-actions {
+  width: 180px;        /* đủ chỗ 2 icon + 1 switch */
+  max-width: 180px;
+  white-space: nowrap; /* không cho wrap các nút */
+}
+
+/* Nhóm nút thao tác luôn nằm 1 hàng */
+.variants-table .td-actions .action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }

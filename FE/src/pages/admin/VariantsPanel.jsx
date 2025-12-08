@@ -710,15 +710,15 @@ export default function VariantsPanel({
               <div className="variants-scroller">
                 <table className="variants-table">
                   <colgroup>
-                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "20%" }} />
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "10%" }} />
-                    <col style={{ width: "12%" }} /> {/* Giá bán */}
-                    <col style={{ width: "12%" }} /> {/* Giá niêm yết */}
+                    <col style={{ width: "10%" }} /> {/* Giá bán */}
+                    <col style={{ width: "10%" }} /> {/* Giá niêm yết */}
                     <col style={{ width: "8%" }} /> {/* Trạng thái */}
                     <col style={{ width: "7%" }} /> {/* Lượt xem */}
-                    <col style={{ width: "7%" }} /> {/* Thao tác */}
+                    <col style={{ width: "15%" }} /> {/* Thao tác */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -819,13 +819,13 @@ export default function VariantsPanel({
 
                         <td className="mono">{v.viewCount ?? 0}</td>
 
-                        <td className="td-actions td-left">
-                          <div className="row" style={{ gap: 8 }}>
-                            <button
-                              className="action-btn edit-btn"
-                              title="Xem chi tiết"
-                              onClick={() => goDetail(v)}
-                            >
+                       <td className="td-actions td-left">
+  <div className="action-buttons">
+    <button
+      className="action-btn edit-btn"
+      title="Xem chi tiết"
+      onClick={() => goDetail(v)}
+    >
                               <svg
                                 viewBox="0 0 24 24"
                                 fill="currentColor"

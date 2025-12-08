@@ -1,3 +1,5 @@
+// File: AdminNotificationsPage.jsx
+
 import React, { useEffect, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
@@ -74,9 +76,9 @@ const AdminNotificationsPage = () => {
   const [targetOptionsLoading, setTargetOptionsLoading] = useState(false);
   const [targetOptionsError, setTargetOptionsError] = useState("");
 
-  // Dropdown open/close
-  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(true);
-  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(true);
+  // Dropdown open/close (mặc định ĐÓNG)
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
 
   const [createForm, setCreateForm] = useState({
     title: "",
@@ -115,42 +117,45 @@ const AdminNotificationsPage = () => {
   }, []);
 
   // ====== Load list ======
-  const refreshList = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const refreshList = useCallback(
+    async () => {
+      setLoading(true);
+      setError("");
 
-    try {
-      const params = {
-        pageNumber,
-        pageSize,
-        search: filters.search || undefined,
-        severity:
-          filters.severity !== "" ? Number(filters.severity) : undefined,
-        isSystemGenerated:
-          filters.isSystemGenerated === ""
-            ? undefined
-            : filters.isSystemGenerated === "true",
-        isGlobal:
-          filters.isGlobal === ""
-            ? undefined
-            : filters.isGlobal === "true",
-        sortBy: filters.sortBy || "CreatedAtUtc",
-        sortDescending: filters.sortDescending,
-        createdFromUtc: filters.createdFromUtc || undefined,
-        createdToUtc: filters.createdToUtc || undefined,
-      };
+      try {
+        const params = {
+          pageNumber,
+          pageSize,
+          search: filters.search || undefined,
+          severity:
+            filters.severity !== "" ? Number(filters.severity) : undefined,
+          isSystemGenerated:
+            filters.isSystemGenerated === ""
+              ? undefined
+              : filters.isSystemGenerated === "true",
+          isGlobal:
+            filters.isGlobal === ""
+              ? undefined
+              : filters.isGlobal === "true",
+          sortBy: filters.sortBy || "CreatedAtUtc",
+          sortDescending: filters.sortDescending,
+          createdFromUtc: filters.createdFromUtc || undefined,
+          createdToUtc: filters.createdToUtc || undefined,
+        };
 
-      const result = await NotificationsApi.listAdminPaged(params);
+        const result = await NotificationsApi.listAdminPaged(params);
 
-      setItems(result.items || []);
-      setTotal(result.total || 0);
-    } catch (err) {
-      console.error("Failed to load notifications", err);
-      setError("Không tải được danh sách thông báo. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, pageNumber, pageSize]);
+        setItems(result.items || []);
+        setTotal(result.total || 0);
+      } catch (err) {
+        console.error("Failed to load notifications", err);
+        setError("Không tải được danh sách thông báo. Vui lòng thử lại.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filters, pageNumber, pageSize]
+  );
 
   useEffect(() => {
     refreshList();
@@ -227,8 +232,9 @@ const AdminNotificationsPage = () => {
       selectedRoleIds: [],
       selectedUserIds: [],
     });
-    setIsUserDropdownOpen(true);
-    setIsRoleDropdownOpen(true);
+    // Mặc định đóng 2 dropdown khi mở modal
+    setIsUserDropdownOpen(false);
+    setIsRoleDropdownOpen(false);
     setIsCreateModalOpen(true);
   };
 
@@ -273,11 +279,13 @@ const AdminNotificationsPage = () => {
       let selectedUserIds = prev.selectedUserIds;
 
       if (checked) {
+        // Bật: chọn tất cả user + tất cả role
         selectedRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
         selectedUserIds = (targetOptions.users || []).map((u) => u.userId);
       } else {
+        // Tắt: bỏ hết cả user lẫn role
         selectedRoleIds = [];
-        // user vẫn có thể giữ lại lựa chọn cũ khi tắt global
+        selectedUserIds = [];
       }
 
       return {
@@ -398,9 +406,7 @@ const AdminNotificationsPage = () => {
               className="notif-input"
               placeholder="Tiêu đề / Nội dung..."
               value={filters.search}
-              onChange={(e) =>
-                handleFilterChange("search", e.target.value)
-              }
+              onChange={(e) => handleFilterChange("search", e.target.value)}
             />
           </div>
 
@@ -409,9 +415,7 @@ const AdminNotificationsPage = () => {
             <select
               className="notif-select"
               value={filters.severity}
-              onChange={(e) =>
-                handleFilterChange("severity", e.target.value)
-              }
+              onChange={(e) => handleFilterChange("severity", e.target.value)}
             >
               {severityOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -441,9 +445,7 @@ const AdminNotificationsPage = () => {
             <select
               className="notif-select"
               value={filters.isGlobal}
-              onChange={(e) =>
-                handleFilterChange("isGlobal", e.target.value)
-              }
+              onChange={(e) => handleFilterChange("isGlobal", e.target.value)}
             >
               <option value="">Tất cả</option>
               <option value="true">Thông báo toàn hệ thống</option>
@@ -662,21 +664,15 @@ const AdminNotificationsPage = () => {
                   />
                   <span className="slider" />
                 </label>
-                <button
-                  type="button"
-                  className="notif-modal-close"
-                  onClick={() => setIsCreateModalOpen(false)}
-                >
-                  ×
-                </button>
+                {/* Không có nút X bên phải */}
               </div>
             </div>
 
             <form className="notif-modal-body" onSubmit={handleCreateSubmit}>
-              {/* HÀNG 1: Tiêu đề + Mức độ (trái) & Nội dung (phải) */}
-              <div className="form-row notif-row-top">
-                <div className="notif-col-left">
-                  <div className="form-group">
+              {/* HÀNG 1: Tiêu đề + Mức độ (trái) & Nội dung chi tiết (phải) */}
+              <div className="notif-form-row notif-form-row-top">
+                <div className="notif-form-col-left">
+                  <div className="notif-form-group">
                     <label>
                       Tiêu đề <span className="required">*</span>
                     </label>
@@ -698,7 +694,7 @@ const AdminNotificationsPage = () => {
                     )}
                   </div>
 
-                  <div className="form-group">
+                  <div className="notif-form-group">
                     <label>
                       Mức độ <span className="required">*</span>
                     </label>
@@ -727,10 +723,10 @@ const AdminNotificationsPage = () => {
                   </div>
                 </div>
 
-                <div className="notif-col-right">
-                  <div className="form-group">
+                <div className="notif-form-col-right">
+                  <div className="notif-form-group">
                     <label>
-                      Nội dung <span className="required">*</span>
+                      Nội dung chi tiết <span className="required">*</span>
                     </label>
                     <textarea
                       className={`notif-textarea ${
@@ -754,10 +750,10 @@ const AdminNotificationsPage = () => {
                 </div>
               </div>
 
-              {/* HÀNG 2: Dropdown Người nhận + Nhóm quyền */}
-              <div className="form-row notif-row-targets">
+              {/* HÀNG 2: Dropdown Người nhận + Nhóm quyền (cùng hàng) */}
+              <div className="notif-form-row notif-form-row-targets">
                 {/* Người nhận (user) */}
-                <div className="notif-col-half">
+                <div className="notif-form-col-half">
                   <div className="notif-dropdown-group">
                     <div
                       className="notif-dropdown-header"
@@ -850,7 +846,7 @@ const AdminNotificationsPage = () => {
                 </div>
 
                 {/* Nhóm quyền (role) */}
-                <div className="notif-col-half">
+                <div className="notif-form-col-half">
                   <div className="notif-dropdown-group">
                     <div
                       className="notif-dropdown-header"
@@ -924,8 +920,8 @@ const AdminNotificationsPage = () => {
                 </div>
               </div>
 
-              {/* HÀNG 3: Đường dẫn liên quan */}
-              <div className="form-group">
+              {/* HÀNG 3: Đường dẫn liên quan – hàng cuối */}
+              <div className="notif-form-group">
                 <label>Đường dẫn liên quan (tùy chọn)</label>
                 <input
                   type="text"
@@ -942,7 +938,9 @@ const AdminNotificationsPage = () => {
                   placeholder="VD: /admin/orders/123"
                 />
                 {createErrors.relatedUrl && (
-                  <div className="field-error">{createErrors.relatedUrl}</div>
+                  <div className="field-error">
+                    {createErrors.relatedUrl}
+                  </div>
                 )}
               </div>
 
@@ -968,7 +966,7 @@ const AdminNotificationsPage = () => {
         </div>
       )}
 
-      {/* DETAIL MODAL (giữ nguyên) */}
+      {/* DETAIL MODAL */}
       {isDetailModalOpen && (
         <div className="notif-modal-backdrop">
           <div className="notif-modal notif-modal-detail">

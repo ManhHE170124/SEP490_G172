@@ -1,3 +1,5 @@
+/* File: admin-notifications-page.css */
+
 .admin-notifications-page {
   padding: 24px;
   background-color: #f7f8fa;
@@ -325,7 +327,7 @@
 .notif-modal {
   background-color: #ffffff;
   border-radius: 10px;
-  max-width: 720px;
+  max-width: 960px; /* rộng hơn cho 2 cột */
   width: 100%;
   box-shadow: 0 10px 35px rgba(15, 23, 42, 0.3);
   display: flex;
@@ -385,20 +387,13 @@
   gap: 8px;
 }
 
-/* FORM / LAYOUT */
+/* FORM / LAYOUT – dùng prefix notif- để tránh trùng global */
 
-.form-group {
+.notif-form-group {
   margin-bottom: 10px;
 }
 
-.form-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.form-group label {
+.notif-form-group label {
   display: block;
   font-size: 12px;
   color: #4b5563;
@@ -420,33 +415,38 @@
   background-color: #fef2f2;
 }
 
-/* Hàng Tiêu đề + Mức độ + Nội dung */
+/* Hàng flex */
+.notif-form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
 
-.notif-row-top {
+/* Hàng trên: Tiêu đề/Mức độ + Nội dung chi tiết */
+.notif-form-row-top {
   align-items: flex-start;
 }
 
-.notif-col-left {
-  flex: 0 0 320px;
-  min-width: 260px;
-}
-
-.notif-col-right {
-  flex: 1 1 0;
-}
-
-/* Hàng dropdown user/role */
-
-.notif-row-targets {
+/* Hàng dưới: User + Role */
+.notif-form-row-targets {
   align-items: flex-start;
 }
 
-.notif-col-half {
+/* Cột trái/phải hàng trên */
+.notif-form-col-left,
+.notif-form-col-right {
   flex: 1 1 0;
-  min-width: 260px;
+  min-width: 0;
 }
 
-/* SWITCH – giống mẫu iOS / FAQ */
+/* 2 cột ngang nhau cho user/role */
+.notif-form-col-half {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* SWITCH */
 
 .switch {
   position: relative;
@@ -665,9 +665,9 @@
     gap: 4px;
   }
 
-  .notif-col-left,
-  .notif-col-right,
-  .notif-col-half {
+  .notif-form-col-left,
+  .notif-form-col-right,
+  .notif-form-col-half {
     flex: 1 1 100%;
     min-width: 0;
   }

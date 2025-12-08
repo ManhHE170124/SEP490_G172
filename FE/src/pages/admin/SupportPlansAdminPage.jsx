@@ -2,7 +2,7 @@
 import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SupportPlansAdminApi } from "../../services/supportPlansAdmin";
-import "../../styles/SupportPlansAdminPage.css"; // dùng CSS riêng cho màn này
+import "../../styles/SupportPlansAdminPage.css";
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
 const RequiredMark = () => (
@@ -264,22 +264,6 @@ function SupportPlanModal({
               >
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
-              {/* <div className="muted support-plan-modal-note">
-                <strong>Quy tắc khi bật gói:</strong>
-                <div>- Mỗi PriorityLevel chỉ có tối đa 1 gói đang bật.</div>
-                <div>
-                  - Gói ở PriorityLevel <b>cao hơn</b> phải có giá{" "}
-                  <b>cao hơn</b> tất cả các gói đang bật ở level thấp hơn.
-                </div>
-                <div>
-                  - Gói ở PriorityLevel <b>thấp hơn</b> phải có giá{" "}
-                  <b>thấp hơn</b> tất cả các gói đang bật ở level cao hơn.
-                </div>
-                <div>
-                  - Các gói đang tắt không bị ràng buộc về giá; hệ thống chỉ
-                  kiểm tra khi lưu / bật gói ở trạng thái hoạt động.
-                </div>
-              </div> */}
             </div>
           </div>
         </div>
@@ -577,14 +561,8 @@ export default function SupportPlansAdminPage() {
 
   return (
     <>
-      <div className="page">
-        <div
-          className="card"
-          style={{
-            margin: "0 auto",
-            maxWidth: 1120,
-          }}
-        >
+      <div className="page support-plans-page">
+        <div className="card">
           <div className="card-header">
             <div className="left">
               <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
@@ -616,7 +594,7 @@ export default function SupportPlansAdminPage() {
                   </li>
                   <li>
                     Gói ở PriorityLevel <b>thấp hơn</b> phải có giá{" "}
-                      <b>thấp hơn</b> tất cả các gói đang bật ở level cao hơn.
+                    <b>thấp hơn</b> tất cả các gói đang bật ở level cao hơn.
                   </li>
                 </ul>
               </li>
@@ -642,10 +620,10 @@ export default function SupportPlansAdminPage() {
             <div
               className="row"
               style={{
-                gap: 10,
-                alignItems: "flex-end",
+                gap: 12,
                 flex: 1,
-                flexWrap: "wrap",
+                minWidth: 0,
+                alignItems: "flex-end",
               }}
             >
               <div className="group" style={{ width: 220 }}>
@@ -682,7 +660,7 @@ export default function SupportPlansAdminPage() {
                 </select>
               </div>
 
-              {/* Nhóm Làm mới + Đặt lại nằm sát filter */}
+              {/* Nhóm Làm mới + Đặt lại */}
               <div
                 className="row"
                 style={{
@@ -712,7 +690,7 @@ export default function SupportPlansAdminPage() {
               </div>
             </div>
 
-            {/* Nút Thêm gói nằm sát phải cùng hàng */}
+            {/* Nút Thêm gói nằm sát phải */}
             <button
               className="btn primary"
               style={{ flexShrink: 0, whiteSpace: "nowrap" }}
@@ -722,7 +700,7 @@ export default function SupportPlansAdminPage() {
             </button>
           </div>
 
-          {/* Bảng plans */}
+          {/* Bảng plans – giống style SLA */}
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
               <tr>
@@ -734,7 +712,6 @@ export default function SupportPlansAdminPage() {
                 <th
                   style={{
                     width: 180,
-                    textAlign: "right",
                     paddingRight: 10,
                   }}
                 >
@@ -776,36 +753,78 @@ export default function SupportPlansAdminPage() {
                       {formatCurrency(p.price)}
                     </EllipsisCell>
                   </td>
+
+                  {/* Cột Trạng thái: badge Hiển thị / Ẩn giống SLA */}
                   <td>
-                    <button
-                      type="button"
-                      className="btn ghost status-btn"
-                      onClick={() => togglePlanActive(p)}
+                    <span
+                      className={p.isActive ? "badge green" : "badge gray"}
+                      style={{ textTransform: "none" }}
                     >
-                      <span
-                        className={p.isActive ? "badge green" : "badge gray"}
-                        style={{ textTransform: "none" }}
-                      >
-                        {p.isActive ? "Đang bật" : "Đang tắt"}
-                      </span>
-                    </button>
+                      {p.isActive ? "Hiển thị" : "Ẩn"}
+                    </span>
                   </td>
+
+                  {/* Cột Thao tác: switch + icon Sửa/Xoá giống SLA */}
                   <td>
-                    <div
-                      className="row"
-                      style={{ gap: 8, justifyContent: "flex-end" }}
-                    >
+                    <div className="action-buttons">
+                      {/* Switch bật/tắt */}
+                      <label
+                        className="switch"
+                        title={p.isActive ? "Đang bật" : "Đang tắt"}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!p.isActive}
+                          onChange={() => togglePlanActive(p)}
+                        />
+                        <span className="slider" />
+                      </label>
+
+                      {/* Nút Sửa */}
                       <button
-                        className="btn secondary"
+                        type="button"
+                        className="action-btn edit-btn"
                         onClick={() => openEditPlan(p)}
+                        title="Chỉnh sửa gói hỗ trợ"
                       >
-                        Sửa
+                        {/* icon bút chì */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                        </svg>
                       </button>
+
+                      {/* Nút Xoá */}
                       <button
-                        className="btn danger"
+                        type="button"
+                        className="action-btn delete-btn"
                         onClick={() => deletePlan(p)}
+                        title="Xoá gói hỗ trợ"
                       >
-                        Xoá
+                        {/* icon thùng rác */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                        </svg>
                       </button>
                     </div>
                   </td>
@@ -830,7 +849,7 @@ export default function SupportPlansAdminPage() {
             </tbody>
           </table>
 
-          {/* Pagination */}
+          {/* Pagination giống SLA */}
           <div className="pager">
             <div className="pager-left">
               <button
@@ -844,9 +863,10 @@ export default function SupportPlansAdminPage() {
               <span className="pager-info">
                 Trang {page} / {totalPages}{" "}
                 {total > 0 && (
-                  <span className="muted">
-                    (Tổng {total.toLocaleString("vi-VN")} gói)
-                  </span>
+                  <>
+                    • Tổng{" "}
+                    <b>{total.toLocaleString("vi-VN")} gói</b>
+                  </>
                 )}
               </span>
 

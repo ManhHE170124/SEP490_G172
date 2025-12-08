@@ -755,8 +755,12 @@ export default function FaqsPage() {
             </button>
           </div>
 
-          {/* Bảng FAQ */}
-          <table className="table" style={{ marginTop: 10 }}>
+      {/* Bảng FAQ */}
+<table
+  className="table variants-table faq-table"
+  style={{ marginTop: 10 }}
+>
+
             <thead>
               <tr>
                 <th
@@ -852,20 +856,14 @@ export default function FaqsPage() {
                       {f.isActive ? "Hiển thị" : "Ẩn"}
                     </span>
                   </td>
-                  <td
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <div className="action-buttons">
-                      <button
-                        className="action-btn edit-btn"
-                        type="button"
-                        title="Xem chi tiết / chỉnh sửa"
-                        onClick={() => openEditFaq(f)}
-                      >
+                 <td className="td-actions td-left">
+  <div className="action-buttons">
+    <button
+      className="action-btn edit-btn"
+      type="button"
+      title="Xem chi tiết / chỉnh sửa"
+      onClick={() => openEditFaq(f)}
+    >
                         <svg
                           viewBox="0 0 24 24"
                           width="16"

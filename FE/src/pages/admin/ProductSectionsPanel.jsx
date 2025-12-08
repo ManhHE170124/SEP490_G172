@@ -605,11 +605,11 @@ export default function ProductSectionsPanel({
                 <table className="variants-table">
                   <colgroup>
                     <col style={{ width: "26%" }} />
-                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "10%" }} />
                     <col style={{ width: "32%" }} />
-                    <col style={{ width: "10%" }} />
-                    <col style={{ width: "10%" }} />
                     <col style={{ width: "8%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "16%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -678,12 +678,12 @@ export default function ProductSectionsPanel({
                         </td>
 
                         <td className="td-actions td-left">
-                          <div className="row" style={{ gap: 8 }}>
-                            <button
-                              className="action-btn edit-btn"
-                              title="Sửa"
-                              onClick={() => openEdit(r)}
-                            >
+  <div className="action-buttons">
+    <button
+      className="action-btn edit-btn"
+      title="Sửa"
+      onClick={() => openEdit(r)}
+    >
                               <svg
                                 viewBox="0 0 24 24"
                                 fill="currentColor"
