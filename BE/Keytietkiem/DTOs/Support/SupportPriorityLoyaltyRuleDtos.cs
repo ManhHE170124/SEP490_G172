@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Keytietkiem.DTOs.SupportPlans
+namespace Keytietkiem.DTOs.Support
 {
     /// <summary>
     /// Item dùng cho list màn cấu hình rules (grid/list).
