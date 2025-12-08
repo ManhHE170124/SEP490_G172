@@ -17,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
     .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
+
 // ===== Connection string =====
 var connStr = builder.Configuration.GetConnectionString("MyCnn");
 
@@ -24,6 +25,7 @@ var connStr = builder.Configuration.GetConnectionString("MyCnn");
 // Dùng DbContextFactory để dễ test và control scope
 builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
     opt.UseSqlServer(connStr));
+
 // ===== Configuration Options =====
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
@@ -48,14 +50,12 @@ builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
 builder.Services.AddScoped<IProductReportService, ProductReportService>();
 builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
 builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
-builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
-builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();
+builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();  // ✅ chỉ 1 lần
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
-builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();
-builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();          // ✅ chỉ 1 lần
 
-// Clock (mockable for tests)
-builder.Services.AddSingleton<IClock, SystemClock>();
+// Clock (mockable for tests) – dùng luôn block này
+builder.Services.AddSingleton<IClock, SystemClock>();                                         // ✅ chỉ 1 lần
 
 // ===== Controllers + JSON (ưu tiên bản dưới, có Enum -> string) =====
 builder.Services.AddControllers()
@@ -123,12 +123,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Clock
-builder.Services.AddSingleton<IClock, SystemClock>();
-
-// Stats service + background job
-builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();
+// ===== Stats service + background job =====
+// (ISupportStatsUpdateService đã đăng ký phía trên => KHÔNG lặp lại)
+// ✅ Job thống kê support hằng ngày
 builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+
+// ✅ Job SLA ticket mỗi 5 phút
+builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
+
+// Scheduler nhận IEnumerable<IBackgroundJob> và chạy từng job theo Interval
 builder.Services.AddHostedService<BackgroundJobScheduler>();
 
 // ===== Swagger =====
@@ -178,6 +181,5 @@ app.MapControllers();
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
 app.MapHub<SupportChatHub>("/hubs/support-chat");
-
 
 app.Run();
