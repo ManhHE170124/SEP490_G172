@@ -28,19 +28,17 @@ namespace Keytietkiem.Services
         }
 
         public async Task LogAsync(
-            HttpContext httpContext,
-            string action,
-            string? entityType = null,
-            string? entityId = null,
-            object? before = null,
-            object? after = null)
+     HttpContext httpContext,
+     string action,
+     string? entityType = null,
+     string? entityId = null,
+     object? before = null,
+     object? after = null)
         {
-            // Lấy path trước để dùng cả trong try & catch
             var path = httpContext?.Request?.Path.Value ?? string.Empty;
 
             try
             {
-                // Không tự log chính request audit logs để tránh vòng lặp.
                 if (!string.IsNullOrEmpty(path) &&
                     path.StartsWith("/api/auditlogs", StringComparison.OrdinalIgnoreCase))
                 {
@@ -49,17 +47,48 @@ namespace Keytietkiem.Services
 
                 var user = httpContext.User;
 
-                // ==== Actor info ====
-                var actorId = TryGetUserId(user);
-                var actorEmail = TryGetEmail(user);
-                var actorRole = TryGetRole(user);
+                // ====== ĐỌC OVERRIDE TỪ HttpContext.Items (nếu có) ======
+                Guid? actorIdOverride = null;
+                string? actorEmailOverride = null;
+                string? actorRoleOverride = null;
+
+                if (httpContext?.Items != null)
+                {
+                    if (httpContext.Items.TryGetValue("Audit:ActorId", out var idObj))
+                    {
+                        switch (idObj)
+                        {
+                            case Guid g:
+                                actorIdOverride = g;
+                                break;
+                            case string s when Guid.TryParse(s, out var g2):
+                                actorIdOverride = g2;
+                                break;
+                        }
+                    }
+
+                    if (httpContext.Items.TryGetValue("Audit:ActorEmail", out var emailObj)
+                        && emailObj is string emailStr && !string.IsNullOrWhiteSpace(emailStr))
+                    {
+                        actorEmailOverride = emailStr;
+                    }
+
+                    if (httpContext.Items.TryGetValue("Audit:ActorRole", out var roleObj)
+                        && roleObj is string roleStr && !string.IsNullOrWhiteSpace(roleStr))
+                    {
+                        actorRoleOverride = roleStr;
+                    }
+                }
+
+                // ==== Actor info (ưu tiên override, fallback sang claims) ====
+                var actorId = actorIdOverride ?? TryGetUserId(user);
+                var actorEmail = actorEmailOverride ?? TryGetEmail(user);
+                var actorRole = actorRoleOverride ?? TryGetRole(user);
 
                 // ==== Request context ====
                 var sessionId = GetSessionId(httpContext);
                 var ipAddress = GetClientIp(httpContext);
-                var userAgent = httpContext.Request.Headers["User-Agent"].ToString();
 
-                // ==== Serialize before/after ====
                 string? beforeJson = SerializeObjectSafe(before);
                 string? afterJson = SerializeObjectSafe(after);
 
@@ -73,7 +102,6 @@ namespace Keytietkiem.Services
 
                     SessionId = sessionId,
                     IpAddress = ipAddress,
-                    UserAgent = userAgent,
 
                     Action = action,
                     EntityType = entityType,
@@ -88,7 +116,6 @@ namespace Keytietkiem.Services
             }
             catch (Exception ex)
             {
-                // Không được phép làm fail business logic vì lỗi log.
                 _logger.LogError(
                     ex,
                     "Failed to write audit log for Action={Action}, Path={Path}",
@@ -97,6 +124,7 @@ namespace Keytietkiem.Services
                 );
             }
         }
+
 
         // ==================== Helper methods ====================
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "./TagAndPostTypeManage.css"
@@ -17,42 +17,37 @@ function useFetchData(activeTab, showError, networkErrorShownRef) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    useEffect(() => {
-        let isMounted = true;
-        async function load() {
-            setLoading(true);
-            setError("");
-            try {
-                let res = [];
-                if (activeTab === TABS.TAGS) res = await postsApi.getTags();
-                else if (activeTab === TABS.POSTTYPES) res = await postsApi.getPosttypes();
-                if (isMounted) setData(Array.isArray(res) ? res : []);
-            } catch (e) {
-                if (isMounted) {
-                    setError(e.message || "Không thể tải dữ liệu");
-                    // Handle network errors globally - only show one toast
-                    if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-                        if (networkErrorShownRef && !networkErrorShownRef.current) {
-                            networkErrorShownRef.current = true;
-                            if (showError) {
-                                showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-                            }
-                        }
-                    } else if (showError) {
-                        showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        setError("");
+        try {
+            let res = [];
+            if (activeTab === TABS.TAGS) res = await postsApi.getTags();
+            else if (activeTab === TABS.POSTTYPES) res = await postsApi.getPosttypes();
+            setData(Array.isArray(res) ? res : []);
+        } catch (e) {
+            setError(e.message || "Không thể tải dữ liệu");
+            // Handle network errors globally - only show one toast
+            if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
+                if (networkErrorShownRef && !networkErrorShownRef.current) {
+                    networkErrorShownRef.current = true;
+                    if (showError) {
+                        showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
                     }
                 }
-            } finally {
-                if (isMounted) setLoading(false);
+            } else if (showError) {
+                showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
             }
+        } finally {
+            setLoading(false);
         }
-        load();
-        return () => {
-            isMounted = false;
-        };
     }, [activeTab, showError, networkErrorShownRef]);
 
-    return { data, loading, error, setData };
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    return { data, loading, error, setData, reloadData: loadData };
 }
 
 export default function TagAndPosttypeManage() {
@@ -66,7 +61,7 @@ export default function TagAndPosttypeManage() {
         networkErrorShownRef.current = false;
     }, []);
     
-    const { data, loading, error, setData } = useFetchData(activeTab, showError, networkErrorShownRef);
+    const { data, loading, error, setData, reloadData } = useFetchData(activeTab, showError, networkErrorShownRef);
 
     const [search, setSearch] = useState("");
     const [sortKey, setSortKey] = useState("");
@@ -99,6 +94,35 @@ export default function TagAndPosttypeManage() {
         }
     };
 
+    // Handle reset filters
+    const handleReset = () => {
+        setSearch("");
+        setSortKey("");
+        setSortOrder("asc");
+        setPage(1);
+    };
+
+    // Check if any filters are active
+    const hasActiveFilters = search || sortKey;
+
+    // Format date helper
+    const formatDate = (dateValue) => {
+        if (!dateValue) return "-";
+        try {
+            const date = new Date(dateValue);
+            if (Number.isNaN(date.getTime())) return "-";
+            return date.toLocaleString("vi-VN", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+        } catch {
+            return "-";
+        }
+    };
+
     const { columns, addButtonText } = useMemo(() => {
         if (activeTab === TABS.TAGS) {
             return {
@@ -106,7 +130,16 @@ export default function TagAndPosttypeManage() {
                 columns: [
                     { key: "tagName", label: "Tên Thẻ" },
                     { key: "slug", label: "Slug" },
-                    { key: "createdAt", label: "Ngày tạo" }
+                    { 
+                        key: "createdAt", 
+                        label: "Ngày tạo",
+                        render: (value) => formatDate(value)
+                    },
+                    { 
+                        key: "updatedAt", 
+                        label: "Ngày cập nhật",
+                        render: (value) => formatDate(value)
+                    }
                 ]
             };
         }
@@ -114,9 +147,17 @@ export default function TagAndPosttypeManage() {
             addButtonText: "Thêm Danh Mục Mới",
             columns: [
                 { key: "postTypeName", label: "Tên danh mục" },
-                { key: "slug", label: "Slug" },
                 { key: "description", label: "Mô tả" },
-                { key: "createdAt", label: "Ngày tạo" }
+                { 
+                    key: "createdAt", 
+                    label: "Ngày tạo",
+                    render: (value) => formatDate(value)
+                },
+                { 
+                    key: "updatedAt", 
+                    label: "Ngày cập nhật",
+                    render: (value) => formatDate(value)
+                }
             ]
         };
     }, [activeTab]);
@@ -138,16 +179,19 @@ export default function TagAndPosttypeManage() {
         let rows = data.filter((row) => {
             if (!searchSlug) return true;
             
-            // Get the slug from the row
-            const rowSlug = row.slug || row.Slug || "";
+            // For Tags: check both slug and name-derived slug
+            if (activeTab === TABS.TAGS) {
+                const rowSlug = row.slug || row.Slug || "";
+                const nameValue = row.tagName || row.TagName || "";
+                const nameSlug = toSlug(nameValue);
+                return rowSlug.includes(searchSlug) || nameSlug.includes(searchSlug);
+            }
             
-            // Also create slug from name for live search while typing
-            const nameKey = activeTab === TABS.TAGS ? "tagName" : "PostTypeName";
+            // For PostTypes: only check name-derived slug (no slug field)
+            const nameKey = "PostTypeName";
             const nameValue = row[nameKey] || row[nameKey.toLowerCase()] || row[nameKey.charAt(0).toUpperCase() + nameKey.slice(1)] || "";
             const nameSlug = toSlug(nameValue);
-            
-            // Check if either the existing slug or the name-derived slug contains the search slug
-            return rowSlug.includes(searchSlug) || nameSlug.includes(searchSlug);
+            return nameSlug.includes(searchSlug);
         });
 
         if (sortKey) {
@@ -199,8 +243,7 @@ export default function TagAndPosttypeManage() {
             const created = await postsApi.createTag({
                 tagName: form.tagName,
                 // always generate slug from tag name
-                slug: toSlug(form.tagName),
-                // createdAt: new Date().toISOString()
+                slug: toSlug(form.tagName)
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddTagOpen(false);
@@ -229,9 +272,7 @@ export default function TagAndPosttypeManage() {
             setSubmitting(true);
             const created = await postsApi.createPosttype({
                 postTypeName: form.postTypeName || form.posttypeName,
-                description: form.description || "",
-                slug: toSlug(form.postTypeName || form.posttypeName),
-                createdAt: new Date().toISOString()
+                description: form.description || ""
             });
             setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
             setAddPosttypeOpen(false);
@@ -275,8 +316,6 @@ export default function TagAndPosttypeManage() {
             setEditTitle("Sửa Danh mục");
             setEditFields([
                 { name: "postTypeName", label: "Tên Danh mục", required: true, minLength: 2, maxLength: 100, defaultValue: row.postTypeName || row.posttypeName || row.PostTypeName || '' },
-                // slug is auto-generated from name and should not be editable here
-                { name: "slug", label: "Slug", defaultValue: row.slug || row.Slug || "", disabled: true, syncWith: "postTypeName", format: "slug", minLength: 2, maxLength: 100 },
                 { name: "description", label: "Mô tả", type: "textarea", maxLength: 500, defaultValue: row.description || "" },
             ]);
         }
@@ -332,7 +371,7 @@ export default function TagAndPosttypeManage() {
         try {
             setEditSubmitting(true);
             const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
-            const entityName = activeTab === TABS.TAGS ? form.tagName : form.posttypeName;
+            const entityName = activeTab === TABS.TAGS ? form.tagName : (form.postTypeName || form.posttypeName);
 
             if (activeTab === TABS.TAGS) {
                 // compute slug from tag name on update
@@ -344,43 +383,20 @@ export default function TagAndPosttypeManage() {
                     tagName: form.tagName,
                     slug: newSlug
                 });
-
-                setData((prev) => prev.map((x) => {
-                    const currentId = x?.tagId || x?.TagId || x?.id;
-                    if (currentId === tagId) {
-                        return {
-                            ...x,
-                            tagName: form.tagName,
-                            slug: newSlug,
-                        };
-                    }
-                    return x;
-                }));
             } else {
-                // compute slug and update post type
-                const newSlug = toSlug(form.postTypeName || form.posttypeName);
+                // update post type
                 const postTypeId = editingRow?.posttypeId || editingRow?.postTypeId || editingRow?.id;
                 if (!postTypeId) throw new Error('Missing post type id for update');
 
                 await postsApi.updatePosttype(postTypeId, {
                     postTypeName: form.postTypeName || form.posttypeName,
-                    description: form.description || "",
-                    slug: newSlug
+                    description: form.description || ""
                 });
-
-                setData((prev) => prev.map((x) => {
-                    const currentId = x?.posttypeId || x?.postTypeId || x?.id;
-                    if (currentId === postTypeId) {
-                        return {
-                            ...x,
-                            postTypeName: form.postTypeName || form.posttypeName,
-                            description: form.description,
-                            slug: newSlug,
-                        };
-                    }
-                    return x;
-                }));
             }
+            
+            // Reload data from server to get updated UpdatedAt
+            await reloadData();
+            
             setEditOpen(false);
             showSuccess(
                 `Cập nhật ${entityType} thành công!`,
@@ -444,7 +460,20 @@ export default function TagAndPosttypeManage() {
                             }}
                         />
                     </div>
-
+                    {hasActiveFilters && (
+                        <button 
+                            className="tag-pt-reset-button" 
+                            onClick={handleReset}
+                            title="Đặt lại bộ lọc"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                            Đặt lại
+                        </button>
+                    )}
                 </div>
                 <div className="tag-pt-controls-right">
                     <button className="tag-pt-add-button" onClick={onClickAdd} >
@@ -471,7 +500,6 @@ export default function TagAndPosttypeManage() {
                     title="Thêm Danh mục"
                     fields={[
                         { name: "postTypeName", label: "Tên Danh mục", required: true, minLength: 2, maxLength: 100 },
-                        { name: "slug", label: "Slug", disabled: true, syncWith: "postTypeName", format: "slug", minLength: 2, maxLength: 100 },
                         { name: "description", label: "Mô tả", type: "textarea", maxLength: 500 },
                     ]}
                     onClose={() => setAddPosttypeOpen(false)}
@@ -539,6 +567,65 @@ export default function TagAndPosttypeManage() {
                     </table>
                 )}
             </div>
+
+            {/* Pagination */}
+            {!loading && !error && (
+                <div className="tag-pt-pagination">
+                    <div className="tag-pt-pagination-info">
+                        Hiển thị {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, total)}/{total} {activeTab === TABS.TAGS ? "thẻ" : "danh mục"}
+                    </div>
+                    <div className="tag-pt-pagination-controls">
+                        <button
+                            className="tag-pt-pagination-btn"
+                            onClick={() => setPage(page - 1)}
+                            disabled={page <= 1}
+                            title="Trang trước"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                            Trước
+                        </button>
+                        
+                        <div className="tag-pt-pagination-numbers">
+                            {[...Array(totalPages)].map((_, idx) => {
+                                const pageNum = idx + 1;
+                                // Show first, last, current, and ±1 around current
+                                if (
+                                    pageNum === 1 ||
+                                    pageNum === totalPages ||
+                                    (pageNum >= page - 1 && pageNum <= page + 1)
+                                ) {
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            className={`tag-pt-pagination-number ${page === pageNum ? "active" : ""}`}
+                                            onClick={() => setPage(pageNum)}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                } else if (pageNum === page - 2 || pageNum === page + 2) {
+                                    return <span key={pageNum} className="tag-pt-pagination-ellipsis">...</span>;
+                                }
+                                return null;
+                            })}
+                        </div>
+
+                        <button
+                            className="tag-pt-pagination-btn"
+                            onClick={() => setPage(page + 1)}
+                            disabled={page >= totalPages}
+                            title="Trang sau"
+                        >
+                            Sau
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
 
 
             <RoleModal

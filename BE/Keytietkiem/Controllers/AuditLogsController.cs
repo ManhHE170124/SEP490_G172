@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Keytietkiem.DTOs.AuditLogs;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -145,9 +146,13 @@ namespace Keytietkiem.Controllers
                     break;
             }
 
-            var items = await orderedQuery
+            // Lấy page entity trước, rồi build DTO + Changes ở memory
+            var pageEntities = await orderedQuery
                 .Skip(skip)
                 .Take(filter.PageSize)
+                .ToListAsync();
+
+            var items = pageEntities
                 .Select(x => new AuditLogListItemDto
                 {
                     AuditId = x.AuditId,
@@ -157,12 +162,12 @@ namespace Keytietkiem.Controllers
                     ActorRole = x.ActorRole,
                     SessionId = x.SessionId,
                     IpAddress = x.IpAddress,
-                    UserAgent = x.UserAgent,
                     Action = x.Action,
                     EntityType = x.EntityType,
-                    EntityId = x.EntityId
+                    EntityId = x.EntityId,
+                    Changes = AuditDiffHelper.BuildDiff(x.BeforeDataJson, x.AfterDataJson)
                 })
-                .ToListAsync();
+                .ToList();
 
             var result = new AuditLogListResponseDto
             {
@@ -241,12 +246,12 @@ namespace Keytietkiem.Controllers
                 ActorRole = entity.ActorRole,
                 SessionId = entity.SessionId,
                 IpAddress = entity.IpAddress,
-                UserAgent = entity.UserAgent,
                 Action = entity.Action,
                 EntityType = entity.EntityType,
                 EntityId = entity.EntityId,
                 BeforeDataJson = entity.BeforeDataJson,
-                AfterDataJson = entity.AfterDataJson
+                AfterDataJson = entity.AfterDataJson,
+                Changes = AuditDiffHelper.BuildDiff(entity.BeforeDataJson, entity.AfterDataJson)
             };
 
             return Ok(dto);

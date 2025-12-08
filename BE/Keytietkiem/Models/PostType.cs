@@ -9,11 +9,11 @@ public partial class PostType
 
     public string PostTypeName { get; set; } = null!;
 
-    public string Slug { get; set; } = null!;
-
     public string? Description { get; set; }
 
-    public DateTime? CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime? UpdatedAt { get; set; }
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();
 }

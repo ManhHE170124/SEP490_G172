@@ -1,4 +1,3 @@
-// File: src/pages/admin/staff-ticket-detail.jsx
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import "../../styles/staff-ticket-detail.css";
@@ -63,10 +62,10 @@ function StatusBadge({ value }) {
     v === "New"
       ? "st st-new"
       : v === "InProgress"
-        ? "st st-processing"
-        : v === "Completed"
-          ? "st st-completed"
-          : "st st-closed";
+      ? "st st-processing"
+      : v === "Completed"
+      ? "st st-completed"
+      : "st st-closed";
   return <span className={cls}>{MAP_STATUS[v] || v}</span>;
 }
 
@@ -76,10 +75,10 @@ function SeverityTag({ value }) {
     v === "Low"
       ? "tag tag-low"
       : v === "Medium"
-        ? "tag tag-medium"
-        : v === "High"
-          ? "tag tag-high"
-          : "tag tag-critical";
+      ? "tag tag-medium"
+      : v === "High"
+      ? "tag tag-high"
+      : "tag tag-critical";
   return <span className={cls}>{MAP_SEV[v] || v}</span>;
 }
 
@@ -89,8 +88,8 @@ function SlaPill({ value }) {
     v === "OK"
       ? "sla sla-ok"
       : v === "Overdue"
-        ? "sla sla-breached"
-        : "sla sla-warning";
+      ? "sla sla-breached"
+      : "sla sla-warning";
   return <span className={cls}>{MAP_SLA[v] || v}</span>;
 }
 
@@ -101,8 +100,8 @@ function fmtPriority(level) {
     typeof level === "number"
       ? level
       : typeof level === "string" && level.trim() !== ""
-        ? Number(level)
-        : NaN;
+      ? Number(level)
+      : NaN;
   if (!Number.isFinite(num)) return "-";
   return MAP_PRIORITY[num] || "-";
 }
@@ -129,7 +128,10 @@ export default function AdminTicketDetail() {
   const [currentUser, setCurrentUser] = useState(null);
   const [replyError, setReplyError] = useState("");
 
-  // true nếu người dùng hiện tại là Customer (dựa vào roles trong localStorage)
+  // true nếu người dùng hiện tại là Customer (dựa vào roles trong localStorage).
+  // LƯU Ý:
+  // - Nếu user chỉ có role Customer        -> xem như customer view.
+  // - Nếu user có thêm role Staff/Admin    -> xem như màn staff/admin.
   const isCustomerView = useMemo(() => {
     if (!currentUser) return false;
 
@@ -144,12 +146,21 @@ export default function AdminTicketDetail() {
 
     const rolesArray = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
 
-    return rolesArray.some((r) =>
-      String(r || "")
-        .trim()
-        .toLowerCase()
-        .includes("customer")
+    const normalizedRoles = rolesArray
+      .map((r) => String(r || "").trim().toLowerCase())
+      .filter(Boolean);
+
+    const hasCustomerRole = normalizedRoles.some((r) =>
+      r.includes("customer")
     );
+
+    const hasStaffOrAdminRole = normalizedRoles.some(
+      (r) => r.includes("care") || r.includes("admin")
+    );
+
+    // Nếu user vừa là Customer vừa là Staff/Admin (vd: "customer-care-staff")
+    // => coi là màn staff/admin, KHÔNG dùng layout customer.
+    return hasCustomerRole && !hasStaffOrAdminRole;
   }, [currentUser]);
 
   const draftKey = useMemo(() => `tk_reply_draft_${id}`, [id]);
@@ -244,10 +255,10 @@ export default function AdminTicketDetail() {
     return () => {
       connection
         .invoke("LeaveTicketGroup", id)
-        .catch(() => { })
+        .catch(() => {})
         .finally(() => {
           connection.off("ReceiveReply", handleReceiveReply);
-          connection.stop().catch(() => { });
+          connection.stop().catch(() => {});
         });
     };
   }, [id]);
@@ -377,8 +388,8 @@ export default function AdminTicketDetail() {
     } catch (e) {
       setReplyError(
         e?.response?.data?.message ||
-        e.message ||
-        "Gửi phản hồi thất bại. Vui lòng thử lại."
+          e.message ||
+          "Gửi phản hồi thất bại. Vui lòng thử lại."
       );
     } finally {
       setSending(false);

@@ -550,29 +550,6 @@ export default function RoleAssign() {
           <h1>Phân công vai trò</h1>
           <p>Quản lý quyền truy cập theo mô-đun cho từng vai trò trong hệ thống.</p>
         </div>
-        <div className="ra-header-actions">
-          <button
-            className="ra-btn ra-btn--primary"
-            onClick={() => setAddRoleOpen(true)}
-            type="button"
-          >
-            + Thêm Vai trò
-          </button>
-          <button
-            className="ra-btn ra-btn--primary"
-            onClick={() => setAddModuleOpen(true)}
-            type="button"
-          >
-            + Thêm Mô-đun
-          </button>
-          <button
-            className="ra-btn ra-btn--primary"
-            onClick={() => setAddPermissionOpen(true)}
-            type="button"
-          >
-            + Thêm Quyền
-          </button>
-        </div>
       </header>
 
       <div className="ra-layout">

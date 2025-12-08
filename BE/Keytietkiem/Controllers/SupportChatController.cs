@@ -1,6 +1,6 @@
 ﻿// File: Controllers/SupportChatController.cs
 using Keytietkiem.DTOs;
-using Keytietkiem.DTOs.SupportChat;
+using Keytietkiem.DTOs.Support;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;

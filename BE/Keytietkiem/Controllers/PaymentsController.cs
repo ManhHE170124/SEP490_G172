@@ -1,18 +1,25 @@
 ﻿// Keytietkiem/Controllers/PaymentsController.cs
+using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Cart;
 using Keytietkiem.DTOs.Payments;
+using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
-using Keytietkiem.DTOs;
-using Keytietkiem.DTOs.Products;
-using Keytietkiem.Services.Interfaces;
+using System.Threading.Tasks;
+using System.Threading;
 using static Keytietkiem.DTOs.Cart.StorefrontCartDto;
-using Keytietkiem.Services;
 
 namespace Keytietkiem.Controllers
 {
@@ -30,6 +37,9 @@ namespace Keytietkiem.Controllers
         private readonly IEmailService _emailService;
         private readonly IAuditLogger _auditLogger;
         private readonly IAccountService _accountService;
+
+        // Khóa global đơn giản để tránh xử lý trùng Payment (duplicate Order)
+        private static readonly SemaphoreSlim CartPaymentSemaphore = new SemaphoreSlim(1, 1);
 
         private static readonly string[] AllowedPaymentStatuses = new[]
         {
@@ -205,70 +215,83 @@ namespace Keytietkiem.Controllers
             return Ok(dto);
         }
 
-        // ===== Webhook PayOS =====
-        // - ORDER_PAYMENT (cart checkout): dùng snapshot cart → Paid/Cancelled + Order.
-        // - SUPPORT_PLAN / các loại khác: chỉ cập nhật Payment.Status.
+        // =========================================================
+        //          WEBHOOK PayOS – CHUẨN CHO ORDER_PAYMENT
+        // =========================================================
+        // URL cấu hình trong PayOS: POST /api/payments/payos/webhook
         [HttpPost("payos/webhook")]
         [AllowAnonymous]
-        public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookModel payload)
+        public async Task<IActionResult> HandlePayOSWebhook([FromBody] PayOSWebhookModel payload)
         {
             if (payload == null || payload.Data == null)
             {
-                // Không log để tránh spam audit log, chỉ trả 400
-                return BadRequest();
+                return BadRequest(new { message = "Payload từ PayOS không hợp lệ." });
             }
 
-            var data = payload.Data;
+            var orderCode = payload.Data.OrderCode;
+            if (orderCode <= 0)
+            {
+                _logger.LogWarning("PayOS webhook thiếu hoặc sai orderCode: {@Payload}", payload);
+                return BadRequest(new { message = "orderCode không hợp lệ." });
+            }
 
-            var topCode = (payload.Code ?? "").Trim();
-            var dataCode = (data.Code ?? "").Trim();
-
-            // TÌM PAYMENT THEO ProviderOrderCode
+            // Tìm payment theo ProviderOrderCode + Provider = PayOS
             var payment = await _context.Payments
                 .FirstOrDefaultAsync(p =>
                     p.Provider == "PayOS" &&
-                    p.ProviderOrderCode == data.OrderCode
-                );
+                    p.ProviderOrderCode == orderCode);
 
             if (payment == null)
             {
-                // Không log để tránh spam khi PayOS retry hoặc orderCode không khớp
-                return Ok();
+                _logger.LogWarning(
+                    "PayOS webhook cho orderCode {OrderCode} nhưng không tìm thấy Payment.",
+                    orderCode);
+
+                // Vẫn trả 200 để PayOS không retry vô hạn
+                return Ok(new { message = "Không tìm thấy payment, đã bỏ qua." });
             }
 
-            var oldStatus = payment.Status;
-
-            // 1. Payment từ Cart (ORDER_PAYMENT với snapshot cart)
-            if (string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
+            // Hiện tại chỉ xử lý chuẩn cho ORDER_PAYMENT (cart).
+            if (!string.Equals(payment.TransactionType, "ORDER_PAYMENT", StringComparison.OrdinalIgnoreCase))
             {
-                await HandleCartPaymentWebhook(payment, topCode, dataCode, data.Amount);
+                _logger.LogInformation(
+                    "Nhận PayOS webhook cho payment {PaymentId} với TransactionType {Type} – chưa có logic xử lý riêng, bỏ qua.",
+                    payment.PaymentId,
+                    payment.TransactionType);
 
-                // Bỏ log success ở webhook để tránh spam
-                return Ok();
+                return Ok(new { message = "Đã bỏ qua vì không phải ORDER_PAYMENT." });
             }
 
-            // 2. Các loại payment khác: SUPPORT_PLAN, ...
-            var isSuccess = topCode == "00" && dataCode == "00";
+            var topCode = payload.Code ?? string.Empty; // code tổng
+            var dataCode = !string.IsNullOrWhiteSpace(payload.Data.Code)
+                ? payload.Data.Code
+                : topCode; // code chi tiết nếu có
+            var amountFromGateway = (long)payload.Data.Amount;
 
-            if (isSuccess)
+            try
             {
-                var amountDecimal = (decimal)data.Amount;
-                payment.Status = "Paid";
-                payment.Amount = amountDecimal;
+                // Dùng wrapper có SemaphoreSlim để tránh xử lý trùng
+                await HandleCartPaymentWebhook(payment, topCode, dataCode, amountFromGateway);
             }
-            else if (payment.Status == "Pending")
+            catch (Exception ex)
             {
-                payment.Status = "Cancelled";
+                _logger.LogError(ex,
+                    "Lỗi khi xử lý PayOS webhook cho payment {PaymentId}, orderCode {OrderCode}",
+                    payment.PaymentId, orderCode);
+
+                // Cho PayOS biết là lỗi để nó có thể retry
+                return StatusCode(500, new { message = "Lỗi nội bộ khi xử lý webhook." });
             }
 
-            await _context.SaveChangesAsync();
-
-            // Bỏ log success ở webhook để tránh spam
-            return Ok();
+            return Ok(new { message = "Webhook đã được xử lý." });
         }
 
         // ===== API: FE xác nhận thanh toán Cart sau khi PayOS redirect (SUCCESS) =====
         // POST /api/payments/cart/confirm-from-return
+        //
+        // MỚI: Không còn tự đổi trạng thái nữa.
+        // - Trạng thái chuẩn được cập nhật bởi webhook PayOS.
+        // - API này chỉ đọc status hiện tại cho FE hiển thị.
         [HttpPost("cart/confirm-from-return")]
         [AllowAnonymous]
         public async Task<IActionResult> ConfirmCartPaymentFromReturn(
@@ -291,27 +314,21 @@ namespace Keytietkiem.Controllers
             {
                 return BadRequest(new { message = "Payment không thuộc loại ORDER_PAYMENT (cart checkout)" });
             }
-
-            // Nếu đã được webhook xử lý rồi thì không làm lại (idempotent)
-            if (!string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
+            await SupportPriorityLoyaltyRulesController.RecalculateUserSupportPriorityLevelAsync(_context, payment.Email);
+            // Không tự xử lý nữa – chỉ trả về trạng thái hiện tại
+            return Ok(new
             {
-                // Không log success idempotent để tránh spam
-                return Ok(new { message = "Payment đã được xử lý", status = payment.Status });
-            }
+                message = "Cart payment status",
+                status = payment.Status ?? "Pending"
 
-            var oldStatus = payment.Status;
-
-            // Mặc định coi là success khi FE vào trang /cart/payment-result
-            var amountFromGateway = (long)Math.Round(payment.Amount, 0, MidpointRounding.AwayFromZero);
-
-            await HandleCartPaymentWebhook(payment, "00", "00", amountFromGateway);
-
-            // Không audit ở đây để tránh spam
-            return Ok(new { message = "Đã xác nhận thanh toán thành công", status = payment.Status });
+            });
         }
 
         // ===== API: FE huỷ thanh toán Cart sau khi PayOS redirect (CANCEL) =====
         // POST /api/payments/cart/cancel-from-return
+        //
+        // Nếu Payment vẫn Pending: coi như CANCEL (user hủy / đóng tab),
+        // gọi HandleCartPaymentWebhook với code lỗi để hoàn kho + set Cancelled.
         [HttpPost("cart/cancel-from-return")]
         [AllowAnonymous]
         public async Task<IActionResult> CancelCartPaymentFromReturn(
@@ -337,17 +354,24 @@ namespace Keytietkiem.Controllers
                 return Ok(new { message = "Không phải payment tạo từ cart" });
             }
 
-            var oldStatus = payment.Status;
-
-            // Chỉ xử lý khi còn Pending
-            if (string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
+            // Nếu không còn Pending (đã Paid hoặc Cancelled) thì chỉ trả status hiện tại.
+            if (!string.Equals(payment.Status ?? "", "Pending", StringComparison.OrdinalIgnoreCase))
             {
-                // Gọi logic cancel: status = Cancelled + hoàn kho + clear snapshot
-                await HandleCartPaymentWebhook(payment, "XX", "XX", 0);
+                return Ok(new
+                {
+                    message = "Cart payment status",
+                    status = payment.Status
+                });
             }
 
-            // Không audit success để tránh spam
-            return Ok(new { message = "Cart payment cancelled", status = payment.Status });
+            // Thanh toán bị huỷ / user đóng tab: xử lý như CANCEL
+            await HandleCartPaymentWebhook(payment, "99", "99", 0L);
+
+            return Ok(new
+            {
+                message = "Cart payment status",
+                status = payment.Status
+            });
         }
 
         // ===== Helpers cho snapshot Cart Payment =====
@@ -382,10 +406,39 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// - Success (00/00): Payment = Paid, tạo Order + OrderDetails từ snapshot, xoá snapshot.
-        /// - Ngược lại: Payment = Cancelled, hoàn kho theo snapshot, xoá snapshot.
+        /// Wrapper có khóa để tránh xử lý trùng một Payment khi có nhiều request song song.
         /// </summary>
         private async Task HandleCartPaymentWebhook(
+            Payment paymentParam,
+            string topCode,
+            string dataCode,
+            long amountFromGateway)
+        {
+            await CartPaymentSemaphore.WaitAsync();
+            try
+            {
+                // Reload Payment từ DB để tránh dùng entity cũ đọc từ context khác
+                var payment = await _context.Payments
+                    .FirstOrDefaultAsync(p => p.PaymentId == paymentParam.PaymentId);
+
+                if (payment == null)
+                {
+                    return;
+                }
+
+                await HandleCartPaymentWebhookCore(payment, topCode, dataCode, amountFromGateway);
+            }
+            finally
+            {
+                CartPaymentSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// - Success (00/00): Payment = Paid, tạo Order + OrderDetails từ snapshot, gắn key/tài khoản, gửi email, xoá snapshot.
+        /// - Ngược lại: Payment = Cancelled, hoàn kho theo snapshot, xoá snapshot.
+        /// </summary>
+        private async Task HandleCartPaymentWebhookCore(
             Payment payment,
             string topCode,
             string dataCode,
@@ -394,7 +447,7 @@ namespace Keytietkiem.Controllers
             var currentStatus = payment.Status ?? "Pending";
             if (!string.Equals(currentStatus, "Pending", StringComparison.OrdinalIgnoreCase))
             {
-                // Đã xử lý trước đó
+                // Đã xử lý trước đó (Paid / Cancelled / ...)
                 return;
             }
 
@@ -405,10 +458,21 @@ namespace Keytietkiem.Controllers
                 var (items, userId, email) = GetCartSnapshot(payment.PaymentId);
                 if (items == null || !items.Any() || string.IsNullOrWhiteSpace(email))
                 {
-                    // Không còn dữ liệu cart -> không thể tạo order; cancel payment để tránh treo.
-                    payment.Status = "Cancelled";
+                    // TH: PayOS báo thành công nhưng snapshot cart đã mất (hết TTL, app restart, scale-out...).
+                    // Không thể tạo Order tự động, nhưng tuyệt đối KHÔNG set Cancelled vì user đã thanh toán.
+                    // -> Đánh dấu là Paid để reconcile thủ công, log cảnh báo.
+
+                    payment.Status = "Paid";
+                    payment.Amount = (decimal)amountFromGateway;
+
                     await _context.SaveChangesAsync();
-                    ClearCartSnapshot(payment.PaymentId);
+
+                    _logger.LogError(
+                        "Cart payment {PaymentId} was confirmed as success but cart snapshot is missing. " +
+                        "Marked payment as Paid without creating order - requires manual handling.",
+                        payment.PaymentId);
+
+                    // Không clear snapshot nữa (đa phần đã null rồi), tránh mất thêm dữ liệu nếu còn gì đó.
                     return;
                 }
 
@@ -439,7 +503,7 @@ namespace Keytietkiem.Controllers
 
                 using var tx = await _context.Database.BeginTransactionAsync();
 
-                // Order tạo từ cart: chỉ là log immutable
+                // Order tạo từ cart: immutable log
                 var order = new Order
                 {
                     UserId = userId,
@@ -473,7 +537,7 @@ namespace Keytietkiem.Controllers
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                // Process variants: assign products to customer and send email
+                // Sau khi đã có Order + OrderDetails, tiến hành gắn key/tài khoản & gửi email
                 try
                 {
                     if (orderDetails.Count > 0)
@@ -506,7 +570,7 @@ namespace Keytietkiem.Controllers
                 return;
             }
 
-            // Các trường hợp còn lại: user huỷ, thất bại, hết hạn...
+            // ==== Các trường hợp còn lại: user huỷ, thất bại, hết hạn... ====
             payment.Status = "Cancelled";
 
             // Hoàn kho dựa trên snapshot
@@ -693,13 +757,13 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Số tiền thanh toán không hợp lệ (amountInt <= 0)." });
             }
 
-            // ================== TẠO PAYMENT + PAYOS (giống /payos/create) ==================
-            using var tx = await _context.Database.BeginTransactionAsync();
+            // ================== TẠO PAYMENT + PAYOS ==================
+            using var tx2 = await _context.Database.BeginTransactionAsync();
 
             // Dùng UnixTimeSeconds làm orderCode đơn giản
             var orderCode = (int)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() % int.MaxValue);
 
-            // Tạo bản ghi Payment Pending – bảng độc lập, TransactionType = SERVICE_PAYMENT
+            // Tạo bản ghi Payment Pending – TransactionType = SERVICE_PAYMENT
             var payment = new Payment
             {
                 Amount = adjustedAmount,
@@ -753,7 +817,7 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                await tx.RollbackAsync();
+                await tx2.RollbackAsync();
 
                 // Không audit lỗi để tránh spam
                 return StatusCode(502, new
@@ -762,7 +826,7 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            await tx.CommitAsync();
+            await tx2.CommitAsync();
 
             var resp = new CreateSupportPlanPayOSPaymentResponseDTO
             {
@@ -797,6 +861,7 @@ namespace Keytietkiem.Controllers
             return Ok(resp);
         }
 
+        // ===== Gắn key/tài khoản + gửi email sau khi đơn được tạo từ cart =====
         private async Task ProcessVariants(List<ProductVariant> variants, Order order)
         {
             var systemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -819,7 +884,10 @@ namespace Keytietkiem.Controllers
             var orderProducts = new List<OrderProductEmailDto>();
 
             // Process PERSONAL_KEY type variants
-            var personalKeyVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_KEY).ToList();
+            var personalKeyVariants = variants
+                .Where(x => x.Product.ProductType == ProductEnums.PERSONAL_KEY)
+                .ToList();
+
             foreach (var variant in personalKeyVariants)
             {
                 var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
@@ -837,7 +905,8 @@ namespace Keytietkiem.Controllers
 
                 if (availableKeys.Count < quantity)
                 {
-                    _logger.LogWarning("Not enough available keys for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                    _logger.LogWarning(
+                        "Not enough available keys for variant {VariantId}. Required: {Quantity}, Available: {Available}",
                         variant.VariantId, quantity, availableKeys.Count);
                     continue;
                 }
@@ -874,13 +943,17 @@ namespace Keytietkiem.Controllers
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to assign key {KeyId} to order {OrderId}", key.KeyId, order.OrderId);
+                        _logger.LogError(ex, "Failed to assign key {KeyId} to order {OrderId}",
+                            key.KeyId, order.OrderId);
                     }
                 }
             }
 
             // Process PERSONAL_ACCOUNT type variants
-            var personalAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.PERSONAL_ACCOUNT).ToList();
+            var personalAccountVariants = variants
+                .Where(x => x.Product.ProductType == ProductEnums.PERSONAL_ACCOUNT)
+                .ToList();
+
             foreach (var variant in personalAccountVariants)
             {
                 var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
@@ -901,7 +974,8 @@ namespace Keytietkiem.Controllers
 
                 if (availableAccounts.Count < quantity)
                 {
-                    _logger.LogWarning("Not enough available personal accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
+                    _logger.LogWarning(
+                        "Not enough available personal accounts for variant {VariantId}. Required: {Quantity}, Available: {Available}",
                         variant.VariantId, quantity, availableAccounts.Count);
                     continue;
                 }
@@ -922,7 +996,8 @@ namespace Keytietkiem.Controllers
                         await _productAccountService.AssignAccountToOrderAsync(assignDto, systemUserId);
 
                         // Get decrypted password
-                        var decryptedPassword = await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
+                        var decryptedPassword =
+                            await _productAccountService.GetDecryptedPasswordAsync(account.ProductAccountId);
 
                         // Clear change tracker to prevent tracking conflicts
                         _context.ChangeTracker.Clear();
@@ -944,13 +1019,18 @@ namespace Keytietkiem.Controllers
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to assign account {AccountId} to order {OrderId}", account.ProductAccountId, order.OrderId);
+                        _logger.LogError(ex,
+                            "Failed to assign account {AccountId} to order {OrderId}",
+                            account.ProductAccountId, order.OrderId);
                     }
                 }
             }
 
             // Process SHARED_ACCOUNT type variants
-            var sharedAccountVariants = variants.Where(x => x.Product.ProductType == ProductEnums.SHARED_ACCOUNT).ToList();
+            var sharedAccountVariants = variants
+                .Where(x => x.Product.ProductType == ProductEnums.SHARED_ACCOUNT)
+                .ToList();
+
             foreach (var variant in sharedAccountVariants)
             {
                 var orderDetail = order.OrderDetails.FirstOrDefault(od => od.VariantId == variant.VariantId);
@@ -1045,12 +1125,14 @@ namespace Keytietkiem.Controllers
                 try
                 {
                     await _emailService.SendOrderProductsEmailAsync(userEmail, orderProducts);
-                    _logger.LogInformation("Sent consolidated order email with {Count} products to {Email}",
+                    _logger.LogInformation(
+                        "Sent consolidated order email with {Count} products to {Email}",
                         orderProducts.Count, userEmail);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send consolidated order email to {Email}", userEmail);
+                    _logger.LogError(ex,
+                        "Failed to send consolidated order email to {Email}", userEmail);
                 }
             }
         }

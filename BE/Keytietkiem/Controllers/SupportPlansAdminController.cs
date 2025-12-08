@@ -1,6 +1,6 @@
 ﻿// File: Controllers/SupportPlansAdminController.cs
 using Keytietkiem.DTOs.Common;
-using Keytietkiem.DTOs.SupportPlans;
+using Keytietkiem.DTOs.Support;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;

@@ -503,3 +503,77 @@
     align-items: flex-start;
   }
 }
+/* ========== PHẦN DIFF TRONG MODAL ========== */
+
+.audit-changes-section {
+  margin-top: 12px;
+}
+
+.audit-changes-table-wrapper {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.audit-changes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.audit-changes-table th,
+.audit-changes-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.audit-changes-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.audit-changes-table tr:last-child td {
+  border-bottom: none;
+}
+
+.small-json {
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Header cho box JSON before/after + nút 3 chấm */
+.audit-json-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audit-json-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.audit-json-toggle {
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.audit-json-toggle:hover {
+  background: #e5e7eb;
+  color: #111827;
+}

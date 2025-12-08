@@ -109,8 +109,7 @@ namespace Keytietkiem.Controllers
 
             if (isActiveCustomer && !string.IsNullOrWhiteSpace(user.Email))
             {
-                // RecalculateUserLoyaltyPriorityLevelAsync sẽ dựa trên ORDER_PAYMENT (Paid)
-                // để cập nhật lại TotalProductSpend + SupportPriorityLevel trong DB cho user này.
+                // RecalculateUserLoyaltyPriorityLevelAsync: chỉ loyalty base, KHÔNG tính gói
                 loyaltyBaseLevel = await SupportPriorityLoyaltyRulesController
                     .RecalculateUserLoyaltyPriorityLevelAsync(_db, user.Email);
 
@@ -301,7 +300,7 @@ namespace Keytietkiem.Controllers
 
             var total = await users.CountAsync();
 
-            // ===== Loyalty: refresh TotalProductSpend + SupportPriorityLevel
+            // ===== Loyalty + SupportPlan: refresh SupportPriorityLevel
             // cho các user Active + customer trên trang hiện tại =====
             var pageQuery = users
                 .Skip((page - 1) * pageSize)
@@ -330,8 +329,9 @@ namespace Keytietkiem.Controllers
                 if (!isActiveCustomerForPage)
                     continue;
 
+                // DÙNG helper mới: tính max(loyalty, active plan)
                 await SupportPriorityLoyaltyRulesController
-                    .RecalculateUserLoyaltyPriorityLevelAsync(_db, meta.Email);
+                    .RecalculateUserSupportPriorityLevelAsync(_db, meta.Email);
             }
 
             var items = await pageQuery
@@ -386,7 +386,7 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Không thể xem chi tiết người dùng tạm thời (IsTemp = true)." });
             }
 
-            // ===== Loyalty: nếu là customer đang Active thì refresh loyalty base =====
+            // ===== Loyalty + SupportPlan: nếu là customer đang Active thì refresh final level =====
             var isActiveCustomerForDetail =
                 string.Equals(u.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
                 u.Roles.Any(r =>
@@ -395,8 +395,9 @@ namespace Keytietkiem.Controllers
 
             if (isActiveCustomerForDetail && !string.IsNullOrWhiteSpace(u.Email))
             {
+                // DÙNG helper mới: max(loyalty, active plan)
                 await SupportPriorityLoyaltyRulesController
-                    .RecalculateUserLoyaltyPriorityLevelAsync(_db, u.Email);
+                    .RecalculateUserSupportPriorityLevelAsync(_db, u.Email);
             }
 
             var now = DateTime.UtcNow;
@@ -507,6 +508,9 @@ namespace Keytietkiem.Controllers
 
                 hasAccount = true;
             }
+            var createdUsername = !string.IsNullOrWhiteSpace(dto.NewPassword)
+    ? (string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim())
+    : null;
 
             // Nếu admin chọn gói hỗ trợ khi tạo user -> tạo subscription thủ công
             if (dto.ActiveSupportPlanId.HasValue && dto.ActiveSupportPlanId.Value > 0)
@@ -531,14 +535,21 @@ namespace Keytietkiem.Controllers
                 after: new
                 {
                     user.UserId,
+                    user.FirstName,
+                    user.LastName,
+                    user.FullName,
                     user.Email,
+                    user.Phone,
+                    user.Address,
                     user.Status,
                     user.SupportPriorityLevel,
                     user.IsTemp,
                     RoleIds = user.Roles.Select(r => r.RoleId).ToList(),
-                    HasAccount = hasAccount
+                    HasAccount = hasAccount,
+                    Username = createdUsername
                 }
             );
+
 
             return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
         }
@@ -596,13 +607,20 @@ namespace Keytietkiem.Controllers
             var before = new
             {
                 u.UserId,
+                u.FirstName,
+                u.LastName,
+                u.FullName,
                 u.Email,
+                u.Phone,
+                u.Address,
                 u.Status,
                 u.SupportPriorityLevel,
                 u.IsTemp,
                 RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
-                HasAccount = u.Account != null
+                HasAccount = u.Account != null,
+                Username = u.Account?.Username
             };
+
 
             u.FirstName = dto.FirstName;
             u.LastName = dto.LastName;
@@ -695,12 +713,18 @@ namespace Keytietkiem.Controllers
             var after = new
             {
                 u.UserId,
+                u.FirstName,
+                u.LastName,
+                u.FullName,
                 u.Email,
+                u.Phone,
+                u.Address,
                 u.Status,
                 u.SupportPriorityLevel,
                 u.IsTemp,
                 RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
-                HasAccount = u.Account != null
+                HasAccount = u.Account != null,
+                Username = u.Account?.Username
             };
 
             // 🔐 AUDIT LOG – UPDATE USER
@@ -712,6 +736,7 @@ namespace Keytietkiem.Controllers
                 before: before,
                 after: after
             );
+
 
             return NoContent();
         }

@@ -561,6 +561,20 @@ const Sidebar = () => {
       moduleCode: MODULE_CODES.SUPPORT_MANAGER,
       items: [
         {
+          id: "dashboard",
+          label: "Dashboard Hỗ trợ",
+          to: "/admin/support-dashboard",
+          isActive: currentPage === "admin/support-dashboard",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M3 11L12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z"
+                fill="#111827"
+              />
+            </svg>
+          ),
+        },
+        {
           id: "tickets",
           label: "Quản lý phiếu hỗ trợ",
           to: "/admin/tickets",
@@ -664,6 +678,23 @@ const Sidebar = () => {
       title: "Quản lý bài viết",
       moduleCode: MODULE_CODES.POST_MANAGER,
       items: [
+        {
+          id: "post-dashboard",
+          label: "Dashboard Bài viết",
+          to: "/post-dashboard",
+          isActive: currentPage === "post-dashboard",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ),
+        },
         {
           id: "admin-post-list",
           label: "Danh sách bài viết",
