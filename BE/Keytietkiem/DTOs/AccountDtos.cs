@@ -211,9 +211,3 @@ public class RevokeTokenDto
     [Required(ErrorMessage = "RefreshToken là bắt buộc")]
     public string RefreshToken { get; set; } = string.Empty;
 }
-public class ResetPasswordResultDto
-{
-    public Guid UserId { get; set; }
-    public Guid AccountId { get; set; }
-    public string Email { get; set; } = string.Empty;
-}

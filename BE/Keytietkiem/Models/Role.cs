@@ -19,8 +19,6 @@ public partial class Role
 
     public string? Code { get; set; }
 
-    public virtual ICollection<NotificationTargetRole> NotificationTargetRoles { get; set; } = new List<NotificationTargetRole>();
-
     public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 
     public virtual ICollection<User> Users { get; set; } = new List<User>();

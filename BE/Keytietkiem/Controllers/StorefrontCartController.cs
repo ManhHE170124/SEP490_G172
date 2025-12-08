@@ -95,57 +95,26 @@ namespace Keytietkiem.Controllers
                 return NotFound(new { message = "Variant not found." });
             }
 
+            // Kiểm tra tồn kho
+            if (variant.StockQty <= 0)
+            {
+                return BadRequest(new { message = "Sản phẩm đã hết hàng." });
+            }
+
             var addQty = dto.Quantity;
-
-            // For SHARED_ACCOUNT products, check actual available slots from ProductAccounts
-            if (string.Equals(variant.Product.ProductType, "SHARED_ACCOUNT", StringComparison.OrdinalIgnoreCase))
+            if (addQty > variant.StockQty)
             {
-                var availableSlots = await db.ProductAccounts
-                    .Where(pa => pa.VariantId == variant.VariantId &&
-                                 pa.Status == "Active" &&
-                                 pa.MaxUsers > 1)
-                    .Include(pa => pa.ProductAccountCustomers)
-                    .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers)
-                    .Select(pa => pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive))
-                    .SumAsync();
-
-                if (availableSlots <= 0)
+                return BadRequest(new
                 {
-                    return BadRequest(new { message = "Sản phẩm đã hết slot." });
-                }
-
-                if (addQty > availableSlots)
-                {
-                    return BadRequest(new
-                    {
-                        message = $"Số lượng slot không đủ. Chỉ còn {availableSlots} slot."
-                    });
-                }
-
-                // For shared accounts, StockQty represents available slots
-                variant.StockQty -= addQty;
-                if (variant.StockQty < 0) variant.StockQty = 0;
+                    message = $"Số lượng tồn kho không đủ. Chỉ còn {variant.StockQty} sản phẩm."
+                });
             }
-            else
-            {
-                // For other product types (PERSONAL_KEY, PERSONAL_ACCOUNT, etc.), use regular stock check
-                if (variant.StockQty <= 0)
-                {
-                    return BadRequest(new { message = "Sản phẩm đã hết hàng." });
-                }
 
-                if (addQty > variant.StockQty)
-                {
-                    return BadRequest(new
-                    {
-                        message = $"Số lượng tồn kho không đủ. Chỉ còn {variant.StockQty} sản phẩm."
-                    });
-                }
-
-                // Trừ tồn kho NGAY trong DB
-                variant.StockQty -= addQty;
-                if (variant.StockQty < 0) variant.StockQty = 0;
-            }
+            // Trừ tồn kho NGAY trong DB
+            variant.StockQty -= addQty;
+            if (variant.StockQty < 0) variant.StockQty = 0;
+            // nếu có UpdatedAt:
+            // variant.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync();
 
@@ -417,10 +386,9 @@ namespace Keytietkiem.Controllers
 
             await using var db = await _dbFactory.CreateDbContextAsync();
             var variant = await db.ProductVariants
-                .Include(v => v.Product)
                 .FirstOrDefaultAsync(v => v.VariantId == variantId);
 
-            if (variant == null || variant.Product == null)
+            if (variant == null)
             {
                 return NotFound(new { message = "Variant not found." });
             }
@@ -444,42 +412,16 @@ namespace Keytietkiem.Controllers
                 if (delta > 0)
                 {
                     // Người dùng tăng thêm delta sản phẩm -> phải trừ tồn kho
-                    // For SHARED_ACCOUNT products, check actual available slots
-                    if (string.Equals(variant.Product.ProductType, "SHARED_ACCOUNT", StringComparison.OrdinalIgnoreCase))
+                    if (variant.StockQty < delta)
                     {
-                        var availableSlots = await db.ProductAccounts
-                            .Where(pa => pa.VariantId == variant.VariantId &&
-                                         pa.Status == "Active" &&
-                                         pa.MaxUsers > 1)
-                            .Include(pa => pa.ProductAccountCustomers)
-                            .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers)
-                            .Select(pa => pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive))
-                            .SumAsync();
-
-                        if (availableSlots < delta)
+                        return BadRequest(new
                         {
-                            return BadRequest(new
-                            {
-                                message = $"Số lượng slot không đủ. Chỉ còn {availableSlots} slot."
-                            });
-                        }
-
-                        variant.StockQty -= delta;
-                        if (variant.StockQty < 0) variant.StockQty = 0;
+                            message = $"Số lượng tồn kho không đủ. Chỉ còn {variant.StockQty} sản phẩm."
+                        });
                     }
-                    else
-                    {
-                        if (variant.StockQty < delta)
-                        {
-                            return BadRequest(new
-                            {
-                                message = $"Số lượng tồn kho không đủ. Chỉ còn {variant.StockQty} sản phẩm."
-                            });
-                        }
 
-                        variant.StockQty -= delta;
-                        if (variant.StockQty < 0) variant.StockQty = 0;
-                    }
+                    variant.StockQty -= delta;
+                    if (variant.StockQty < 0) variant.StockQty = 0;
                     // variant.UpdatedAt = DateTime.UtcNow;
                 }
                 else if (delta < 0)

@@ -44,8 +44,8 @@ namespace Keytietkiem.Infrastructure
         /// Huỷ các payment Status = "Pending" quá timeout (mặc định 5 phút).
         /// </summary>
         public async Task<int> AutoCancelExpiredPendingPaymentsAsync(
-     TimeSpan? timeout = null,
-     CancellationToken cancellationToken = default)
+            TimeSpan? timeout = null,
+            CancellationToken cancellationToken = default)
         {
             await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -53,24 +53,29 @@ namespace Keytietkiem.Infrastructure
             var pendingTimeout = timeout ?? DefaultPendingPaymentTimeout;
             var threshold = nowUtc - pendingTimeout;
 
-            // Dùng UPDATE trực tiếp để tránh race condition với luồng thanh toán
-            var affected = await db.Database.ExecuteSqlInterpolatedAsync($@"
-        UPDATE [Payment]
-        SET [Status] = 'Cancelled'
-        WHERE [Status] = 'Pending'
-          AND [CreatedAt] < {threshold};
-    ");
+            var pendingList = await db.Payments
+                .Where(p => p.Status == "Pending" && p.CreatedAt < threshold)
+                .ToListAsync(cancellationToken);
 
-            if (affected > 0)
+            if (!pendingList.Any())
+                return 0;
+
+            foreach (var payment in pendingList)
             {
-                _logger.LogInformation(
-                    "AutoCancelExpiredPendingPaymentsAsync: auto-cancel {Count} pending payment(s) older than {Minutes} minutes.",
-                    affected, pendingTimeout.TotalMinutes);
+                if (string.Equals(payment.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+                {
+                    payment.Status = "Cancelled";
+                }
             }
 
-            return affected;
-        }
+            await db.SaveChangesAsync(cancellationToken);
 
+            _logger.LogInformation(
+                "AutoCancelExpiredPendingPaymentsAsync: auto-cancel {Count} pending payment(s) older than {Minutes} minutes.",
+                pendingList.Count, pendingTimeout.TotalMinutes);
+
+            return pendingList.Count;
+        }
 
         /// <summary>
         /// Đồng bộ trạng thái product / variant theo tồn kho.

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace Keytietkiem.DTOs.Support
+namespace Keytietkiem.DTOs.SupportChat
 {
     /// <summary>
     /// Thông tin cơ bản về 1 phiên chat hỗ trợ (dùng cho list, queue, my-sessions).

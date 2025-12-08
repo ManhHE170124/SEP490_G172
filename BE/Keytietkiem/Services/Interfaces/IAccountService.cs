@@ -90,7 +90,8 @@ public interface IAccountService
     /// </summary>
     /// <param name="resetPasswordDto">Password reset data with OTP</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task<ResetPasswordResultDto> ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken cancellationToken = default);
+    Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Revokes access token and refresh token (logout)
     /// </summary>

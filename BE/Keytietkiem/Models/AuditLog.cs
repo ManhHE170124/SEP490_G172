@@ -15,17 +15,13 @@ public partial class AuditLog
 
     public string Action { get; set; } = null!;
 
+    public string Resource { get; set; } = null!;
+
     public string? EntityId { get; set; }
 
     public string? IpAddress { get; set; }
 
-    public string? ActorRole { get; set; }
+    public string? UserAgent { get; set; }
 
-    public string? SessionId { get; set; }
-
-    public string? EntityType { get; set; }
-
-    public string? BeforeDataJson { get; set; }
-
-    public string? AfterDataJson { get; set; }
+    public string? DetailJson { get; set; }
 }

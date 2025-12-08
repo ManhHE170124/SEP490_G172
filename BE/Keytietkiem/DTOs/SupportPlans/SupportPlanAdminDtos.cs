@@ -2,7 +2,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Keytietkiem.DTOs.Support
+namespace Keytietkiem.DTOs.SupportPlans
 {
     /// <summary>
     /// Item dùng cho list màn cấu hình SupportPlan (grid/list).
