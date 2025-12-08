@@ -109,7 +109,7 @@ export default function SupportDashboardAdminPage() {
 
   // Data states
   const [overview, setOverview] = useState(null);
-  const [ticketDaily, setTicketDaily] = useState([]);
+  const [ticketDaily, setTicketDaily] = useState([]); // hiện chưa dùng nhưng giữ lại cho đúng note
   const [ticketPriorityDist, setTicketPriorityDist] = useState([]);
   const [chatDaily, setChatDaily] = useState([]);
   const [chatWeeklyPriority, setChatWeeklyPriority] = useState([]);
@@ -168,17 +168,18 @@ export default function SupportDashboardAdminPage() {
 
         if (!isMounted) return;
 
-        setOverview(overviewRes.data);
-        setTicketDaily(ticketDailyRes.data || []);
-        setTicketSeverityPriorityWeekly(ticketWeeklySeverityRes.data || []);
-        setTicketPriorityDist(ticketPriorityDistRes.data || []);
-        setChatDaily(chatDailyRes.data || []);
-        setChatWeeklyPriority(chatWeeklyPriorityRes.data || []);
-        setStaffPerformance(staffPerfRes.data || []);
-        setPlanActiveDist(planActiveDistRes.data || []);
-        setPlanMonthlyStats(planMonthlyStatsRes.data || []);
-        setPriorityDistribution(priorityDistRes.data || []);
-        setPrioritySupportVolume(prioritySupportVolumeRes.data || []);
+        // axiosClient đã trả thẳng data, KHÔNG còn .data nữa
+        setOverview(overviewRes || null);
+        setTicketDaily(ticketDailyRes || []);
+        setTicketSeverityPriorityWeekly(ticketWeeklySeverityRes || []);
+        setTicketPriorityDist(ticketPriorityDistRes || []);
+        setChatDaily(chatDailyRes || []);
+        setChatWeeklyPriority(chatWeeklyPriorityRes || []);
+        setStaffPerformance(staffPerfRes || []);
+        setPlanActiveDist(planActiveDistRes || []);
+        setPlanMonthlyStats(planMonthlyStatsRes || []);
+        setPriorityDistribution(priorityDistRes || []);
+        setPrioritySupportVolume(prioritySupportVolumeRes || []);
       } catch (err) {
         console.error("Failed to load support dashboard data", err);
         if (!isMounted) return;
@@ -202,8 +203,10 @@ export default function SupportDashboardAdminPage() {
   // ==== Derived chart data ====
 
   const overviewDailyChartData = useMemo(() => {
-    if (!overview?.dailyTrend) return [];
-    return overview.dailyTrend.map((x) => ({
+    if (!overview) return [];
+    const dailyTrend = overview.dailyTrend ?? overview.DailyTrend;
+    if (!dailyTrend || !Array.isArray(dailyTrend)) return [];
+    return dailyTrend.map((x) => ({
       dateLabel: formatDateLabel(x.date || x.Date),
       newTickets: x.newTickets ?? x.NewTickets,
       closedTickets: x.closedTickets ?? x.ClosedTickets,
@@ -213,8 +216,11 @@ export default function SupportDashboardAdminPage() {
   }, [overview]);
 
   const overviewWeeklyChartData = useMemo(() => {
-    if (!overview?.weeklyTicketChat) return [];
-    return overview.weeklyTicketChat.map((x) => ({
+    if (!overview) return [];
+    const weeklyTicketChat =
+      overview.weeklyTicketChat ?? overview.WeeklyTicketChat;
+    if (!weeklyTicketChat || !Array.isArray(weeklyTicketChat)) return [];
+    return weeklyTicketChat.map((x) => ({
       weekLabel: formatDateLabel(x.weekStartDate || x.WeekStartDate),
       ticketCount: x.ticketCount ?? x.TicketCount,
       chatSessionCount: x.chatSessionCount ?? x.ChatSessionCount,
@@ -355,31 +361,45 @@ export default function SupportDashboardAdminPage() {
 
   const overviewCards = useMemo(() => {
     if (!overview) return [];
+
+    const openTicketsNow =
+      overview.openTicketsNow ?? overview.OpenTicketsNow;
+    const newTicketsLastNDays =
+      overview.newTicketsLastNDays ?? overview.NewTicketsLastNDays;
+    const newChatSessionsLastNDays =
+      overview.newChatSessionsLastNDays ?? overview.NewChatSessionsLastNDays;
+    const ticketResponseSlaRateLastNDays =
+      overview.ticketResponseSlaRateLastNDays ??
+      overview.TicketResponseSlaRateLastNDays;
+    const ticketResolutionSlaRateLastNDays =
+      overview.ticketResolutionSlaRateLastNDays ??
+      overview.TicketResolutionSlaRateLastNDays;
+
     return [
       {
         key: "openTickets",
         label: "Ticket đang mở",
-        value: overview.openTicketsNow,
+        value: openTicketsNow,
         tone: "primary",
       },
       {
         key: "newTickets",
         label: `Ticket mới ${rangeDays} ngày`,
-        value: overview.newTicketsLastNDays,
+        value: newTicketsLastNDays,
         tone: "default",
       },
       {
         key: "newChats",
         label: `Phiên chat mới ${rangeDays} ngày`,
-        value: overview.newChatSessionsLastNDays,
+        value: newChatSessionsLastNDays,
         tone: "default",
       },
       {
         key: "sla",
         label: "Tỉ lệ SLA (Resp / Reso)",
         value: `${formatPercent(
-          overview.ticketResponseSlaRateLastNDays
-        )} / ${formatPercent(overview.ticketResolutionSlaRateLastNDays)}`,
+          ticketResponseSlaRateLastNDays
+        )} / ${formatPercent(ticketResolutionSlaRateLastNDays)}`,
         tone: "success",
       },
     ];
@@ -756,14 +776,22 @@ export default function SupportDashboardAdminPage() {
                     <tbody>
                       {chatWeeklyPriority.map((row) => (
                         <tr
-                          key={`${row.priorityLevel}-${row.weekStartDate || row.WeekStartDate}`}
+                          key={`${row.priorityLevel ?? row.PriorityLevel}-${
+                            row.weekStartDate || row.WeekStartDate
+                          }`}
                         >
-                          <td>{mapPriorityLabel(row.priorityLevel ?? row.PriorityLevel)}</td>
+                          <td>
+                            {mapPriorityLabel(
+                              row.priorityLevel ?? row.PriorityLevel
+                            )}
+                          </td>
                           <td>{row.sessionsCount ?? row.SessionsCount}</td>
                           <td>{row.duration05Count ?? row.Duration05Count}</td>
                           <td>{row.duration510Count ?? row.Duration510Count}</td>
                           <td>{row.duration1020Count ?? row.Duration1020Count}</td>
-                          <td>{row.duration20plusCount ?? row.Duration20plusCount}</td>
+                          <td>
+                            {row.duration20plusCount ?? row.Duration20plusCount}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -816,7 +844,8 @@ export default function SupportDashboardAdminPage() {
                   </thead>
                   <tbody>
                     {staffTop10.map((s, index) => {
-                      const respRate = s.ticketResponseSlaRate ?? s.TicketResponseSlaRate;
+                      const respRate =
+                        s.ticketResponseSlaRate ?? s.TicketResponseSlaRate;
                       const resRate =
                         s.ticketResolutionSlaRate ?? s.TicketResolutionSlaRate;
 
@@ -849,7 +878,10 @@ export default function SupportDashboardAdminPage() {
                           </td>
                           <td>{formatPercent(respRate)}</td>
                           <td>{formatPercent(resRate)}</td>
-                          <td>{s.chatSessionsHandledCount ?? s.ChatSessionsHandledCount}</td>
+                          <td>
+                            {s.chatSessionsHandledCount ??
+                              s.ChatSessionsHandledCount}
+                          </td>
                         </tr>
                       );
                     })}
@@ -892,7 +924,7 @@ export default function SupportDashboardAdminPage() {
                   <EmptyState message="Chưa có subscription active." />
                 ) : (
                   <>
-                    <ResponsiveContainer width="100%" height={220}>
+                    <ResponsiveContainer width="100%" height={230}>
                       <PieChart>
                         <Pie
                           dataKey="activeCount"

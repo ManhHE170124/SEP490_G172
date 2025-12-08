@@ -887,8 +887,8 @@ namespace Keytietkiem.Infrastructure
     {
         public string Name => "SupportStatsBackgroundJob";
 
-        // Điều chỉnh thời gian chạy lại (ví dụ: 15 phút 1 lần)
-        public TimeSpan Interval => TimeSpan.FromMinutes(15);
+        // Điều chỉnh thời gian chạy lại (ví dụ: 5 phút 1 lần)
+        public TimeSpan Interval => TimeSpan.FromMinutes(5);
 
         public async Task ExecuteAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken)
         {
