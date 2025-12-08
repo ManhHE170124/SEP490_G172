@@ -138,6 +138,11 @@ axiosClient.interceptors.response.use(
 
     // Handle 401 Unauthorized - Token expired
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't retry login endpoint - let LoginPage handle the error display
+      if (originalRequest.url?.includes("/account/login")) {
+        return Promise.reject(error);
+      }
+
       // Don't retry refresh-token endpoint itself
       if (originalRequest.url?.includes("/account/refresh-token")) {
         // Clear tokens and redirect to login

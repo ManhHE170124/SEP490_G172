@@ -29,7 +29,7 @@ const BASE_NAV_ITEMS = [
     path: "/support-service",
     dropdown: [
       { label: "Hỗ trợ cài đặt từ xa", path: "/support-service/remote" },
-      { label: "Hướng dẫn sử dụng", path: "/support-service/manual" },
+      { label: "Hướng dẫn sử dụng", path: "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view" },
       { label: "Fix lỗi phần mềm đã mua", path: "/support-service/fix" },
     ],
   },
@@ -589,8 +589,17 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                       <a
                         key={subItem.label}
                         href={getNavHref(subItem)}
+                        target={subItem.path?.startsWith('http') ? '_blank' : undefined}
+                        rel={subItem.path?.startsWith('http') ? 'noopener noreferrer' : undefined}
                         onClick={(event) => {
                           if (subItem.path) {
+                            // Check if it's an external link
+                            if (subItem.path.startsWith('http://') || subItem.path.startsWith('https://')) {
+                              closeDropdown();
+                              // Let the browser handle the external link
+                              return;
+                            }
+                            // Internal link - use React Router
                             handleNavigation(event, subItem.path);
                             closeDropdown();
                           }

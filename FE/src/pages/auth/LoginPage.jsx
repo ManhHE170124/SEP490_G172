@@ -160,26 +160,16 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="row-inline" style={{ marginTop: 8 }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={(e) =>
-                    handleInputChange("rememberMe", e.target.checked)
-                  }
-                />
-                Ghi nhớ tài khoản
-              </label>
-              <span></span>
-            </div>
+            <label className="checkbox" style={{ marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={formData.rememberMe}
+                onChange={(e) =>
+                  handleInputChange("rememberMe", e.target.checked)
+                }
+              />
+              Ghi nhớ tài khoản
+            </label>
 
             <div className="form-row" style={{ marginTop: 12 }}>
               <button
