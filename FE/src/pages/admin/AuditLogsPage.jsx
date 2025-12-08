@@ -137,7 +137,7 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
             </div>
 
             <div className="group" style={{ gridColumn: "1 / 3" }}>
-              <span>User Agent</span>
+              <span>Thông tin trình duyệt</span>
               <div className="mono wrap">{item.userAgent || "-"}</div>
             </div>
           </div>

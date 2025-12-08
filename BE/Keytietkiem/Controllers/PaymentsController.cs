@@ -398,12 +398,24 @@ namespace Keytietkiem.Controllers
                 var (items, userId, email) = GetCartSnapshot(payment.PaymentId);
                 if (items == null || !items.Any() || string.IsNullOrWhiteSpace(email))
                 {
-                    // Không còn dữ liệu cart -> không thể tạo order; cancel payment để tránh treo.
-                    payment.Status = "Cancelled";
+                    // TH: PayOS báo thành công nhưng snapshot cart đã mất (hết TTL, app restart, scale-out...).
+                    // Không thể tạo Order tự động, nhưng tuyệt đối KHÔNG set Cancelled vì user đã thanh toán.
+                    // -> Đánh dấu là Paid để reconcile thủ công, log cảnh báo.
+
+                    payment.Status = "Paid";
+                    payment.Amount = (decimal)amountFromGateway;
+
                     await _context.SaveChangesAsync();
-                    ClearCartSnapshot(payment.PaymentId);
+
+                    _logger.LogError(
+                        "Cart payment {PaymentId} was confirmed as success but cart snapshot is missing. " +
+                        "Marked payment as Paid without creating order - requires manual handling.",
+                        payment.PaymentId);
+
+                    // Không clear snapshot nữa (đa phần đã null rồi), tránh mất thêm dữ liệu nếu còn gì đó.
                     return;
                 }
+
 
                 decimal totalListAmount = 0m;
                 decimal totalAmount = 0m;

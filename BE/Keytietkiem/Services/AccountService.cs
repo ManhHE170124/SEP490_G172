@@ -482,8 +482,8 @@ public class AccountService : IAccountService
             $"Link đặt lại mật khẩu đã được gửi đến {forgotPasswordDto.Email}. Link có hiệu lực trong {_clientConfig.ResetLinkExpiryInMinutes} phút.";
     }
 
-    public async Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
-        CancellationToken cancellationToken = default)
+    public async Task<ResetPasswordResultDto> ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
+     CancellationToken cancellationToken = default)
     {
         // Get email from cache using reset token
         var cacheKey = $"{ResetTokenCacheKeyPrefix}{resetPasswordDto.Token}";
@@ -517,7 +517,16 @@ public class AccountService : IAccountService
 
         // Remove reset token from cache
         _cache.Remove(cacheKey);
+
+        // trả về meta để controller log audit chính xác
+        return new ResetPasswordResultDto
+        {
+            UserId = user.UserId,
+            AccountId = account.AccountId,
+            Email = email
+        };
     }
+
 
     public async Task RevokeTokenAsync(RevokeTokenDto revokeTokenDto, CancellationToken cancellationToken = default)
     {

@@ -507,6 +507,9 @@ namespace Keytietkiem.Controllers
 
                 hasAccount = true;
             }
+            var createdUsername = !string.IsNullOrWhiteSpace(dto.NewPassword)
+    ? (string.IsNullOrWhiteSpace(dto.Username) ? dto.Email : dto.Username.Trim())
+    : null;
 
             // Nếu admin chọn gói hỗ trợ khi tạo user -> tạo subscription thủ công
             if (dto.ActiveSupportPlanId.HasValue && dto.ActiveSupportPlanId.Value > 0)
@@ -531,14 +534,21 @@ namespace Keytietkiem.Controllers
                 after: new
                 {
                     user.UserId,
+                    user.FirstName,
+                    user.LastName,
+                    user.FullName,
                     user.Email,
+                    user.Phone,
+                    user.Address,
                     user.Status,
                     user.SupportPriorityLevel,
                     user.IsTemp,
                     RoleIds = user.Roles.Select(r => r.RoleId).ToList(),
-                    HasAccount = hasAccount
+                    HasAccount = hasAccount,
+                    Username = createdUsername
                 }
             );
+
 
             return CreatedAtAction(nameof(Get), new { id = user.UserId }, new { user.UserId });
         }
@@ -596,13 +606,20 @@ namespace Keytietkiem.Controllers
             var before = new
             {
                 u.UserId,
+                u.FirstName,
+                u.LastName,
+                u.FullName,
                 u.Email,
+                u.Phone,
+                u.Address,
                 u.Status,
                 u.SupportPriorityLevel,
                 u.IsTemp,
                 RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
-                HasAccount = u.Account != null
+                HasAccount = u.Account != null,
+                Username = u.Account?.Username
             };
+
 
             u.FirstName = dto.FirstName;
             u.LastName = dto.LastName;
@@ -695,12 +712,18 @@ namespace Keytietkiem.Controllers
             var after = new
             {
                 u.UserId,
+                u.FirstName,
+                u.LastName,
+                u.FullName,
                 u.Email,
+                u.Phone,
+                u.Address,
                 u.Status,
                 u.SupportPriorityLevel,
                 u.IsTemp,
                 RoleIds = u.Roles.Select(r => r.RoleId).ToList(),
-                HasAccount = u.Account != null
+                HasAccount = u.Account != null,
+                Username = u.Account?.Username
             };
 
             // 🔐 AUDIT LOG – UPDATE USER
@@ -712,6 +735,7 @@ namespace Keytietkiem.Controllers
                 before: before,
                 after: after
             );
+
 
             return NoContent();
         }
