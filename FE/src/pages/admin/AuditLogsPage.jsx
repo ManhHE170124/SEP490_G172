@@ -53,7 +53,6 @@ const tryParseLooseJsonValue = (raw) => {
   const text = String(raw).trim();
   if (!text) return text;
 
-  // Nếu là object/array thì parse
   if (text.startsWith("{") || text.startsWith("[")) {
     try {
       return JSON.parse(text);
@@ -62,13 +61,11 @@ const tryParseLooseJsonValue = (raw) => {
     }
   }
 
-  // number
   const num = Number(text);
   if (!Number.isNaN(num) && text === String(num)) {
     return num;
   }
 
-  // bool
   if (text === "true") return true;
   if (text === "false") return false;
 
@@ -85,7 +82,6 @@ const buildPartialObjectFromChanges = (changes, side) => {
     const segments = (path || "").split(".").filter(Boolean);
     const value = tryParseLooseJsonValue(rawValue);
 
-    // Nếu path trống → merge root
     if (segments.length === 0) {
       if (value && typeof value === "object" && !Array.isArray(value)) {
         Object.assign(obj, value);
@@ -132,12 +128,10 @@ const getViewLabel = (mode) => {
 
 const cycleViewMode = (mode, hasTwoSideChanges) => {
   if (hasTwoSideChanges) {
-    // filtered -> full -> hidden -> filtered
     if (mode === "filtered") return "full";
     if (mode === "full") return "hidden";
     return "filtered";
   }
-  // Không có diff 2 bên: full <-> hidden
   if (mode === "full") return "hidden";
   return "full";
 };
@@ -242,9 +236,9 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
   })();
 
   return (
-    <div className="cat-modal-backdrop">
-      <div className="cat-modal-card audit-detail-card">
-        <div className="cat-modal-header">
+    <div className="audit-modal-backdrop">
+      <div className="audit-modal-card audit-detail-card">
+        <div className="audit-modal-header">
           <div className="audit-detail-title">
             <h3>Chi tiết thao tác hệ thống</h3>
           </div>
@@ -259,7 +253,7 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
           </div>
         )}
 
-        <div className="cat-modal-body audit-detail-body">
+        <div className="audit-modal-body audit-detail-body">
           {/* Thông tin meta */}
           <div className="grid cols-2 input-group audit-detail-grid">
             <div className="group">
@@ -299,11 +293,9 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
               <span>Địa chỉ IP</span>
               <div className="mono">{item.ipAddress || "-"}</div>
             </div>
-
           </div>
 
-
-          {/* JSON BEFORE / AFTER – mặc định chỉ field thay đổi nếu có diff 2 phía */}
+          {/* JSON BEFORE / AFTER */}
           <div className="audit-json-columns">
             <div className="group">
               <div className="audit-json-header">
@@ -354,6 +346,12 @@ function AuditLogDetailModal({ open, log, detail, loading, onClose }) {
             </div>
           </div>
         </div>
+
+        {/* footer nếu sau này cần thêm nút khác
+        <div className="audit-modal-footer">
+          ...
+        </div>
+        */}
       </div>
     </div>
   );
@@ -391,7 +389,7 @@ export default function AuditLogsPage() {
 
   // ===== Query / Pagination =====
   const [query, setQuery] = React.useState({
-    actorEmail: "", // dùng như ô tìm kiếm chung
+    actorEmail: "",
     actorRole: "",
     action: "",
     entityType: "",
@@ -448,7 +446,6 @@ export default function AuditLogsPage() {
       pageSize,
     };
 
-    // actorEmail = ô tìm kiếm chung (email, vai trò, hành động, đối tượng, EntityId)
     if (query.actorEmail) params.actorEmail = query.actorEmail.trim();
     if (query.actorRole) params.actorRole = query.actorRole.trim();
     if (query.action) params.action = query.action.trim();
@@ -456,7 +453,6 @@ export default function AuditLogsPage() {
     if (query.from) params.from = query.from;
     if (query.to) params.to = query.to;
 
-    // sort
     if (sortBy) params.sortBy = sortBy;
     if (sortDirection) params.sortDirection = sortDirection;
 

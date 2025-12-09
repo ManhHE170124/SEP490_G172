@@ -21,7 +21,9 @@
   color: #111827;
 }
 
-.btn {
+/* BUTTONS – dùng riêng cho trang thông báo */
+
+.admin-notifications-page .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -34,27 +36,27 @@
   color: #111827;
 }
 
-.btn-primary {
+.admin-notifications-page .btn-primary {
   background-color: #2563eb;
   color: #ffffff;
   border-color: #1d4ed8;
 }
 
-.btn-primary:hover {
+.admin-notifications-page .btn-primary:hover {
   background-color: #1d4ed8;
 }
 
-.btn-secondary {
+.admin-notifications-page .btn-secondary {
   background-color: #e5e7eb;
   color: #111827;
 }
 
-.btn-secondary:disabled {
+.admin-notifications-page .btn-secondary:disabled {
   opacity: 0.6;
   cursor: default;
 }
 
-.btn-link {
+.admin-notifications-page .btn-link {
   background: none;
   border: none;
   color: #2563eb;
@@ -63,7 +65,7 @@
   cursor: pointer;
 }
 
-.btn-link:hover {
+.admin-notifications-page .btn-link:hover {
   text-decoration: underline;
 }
 
@@ -335,7 +337,7 @@
 }
 
 .notif-modal-detail {
-  max-width: 640px;
+  max-width: 700px;
 }
 
 .notif-modal-header {
@@ -352,6 +354,12 @@
   color: #111827;
 }
 
+.notif-modal-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .notif-modal-header-right {
   display: flex;
   align-items: center;
@@ -361,18 +369,6 @@
 .notif-global-label {
   font-size: 12px;
   color: #4b5563;
-}
-
-.notif-modal-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #6b7280;
-}
-
-.notif-modal-close:hover {
-  color: #111827;
 }
 
 .notif-modal-body {
@@ -498,6 +494,15 @@
   font-size: 13px;
 }
 
+/* Lưới 2 cột cho các thông tin meta */
+.notif-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 6px;
+  margin-bottom: 10px;
+}
+
 .detail-row {
   display: flex;
   margin-bottom: 6px;
@@ -513,6 +518,10 @@
 .detail-value {
   flex: 1;
   color: #111827;
+}
+
+.detail-row-message {
+  margin-top: 10px;
 }
 
 .detail-row-message .detail-label {
@@ -542,6 +551,51 @@
 
 .role-name {
   color: #6b7280;
+}
+
+/* BẢNG NGƯỜI NHẬN */
+
+.notif-recipient-section {
+  margin-top: 10px;
+}
+
+.notif-recipient-table-wrapper {
+  margin-top: 4px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  max-height: 260px;
+  overflow-y: auto;
+  background-color: #ffffff;
+}
+
+.notif-recipient-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.notif-recipient-table th,
+.notif-recipient-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.notif-recipient-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.recipient-status-read {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.recipient-status-unread {
+  color: #b91c1c;
+  font-weight: 500;
 }
 
 /* DROPDOWN USER / ROLE */
@@ -670,5 +724,9 @@
   .notif-form-col-half {
     flex: 1 1 100%;
     min-width: 0;
+  }
+
+  .notif-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

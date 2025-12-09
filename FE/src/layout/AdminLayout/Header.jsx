@@ -1,43 +1,55 @@
+// File: src/layout/AdminLayout/Header.jsx
 /**
  * File: Header.jsx
  * Author: HieuNDHE173169
  * Created: 18/10/2025
- * Last Updated: 09/12/2025
- * Version: 1.1.0
- * Purpose: Admin header component with search, notifications, and user dropdown menu.
- *          Provides navigation and user account management interface.
+ * Last Updated: 10/12/2025
+ * Version: 1.4.0
+ * Purpose: Admin header component with notification widget (similar style to chatbox),
+ *          search placeholder and user dropdown menu + realtime-like notification polling.
  */
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthService } from "../../services/authService";
-import { NotificationsApi } from "../../services/notifications"; // <-- thêm
+import { NotificationsApi } from "../../services/notifications";
+import axiosClient from "../../api/axiosClient"; 
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr"; // ✅ thêm
 import "./Header.css";
 
-/**
- * @summary: Header component for admin layout with search, notifications, and user menu.
- * @returns {JSX.Element} - Header with search bar, notification icon, and user dropdown
- */
 const Header = ({ profile }) => {
   const navigate = useNavigate();
+
+  // ===== USER DROPDOWN =====
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [user, setUser] = useState(null);
-
-  // Dropdown avatar
   const avatarDropdownRef = useRef(null);
 
-  // ====== STATE THÔNG BÁO ======
-  const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]); // history
+  // ===== NOTIFICATION STATE =====
+  const [notifications, setNotifications] = useState([]); // history list trong widget
   const [unreadCount, setUnreadCount] = useState(0); // số chưa đọc
   const [isNotifLoading, setIsNotifLoading] = useState(false);
+  const [hasMoreNotifications, setHasMoreNotifications] = useState(true);
+
+  // Widget mở/đóng (giống chatbox)
+  const [isNotifWidgetOpen, setIsNotifWidgetOpen] = useState(false);
+  const notifWidgetRef = useRef(null);
+
+  // Paging cho widget (5 item/ page)
+  const notifPagingRef = useRef({
+    pageNumber: 0,
+    pageSize: 5,
+    hasMore: true,
+  });
+  const notifLoadTimerRef = useRef(null);
 
   // Toast khi có thông báo mới
   const [toastQueue, setToastQueue] = useState([]);
   const [activeToast, setActiveToast] = useState(null);
 
-  // Ref cho dropdown thông báo
-  const notifDropdownRef = useRef(null);
+const notifConnectionRef = useRef(null);
 
+
+  // ===== COMMON HELPERS =====
   const loadUser = () => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -52,7 +64,33 @@ const Header = ({ profile }) => {
     }
   };
 
-  // Load user và listen khi localStorage thay đổi
+  // Hàm gộp để đọc kết quả từ NotificationsApi (dù trả về axios response hay data thuần)
+  const normalizeNotificationResponse = (res) => {
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data) {
+      return { items: [], total: 0 };
+    }
+
+    const items = data.items || data.Items || [];
+    const total =
+      data.totalCount ??
+      data.TotalCount ??
+      data.total ??
+      data.Total ??
+      items.length;
+
+    return { items, total };
+  };
+
+  const extractNotificationId = (n) =>
+    n.notificationUserId ??
+    n.NotificationUserId ??
+    n.notificationId ??
+    n.NotificationId ??
+    n.id ??
+    n.Id;
+
+  // ===== INIT USER & STORAGE LISTENER =====
   useEffect(() => {
     loadUser();
     const handleStorage = (event) => {
@@ -66,7 +104,7 @@ const Header = ({ profile }) => {
     };
   }, []);
 
-  // Đóng cả dropdown avatar + dropdown thông báo khi click ra ngoài
+  // ===== CLICK OUTSIDE: đóng avatar dropdown + widget thông báo =====
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -77,10 +115,10 @@ const Header = ({ profile }) => {
       }
 
       if (
-        notifDropdownRef.current &&
-        !notifDropdownRef.current.contains(event.target)
+        notifWidgetRef.current &&
+        !notifWidgetRef.current.contains(event.target)
       ) {
-        setIsNotifDropdownOpen(false);
+        setIsNotifWidgetOpen(false);
       }
     };
 
@@ -90,20 +128,11 @@ const Header = ({ profile }) => {
     };
   }, []);
 
-  // ====== POLL THÔNG BÁO CHƯA ĐỌC MỖI 5s ======
+  // ===== POLL UNREAD COUNT ĐỊNH KỲ (CHỈ ĐỂ ĐỒNG BỘ SỐ LƯỢNG) =====
   useEffect(() => {
     let isMounted = true;
-    let lastSeenIds = new Set();
 
-    const extractId = (n) =>
-      n.notificationUserId ??
-      n.NotificationUserId ??
-      n.notificationId ??
-      n.NotificationId ??
-      n.id ??
-      n.Id;
-
-    const fetchUnreadNotifications = async (showToastForNew = false) => {
+    const fetchUnreadNotifications = async () => {
       const token = localStorage.getItem("access_token");
       if (!token) {
         if (isMounted) {
@@ -113,7 +142,7 @@ const Header = ({ profile }) => {
       }
 
       try {
-        const res = await NotificationsApi.getMy({
+        const res = await NotificationsApi.listMyPaged({
           pageNumber: 1,
           pageSize: 5,
           onlyUnread: true,
@@ -123,52 +152,18 @@ const Header = ({ profile }) => {
 
         if (!isMounted) return;
 
-        const items = res.items || res.Items || [];
-        const totalUnread =
-          res.total ??
-          res.totalCount ??
-          res.Total ??
-          res.TotalCount ??
-          items.length;
-
-        setUnreadCount(totalUnread);
-
-        const currentIds = new Set(
-          items.map(extractId).filter((id) => id !== undefined && id !== null)
-        );
-
-        // Lần đầu load thì không show toast
-        if (showToastForNew && lastSeenIds.size > 0) {
-          const newItems = items.filter((n) => {
-            const id = extractId(n);
-            return id && !lastSeenIds.has(id);
-          });
-
-          if (newItems.length > 0) {
-            setToastQueue((prev) => [
-              ...prev,
-              ...newItems.map((n) => ({
-                id: extractId(n),
-                title: n.title || n.Title,
-                message: n.message || n.Message,
-                severity: n.severity ?? n.Severity ?? 0,
-                createdAt: n.createdAtUtc || n.CreatedAtUtc,
-              })),
-            ]);
-          }
-        }
-
-        lastSeenIds = currentIds;
+        const { total } = normalizeNotificationResponse(res);
+        setUnreadCount(total);
       } catch (error) {
         console.error("Failed to fetch unread notifications:", error);
       }
     };
 
-    // load lần đầu (không toast)
-    fetchUnreadNotifications(false);
+    // Lần đầu
+    fetchUnreadNotifications();
 
-    // Poll 5s/lần
-    const intervalId = setInterval(() => fetchUnreadNotifications(true), 5000);
+    // 15s/lần để đồng bộ số lượng (không show toast)
+    const intervalId = setInterval(fetchUnreadNotifications, 15000);
 
     return () => {
       isMounted = false;
@@ -176,25 +171,59 @@ const Header = ({ profile }) => {
     };
   }, []);
 
-  // Lấy history thông báo khi mở dropdown
-  const fetchNotificationHistory = async () => {
+  // ===== LẤY LỊCH SỬ THÔNG BÁO KHI MỞ WIDGET (PAGING 5, LOAD THÊM SAU 3s) =====
+  const fetchNotificationHistory = async ({ append = false } = {}) => {
     const token = localStorage.getItem("access_token");
     if (!token) {
       setNotifications([]);
+      setHasMoreNotifications(false);
+      return;
+    }
+
+    const paging = notifPagingRef.current;
+    const nextPageNumber = append ? paging.pageNumber + 1 : 1;
+    const pageSize = paging.pageSize;
+
+    // Không còn gì để load thì thôi
+    if (append && !paging.hasMore) {
+      setHasMoreNotifications(false);
       return;
     }
 
     setIsNotifLoading(true);
     try {
-      const res = await NotificationsApi.getMy({
-        pageNumber: 1,
-        pageSize: 20,
+      const res = await NotificationsApi.listMyPaged({
+        pageNumber: nextPageNumber,
+        pageSize,
         sortBy: "CreatedAtUtc",
         sortDescending: true,
       });
 
-      const items = res.items || res.Items || [];
-      setNotifications(items);
+      const { items, total } = normalizeNotificationResponse(res);
+
+      // update widget list
+      setNotifications((prev) => {
+        if (!append) return items;
+
+        const existingIds = new Set(
+          prev.map((x) => extractNotificationId(x)).filter(Boolean)
+        );
+        const merged = [...prev];
+        items.forEach((it) => {
+          const id = extractNotificationId(it);
+          if (!id || existingIds.has(id)) return;
+          merged.push(it);
+        });
+        return merged;
+      });
+
+      const hasMore = nextPageNumber * pageSize < total;
+      notifPagingRef.current = {
+        pageNumber: nextPageNumber,
+        pageSize,
+        hasMore,
+      };
+      setHasMoreNotifications(hasMore);
     } catch (error) {
       console.error("Failed to fetch notification history:", error);
     } finally {
@@ -202,28 +231,129 @@ const Header = ({ profile }) => {
     }
   };
 
-  // Lấy toast từ queue ra hiển thị
+  // ===== TỰ ĐỘNG LOAD THÊM MỖI 3s NẾU VẪN MỞ WIDGET & CÒN DATA =====
+  useEffect(() => {
+    if (!isNotifWidgetOpen) {
+      if (notifLoadTimerRef.current) {
+        clearTimeout(notifLoadTimerRef.current);
+        notifLoadTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (!hasMoreNotifications || isNotifLoading) {
+      return;
+    }
+
+    notifLoadTimerRef.current = setTimeout(() => {
+      fetchNotificationHistory({ append: true });
+    }, 3000);
+
+    return () => {
+      if (notifLoadTimerRef.current) {
+        clearTimeout(notifLoadTimerRef.current);
+        notifLoadTimerRef.current = null;
+      }
+    };
+  }, [isNotifWidgetOpen, notifications.length, hasMoreNotifications, isNotifLoading]);
+// ===== REALTIME SIGNALR: nhận "ReceiveNotification" từ NotificationHub =====
+useEffect(() => {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    return;
+  }
+
+  // Lấy baseURL từ axiosClient, ví dụ: https://localhost:7292/api
+  const apiBase = axiosClient.defaults.baseURL || "";
+  // Bỏ đuôi /api => https://localhost:7292 rồi thêm /hubs/notifications
+  const hubUrl = apiBase
+    ? apiBase.replace(/\/api\/?$/, "") + "/hubs/notifications"
+    : "https://localhost:7292/hubs/notifications"; // fallback khi thiếu baseURL
+
+  const connection = new HubConnectionBuilder()
+    .withUrl(hubUrl, {
+      accessTokenFactory: () => token,
+    })
+    .withAutomaticReconnect()
+    .configureLogging(LogLevel.Information)
+    .build();
+
+  notifConnectionRef.current = connection;
+
+  connection.on("ReceiveNotification", (n) => {
+    const id = extractNotificationId(n);
+    if (!id) return;
+
+    const isRead = n.isRead ?? n.IsRead ?? false;
+
+    // Cập nhật list trong widget (prepend, tránh trùng)
+    setNotifications((prev) => {
+      const existingIds = new Set(
+        prev.map((x) => extractNotificationId(x)).filter(Boolean)
+      );
+      if (existingIds.has(id)) {
+        return prev;
+      }
+      return [n, ...prev];
+    });
+
+    // Tăng unread nếu thông báo mới chưa đọc
+    if (!isRead) {
+      setUnreadCount((prev) => prev + 1);
+    }
+
+    // Đẩy vào toast queue
+    setToastQueue((prev) => [
+      ...prev,
+      {
+        id,
+        title: n.title || n.Title,
+        message: n.message || n.Message,
+        severity: n.severity ?? n.Severity ?? 0,
+        createdAt: n.createdAtUtc || n.CreatedAtUtc,
+      },
+    ]);
+  });
+
+  connection
+    .start()
+    .catch((err) =>
+      console.error("Failed to connect NotificationHub:", err)
+    );
+
+  return () => {
+    if (notifConnectionRef.current) {
+      notifConnectionRef.current.off("ReceiveNotification");
+      notifConnectionRef.current.stop();
+      notifConnectionRef.current = null;
+    }
+  };
+}, []);
+
+  // ===== TOAST QUEUE =====
   useEffect(() => {
     if (activeToast || toastQueue.length === 0) return;
     setActiveToast(toastQueue[0]);
     setToastQueue((prev) => prev.slice(1));
   }, [toastQueue, activeToast]);
 
-  // Tự ẩn toast sau 5s
   useEffect(() => {
     if (!activeToast) return;
     const timer = setTimeout(() => setActiveToast(null), 5000);
     return () => clearTimeout(timer);
   }, [activeToast]);
 
+  // ===== HANDLERS / HELPERS UI =====
   const handleAvatarClick = () => {
     loadUser();
     setIsDropdownOpen((prev) => !prev);
   };
+  const handleToastClose = () => {
+    setActiveToast(null);
+  };
 
   const handleMenuAction = (action) => {
     setIsDropdownOpen(false);
-
     switch (action) {
       case "profile":
         navigate("/admin/profile");
@@ -273,19 +403,6 @@ const Header = ({ profile }) => {
     }
   };
 
-  const getSeverityClass = (sev) => {
-    switch (sev) {
-      case 1:
-        return "badge-severity badge-success";
-      case 2:
-        return "badge-severity badge-warning";
-      case 3:
-        return "badge-severity badge-error";
-      default:
-        return "badge-severity badge-info";
-    }
-  };
-
   const formatTime = (value) => {
     if (!value) return "";
     try {
@@ -295,12 +412,54 @@ const Header = ({ profile }) => {
     }
   };
 
+  // Hover vào item → mark read (gửi API + update UI + giảm unreadCount)
+  const handleNotificationHover = (item) => {
+    const notifUserId = extractNotificationId(item);
+    const isRead = item.isRead ?? item.IsRead ?? false;
+    if (!notifUserId || isRead) return;
+
+    // Optimistic update
+    setNotifications((prev) =>
+      prev.map((n) => {
+        const id = extractNotificationId(n);
+        if (id !== notifUserId) return n;
+        return { ...n, isRead: true, IsRead: true };
+      })
+    );
+    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+
+    NotificationsApi.markMyNotificationRead(notifUserId).catch((err) => {
+      console.error("Failed to mark notification as read", err);
+    });
+  };
+
+  // Click vào item → chuyển tới RelatedUrl (nếu có)
+  const handleNotificationClick = (item) => {
+    const url = item.relatedUrl || item.RelatedUrl;
+    if (!url) return;
+
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else if (url.startsWith("/")) {
+      navigate(url);
+    } else {
+      navigate("/" + url);
+    }
+  };
+
+  // Bấm chuông → mở/đóng widget giống chatbox, reset paging
   const handleBellClick = () => {
-    setIsNotifDropdownOpen((prev) => {
+    setIsNotifWidgetOpen((prev) => {
       const next = !prev;
-      if (!prev) {
-        // vừa mở -> load history
-        fetchNotificationHistory();
+      if (!prev && next) {
+        // vừa mở → reset paging & load 5 thông báo gần nhất
+        notifPagingRef.current = {
+          pageNumber: 0,
+          pageSize: 5,
+          hasMore: true,
+        };
+        setHasMoreNotifications(true);
+        fetchNotificationHistory({ append: false });
       }
       return next;
     });
@@ -341,8 +500,8 @@ const Header = ({ profile }) => {
             10/2025
           </span>
 
-          {/* ====== CHUÔNG THÔNG BÁO ====== */}
-          <div className="alh-notif-wrapper" ref={notifDropdownRef}>
+          {/* ====== NÚT CHUÔNG THÔNG BÁO (MỞ WIDGET) ====== */}
+          <div className="alh-notif-wrapper">
             <button
               type="button"
               className="alh-pill alh-notif-bell"
@@ -357,87 +516,6 @@ const Header = ({ profile }) => {
                 </span>
               )}
             </button>
-
-            {isNotifDropdownOpen && (
-              <div className="alh-notif-dropdown">
-                <div className="alh-notif-dropdown-header">
-                  <div className="alh-notif-title">Thông báo</div>
-                  <div className="alh-notif-subtitle">
-                    {unreadCount > 0
-                      ? `${unreadCount} thông báo chưa đọc`
-                      : "Không có thông báo chưa đọc"}
-                  </div>
-                </div>
-
-                <div className="alh-notif-dropdown-body">
-                  {isNotifLoading && (
-                    <div className="alh-notif-empty">Đang tải...</div>
-                  )}
-
-                  {!isNotifLoading && notifications.length === 0 && (
-                    <div className="alh-notif-empty">
-                      Chưa có thông báo nào.
-                    </div>
-                  )}
-
-                  {!isNotifLoading &&
-                    notifications.map((n) => {
-                      const id =
-                        n.notificationUserId ??
-                        n.NotificationUserId ??
-                        n.notificationId ??
-                        n.NotificationId ??
-                        n.id ??
-                        n.Id;
-                      const title = n.title || n.Title || "(Không có tiêu đề)";
-                      const message = n.message || n.Message || "";
-                      const severity = n.severity ?? n.Severity ?? 0;
-                      const createdAt = n.createdAtUtc || n.CreatedAtUtc;
-                      const isRead = n.isRead ?? n.IsRead ?? false;
-
-                      return (
-                        <div
-                          key={id}
-                          className={
-                            "alh-notif-item" +
-                            (isRead ? " read" : " unread")
-                          }
-                        >
-                          <div className="alh-notif-left">
-                            <span
-                              className={
-                                "alh-notif-dot " +
-                                getSeverityClass(severity)
-                              }
-                            />
-                          </div>
-                          <div className="alh-notif-content">
-                            <div className="alh-notif-line">
-                              <span className="alh-notif-item-title">
-                                {title}
-                              </span>
-                            </div>
-                            <div className="alh-notif-message">
-                              {message.length > 80
-                                ? message.slice(0, 80) + "..."
-                                : message}
-                            </div>
-                            <div className="alh-notif-meta">
-                              <span className="alh-notif-severity">
-                                {getSeverityLabel(severity)}
-                              </span>
-                              <span className="alh-notif-dot-sep">•</span>
-                              <span className="alh-notif-time">
-                                {formatTime(createdAt)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* ====== AVATAR / USER DROPDOWN ====== */}
@@ -547,24 +625,138 @@ const Header = ({ profile }) => {
         </div>
       </div>
 
-      {/* ====== TOAST THÔNG BÁO MỚI (tự ẩn sau 5s) ====== */}
-      {activeToast && (
-        <div className="alh-toast">
-          <div className="alh-toast-indicator">
-            <span className={getSeverityClass(activeToast.severity)} />
-          </div>
-          <div className="alh-toast-content">
-            <div className="alh-toast-title">
-              {getSeverityLabel(activeToast.severity)} · {activeToast.title}
+      {/* ====== WIDGET THÔNG BÁO (GIỐNG CHATBOX) ====== */}
+      {isNotifWidgetOpen && (
+        <div className="alh-notif-widget">
+          <div className="alh-notif-widget-panel" ref={notifWidgetRef}>
+            <div className="alh-notif-widget-header">
+              <div className="alh-notif-header-left">
+                <div className="alh-notif-title">Thông báo</div>
+                <div className="alh-notif-subtitle">
+                  {unreadCount > 0
+                    ? `${unreadCount} thông báo chưa đọc`
+                    : "Không có thông báo chưa đọc"}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="alh-notif-close-btn"
+                onClick={() => setIsNotifWidgetOpen(false)}
+                aria-label="Đóng thông báo"
+              >
+                ×
+              </button>
             </div>
-            <div className="alh-toast-message">
-              {activeToast.message && activeToast.message.length > 100
-                ? activeToast.message.slice(0, 100) + "..."
-                : activeToast.message}
+
+            <div className="alh-notif-widget-body">
+              {isNotifLoading && notifications.length === 0 && (
+                <div className="alh-notif-empty">Đang tải...</div>
+              )}
+
+              {!isNotifLoading && notifications.length === 0 && (
+                <div className="alh-notif-empty">
+                  Chưa có thông báo nào.
+                </div>
+              )}
+
+              {!isNotifLoading &&
+                notifications.map((n) => {
+                  const id = extractNotificationId(n);
+                  const title =
+                    n.title || n.Title || "(Không có tiêu đề)";
+                  const message = n.message || n.Message || "";
+                  const severity = n.severity ?? n.Severity ?? 0;
+                  const createdAt = n.createdAtUtc || n.CreatedAtUtc;
+                  const isRead = n.isRead ?? n.IsRead ?? false;
+
+                  return (
+                    <div
+                      key={id}
+                      className={
+                        "alh-notif-item" + (isRead ? " read" : " unread")
+                      }
+                      onMouseEnter={() => handleNotificationHover(n)}
+                      onClick={() => handleNotificationClick(n)}
+                    >
+                      <div className="alh-notif-left">
+                        {/* Dot xanh dương chỉ hiển thị khi chưa đọc */}
+                        {!isRead && (
+                          <span className="alh-notif-unread-dot" />
+                        )}
+                      </div>
+                      <div className="alh-notif-content">
+                        <div className="alh-notif-line">
+                          <span className="alh-notif-item-title">
+                            {title}
+                          </span>
+                        </div>
+                        <div className="alh-notif-message">
+                          {message.length > 80
+                            ? message.slice(0, 80) + "..."
+                            : message}
+                        </div>
+                        <div className="alh-notif-meta">
+                          <span className="alh-notif-severity">
+                            {getSeverityLabel(severity)}
+                          </span>
+                          <span className="alh-notif-dot-sep">•</span>
+                          <span className="alh-notif-time">
+                            {formatTime(createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {/* Nếu còn data mà đang load thêm thì show nhẹ 1 dòng */}
+              {isNotifLoading && notifications.length > 0 && (
+                <div className="alh-notif-empty">Đang tải thêm...</div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+       {/* ====== TOAST THÔNG BÁO MỚI (tự ẩn sau 5s, cho đóng thủ công) ====== */}
+      {activeToast && (
+        <div className="alh-toast" role="status" aria-live="polite">
+          <div className="alh-toast-inner">
+            <div className="alh-toast-indicator">
+              {/* Toast vẫn dùng màu theo severity */}
+              <span
+                className={`badge-severity ${(() => {
+                  const sev = activeToast.severity ?? 0;
+                  if (sev === 1) return "badge-success";
+                  if (sev === 2) return "badge-warning";
+                  if (sev === 3) return "badge-error";
+                  return "badge-info";
+                })()}`}
+              />
+            </div>
+            <div className="alh-toast-content">
+              <div className="alh-toast-title">
+                {getSeverityLabel(activeToast.severity)} ·{" "}
+                {activeToast.title}
+              </div>
+              <div className="alh-toast-message">
+                {activeToast.message && activeToast.message.length > 100
+                  ? activeToast.message.slice(0, 100) + "..."
+                  : activeToast.message}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="alh-toast-close"
+              aria-label="Đóng thông báo"
+              onClick={handleToastClose}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
     </>
   );
 };

@@ -70,11 +70,11 @@ const CATEGORY_OPTIONS = [
 
 const severityBadgeClass = (severity) => {
   const s = (severity || "").toLowerCase();
-  if (s === "low") return "badge gray";
-  if (s === "medium") return "badge level-other";
-  if (s === "high") return "badge level-priority";
-  if (s === "critical") return "badge level-vip";
-  return "badge level-other";
+  if (s === "low") return "badge sev-low";
+  if (s === "medium") return "badge sev-medium";
+  if (s === "high") return "badge sev-high";
+  if (s === "critical") return "badge sev-critical";
+  return "badge sev-low";
 };
 
 /* ============ Modal: Ticket Subject Template (Add / Edit) ============ */
@@ -107,7 +107,7 @@ function TicketSubjectTemplateModal({
           templateCode: "",
           title: "",
           severity: "",
-          category: "General", // default khi tạo mới
+          category: "General",
           isActive: true,
         };
 
@@ -126,9 +126,9 @@ function TicketSubjectTemplateModal({
             : String(base.severity),
         category:
           base.category === null ||
-            base.category === undefined ||
-            base.category === ""
-            ? "General" // null/"" => General
+          base.category === undefined ||
+          base.category === ""
+            ? "General"
             : String(base.category),
         isActive: typeof base.isActive === "boolean" ? base.isActive : true,
       };
@@ -219,7 +219,7 @@ function TicketSubjectTemplateModal({
     const categoryRaw = (form.category || "").toString().trim();
 
     const payload = {
-      templateCode: codeRaw || undefined, // BE Create dùng, Update sẽ bỏ qua
+      templateCode: codeRaw || undefined,
       title: titleRaw,
       severity: severityRaw,
       category: categoryRaw || null,
@@ -279,9 +279,6 @@ function TicketSubjectTemplateModal({
               >
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
-              {/* <span className="muted">
-                Chỉ các template đang bật mới hiển thị cho khách khi tạo ticket.
-              </span> */}
             </div>
           </div>
         </div>
@@ -298,7 +295,7 @@ function TicketSubjectTemplateModal({
                   value={form.templateCode}
                   onChange={(e) => set("templateCode", e.target.value)}
                   placeholder="VD: PAYMENT_REFUND, ACCOUNT_LOGIN_ISSUE..."
-                  disabled={isEdit} // không cho đổi khi edit
+                  disabled={isEdit}
                 />
                 <FieldError message={errors.templateCode} />
                 {isEdit && (
@@ -377,8 +374,8 @@ function TicketSubjectTemplateModal({
                   ? "Đang lưu..."
                   : "Đang tạo..."
                 : isEdit
-                  ? "Lưu thay đổi"
-                  : "Tạo template mới"}
+                ? "Lưu thay đổi"
+                : "Tạo template mới"}
             </button>
           </div>
         </form>
@@ -451,8 +448,8 @@ export default function TicketSubjectTemplatesAdminPage() {
         query.active === ""
           ? undefined
           : query.active === "true"
-            ? true
-            : false,
+          ? true
+          : false,
       sort: query.sort || "templateCode",
       direction: query.direction || "asc",
       page,
@@ -464,8 +461,8 @@ export default function TicketSubjectTemplatesAdminPage() {
         const items = Array.isArray(res?.items)
           ? res.items
           : Array.isArray(res)
-            ? res
-            : [];
+          ? res
+          : [];
         setTemplates(items);
         setPage(typeof res?.page === "number" ? res.page : page);
         setPageSize(
@@ -516,7 +513,7 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không tải được chi tiết template để chỉnh sửa.",
+          "Không tải được chi tiết template để chỉnh sửa.",
         "Lỗi"
       );
     }
@@ -573,7 +570,7 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không thể cập nhật trạng thái template.",
+          "Không thể cập nhật trạng thái template.",
         "Lỗi"
       );
     }
@@ -597,7 +594,7 @@ export default function TicketSubjectTemplatesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-            "Xoá Ticket Subject Template thất bại.",
+              "Xoá Ticket Subject Template thất bại.",
             "Lỗi"
           );
         }
@@ -619,27 +616,21 @@ export default function TicketSubjectTemplatesAdminPage() {
 
   return (
     <>
-      <div className="page">
-        <div
-          className="card"
-          style={{
-            margin: "0 auto",
-            maxWidth: 1120,
-          }}
-        >
+      <div className="page ticket-templates-page">
+        <div className="card">
           <div className="card-header">
             <div className="left">
               <h2>Cấu hình Ticket Subject Template</h2>
               <p className="muted">
                 Quản lý danh sách chủ đề có sẵn khi khách tạo phiếu hỗ trợ
-                (ticket). Mỗi template bao gồm mã cố định, tiêu đề hiển thị,
-                độ ưu tiên (Severity) và nhóm vấn đề (Category) hiển thị bằng
-                tiếng Việt giống màn tạo ticket.
+                (ticket). Mỗi template gồm mã cố định, tiêu đề hiển thị, độ ưu
+                tiên (Severity) và nhóm vấn đề (Category) hiển thị bằng tiếng
+                Việt giống màn tạo ticket.
               </p>
             </div>
           </div>
 
-          {/* Hàng filter + nút */}
+          {/* Hàng filter + nút (style giống SLA Rule) */}
           <div
             className="row"
             style={{
@@ -719,7 +710,6 @@ export default function TicketSubjectTemplatesAdminPage() {
                 </select>
               </div>
 
-              {/* Nhóm Làm mới + Đặt lại nằm sát filter */}
               <div
                 className="row"
                 style={{
@@ -740,7 +730,7 @@ export default function TicketSubjectTemplatesAdminPage() {
                 </button>
 
                 <button
-                  className="btn"
+                  className="btn secondary"
                   onClick={resetFilters}
                   title="Xoá bộ lọc"
                 >
@@ -749,7 +739,7 @@ export default function TicketSubjectTemplatesAdminPage() {
               </div>
             </div>
 
-            {/* Nút Thêm template nằm sát phải cùng hàng */}
+            {/* Nút Thêm template nằm sát phải giống Thêm SLA rule */}
             <button
               className="btn primary"
               style={{ flexShrink: 0, whiteSpace: "nowrap" }}
@@ -759,19 +749,19 @@ export default function TicketSubjectTemplatesAdminPage() {
             </button>
           </div>
 
-          {/* Bảng templates */}
+          {/* Bảng templates – style giống SLA Rule */}
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
               <tr>
                 <th style={{ width: 160 }}>Mã template</th>
                 <th style={{ minWidth: 260 }}>Tiêu đề</th>
                 <th style={{ width: 130 }}>Severity</th>
-                <th style={{ width: 180 }}>Nhóm vấn đề</th>
-                <th style={{ width: 140 }}>Trạng thái</th>
+                <th style={{ width: 200 }}>Nhóm vấn đề</th>
+                <th style={{ width: 130 }}>Trạng thái</th>
                 <th
                   style={{
                     width: 180,
-                    textAlign: "right", // căn phải header
+                    textAlign: "right",
                     paddingRight: 10,
                   }}
                 >
@@ -808,7 +798,7 @@ export default function TicketSubjectTemplatesAdminPage() {
                       </span>
                     </td>
                     <td>
-                      <EllipsisCell maxWidth={180} title={viLabel}>
+                      <EllipsisCell maxWidth={200} title={viLabel}>
                         {rawCat ? (
                           <>
                             <span>{viLabel}</span>
@@ -821,36 +811,75 @@ export default function TicketSubjectTemplatesAdminPage() {
                         )}
                       </EllipsisCell>
                     </td>
+
+                    {/* Trạng thái giống SLA: badge Hiển thị / Ẩn */}
                     <td>
-                      <button
-                        type="button"
-                        className="btn ghost status-btn"
-                        onClick={() => toggleActive(t)}
+                      <span
+                        className={t.isActive ? "badge green" : "badge gray"}
+                        style={{ textTransform: "none" }}
                       >
-                        <span
-                          className={t.isActive ? "badge green" : "badge gray"}
-                          style={{ textTransform: "none" }}
-                        >
-                          {t.isActive ? "Đang bật" : "Đang tắt"}
-                        </span>
-                      </button>
+                        {t.isActive ? "Hiển thị" : "Ẩn"}
+                      </span>
                     </td>
+
+                    {/* Thao tác: Switch + icon Sửa/Xoá giống SLA Rule */}
                     <td>
-                      <div
-                        className="row"
-                        style={{ gap: 8, justifyContent: "flex-end" }}
-                      >
+                      <div className="action-buttons">
+                        <label
+                          className="switch"
+                          title={t.isActive ? "Đang bật" : "Đang tắt"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!t.isActive}
+                            onChange={() => toggleActive(t)}
+                          />
+                          <span className="slider" />
+                        </label>
+
                         <button
-                          className="btn secondary"
+                          type="button"
+                          className="action-btn edit-btn"
                           onClick={() => openEdit(t)}
+                          title="Chỉnh sửa template"
                         >
-                          Sửa
+                          {/* icon bút chì */}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                          </svg>
                         </button>
+
                         <button
-                          className="btn danger"
+                          type="button"
+                          className="action-btn delete-btn"
                           onClick={() => deleteTemplate(t)}
+                          title="Xoá template"
                         >
-                          Xoá
+                          {/* icon thùng rác */}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                          </svg>
                         </button>
                       </div>
                     </td>
@@ -876,7 +905,7 @@ export default function TicketSubjectTemplatesAdminPage() {
             </tbody>
           </table>
 
-          {/* Pagination */}
+          {/* Pagination giống SLA Rule */}
           <div className="pager">
             <div className="pager-left">
               <button
@@ -887,8 +916,8 @@ export default function TicketSubjectTemplatesAdminPage() {
                 ‹ Trước
               </button>
 
-              <span className="pager-current">
-                Trang <b>{page}</b> / {totalPages}{" "}
+              <span className="pager-info">
+                Trang {page} / {totalPages}{" "}
                 {total > 0 && (
                   <span className="muted">
                     (Tổng {total.toLocaleString("vi-VN")} template)
@@ -906,9 +935,8 @@ export default function TicketSubjectTemplatesAdminPage() {
             </div>
 
             <div className="pager-right">
-              <span className="pager-page-size-label">Mỗi trang:</span>
+              <span className="muted">Mỗi trang:</span>
               <select
-                className="pager-page-size"
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value) || 10);
