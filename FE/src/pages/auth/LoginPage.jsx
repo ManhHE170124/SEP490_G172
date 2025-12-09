@@ -79,7 +79,10 @@ export default function LoginPage() {
       switch (userRoles[0]) {
         case "Admin":
         case "Storage Staff":
-          navigate("/key-monitor");
+          navigate("/admin/support-dashboard");
+          break;
+        case "Content Creator":
+          navigate("/post-dashboard");
           break;
         default:
           navigate("/");

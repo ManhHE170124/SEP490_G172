@@ -4,11 +4,15 @@ using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Controllers;
 
@@ -84,6 +88,7 @@ public class TicketsController : ControllerBase
 
     // ============ LIST ============
     [HttpGet]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
         [FromQuery] string? q,
         [FromQuery] string? status,
@@ -268,6 +273,7 @@ public class TicketsController : ControllerBase
 
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
     public async Task<ActionResult<TicketDetailDto>> Detail(Guid id)
     {
         var t = await _db.Tickets

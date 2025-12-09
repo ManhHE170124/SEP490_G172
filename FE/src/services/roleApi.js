@@ -79,6 +79,12 @@ export const roleApi = {
     }),
   checkPermissions: (requests) => 
     axiosClient.post(`${END.ROLES}/check-permissions`, requests),
+  
+  /// User Permissions
+  getUserPermissions: (roleCodes = []) =>
+    axiosClient.post(`${END.ROLES}/user-permissions`, {
+      roleCodes,
+    }),
 };
 
 

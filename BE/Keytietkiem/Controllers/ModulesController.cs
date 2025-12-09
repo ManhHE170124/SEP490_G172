@@ -1,4 +1,4 @@
-﻿/**
+/**
  * File: ModulesController.cs
  * Author: HieuNDHE173169
  * Created: 16/10/2025
@@ -13,13 +13,19 @@
  *   - PUT    /api/modules/{id}         : Update a module
  *   - DELETE /api/modules/{id}         : Delete a module and its role-permissions
  */
+using Microsoft.AspNetCore.Http;
 using Keytietkiem.DTOs.Roles;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Keytietkiem.Models;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.EntityFrameworkCore;
-
+using Keytietkiem.DTOs.Roles;
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
@@ -44,6 +50,7 @@ namespace Keytietkiem.Controllers
         * Returns: 200 OK with list of modules
         */
         [HttpGet]
+        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetModules()
         {
             var modules = await _context.Modules
@@ -68,6 +75,7 @@ namespace Keytietkiem.Controllers
          * @Returns: 200 OK with module, 404 if not found
          */
         [HttpGet("{id}")]
+        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetModuleById(long id)
         {
             var module = await _context.Modules
@@ -98,30 +106,24 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
         [HttpPost]
+        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.CREATE)]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
             if (createModuleDto == null)
             {
-                const string msg = "Dữ liệu không hợp lệ.";
-                return BadRequest(msg);
+                return BadRequest("Dữ liệu không hợp lệ.");
             }
 
             if (!ModelState.IsValid)
             {
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage);
-                var msg = string.Join(" ", errors);
-
-                return BadRequest(new { message = msg });
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
-
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleName == createModuleDto.ModuleName);
             if (existing != null)
             {
-                const string msg = "Tên module đã tồn tại.";
-                return Conflict(new { message = msg });
+                return Conflict(new { message = "Tên module đã tồn tại." });
             }
 
             // Check if Code is unique (if provided)
@@ -131,8 +133,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == createModuleDto.Code);
                 if (existingCode != null)
                 {
-                    const string msg = "Mã module đã tồn tại.";
-                    return Conflict(new { message = msg });
+                    return Conflict(new { message = "Mã module đã tồn tại." });
                 }
             }
 
@@ -204,22 +205,18 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404/409 on errors
          */
         [HttpPut("{id}")]
+        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
             if (updateModuleDto == null)
             {
-                const string msg = "Dữ liệu không hợp lệ.";
-                return BadRequest(msg);
+                return BadRequest("Dữ liệu không hợp lệ.");
             }
 
             if (!ModelState.IsValid)
             {
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage);
-                var msg = string.Join(" ", errors);
-
-                return BadRequest(new { message = msg });
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
 
             var existing = await _context.Modules
@@ -236,8 +233,7 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(m => m.Code == updateModuleDto.Code && m.ModuleId != id);
                 if (existingCode != null)
                 {
-                    const string msg = "Mã module đã tồn tại.";
-                    return Conflict(new { message = msg });
+                    return Conflict(new { message = "Mã module đã tồn tại." });
                 }
             }
 
@@ -282,6 +278,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
+        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules

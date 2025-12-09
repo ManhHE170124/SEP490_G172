@@ -15,7 +15,7 @@ const Sidebar = () => {
   const location = useLocation();
   const currentPage = location.pathname.substring(1) || "home";
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { allowedModuleCodes, loading: permissionsLoading } = usePermissions();
+  const { allowedModuleCodes, moduleAccessPermissions, loading: permissionsLoading } = usePermissions();
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => !prev);

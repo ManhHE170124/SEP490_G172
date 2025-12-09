@@ -18,6 +18,10 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
@@ -57,6 +61,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]    
     /**
      * Summary: Retrieve category list with optional keyword/active filters; supports sorting & pagination.
      * Route: GET /api/categories
@@ -132,6 +137,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
     /**
      * Summary: Retrieve a single category by id (includes ProductCount).
      * Route: GET /api/categories/{id}
@@ -160,6 +166,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
     /**
      * Summary: Create a new category.
      * Route: POST /api/categories
@@ -253,6 +260,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
     /**
      * Summary: Update an existing category by id.
      * Route: PUT /api/categories/{id}
@@ -360,6 +368,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
     /**
      * Summary: Delete a category by id.
      * Route: DELETE /api/categories/{id}
@@ -403,6 +412,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:int}/toggle")]
+    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
     /**
      * Summary: Toggle the IsActive state of a category.
      * Route: PATCH /api/categories/{id}/toggle

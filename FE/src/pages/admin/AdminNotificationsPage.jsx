@@ -3,6 +3,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
+import PermissionGuard from "../../components/PermissionGuard";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES, PERMISSION_CODES } from "../../constants/roleConstants";
 
 const severityOptions = [
   { value: "", label: "Tất cả mức độ" },
@@ -43,6 +46,10 @@ function severityClass(sev) {
 }
 
 const AdminNotificationsPage = () => {
+  // Permission checks
+  const { hasPermission: hasCreatePermission } = usePermission(MODULE_CODES.SETTINGS_MANAGER, PERMISSION_CODES.CREATE);
+  const { hasPermission: hasViewDetailPermission } = usePermission(MODULE_CODES.SETTINGS_MANAGER, PERMISSION_CODES.VIEW_DETAIL);
+  
   const [filters, setFilters] = useState({
     search: "",
     severity: "",
@@ -386,6 +393,7 @@ const AdminNotificationsPage = () => {
           <h1 className="admin-notifications-title">Thông báo hệ thống</h1>
         </div>
         <div>
+          <PermissionGuard moduleCode={MODULE_CODES.SETTINGS_MANAGER} permissionCode={PERMISSION_CODES.CREATE}>
           <button
             type="button"
             className="btn btn-primary"
@@ -393,6 +401,7 @@ const AdminNotificationsPage = () => {
           >
             + Tạo thông báo
           </button>
+          </PermissionGuard>
         </div>
       </div>
 
@@ -602,6 +611,7 @@ const AdminNotificationsPage = () => {
                       </span>
                     </td>
                     <td className="notif-actions-cell">
+                      <PermissionGuard moduleCode={MODULE_CODES.SETTINGS_MANAGER} permissionCode={PERMISSION_CODES.VIEW_DETAIL}>
                       <button
                         type="button"
                         className="btn btn-link"
@@ -609,6 +619,7 @@ const AdminNotificationsPage = () => {
                       >
                         Chi tiết
                       </button>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

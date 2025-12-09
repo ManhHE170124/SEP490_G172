@@ -583,7 +583,7 @@ namespace Keytietkiem.Controllers
         {
             if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                var replies = comment.InverseParentComment.ToList();
+                var replies = comment.InverseParentComment.ToList(); // Create a copy to avoid modification during iteration
                 foreach (var reply in replies)
                 {
                     var replyWithChildren = await _context.PostComments
@@ -775,6 +775,7 @@ namespace Keytietkiem.Controllers
                 ReplyCount = comment.InverseParentComment?.Count ?? 0
             };
 
+            // Map nested replies recursively
             if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
                 dto.Replies = comment.InverseParentComment
@@ -787,3 +788,4 @@ namespace Keytietkiem.Controllers
         }
     }
 }
+
