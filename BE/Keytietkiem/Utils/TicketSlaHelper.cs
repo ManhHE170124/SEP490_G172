@@ -5,7 +5,7 @@ using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Keytietkiem.Controllers
+namespace Keytietkiem.Utils
 {
     /// <summary>
     /// Helper tập trung toàn bộ logic SLA cho Ticket.

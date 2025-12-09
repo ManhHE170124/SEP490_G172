@@ -3,8 +3,8 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Keytietkiem.Controllers;   // để dùng TicketSlaHelper
 using Keytietkiem.Models;        // KeytietkiemDbContext, Ticket
+using Keytietkiem.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
