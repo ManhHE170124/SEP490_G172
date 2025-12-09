@@ -54,6 +54,12 @@ export const AuthService = {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
+
+    // Trigger event to notify PermissionContext and other components
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("user-logged-out"));
+      window.dispatchEvent(new Event("storage")); // Also trigger storage event for PermissionContext
+    }
   },
 };
 export default AuthService;

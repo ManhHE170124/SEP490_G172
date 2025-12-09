@@ -138,6 +138,20 @@ export const PermissionProvider = ({ children }) => {
       setAllPermissions(permissionsMap);
     } catch (err) {
       console.error("Không thể tải quyền module", err);
+      
+      // Double-check if user is still logged in (might have logged out during fetch)
+      const accessToken = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+      
+      // If no token or user, clear permissions (user logged out)
+      if (!accessToken || !user) {
+        setAllowedModuleCodes(new Set());
+        setModuleAccessPermissions(new Map());
+        setAllPermissions(new Map());
+        setError("");
+        return;
+      }
+      
       // If error is 401 (Unauthorized), user is not logged in or token expired
       // Clear permissions and let axiosClient handle redirect
       if (err?.response?.status === 401) {
@@ -149,11 +163,11 @@ export const PermissionProvider = ({ children }) => {
         // Only clear permissions on error if it's an initial load
         // Otherwise keep existing permissions to prevent redirect
         if (isInitialLoad) {
-      setAllowedModuleCodes(new Set());
+          setAllowedModuleCodes(new Set());
           setModuleAccessPermissions(new Map());
           setAllPermissions(new Map());
         }
-      setError("Không thể tải quyền module.");
+        setError("Không thể tải quyền module.");
       }
     } finally {
       if (isInitialLoad) {
@@ -196,23 +210,57 @@ export const PermissionProvider = ({ children }) => {
   }, []); // Only run once on mount
 
   useEffect(() => {
-    // Refresh without setting loading to prevent ProtectedRoute from returning null
-    const handleRefresh = () => {
-      // Check if we're on a public page before refreshing
-      const publicPaths = ['/login', '/register', '/forgot-password', '/check-reset-email', '/reset-password'];
-      const currentPath = window.location.pathname;
-      const isPublicPage = publicPaths.some(path => currentPath.startsWith(path));
+    // Handle logout - clear permissions immediately when tokens are removed
+    const handleLogout = () => {
+      const accessToken = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
       
-      if (!isPublicPage) {
-        fetchModuleAccess(false);
+      // If tokens are cleared, clear permissions immediately
+      if (!accessToken || !user) {
+        setAllowedModuleCodes(new Set());
+        setModuleAccessPermissions(new Map());
+        setAllPermissions(new Map());
+        setError("");
+        setLoading(false);
       }
     };
+
+    // Refresh without setting loading to prevent ProtectedRoute from returning null
+    const handleRefresh = () => {
+      // Check if user is still logged in before refreshing
+      const accessToken = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+      
+      // If no token or user, don't refresh (user logged out)
+      if (!accessToken || !user) {
+        handleLogout();
+        return;
+      }
+
+      // Always fetch permissions when refresh is triggered (e.g., after login)
+      // This ensures permissions are loaded even if we're on a public page
+      fetchModuleAccess(false);
+    };
+
+    // Listen for storage changes (logout clears localStorage)
+    const handleStorageChange = (e) => {
+      if (e.key === 'access_token' || e.key === 'user') {
+        handleLogout();
+      } else if (e.key === null) {
+        // localStorage.clear() was called
+        handleLogout();
+      }
+    };
+
     window.addEventListener("role-permissions-updated", handleRefresh);
-    window.addEventListener("storage", handleRefresh);
+    window.addEventListener("storage", handleStorageChange);
+    // Also listen for custom logout event
+    window.addEventListener("user-logged-out", handleLogout);
 
     return () => {
       window.removeEventListener("role-permissions-updated", handleRefresh);
-      window.removeEventListener("storage", handleRefresh);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("user-logged-out", handleLogout);
     };
   }, [fetchModuleAccess]);
 

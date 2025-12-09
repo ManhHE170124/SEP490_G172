@@ -143,13 +143,30 @@ axiosClient.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // Check if we're already on a public page - don't redirect to avoid infinite loop
+      const publicPaths = ['/login', '/register', '/forgot-password', '/check-reset-email', '/reset-password'];
+      const currentPath = window.location.pathname;
+      const isPublicPage = publicPaths.some(path => currentPath.startsWith(path));
+
       // Don't retry refresh-token endpoint itself
       if (originalRequest.url?.includes("/account/refresh-token")) {
-        // Clear tokens and redirect to login
+        // Clear tokens
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("user");
-        window.location.href = "/login";
+        
+        // Only redirect if:
+        // 1. Not already on a public page
+        // 2. User is on a protected route (admin, profile, etc.) - not on homepage or public pages
+        const isProtectedRoute = currentPath.startsWith('/admin') || 
+                                 currentPath.startsWith('/profile') ||
+                                 currentPath.startsWith('/account') ||
+                                 currentPath.startsWith('/post-dashboard') ||
+                                 currentPath.startsWith('/orders');
+        
+        if (!isPublicPage && isProtectedRoute) {
+          window.location.href = "/login";
+        }
         return Promise.reject(error);
       }
 
@@ -171,11 +188,28 @@ axiosClient.interceptors.response.use(
       const refreshToken = localStorage.getItem("refresh_token");
 
       if (!refreshToken) {
-        // No refresh token, redirect to login
+        // No refresh token, clear tokens
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("user");
-        window.location.href = "/login";
+        
+        // Check if we're already on a public page - don't redirect to avoid infinite loop
+        const publicPaths = ['/login', '/register', '/forgot-password', '/check-reset-email', '/reset-password'];
+        const currentPath = window.location.pathname;
+        const isPublicPage = publicPaths.some(path => currentPath.startsWith(path));
+        
+        // Only redirect if:
+        // 1. Not already on a public page
+        // 2. User is on a protected route (admin, profile, etc.) - not on homepage or public pages
+        const isProtectedRoute = currentPath.startsWith('/admin') || 
+                                 currentPath.startsWith('/profile') ||
+                                 currentPath.startsWith('/account') ||
+                                 currentPath.startsWith('/post-dashboard') ||
+                                 currentPath.startsWith('/orders');
+        
+        if (!isPublicPage && isProtectedRoute) {
+          window.location.href = "/login";
+        }
         return Promise.reject(error);
       }
 
@@ -203,12 +237,29 @@ axiosClient.interceptors.response.use(
         // Retry original request
         return axiosClient(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
+        // Refresh failed, clear tokens
         processQueue(refreshError, null);
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("user");
-        window.location.href = "/login";
+        
+        // Check if we're already on a public page - don't redirect to avoid infinite loop
+        const publicPaths = ['/login', '/register', '/forgot-password', '/check-reset-email', '/reset-password'];
+        const currentPath = window.location.pathname;
+        const isPublicPage = publicPaths.some(path => currentPath.startsWith(path));
+        
+        // Only redirect if:
+        // 1. Not already on a public page
+        // 2. User is on a protected route (admin, profile, etc.) - not on homepage or public pages
+        const isProtectedRoute = currentPath.startsWith('/admin') || 
+                                 currentPath.startsWith('/profile') ||
+                                 currentPath.startsWith('/account') ||
+                                 currentPath.startsWith('/post-dashboard') ||
+                                 currentPath.startsWith('/orders');
+        
+        if (!isPublicPage && isProtectedRoute) {
+          window.location.href = "/login";
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

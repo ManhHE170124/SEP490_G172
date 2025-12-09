@@ -255,7 +255,11 @@ public class AccountService : IAccountService
             throw new InvalidOperationException(AccountNotFoundMessage);
 
         var user = account.User;
-        var roles = user.Roles.Select(r => r.RoleId).ToList();
+        // Return Role.Code instead of RoleId for frontend permission checks
+        var roles = user.Roles
+            .Where(r => !string.IsNullOrWhiteSpace(r.Code))
+            .Select(r => r.Code!)
+            .ToList();
 
         return new AccountProfileDto
         {
@@ -651,7 +655,11 @@ public class AccountService : IAccountService
 
     private LoginResponseDto GenerateLoginResponse(Account account, User user)
     {
-        var roles = user.Roles.Select(r => r.RoleId).ToList();
+        // Return Role.Code instead of RoleId for frontend permission checks
+        var roles = user.Roles
+            .Where(r => !string.IsNullOrWhiteSpace(r.Code))
+            .Select(r => r.Code!)
+            .ToList();
         var expiresAt = _clock.UtcNow.AddMinutes(_jwtConfig.ExpiryInMinutes);
 
         var claims = new List<Claim>
