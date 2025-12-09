@@ -180,6 +180,22 @@ app.UseExceptionHandler(exApp =>
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// ===== Status code pages for consistent JSON (401/403) =====
+app.UseStatusCodePages(async context =>
+{
+    var statusCode = context.HttpContext.Response.StatusCode;
+    if (statusCode == StatusCodes.Status401Unauthorized ||
+        statusCode == StatusCodes.Status403Forbidden)
+    {
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        var message = statusCode == StatusCodes.Status401Unauthorized
+            ? "Bạn chưa đăng nhập hoặc phiên đã hết hạn."
+            : "Bạn không có quyền truy cập chức năng này.";
+        var payload = JsonSerializer.Serialize(new { message });
+        await context.HttpContext.Response.WriteAsync(payload);
+    }
+});
+
 // Theo bản dưới: tắt redirect HTTPS trong môi trường dev để tránh CORS redirect
 // app.UseHttpsRedirection();
 

@@ -110,7 +110,7 @@ export default function LoginPage() {
         navigate("/post-dashboard");
       } else {
         // Default: Customer or other roles -> homepage
-        navigate("/");
+          navigate("/");
       }
     } catch (error) {
       const responseData = error?.response?.data;

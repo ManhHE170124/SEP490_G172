@@ -95,28 +95,7 @@ export const PermissionProvider = ({ children }) => {
       }
       setError("");
       
-      // Fetch ACCESS permissions for module access (for ProtectedRoute and Sidebar)
-      const accessResponse = await roleApi.getModuleAccess(roleCodes, "ACCESS");
-      const modules = Array.isArray(accessResponse) ? accessResponse : [];
-      const nextSet = new Set(
-        modules
-          .map((module) => module?.moduleCode)
-          .filter(Boolean)
-          .map((code) => String(code).trim().toUpperCase())
-      );
-      setAllowedModuleCodes(nextSet);
-      
-      // Create a map of moduleCode -> has ACCESS permission
-      const accessMap = new Map();
-      modules.forEach((module) => {
-        if (module?.moduleCode) {
-          const code = String(module.moduleCode).trim().toUpperCase();
-          accessMap.set(code, true);
-        }
-      });
-      setModuleAccessPermissions(accessMap);
-
-      // Fetch all permissions for the user
+      // Fetch all permissions for the user (source of truth)
       const permissionsResponse = await roleApi.getUserPermissions(roleCodes);
       const permissions = Array.isArray(permissionsResponse?.permissions) 
         ? permissionsResponse.permissions 
@@ -136,6 +115,19 @@ export const PermissionProvider = ({ children }) => {
         }
       });
       setAllPermissions(permissionsMap);
+
+      // Derive ACCESS permissions from permissionsMap (authoritative)
+      const accessMap = new Map();
+      const accessSet = new Set();
+      permissionsMap.forEach((permSet, moduleCode) => {
+        if (permSet.has("ACCESS")) {
+          accessMap.set(moduleCode, true);
+          accessSet.add(moduleCode);
+        }
+      });
+
+      setModuleAccessPermissions(accessMap);
+      setAllowedModuleCodes(accessSet);
     } catch (err) {
       console.error("Không thể tải quyền module", err);
       
@@ -163,11 +155,11 @@ export const PermissionProvider = ({ children }) => {
         // Only clear permissions on error if it's an initial load
         // Otherwise keep existing permissions to prevent redirect
         if (isInitialLoad) {
-          setAllowedModuleCodes(new Set());
+      setAllowedModuleCodes(new Set());
           setModuleAccessPermissions(new Map());
           setAllPermissions(new Map());
         }
-        setError("Không thể tải quyền module.");
+      setError("Không thể tải quyền module.");
       }
     } finally {
       if (isInitialLoad) {
@@ -239,7 +231,7 @@ export const PermissionProvider = ({ children }) => {
 
       // Always fetch permissions when refresh is triggered (e.g., after login)
       // This ensures permissions are loaded even if we're on a public page
-      fetchModuleAccess(false);
+        fetchModuleAccess(false);
     };
 
     // Listen for storage changes (logout clears localStorage)

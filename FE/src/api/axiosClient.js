@@ -129,6 +129,17 @@ axiosClient.interceptors.response.use(
       message: error.message,
     });
 
+    // Handle 403 Forbidden - Permission denied
+    if (error.response?.status === 403) {
+      const viMessage =
+        error.response?.data?.message ||
+        "Bạn không có quyền truy cập chức năng này. Vui lòng kiểm tra quyền hạn hoặc liên hệ quản trị viên.";
+      const forbiddenError = new Error(viMessage);
+      forbiddenError.response = error.response;
+      forbiddenError.code = error.code;
+      return Promise.reject(forbiddenError);
+    }
+
     // ERR_CONNECTION_REFUSED / ERR_NETWORK -> không vào được server
     if (error.code === "ERR_NETWORK") {
       const networkError = new Error("Lỗi kết nối đến máy chủ");
@@ -165,7 +176,7 @@ axiosClient.interceptors.response.use(
                                  currentPath.startsWith('/orders');
         
         if (!isPublicPage && isProtectedRoute) {
-          window.location.href = "/login";
+        window.location.href = "/login";
         }
         return Promise.reject(error);
       }
@@ -208,7 +219,7 @@ axiosClient.interceptors.response.use(
                                  currentPath.startsWith('/orders');
         
         if (!isPublicPage && isProtectedRoute) {
-          window.location.href = "/login";
+        window.location.href = "/login";
         }
         return Promise.reject(error);
       }
@@ -258,7 +269,7 @@ axiosClient.interceptors.response.use(
                                  currentPath.startsWith('/orders');
         
         if (!isPublicPage && isProtectedRoute) {
-          window.location.href = "/login";
+        window.location.href = "/login";
         }
         return Promise.reject(refreshError);
       } finally {

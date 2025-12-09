@@ -977,8 +977,9 @@ const Sidebar = () => {
   ];
 
   const hasModuleAccess = (moduleCode) => {
+    // When permissions are still loading or not available, hide restricted modules
     if (!moduleCode) return true;
-    if (permissionsLoading || allowedModuleCodes === null) return true;
+    if (permissionsLoading || allowedModuleCodes === null) return false;
     return allowedModuleCodes.has(moduleCode);
   };
 
