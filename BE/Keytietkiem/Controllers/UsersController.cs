@@ -219,7 +219,7 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users
         [HttpGet]
-        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<UserListItemDto>>> GetUsers(
             string? q,
             string? roleId,

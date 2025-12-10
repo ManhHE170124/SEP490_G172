@@ -52,7 +52,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of posts
          */
         [HttpGet]
-        [RequirePermission(ModuleCodes.POST_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.POST_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetPosts()
         {
             var posts = await _context.Posts

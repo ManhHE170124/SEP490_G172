@@ -115,7 +115,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST (không giá) =====
         [HttpGet("list")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] int? categoryId,

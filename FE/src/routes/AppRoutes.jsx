@@ -128,8 +128,8 @@ const StaffTicketDetail = lazy(() =>
  * @returns {JSX.Element} - Routes configuration with ClientLayout and AdminLayout
  */
 export default function AppRoutes() {
-  const renderAdminPage = (moduleCode, component) => (
-    <ProtectedRoute moduleCode={moduleCode}>
+  const renderAdminPage = (moduleCode, component, permissionCode = "ACCESS") => (
+    <ProtectedRoute moduleCode={moduleCode} permissionCode={permissionCode}>
       <AdminLayout>{component}</AdminLayout>
     </ProtectedRoute>
   );

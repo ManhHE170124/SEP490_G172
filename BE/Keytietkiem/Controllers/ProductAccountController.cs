@@ -35,7 +35,7 @@ public class ProductAccountController : ControllerBase
     /// Get paginated list of product accounts with filters
     /// </summary>
     [HttpGet]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<IActionResult> GetList([FromQuery] ProductAccountFilterDto filterDto)
     {
         var response = await _productAccountService.GetListAsync(filterDto);

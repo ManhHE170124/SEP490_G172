@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
@@ -6,10 +6,29 @@ import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
 import { formatDate } from "../../utils/formatDate";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 
 export default function SuppliersPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
+  
+  // Check permissions
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_LIST");
+  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canCreate } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "CREATE");
+  const { hasPermission: canEdit } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "EDIT");
+  const { hasPermission: canDelete } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "DELETE");
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
+
   const [suppliers, setSuppliers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -60,7 +79,26 @@ export default function SuppliersPage() {
           err.response?.data?.message ||
           err.message ||
           "Không thể tải danh sách nhà cung cấp";
-        showError("Lỗi tải dữ liệu", errorMsg);
+        
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+          }
+        } else {
+          // Check if error message contains permission denied - only show once
+          const isPermissionError = err.message?.includes('không có quyền') || 
+                                    err.message?.includes('quyền truy cập') ||
+                                    err.response?.status === 403;
+          if (isPermissionError && !permissionErrorShownRef.current) {
+            permissionErrorShownRef.current = true;
+            const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+            showError("Lỗi tải dữ liệu", errorMsgFinal);
+          } else if (!isPermissionError) {
+            showError("Lỗi tải dữ liệu", errorMsg);
+          }
+        }
       })
       .finally(() => setLoading(false));
   }, [query, showError]);
@@ -72,6 +110,10 @@ export default function SuppliersPage() {
   }, [query, loadSuppliers]);
 
   const handleToggleStatus = async (supplier) => {
+    if (!canEdit) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái nhà cung cấp.");
+      return;
+    }
     const isActive = supplier.status === "Active";
     const action = isActive ? "tạm dừng" : "kích hoạt lại";
 
@@ -115,6 +157,35 @@ export default function SuppliersPage() {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
   };
 
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Nhà cung cấp Key</h1>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Nhà cung cấp Key</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách nhà cung cấp. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -137,7 +208,16 @@ export default function SuppliersPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>Nhà cung cấp Key</h1>
-          <Link className="btn primary" to="/suppliers/add">
+          <Link 
+            className="btn primary" 
+            to="/suppliers/add"
+            onClick={(e) => {
+              if (!canCreate) {
+                e.preventDefault();
+                showError("Không có quyền", "Bạn không có quyền tạo nhà cung cấp mới.");
+              }
+            }}
+          >
             + Thêm nhà cung cấp
           </Link>
         </div>
@@ -274,6 +354,12 @@ export default function SuppliersPage() {
                         className="btn"
                         to={`/suppliers/${supplier.supplierId}`}
                         title="Xem chi tiết"
+                        onClick={(e) => {
+                          if (!canViewDetail) {
+                            e.preventDefault();
+                            showError("Không có quyền", "Bạn không có quyền xem chi tiết nhà cung cấp.");
+                          }
+                        }}
                       >
                         Chi tiết
                       </Link>

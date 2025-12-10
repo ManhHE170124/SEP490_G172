@@ -4,6 +4,8 @@ import useToast from "../../hooks/useToast";
 import "./TagAndPostTypeManage.css"
 import { postsApi } from "../../services/postsApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 
 /** 
  * @summary Tab constants for switching between different management views 
@@ -12,7 +14,7 @@ const TABS = {
     TAGS: "tags",
     POSTTYPES: "postTypes"
 };
-function useFetchData(activeTab, showError, networkErrorShownRef) {
+function useFetchData(activeTab, showError, networkErrorShownRef, permissionErrorShownRef) {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -36,12 +38,21 @@ function useFetchData(activeTab, showError, networkErrorShownRef) {
                     }
                 }
             } else if (showError) {
-                showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+                // Check if error message contains permission denied - only show once
+                const isPermissionError = e.message?.includes('không có quyền') || 
+                                          e.message?.includes('quyền truy cập') ||
+                                          e.response?.status === 403;
+                if (isPermissionError && permissionErrorShownRef && !permissionErrorShownRef.current) {
+                    permissionErrorShownRef.current = true;
+                    showError('Lỗi tải dữ liệu', e.message || 'Bạn không có quyền truy cập chức năng này.');
+                } else if (!isPermissionError) {
+                    showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+                }
             }
         } finally {
             setLoading(false);
         }
-    }, [activeTab, showError, networkErrorShownRef]);
+    }, [activeTab, showError, networkErrorShownRef, permissionErrorShownRef]);
 
     useEffect(() => {
         loadData();
@@ -54,14 +65,19 @@ export default function TagAndPosttypeManage() {
     const [activeTab, setActiveTab] = useState(TABS.TAGS);
     const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
     
+    // Check permission to create tags and post types
+    const { hasPermission: canCreate } = usePermission(MODULE_CODES.POST_MANAGER, "CREATE");
+    
     // Global network error handler - only show one toast for network errors
     const networkErrorShownRef = useRef(false);
+    const permissionErrorShownRef = useRef(false);
     useEffect(() => {
-        // Reset the flag when component mounts
+        // Reset the flags when component mounts
         networkErrorShownRef.current = false;
+        permissionErrorShownRef.current = false;
     }, []);
     
-    const { data, loading, error, setData, reloadData } = useFetchData(activeTab, showError, networkErrorShownRef);
+    const { data, loading, error, setData, reloadData } = useFetchData(activeTab, showError, networkErrorShownRef, permissionErrorShownRef);
 
     const [search, setSearch] = useState("");
     const [sortKey, setSortKey] = useState("");
@@ -227,6 +243,15 @@ export default function TagAndPosttypeManage() {
     const [addPosttypeOpen, setAddPosttypeOpen] = useState(false);
 
     function onClickAdd() {
+        if (!canCreate) {
+            const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
+            showError(
+                "Không có quyền",
+                `Bạn không có quyền tạo ${entityType.toLowerCase()} mới.`
+            );
+            return;
+        }
+        
         if (activeTab === TABS.TAGS) {
             setAddTagOpen(true);
             return;
@@ -238,6 +263,15 @@ export default function TagAndPosttypeManage() {
     }
 
     async function handleCreateTag(form) {
+        if (!canCreate) {
+            showError(
+                "Không có quyền",
+                "Bạn không có quyền tạo thẻ mới."
+            );
+            setAddTagOpen(false);
+            return;
+        }
+        
         try {
             setSubmitting(true);
             const created = await postsApi.createTag({
@@ -268,6 +302,15 @@ export default function TagAndPosttypeManage() {
     }
 
     async function handleCreatePosttype(form) {
+        if (!canCreate) {
+            showError(
+                "Không có quyền",
+                "Bạn không có quyền tạo danh mục mới."
+            );
+            setAddPosttypeOpen(false);
+            return;
+        }
+        
         try {
             setSubmitting(true);
             const created = await postsApi.createPosttype({

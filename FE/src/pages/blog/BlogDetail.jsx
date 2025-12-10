@@ -13,6 +13,15 @@ const BlogDetail = () => {
     const [relatedPosts, setRelatedPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    
+    // Check if user is logged in (admin/staff)
+    const [isAdminUser, setIsAdminUser] = useState(false);
+    
+    useEffect(() => {
+        const accessToken = localStorage.getItem("access_token");
+        const user = localStorage.getItem("user");
+        setIsAdminUser(!!(accessToken && user));
+    }, []);
 
     useEffect(() => {
         loadPost();
@@ -109,6 +118,20 @@ const BlogDetail = () => {
 
     return (
         <div className="blog-detail-container">
+            {/* Admin Back Button */}
+            {isAdminUser && (
+                <div style={{ marginBottom: '16px', padding: '12px', background: '#f5f5f5', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <button 
+                        className="btn" 
+                        onClick={() => navigate('/admin-post-list')}
+                        style={{ background: '#007bff', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                        ← Quay lại quản lý bài viết
+                    </button>
+                    <span style={{ fontSize: '14px', color: '#666' }}>Chế độ xem trước (Admin)</span>
+                </div>
+            )}
+            
             {/* Breadcrumb */}
             <div className="breadcrumb">
                 <Link to="/">Trang chủ</Link>

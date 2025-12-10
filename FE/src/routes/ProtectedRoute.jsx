@@ -2,9 +2,11 @@ import React from "react";
 import PropTypes from "prop-types";
 import { Navigate } from "react-router-dom";
 import { usePermissions } from "../context/PermissionContext";
+import { usePermission } from "../hooks/usePermission";
 
-const ProtectedRoute = ({ moduleCode, children }) => {
+const ProtectedRoute = ({ moduleCode, permissionCode = "ACCESS", children }) => {
   const { moduleAccessPermissions, loading } = usePermissions();
+  const { hasPermission, loading: permissionLoading } = usePermission(moduleCode, permissionCode);
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
 
   // Check if we're on a public page - don't block those
@@ -59,9 +61,20 @@ const ProtectedRoute = ({ moduleCode, children }) => {
     return null;
   }
 
-  // Check if module has ACCESS permission using moduleAccessPermissions map
-  const moduleCodeUpper = String(moduleCode).trim().toUpperCase();
-  const hasAccess = moduleAccessPermissions.get(moduleCodeUpper) === true;
+  // If permissionCode is ACCESS, check module access
+  // Otherwise, check specific permission
+  let hasAccess = false;
+  
+  if (permissionCode === "ACCESS") {
+    const moduleCodeUpper = String(moduleCode).trim().toUpperCase();
+    hasAccess = moduleAccessPermissions.get(moduleCodeUpper) === true;
+  } else {
+    // Use usePermission hook result
+    if (permissionLoading) {
+      return null; // Still loading permission
+    }
+    hasAccess = hasPermission;
+  }
 
   if (!hasAccess) {
     return <Navigate to="/access-denied" replace />;
@@ -72,6 +85,7 @@ const ProtectedRoute = ({ moduleCode, children }) => {
 
 ProtectedRoute.propTypes = {
   moduleCode: PropTypes.string.isRequired,
+  permissionCode: PropTypes.string,
   children: PropTypes.node.isRequired,
 };
 

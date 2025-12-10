@@ -3,6 +3,10 @@ using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +55,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST: search + filter + sort + paging =====
         [HttpGet]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<ProductSectionListItemDto>>> List(
             Guid productId,
             Guid variantId,
@@ -156,6 +161,7 @@ namespace Keytietkiem.Controllers
 
         // ===== GET DETAIL =====
         [HttpGet("{sectionId:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<ProductSectionDetailDto>> Get(Guid productId, Guid variantId, Guid sectionId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -171,6 +177,7 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE =====
         [HttpPost]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<ProductSectionDetailDto>> Create(
             Guid productId,
             Guid variantId,
@@ -283,6 +290,7 @@ namespace Keytietkiem.Controllers
 
         // ===== UPDATE =====
         [HttpPut("{sectionId:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(
             Guid productId,
             Guid variantId,
@@ -392,6 +400,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE =====
         [HttpDelete("{sectionId:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(Guid productId, Guid variantId, Guid sectionId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -430,6 +439,7 @@ namespace Keytietkiem.Controllers
 
         // ===== TOGGLE ACTIVE =====
         [HttpPatch("{sectionId:guid}/toggle")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(Guid productId, Guid variantId, Guid sectionId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -466,6 +476,7 @@ namespace Keytietkiem.Controllers
 
         // ===== REORDER =====
         [HttpPost("reorder")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Reorder(Guid productId, Guid variantId, SectionReorderDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

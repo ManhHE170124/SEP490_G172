@@ -39,7 +39,7 @@ namespace Keytietkiem.Controllers
         /// Get a paginated and filtered list of product keys
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetProductKeys(
             [FromQuery] ProductKeyFilterDto filter,
             CancellationToken cancellationToken = default)

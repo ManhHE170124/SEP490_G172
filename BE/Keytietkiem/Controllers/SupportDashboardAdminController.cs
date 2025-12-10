@@ -60,6 +60,7 @@ namespace Keytietkiem.Controllers
         /// - Ticket vs Chat theo tuần trong tháng (dựa theo SupportDailyStats)
         /// </summary>
         [HttpGet("overview")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<SupportOverviewDto>> GetOverview(
             [FromQuery] int days = 7,
             [FromQuery] string? yearMonth = null,
@@ -172,6 +173,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("tickets/daily")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<TicketDailyKpiDto>>> GetTicketDailyKpi(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -210,6 +212,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("tickets/weekly-severity-priority")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<TicketSeverityPriorityWeeklyDto>>> GetTicketSeverityPriorityWeekly(
             [FromQuery] int weeks = 8,
             CancellationToken cancellationToken = default)
@@ -249,6 +252,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("tickets/priority-distribution")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<TicketPriorityDistributionDto>>> GetTicketPriorityDistribution(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -279,6 +283,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("chat/daily")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<ChatDailyKpiDto>>> GetChatDailyKpi(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -311,6 +316,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("chat/weekly-priority")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<ChatPriorityWeeklyDto>>> GetChatPriorityWeekly(
             [FromQuery] int weeks = 8,
             CancellationToken cancellationToken = default)
@@ -352,6 +358,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("staff/performance")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<StaffPerformanceSummaryDto>>> GetStaffPerformance(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -488,6 +495,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("plans/active-distribution")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<ActiveSupportPlanDistributionDto>>> GetActiveSupportPlanDistribution(
             CancellationToken cancellationToken = default)
         {
@@ -548,6 +556,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("plans/monthly-stats")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<SupportPlanMonthlyStatDto>>> GetSupportPlanMonthlyStats(
             [FromQuery] int months = 6,
             CancellationToken cancellationToken = default)
@@ -621,6 +630,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("segments/priority-distribution")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<PriorityDistributionDto>>> GetPriorityDistribution(
             CancellationToken cancellationToken = default)
         {
@@ -641,6 +651,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("segments/priority-support-volume")]
+        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<List<PrioritySupportVolumeDto>>> GetPrioritySupportVolume(
             [FromQuery] int weeks = 8,
             CancellationToken cancellationToken = default)
