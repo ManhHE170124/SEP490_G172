@@ -16,7 +16,7 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Storage Staff,Admin")]
+[Authorize]
 public class SupplierController : ControllerBase
 {
     private readonly ISupplierService _supplierService;

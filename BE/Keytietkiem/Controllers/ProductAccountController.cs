@@ -17,7 +17,7 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Storage Staff,Admin")]
+[Authorize]
 public class ProductAccountController : ControllerBase
 {
     private readonly IProductAccountService _productAccountService;
