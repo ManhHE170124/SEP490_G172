@@ -34,6 +34,10 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -111,6 +115,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST (không giá) =====
         [HttpGet("list")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] int? categoryId,
@@ -200,6 +205,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL (Images + FAQs + Variants) =====
         [HttpGet("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<ProductDetailDto>> GetById(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -232,6 +238,7 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE (không giá) =====
         [HttpPost]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<ProductDetailDto>> Create(ProductCreateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType))
@@ -310,6 +317,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(Guid id, ProductUpdateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType))
@@ -444,6 +452,7 @@ namespace Keytietkiem.Controllers
 
         // ===== TOGGLE PRODUCT VISIBILITY =====
         [HttpPatch("{id:guid}/toggle")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -476,6 +485,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE (chặn nếu còn Variant / FAQ / (tuỳ chọn) đơn hàng) =====
         [HttpDelete("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

@@ -15,7 +15,7 @@ const Sidebar = () => {
   const location = useLocation();
   const currentPage = location.pathname.substring(1) || "home";
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { allowedModuleCodes, loading: permissionsLoading } = usePermissions();
+  const { allowedModuleCodes, moduleAccessPermissions, loading: permissionsLoading } = usePermissions();
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => !prev);
@@ -977,8 +977,9 @@ const Sidebar = () => {
   ];
 
   const hasModuleAccess = (moduleCode) => {
+    // When permissions are still loading or not available, hide restricted modules
     if (!moduleCode) return true;
-    if (permissionsLoading || allowedModuleCodes === null) return true;
+    if (permissionsLoading || allowedModuleCodes === null) return false;
     return allowedModuleCodes.has(moduleCode);
   };
 

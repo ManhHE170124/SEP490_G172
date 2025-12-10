@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { SupplierApi } from "../../services/suppliers";
 import { LicensePackageApi } from "../../services/licensePackages";
@@ -11,6 +11,8 @@ import ViewKeysModal from "../../components/Modal/ViewKeysModal";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
 import { formatDate } from "../../utils/formatDate";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 
 export default function SupplierDetailPage() {
@@ -20,6 +22,20 @@ export default function SupplierDetailPage() {
   const isNew = location.pathname.endsWith("/add") || !id || id === "add";
   const { toasts, showSuccess, showError, showWarning, removeToast } =
     useToast();
+
+  // Check permissions
+  const { hasPermission: canViewDetail, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canCreate } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "CREATE");
+  const { hasPermission: canEdit } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "EDIT");
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -82,6 +98,12 @@ export default function SupplierDetailPage() {
       return;
     }
 
+    if (!canViewDetail) {
+      showError("Không có quyền", "Bạn không có quyền xem chi tiết nhà cung cấp.");
+      navigate("/suppliers");
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await SupplierApi.get(id);
@@ -99,12 +121,31 @@ export default function SupplierDetailPage() {
         err.response?.data?.message ||
         err.message ||
         "Không thể tải thông tin nhà cung cấp";
-      showError("Lỗi tải dữ liệu", errorMsg);
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          showError("Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          showError("Lỗi tải dữ liệu", errorMsg);
+        }
+      }
       navigate("/suppliers");
     } finally {
       setLoading(false);
     }
-  }, [id, navigate, showError]);
+  }, [id, navigate, showError, canViewDetail]);
 
   const loadLicensePackages = useCallback(async () => {
     if (!id || id === "add") return;
@@ -234,6 +275,15 @@ export default function SupplierDetailPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isNew && !canCreate) {
+      showError("Không có quyền", "Bạn không có quyền tạo nhà cung cấp mới.");
+      return;
+    }
+    if (!isNew && !canEdit) {
+      showError("Không có quyền", "Bạn không có quyền cập nhật nhà cung cấp.");
+      return;
+    }
+
     if (!validateForm()) {
       showWarning("Dữ liệu không hợp lệ", "Vui lòng kiểm tra lại thông tin");
       return;
@@ -268,6 +318,10 @@ export default function SupplierDetailPage() {
   };
 
   const handleToggleStatus = async () => {
+    if (!canEdit) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái nhà cung cấp.");
+      return;
+    }
     const isActive = supplierInfo?.status === "Active";
     const action = isActive ? "tạm dừng" : "kích hoạt lại";
 
@@ -526,6 +580,52 @@ export default function SupplierDetailPage() {
     setShowKeysModal(false);
     setSelectedPackageKeys(null);
   };
+
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <p style={{ textAlign: "center", padding: 40 }}>Đang kiểm tra quyền truy cập...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no permission
+  if (isNew && !canCreate) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Thêm nhà cung cấp mới</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền tạo nhà cung cấp mới. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+            <Link className="btn" to="/suppliers" style={{ marginTop: 16 }}>
+              Quay lại
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isNew && !canViewDetail) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Chi tiết nhà cung cấp</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem chi tiết nhà cung cấp. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+            <Link className="btn" to="/suppliers" style={{ marginTop: 16 }}>
+              Quay lại
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

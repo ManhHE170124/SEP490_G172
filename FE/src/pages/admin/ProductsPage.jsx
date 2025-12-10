@@ -1,13 +1,31 @@
 // src/pages/admin/ProductsPage.jsx
-import React from "react";
+import React, { useRef } from "react";
 import { Link } from "react-router-dom";
 import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "./admin.css";
 
 export default function ProductsPage() {
+  // Check permissions
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "VIEW_LIST");
+  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canCreate } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "CREATE");
+  const { hasPermission: canEdit } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "EDIT");
+  const { hasPermission: canDelete } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "DELETE");
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  React.useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
+
   // ====== Toast & ConfirmDialog ======
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
@@ -137,11 +155,27 @@ export default function ProductsPage() {
       setTotal(t);
     } catch (err) {
       console.error(err);
-      addToast(
-        "error",
-        "Lỗi",
-        err?.response?.data?.message || "Không tải được sản phẩm."
-      );
+      const errorMsg = err?.response?.data?.message || err.message || "Không tải được sản phẩm.";
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          addToast("error", "Lỗi kết nối", "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.");
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          addToast("error", "Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          addToast("error", "Lỗi", errorMsg);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -187,6 +221,10 @@ export default function ProductsPage() {
 
   // Đổi trạng thái từ list, toast chi tiết hơn
   const toggleStatus = async (p) => {
+    if (!canEdit) {
+      addToast("error", "Không có quyền", "Bạn không có quyền thay đổi trạng thái sản phẩm.");
+      return;
+    }
     try {
       const res = await ProductApi.toggle(p.productId);
       const next = (res?.status || res?.Status || "").toUpperCase();
@@ -239,6 +277,10 @@ export default function ProductsPage() {
   };
 
   const deleteProduct = (p) => {
+    if (!canDelete) {
+      addToast("error", "Không có quyền", "Bạn không có quyền xóa sản phẩm.");
+      return;
+    }
     // Check chặn xoá nếu đã có biến thể / FAQ / đơn hàng
     const hasVariants =
       p.hasVariants ||
@@ -313,6 +355,35 @@ export default function ProductsPage() {
     });
   };
 
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h2>Danh sách sản phẩm</h2>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h2>Danh sách sản phẩm</h2>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách sản phẩm. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="page">
@@ -325,7 +396,16 @@ export default function ProductsPage() {
             }}
           >
             <h2>Danh sách sản phẩm</h2>
-            <Link className="btn primary" to="/admin/products/add">
+            <Link 
+              className="btn primary" 
+              to="/admin/products/add"
+              onClick={(e) => {
+                if (!canCreate) {
+                  e.preventDefault();
+                  addToast("error", "Không có quyền", "Bạn không có quyền tạo sản phẩm mới.");
+                }
+              }}
+            >
               + Thêm sản phẩm
             </Link>
           </div>
@@ -595,6 +675,12 @@ export default function ProductsPage() {
                           className="action-btn edit-btn"
                           to={`/admin/products/${p.productId}`}
                           title="Chi tiết / Biến thể"
+                          onClick={(e) => {
+                            if (!canViewDetail) {
+                              e.preventDefault();
+                              addToast("error", "Không có quyền", "Bạn không có quyền xem chi tiết sản phẩm.");
+                            }
+                          }}
                         >
                           <svg
                             viewBox="0 0 24 24"

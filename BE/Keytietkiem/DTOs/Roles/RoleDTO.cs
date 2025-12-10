@@ -32,6 +32,9 @@ namespace Keytietkiem.DTOs.Roles
 
     public class CreateRoleDTO
     {
+        [StringLength(50, ErrorMessage = "ID vai trò không được vượt quá 50 ký tự.")]
+        public string? RoleId { get; set; }
+        
         [Required(ErrorMessage = "Tên vai trò không được để trống.")]
         [StringLength(60, MinimumLength = 2, ErrorMessage = "Tên vai trò phải có từ 2 đến 60 ký tự.")]
         public string Name { get; set; } = null!;
@@ -116,5 +119,21 @@ namespace Keytietkiem.DTOs.Roles
         public long ModuleId { get; set; }
         public string ModuleName { get; set; } = null!;
         public string? ModuleCode { get; set; }
+    }
+
+    public class UserPermissionsRequestDTO
+    {
+        public List<string> RoleCodes { get; set; } = new List<string>();
+    }
+
+    public class UserPermissionItemDTO
+    {
+        public string ModuleCode { get; set; } = null!;
+        public string PermissionCode { get; set; } = null!;
+    }
+
+    public class UserPermissionsResponseDTO
+    {
+        public List<UserPermissionItemDTO> Permissions { get; set; } = new List<UserPermissionItemDTO>();
     }
 }

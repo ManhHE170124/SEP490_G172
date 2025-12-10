@@ -1,10 +1,18 @@
 ﻿// File: Controllers/SupportChatController.cs
+using System;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Support;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -754,6 +762,7 @@ public class SupportChatController : ControllerBase
     /// Chỉ dành cho Admin.
     /// </summary>
     [HttpGet("admin/assigned-sessions")]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<List<SupportChatSessionItemDto>>> AdminGetAssignedSessions(
         [FromQuery] bool includeClosed = false)
     {
@@ -839,6 +848,7 @@ public class SupportChatController : ControllerBase
 
     // GET /api/support-chats/admin/sessions
     [HttpGet("admin/sessions")]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<PagedResult<SupportChatAdminSessionListItemDto>>> AdminSearchSessions(
         [FromQuery] SupportChatAdminSessionFilterDto filter)
     {
@@ -952,6 +962,7 @@ public class SupportChatController : ControllerBase
     /// mà không thay đổi AssignedStaffId, Status, v.v.
     /// </summary>
     [HttpPost("admin/{sessionId:guid}/messages")]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
     public async Task<ActionResult<SupportChatMessageDto>> AdminPostMessage(
         Guid sessionId,
         [FromBody] CreateSupportChatMessageDto body)
@@ -1047,6 +1058,7 @@ public class SupportChatController : ControllerBase
     /// Body: { "assigneeId": "..." }
     /// </remarks>
     [HttpPost("admin/{sessionId:guid}/assign")]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
     public async Task<ActionResult<SupportChatSessionItemDto>> AdminAssignStaff(
         Guid sessionId,
         [FromBody] SupportChatAssignStaffDto dtoBody)
@@ -1146,6 +1158,7 @@ public class SupportChatController : ControllerBase
     /// Body: { "assigneeId": "..." }
     /// </remarks>
     [HttpPost("admin/{sessionId:guid}/transfer-staff")]
+    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
     public async Task<ActionResult<SupportChatSessionItemDto>> AdminTransferStaff(
         Guid sessionId,
         [FromBody] SupportChatAssignStaffDto dtoBody)

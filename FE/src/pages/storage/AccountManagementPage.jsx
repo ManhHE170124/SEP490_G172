@@ -6,6 +6,8 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 import {
   getAccountStatusColor,
@@ -14,6 +16,21 @@ import {
 
 export default function AccountManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
+
+  // Permission checks
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_LIST");
+  const { hasPermission: hasCreatePermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "CREATE");
+  const { hasPermission: hasDeletePermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "DELETE");
+  const { hasPermission: hasViewDetailPermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
+
+  // Global network error handler
+  const networkErrorShownRef = React.useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = React.useRef(false);
+  React.useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState([]);
@@ -68,7 +85,26 @@ export default function AccountManagementPage() {
         err.response?.data?.message ||
         err.message ||
         "Không thể tải danh sách tài khoản";
-      showError("Lỗi tải dữ liệu", errorMsg);
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          showError("Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          showError("Lỗi tải dữ liệu", errorMsg);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +135,10 @@ export default function AccountManagementPage() {
   };
 
   const handleDeleteAccount = (accountId) => {
+    if (!hasDeletePermission) {
+      showError("Không có quyền", "Bạn không có quyền xóa tài khoản.");
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: "Xác nhận xóa tài khoản",
@@ -127,6 +167,35 @@ export default function AccountManagementPage() {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
   };
 
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Kho Tài khoản</h1>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Kho Tài khoản</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách tài khoản. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -150,7 +219,16 @@ export default function AccountManagementPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>Kho Tài khoản</h1>
-          <Link className="btn primary" to="/accounts/add">
+          <Link 
+            className="btn primary" 
+            to="/accounts/add"
+            onClick={(e) => {
+              if (!hasCreatePermission) {
+                e.preventDefault();
+                showError("Không có quyền", "Bạn không có quyền tạo tài khoản mới.");
+              }
+            }}
+          >
             + Tạo tài khoản mới
           </Link>
         </div>
@@ -336,14 +414,19 @@ export default function AccountManagementPage() {
                                 className="btn"
                                 to={`/accounts/${account.productAccountId}`}
                                 style={{ padding: "4px 8px", fontSize: "13px" }}
+                                onClick={(e) => {
+                                  if (!hasViewDetailPermission) {
+                                    e.preventDefault();
+                                    showError("Không có quyền", "Bạn không có quyền xem chi tiết tài khoản.");
+                                  }
+                                }}
                               >
                                 Chi tiết
                               </Link>
                               {account.currentUsers === 0 && (
                                 <button
                                   className="btn"
-                                  onClick={() =>
-                                    handleDeleteAccount(
+                                  onClick={() => handleDeleteAccount(
                                       account.productAccountId
                                     )
                                   }

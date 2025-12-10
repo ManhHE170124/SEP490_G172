@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Keytietkiem.Authorization;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -9,6 +10,7 @@ using Keytietkiem.Repositories;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -121,7 +123,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+// ===== Authorization with Permission-based system =====
+builder.Services.AddAuthorization(options =>
+{
+    // Configure default policy if needed
+    options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
+// Register PermissionPolicyProvider to handle RequirePermission attribute
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+
+// Register PermissionAuthorizationHandler to check permissions
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // ===== Stats service + background job =====
 // (ISupportStatsUpdateService đã đăng ký phía trên => KHÔNG lặp lại)
@@ -164,6 +179,22 @@ app.UseExceptionHandler(exApp =>
 // ===== Dev tools =====
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// ===== Status code pages for consistent JSON (401/403) =====
+app.UseStatusCodePages(async context =>
+{
+    var statusCode = context.HttpContext.Response.StatusCode;
+    if (statusCode == StatusCodes.Status401Unauthorized ||
+        statusCode == StatusCodes.Status403Forbidden)
+    {
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        var message = statusCode == StatusCodes.Status401Unauthorized
+            ? "Bạn chưa đăng nhập hoặc phiên đã hết hạn."
+            : "Bạn không có quyền truy cập chức năng này.";
+        var payload = JsonSerializer.Serialize(new { message });
+        await context.HttpContext.Response.WriteAsync(payload);
+    }
+});
 
 // Theo bản dưới: tắt redirect HTTPS trong môi trường dev để tránh CORS redirect
 // app.UseHttpsRedirection();

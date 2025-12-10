@@ -7,6 +7,10 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -80,6 +84,7 @@ namespace Keytietkiem.Controllers
 
         // ===== API ADMIN: list payment =====
         [HttpGet]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
             [FromQuery] string? provider,
@@ -190,6 +195,7 @@ namespace Keytietkiem.Controllers
         // ===== API ADMIN: xem chi tiết 1 payment =====
         // GET /api/payments/{paymentId}
         [HttpGet("{paymentId:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetPaymentById(Guid paymentId)
         {
             var payment = await _context.Payments
