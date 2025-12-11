@@ -251,8 +251,11 @@ export default function SignUpPage() {
     if (!formData.password) {
       return "Vui lòng nhập mật khẩu";
     }
-    if (formData.password.length < 6) {
-      return "Mật khẩu phải có ít nhất 6 ký tự";
+    if (formData.password.length < 8) {
+      return "Mật khẩu phải có ít nhất 8 ký tự";
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.password)) {
+      return "Mật khẩu phải chứa ít nhất 1 chữ cái và 1 số";
     }
     if (formData.password !== formData.confirmPassword) {
       return "Mật khẩu không khớp";

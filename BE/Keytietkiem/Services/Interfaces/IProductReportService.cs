@@ -47,6 +47,7 @@ public interface IProductReportService
     /// <param name="pageSize">Number of items per page</param>
     /// <param name="status">Optional status filter</param>
     /// <param name="userId">Optional user ID filter</param>
+    /// <param name="searchTerm">Optional search term for title and email</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Paginated list of product reports</returns>
     Task<PagedResult<ProductReportListDto>> GetAllProductReportsAsync(
@@ -54,6 +55,7 @@ public interface IProductReportService
         int pageSize,
         string? status,
         Guid? userId,
+        string? searchTerm = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -61,11 +63,13 @@ public interface IProductReportService
     /// </summary>
     /// <param name="pageNumber">Page number (1-based)</param>
     /// <param name="pageSize">Number of items per page</param>
+    /// <param name="searchTerm">Optional search term for title and email</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Paginated list of key error reports</returns>
     Task<PagedResult<ProductReportResponseDto>> GetKeyErrorsAsync(
         int pageNumber,
         int pageSize,
+        string? searchTerm = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -73,11 +77,13 @@ public interface IProductReportService
     /// </summary>
     /// <param name="pageNumber">Page number (1-based)</param>
     /// <param name="pageSize">Number of items per page</param>
+    /// <param name="searchTerm">Optional search term for title and email</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Paginated list of account error reports</returns>
     Task<PagedResult<ProductReportResponseDto>> GetAccountErrorsAsync(
         int pageNumber,
         int pageSize,
+        string? searchTerm = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -242,14 +242,17 @@ export default function KeyManagementPage() {
         </div>
 
         <div
-          className="grid"
+          className="filter-inline"
           style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 12,
+            marginTop: 16,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "end",
           }}
         >
-          <div className="form-row">
-            <label className="muted">Tìm kiếm</label>
+          <div className="group" style={{ flex: "1 1 200px" }}>
+            <span>Tìm kiếm</span>
             <input
               className="input"
               placeholder="Tên/SKU/Key..."
@@ -258,8 +261,8 @@ export default function KeyManagementPage() {
             />
           </div>
 
-          <div className="form-row">
-            <label className="muted">Sản phẩm</label>
+          <div className="group" style={{ width: 180 }}>
+            <span>Sản phẩm</span>
             <select
               className="input"
               value={filters.productId}
@@ -274,8 +277,8 @@ export default function KeyManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label className="muted">Loại key</label>
+          <div className="group" style={{ width: 150 }}>
+            <span>Loại key</span>
             <select
               className="input"
               value={filters.type}
@@ -287,8 +290,8 @@ export default function KeyManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label className="muted">Trạng thái</label>
+          <div className="group" style={{ width: 150 }}>
+            <span>Trạng thái</span>
             <select
               className="input"
               value={filters.status}
@@ -303,12 +306,9 @@ export default function KeyManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label>&nbsp;</label>
-            <button className="btn primary" onClick={handleApplyFilters}>
-              Lọc
-            </button>
-          </div>
+          <button className="btn primary" onClick={handleApplyFilters}>
+            Lọc
+          </button>
         </div>
       </section>
 
@@ -345,7 +345,6 @@ export default function KeyManagementPage() {
                     <th>Key/Pool</th>
                     <th>Loại</th>
                     <th>Trạng thái</th>
-                    <th>Gắn đơn</th>
                     <th>Cập nhật</th>
                     <th>Thao tác</th>
                   </tr>
@@ -409,7 +408,6 @@ export default function KeyManagementPage() {
                               {getStatusLabel(key.status)}
                             </span>
                           </td>
-                          <td>{key.orderCode || "—"}</td>
                           <td>
                             {key.updatedAt
                               ? new Date(key.updatedAt).toLocaleDateString(
@@ -432,17 +430,7 @@ export default function KeyManagementPage() {
                               >
                                 Chi tiết
                               </Link>
-                              {key.status === "Available" && (
-                                <button
-                                  className="btn"
-                                  style={{
-                                    padding: "4px 8px",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Gắn đơn
-                                </button>
-                              )}
+                              
                               {!key.orderCode && (
                                 <button
                                   className="btn"

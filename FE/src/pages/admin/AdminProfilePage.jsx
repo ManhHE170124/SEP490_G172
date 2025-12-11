@@ -257,7 +257,7 @@ const AdminProfilePage = () => {
                   type="password"
                   name="newPassword"
                   className="admin-profile-input"
-                  placeholder="Ít nhất 6 ký tự"
+                  placeholder="Ít nhất 8 ký tự, chứa chữ cái và số"
                   value={passwordForm.newPassword}
                   onChange={handlePasswordInput}
                 />

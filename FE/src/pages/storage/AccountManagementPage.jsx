@@ -234,14 +234,17 @@ export default function AccountManagementPage() {
         </div>
 
         <div
-          className="grid"
+          className="filter-inline"
           style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 12,
+            marginTop: 16,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "end",
           }}
         >
-          <div className="form-row">
-            <label className="muted">Tìm kiếm</label>
+          <div className="group" style={{ flex: "1 1 200px" }}>
+            <span>Tìm kiếm</span>
             <input
               className="input"
               placeholder="Email/Username/Sản phẩm..."
@@ -250,8 +253,8 @@ export default function AccountManagementPage() {
             />
           </div>
 
-          <div className="form-row">
-            <label className="muted">Sản phẩm</label>
+          <div className="group" style={{ width: 180 }}>
+            <span>Sản phẩm</span>
             <select
               className="input"
               value={filters.productId}
@@ -266,8 +269,8 @@ export default function AccountManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label className="muted">Loại tài khoản</label>
+          <div className="group" style={{ width: 180 }}>
+            <span>Loại tài khoản</span>
             <select
               className="input"
               value={filters.productType}
@@ -279,8 +282,8 @@ export default function AccountManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label className="muted">Trạng thái</label>
+          <div className="group" style={{ width: 150 }}>
+            <span>Trạng thái</span>
             <select
               className="input"
               value={filters.status}
@@ -295,12 +298,9 @@ export default function AccountManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label>&nbsp;</label>
-            <button className="btn primary" onClick={handleApplyFilters}>
-              Lọc
-            </button>
-          </div>
+          <button className="btn primary" onClick={handleApplyFilters}>
+            Lọc
+          </button>
         </div>
       </section>
 
