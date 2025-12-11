@@ -461,7 +461,6 @@ export default function KeyMonitorPage() {
                       >
                         Nhập key
                       </button>
-                      <button className="btn">Điều chỉnh ngưỡng</button>
                     </div>
                   </td>
                 </tr>
@@ -525,7 +524,14 @@ export default function KeyMonitorPage() {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      <button className="btn">Xử lý</button>
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          (window.location.href = `/keys/${report.productKeyId}`)
+                        }
+                      >
+                        Xử lý
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -626,7 +632,14 @@ export default function KeyMonitorPage() {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      <button className="btn">Xử lý</button>
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          (window.location.href = `/accounts/${report.productAccountId}`)
+                        }
+                      >
+                        Xử lý
+                      </button>
                     </div>
                   </td>
                 </tr>

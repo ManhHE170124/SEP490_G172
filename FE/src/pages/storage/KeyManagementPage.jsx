@@ -271,7 +271,6 @@ export default function KeyManagementPage() {
                     <th>Key/Pool</th>
                     <th>Loại</th>
                     <th>Trạng thái</th>
-                    <th>Gắn đơn</th>
                     <th>Cập nhật</th>
                     <th>Thao tác</th>
                   </tr>
@@ -329,7 +328,6 @@ export default function KeyManagementPage() {
                               {getStatusLabel(key.status)}
                             </span>
                           </td>
-                          <td>{key.orderCode || "—"}</td>
                           <td>
                             {key.updatedAt
                               ? new Date(key.updatedAt).toLocaleDateString(
@@ -346,17 +344,7 @@ export default function KeyManagementPage() {
                               >
                                 Chi tiết
                               </Link>
-                              {key.status === "Available" && (
-                                <button
-                                  className="btn"
-                                  style={{
-                                    padding: "4px 8px",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Gắn đơn
-                                </button>
-                              )}
+                              
                               {!key.orderCode && (
                                 <button
                                   className="btn"

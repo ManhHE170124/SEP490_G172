@@ -14,6 +14,7 @@ export default function ProductReportManagementPage() {
   // Filter states
   const [filters, setFilters] = useState({
     status: "",
+    searchTerm: "",
     pageNumber: 1,
     pageSize: 20,
   });
@@ -117,6 +118,22 @@ export default function ProductReportManagementPage() {
             alignItems: "end",
           }}
         >
+          <div className="group" style={{ width: 250 }}>
+            <span>Tìm kiếm</span>
+            <input
+              className="input"
+              type="text"
+              placeholder="Tìm theo tiêu đề, email, mã đơn..."
+              value={filters.searchTerm}
+              onChange={(e) => handleFilterChange("searchTerm", e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleApplyFilters();
+                }
+              }}
+            />
+          </div>
+
           <div className="group" style={{ width: 200 }}>
             <span>Trạng thái</span>
             <select
@@ -132,7 +149,7 @@ export default function ProductReportManagementPage() {
           </div>
 
           <button className="btn primary" onClick={handleApplyFilters}>
-            Lọc
+            Tìm kiếm
           </button>
         </div>
       </section>
@@ -183,7 +200,7 @@ export default function ProductReportManagementPage() {
                       const statusStyle = getStatusColor(report.status);
                       return (
                         <tr key={report.id}>
-                          <td>{report.title}</td>
+                          <td>{report.name}</td>
                           <td>{report.userEmail || "—"}</td>
                           <td>
                             {report.createdAt

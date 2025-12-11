@@ -347,10 +347,10 @@ export default function ProductReportDetailPage() {
               </div>
 
               {/* Variant Selection */}
-              <div className="group">
-                <span style={{ whiteSpace: "nowrap" }}>
-                  Biến thể <span style={{ color: "red" }}>*</span>
-                </span>
+              <div className="report-form-field">
+                <label>
+                  Biến thể <span>*</span>
+                </label>
                 <select
                   className="input"
                   value={formData.variantId}

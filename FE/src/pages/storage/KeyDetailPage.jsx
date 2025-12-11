@@ -250,6 +250,7 @@ export default function KeyDetailPage() {
         await ProductKeyApi.update(id, {
           keyId: id,
           notes: formData.notes,
+          status: formData.status,
         });
         showSuccess("Thành công", "Ghi chú đã được cập nhật thành công");
         loadProductKey();
