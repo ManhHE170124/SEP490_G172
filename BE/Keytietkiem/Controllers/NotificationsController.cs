@@ -184,6 +184,19 @@ namespace Keytietkiem.Controllers
 
             return Ok(result);
         }
+        // Thêm vào trong #region Helpers của NotificationsController
+        private ObjectResult CreateValidationProblemResult()
+        {
+            var problemDetails = new ValidationProblemDetails(ModelState)
+            {
+                Status = StatusCodes.Status400BadRequest
+            };
+
+            return new ObjectResult(problemDetails)
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
 
         /// <summary>
         /// Danh sách thông báo (Admin) với filter + phân trang + sort + search.
@@ -513,16 +526,18 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult> CreateManualNotification(
             [FromBody] CreateNotificationDto dto)
         {
+            // TC1: ModelState invalid -> trả 400 với ObjectResult
             if (!ModelState.IsValid)
             {
-                return ValidationProblem(ModelState);
+                return CreateValidationProblemResult();
             }
 
+            // TC2: thiếu TargetUserIds -> 400 + ModelState có error
             if (dto.TargetUserIds == null || dto.TargetUserIds.Count == 0)
             {
                 ModelState.AddModelError(nameof(dto.TargetUserIds),
                     "At least one target user is required.");
-                return ValidationProblem(ModelState);
+                return CreateValidationProblemResult();
             }
 
             Guid creatorId;
@@ -532,6 +547,7 @@ namespace Keytietkiem.Controllers
             }
             catch
             {
+                // TC3: không xác định được current user -> 401
                 return Unauthorized();
             }
 
@@ -543,27 +559,34 @@ namespace Keytietkiem.Controllers
                 .Select(u => u.UserId)
                 .ToListAsync();
 
+            // TC4: không có user nào tồn tại -> 400 + ModelState error
             if (existingUserIds.Count == 0)
             {
                 ModelState.AddModelError(nameof(dto.TargetUserIds),
                     "No valid users found for the given TargetUserIds.");
-                return ValidationProblem(ModelState);
+                return CreateValidationProblemResult();
             }
 
             var utcNow = DateTime.UtcNow;
 
             var notification = new Notification
             {
-                Title = dto.Title.Trim(),
-                Message = dto.Message.Trim(),
+                Title = dto.Title?.Trim(),
+                Message = dto.Message?.Trim(),
                 Severity = dto.Severity,
                 IsSystemGenerated = false,
                 IsGlobal = dto.IsGlobal,
                 CreatedAtUtc = utcNow,
                 CreatedByUserId = creatorId,
-                RelatedEntityType = string.IsNullOrWhiteSpace(dto.RelatedEntityType) ? null : dto.RelatedEntityType.Trim(),
-                RelatedEntityId = string.IsNullOrWhiteSpace(dto.RelatedEntityId) ? null : dto.RelatedEntityId.Trim(),
-                RelatedUrl = string.IsNullOrWhiteSpace(dto.RelatedUrl) ? null : dto.RelatedUrl.Trim()
+                RelatedEntityType = string.IsNullOrWhiteSpace(dto.RelatedEntityType)
+                    ? null
+                    : dto.RelatedEntityType.Trim(),
+                RelatedEntityId = string.IsNullOrWhiteSpace(dto.RelatedEntityId)
+                    ? null
+                    : dto.RelatedEntityId.Trim(),
+                RelatedUrl = string.IsNullOrWhiteSpace(dto.RelatedUrl)
+                    ? null
+                    : dto.RelatedUrl.Trim()
             };
 
             // Mapping các role mục tiêu (nếu có, chỉ thêm các role tồn tại)
@@ -599,6 +622,8 @@ namespace Keytietkiem.Controllers
 
             _db.Notifications.Add(notification);
             await _db.SaveChangesAsync();
+
+            // Push realtime qua SignalR (best-effort, lỗi thì chỉ log)
             try
             {
                 foreach (var nu in notification.NotificationUsers)
@@ -630,11 +655,13 @@ namespace Keytietkiem.Controllers
             {
                 _logger.LogError(ex, "Failed to push realtime notifications");
             }
+
             // Trả về 201 + id của thông báo vừa tạo
             return CreatedAtAction(
                 nameof(GetNotificationDetail),
                 new { id = notification.Id },
                 new { notification.Id });
         }
+
     }
 }

@@ -39,13 +39,44 @@ namespace Keytietkiem.Controllers
             return ProductEnums.Statuses.Contains(u) ? u : "INACTIVE";
         }
 
+        /// <summary>
+        /// Quy ước status cho Variant (tương tự Product):
+        /// - ACTIVE      : còn hàng & hiển thị.
+        /// - OUT_OF_STOCK: hết hàng nhưng vẫn hiển thị.
+        /// - INACTIVE    : ẩn hoàn toàn, chỉ khi admin set explicit.
+        /// 
+        /// Hết hàng KHÔNG bao giờ tự chuyển sang INACTIVE, chỉ OUT_OF_STOCK.
+        /// </summary>
         private static string ResolveStatusFromStock(int stockQty, string? desired)
         {
-            if (stockQty <= 0) return "OUT_OF_STOCK";
-            var d = NormalizeStatus(desired);
-            return d == "OUT_OF_STOCK" ? "ACTIVE" : d;
+            var d = (desired ?? string.Empty).Trim().ToUpperInvariant();
+
+            // Admin explicit INACTIVE => luôn INACTIVE
+            if (d == "INACTIVE")
+                return "INACTIVE";
+
+            // Hết hàng => OUT_OF_STOCK (vẫn hiển thị)
+            if (stockQty <= 0)
+                return "OUT_OF_STOCK";
+
+            // Còn hàng:
+            if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d) && d != "OUT_OF_STOCK")
+            {
+                // Cho phép ACTIVE / các status hợp lệ khác (trừ OUT_OF_STOCK khi còn hàng)
+                return d;
+            }
+
+            // Mặc định khi có stock mà không truyền status hợp lệ: ACTIVE
+            return "ACTIVE";
         }
 
+        /// <summary>
+        /// Recalc status của Product dựa trên tổng stock các variant.
+        /// Hết hàng -> OUT_OF_STOCK, còn hàng -> ACTIVE.
+        /// Không bao giờ tự chuyển sang INACTIVE khi hết hàng.
+        /// Nếu product đang INACTIVE và không truyền desiredStatus thì giữ nguyên,
+        /// để đảm bảo "ẩn" là do admin quyết định.
+        /// </summary>
         private async Task RecalcProductStatus(KeytietkiemDbContext db, Guid productId, string? desiredStatus = null)
         {
             var p = await db.Products
@@ -53,26 +84,51 @@ namespace Keytietkiem.Controllers
                             .FirstAsync(x => x.ProductId == productId);
 
             var totalStock = p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0;
-            if (totalStock <= 0)
+
+            // Nếu admin đã đặt sản phẩm INACTIVE và không truyền desiredStatus
+            // thì không tự động thay đổi nữa.
+            if (string.Equals(p.Status, "INACTIVE", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(desiredStatus))
             {
-                p.Status = "OUT_OF_STOCK";
-            }
-            else if (!string.IsNullOrWhiteSpace(desiredStatus) &&
-                     ProductEnums.Statuses.Contains(desiredStatus.Trim().ToUpperInvariant()))
-            {
-                p.Status = desiredStatus!.Trim().ToUpperInvariant();
-            }
-            else
-            {
-                p.Status = "ACTIVE";
+                p.UpdatedAt = _clock.UtcNow;
+                return;
             }
 
+            // Nếu có desiredStatus (ví dụ từ màn cập nhật Product) thì ưu tiên nó,
+            // nhưng INACTIVE luôn là quyết định explicit của admin.
+            if (!string.IsNullOrWhiteSpace(desiredStatus))
+            {
+                var d = desiredStatus.Trim().ToUpperInvariant();
+                if (ProductEnums.Statuses.Contains(d))
+                {
+                    if (d == "INACTIVE")
+                    {
+                        p.Status = "INACTIVE";
+                    }
+                    else if (totalStock <= 0)
+                    {
+                        p.Status = "OUT_OF_STOCK";
+                    }
+                    else
+                    {
+                        p.Status = d;
+                    }
+
+                    p.UpdatedAt = _clock.UtcNow;
+                    return;
+                }
+            }
+
+            // Không có desiredStatus: tự suy từ tồn kho, chỉ ACTIVE / OUT_OF_STOCK
+            p.Status = totalStock <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
             p.UpdatedAt = _clock.UtcNow;
         }
 
         private static string ToggleVisibility(string? current, int stock)
         {
+            // Hết hàng => chỉ OUT_OF_STOCK, không ẩn
             if (stock <= 0) return "OUT_OF_STOCK";
+
             var cur = NormalizeStatus(current);
             return cur == "ACTIVE" ? "INACTIVE" : "ACTIVE";
         }
@@ -478,7 +534,7 @@ namespace Keytietkiem.Controllers
                     v.ListPrice,
                     v.CogsPrice
                 }
-   );
+            );
 
             return CreatedAtAction(nameof(Get), new { productId, variantId = v.VariantId },
                 new ProductVariantDetailDto(
@@ -638,7 +694,7 @@ namespace Keytietkiem.Controllers
                 entityId: v.VariantId.ToString(),
                 before: before,
                 after: after
-);
+            );
 
             return NoContent();
         }
@@ -696,7 +752,7 @@ namespace Keytietkiem.Controllers
                 entityId: v.VariantId.ToString(),
                 before: before,
                 after: null
-);
+            );
 
             return NoContent();
         }
@@ -743,7 +799,7 @@ namespace Keytietkiem.Controllers
                     entityId: v.VariantId.ToString(),
                     before: before,
                     after: after
-);
+                );
 
                 return Ok(new { VariantId = v.VariantId, Status = v.Status });
             }

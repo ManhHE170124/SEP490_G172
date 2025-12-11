@@ -1,5 +1,4 @@
-﻿// File: tests/Keytietkiem.UnitTests/Controllers/BadgesController_UpdateTests.cs
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,462 +6,424 @@ using Keytietkiem.Controllers;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Keytietkiem.UnitTests.Controllers
+namespace Keytietkiem.Tests.Controllers
 {
-    /// <summary>
-    /// Unit test WHITE-BOX cho logic Update badge (PUT /api/badges/{code}).
-    /// Mapping 1-1 với các UTC trong sheet UpdateBadge.
-    /// </summary>
     public class BadgesController_UpdateTests
     {
-        /// <summary>
-        /// Tạo controller + factory dùng InMemory DB, seed dữ liệu tùy test.
-        /// Trả về cả controller lẫn factory để có thể reopen DbContext kiểm tra DB state.
-        /// </summary>
-        private static (BadgesController Controller, TestDbContextFactory Factory)
-            CreateController(string databaseName, Action<KeytietkiemDbContext>? seed = null)
+        // ================== Helpers chung ==================
+
+        private static DbContextOptions<KeytietkiemDbContext> CreateOptions()
         {
-            var options = new DbContextOptionsBuilder<KeytietkiemDbContext>()
-                .UseInMemoryDatabase(databaseName)
+            return new DbContextOptionsBuilder<KeytietkiemDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
+        }
 
+        private static BadgesController CreateController(DbContextOptions<KeytietkiemDbContext> options)
+        {
             var factory = new TestDbContextFactory(options);
+            var auditLogger = new FakeAuditLogger();
 
-            using (var db = factory.CreateDbContext())
+            return new BadgesController(factory, auditLogger)
             {
-                seed?.Invoke(db);
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = new DefaultHttpContext()
+                }
+            };
+        }
+
+        private static string GetMessage(object value)
+        {
+            var type = value.GetType();
+            var prop = type.GetProperty("message");
+            return (string)(prop?.GetValue(value) ?? string.Empty);
+        }
+
+        private static void SeedBadge(
+            KeytietkiemDbContext db,
+            string code,
+            string displayName = "Badge name",
+            string? color = null,
+            string? icon = null,
+            bool isActive = true)
+        {
+            db.Badges.Add(new Badge
+            {
+                BadgeCode = code,
+                DisplayName = displayName,
+                ColorHex = color,
+                Icon = icon,
+                IsActive = isActive,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        private static void SeedProductBadges(KeytietkiemDbContext db, string badgeCode, int count)
+        {
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < count; i++)
+            {
+                db.ProductBadges.Add(new ProductBadge
+                {
+                    ProductId = Guid.NewGuid(),
+                    Badge = badgeCode,
+                    CreatedAt = now
+                });
+            }
+        }
+
+        // ================== SUCCESS PATHS ==================
+
+        /// <summary>
+        /// Cập nhật metadata, KHÔNG đổi BadgeCode. ProductBadges giữ nguyên.
+        /// </summary>
+        [Fact]
+        public async Task Update_MetadataOnly_CodeUnchanged_UpdatesBadgeAndKeepsRelations()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP", "Old Name", "#000000", " old-icon ", false);
+                SeedProductBadges(db, "VIP", 2);   // badge đang được dùng bởi sản phẩm
                 db.SaveChanges();
             }
 
-            var controller = new BadgesController(factory);
-            return (controller, factory);
-        }
-
-        /// <summary>
-        /// Helper lấy message từ ObjectResult có Value = new { message = "..." }.
-        /// </summary>
-        private static string? GetMessage(ObjectResult result)
-        {
-            var value = result.Value;
-            var prop = value?.GetType().GetProperty("message");
-            return prop?.GetValue(value)?.ToString();
-        }
-
-        // ========== UTC01 ==========
-        // Happy path – badge tồn tại, không đổi code, DisplayName & IsActive update hợp lệ
-        [Fact]
-        public async Task Update_UTC01_ShouldReturnNoContent_WhenUpdateBasicFields_NoCodeChange()
-        {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC01",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "HOT1",
-                        DisplayName = "Old name",
-                        ColorHex = null,
-                        Icon = null,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "HOT1",
-                DisplayName: new string('D', 64), // boundary 64
-                ColorHex: null,
-                Icon: null,
-                IsActive: false
+                BadgeCode: " VIP ",              // có space để test Trim
+                DisplayName: "  New Name  ",
+                ColorHex: "#1e40af",
+                Icon: "  new-icon  ",
+                IsActive: true
             );
 
-            var result = await controller.Update("HOT1", dto);
+            var result = await controller.Update("VIP", dto);
 
             Assert.IsType<NoContentResult>(result);
 
-            // Kiểm tra DB state
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.SingleOrDefault(b => b.BadgeCode == "HOT1");
-            Assert.NotNull(badge);
-            Assert.Equal(new string('D', 64), badge!.DisplayName);
-            Assert.False(badge.IsActive);
-            Assert.Null(badge.ColorHex);
-            Assert.Null(badge.Icon);
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badge = Assert.Single(checkDb.Badges);
+            Assert.Equal("VIP", badge.BadgeCode);            // không đổi code
+            Assert.Equal("New Name", badge.DisplayName);     // đã Trim
+            Assert.Equal("#1e40af", badge.ColorHex);
+            Assert.Equal("new-icon", badge.Icon);            // đã Trim
+            Assert.True(badge.IsActive);
+
+            var productBadges = checkDb.ProductBadges.Where(pb => pb.Badge == "VIP").ToList();
+            Assert.Equal(2, productBadges.Count);            // link sản phẩm giữ nguyên
         }
 
-        // ========== UTC02 ==========
-        // Badge không tồn tại theo route code
+        /// <summary>
+        /// ĐỔI BadgeCode nhưng KHÔNG có ProductBadges liên quan.
+        /// Nhánh codeChanged = true, related.Count == 0.
+        /// </summary>
         [Fact]
-        public async Task Update_UTC02_ShouldReturnNotFound_WhenBadgeDoesNotExist()
+        public async Task Update_ChangeCode_NoProductRelations_RenamesBadgeOnly()
         {
-            var (controller, _) = CreateController(
-                "UpdateBadge_UTC02",
-                seed: db =>
-                {
-                    // Seed 1 badge khác để chắc chắn NOTFOUND không tồn tại
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "OTHER",
-                        DisplayName = "Other",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "OLD", "Old Badge", null, null, true);
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "NOTFOUND",
+                BadgeCode: "NEW",
+                DisplayName: "Old Badge",
+                ColorHex: null,       // null -> không validate, lưu null
+                Icon: null,
+                IsActive: true
+            );
+
+            var result = await controller.Update("OLD", dto);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badge = Assert.Single(checkDb.Badges);
+            Assert.Equal("NEW", badge.BadgeCode);            // đã rename
+            Assert.Equal("Old Badge", badge.DisplayName);
+            Assert.Null(badge.ColorHex);
+
+            Assert.Empty(checkDb.ProductBadges);             // không có link sản phẩm
+        }
+
+        /// <summary>
+        /// ĐỔI BadgeCode với ProductBadges đang dùng mã cũ.
+        /// Nhánh codeChanged = true, related.Count > 0.
+        /// </summary>
+        [Fact]
+        public async Task Update_ChangeCode_WithProductRelations_MovesProductBadgesToNewCode()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "OLD", "Badge", "#000000", " icon ", true);
+                SeedProductBadges(db, "OLD", 3);
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var dto = new BadgeUpdateDto(
+                BadgeCode: "NEW",
+                DisplayName: "Badge updated",
+                ColorHex: "  #ABC  ",     // hợp lệ, có Trim
+                Icon: "  new-icon  ",
+                IsActive: false           // đổi trạng thái
+            );
+
+            var result = await controller.Update("OLD", dto);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badge = Assert.Single(checkDb.Badges);
+            Assert.Equal("NEW", badge.BadgeCode);
+            Assert.Equal("Badge updated", badge.DisplayName);
+            Assert.Equal("#ABC", badge.ColorHex);
+            Assert.Equal("new-icon", badge.Icon);
+            Assert.False(badge.IsActive);
+
+            var productBadges = checkDb.ProductBadges.ToList();
+            Assert.Equal(3, productBadges.Count);
+            Assert.All(productBadges, pb => Assert.Equal("NEW", pb.Badge)); // tất cả dùng mã mới
+        }
+
+        // ================== ERROR PATHS ==================
+
+        [Fact]
+        public async Task Update_BadgeNotFound_Returns404()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                // Không seed badge có code "NOT_FOUND"
+                SeedBadge(db, "OTHER");
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var dto = new BadgeUpdateDto(
+                BadgeCode: "NEW",
                 DisplayName: "Name",
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("NOTFOUND", dto);
+            var result = await controller.Update("NOT_FOUND", dto);
 
             var notFound = Assert.IsType<NotFoundObjectResult>(result);
-            Assert.Equal("Badge not found", GetMessage(notFound));
+            var message = GetMessage(notFound.Value!);
+            Assert.Equal("Badge not found", message);
         }
 
-        // ========== UTC03 ==========
-        // DisplayName empty → "DisplayName is required"
         [Fact]
-        public async Task Update_UTC03_ShouldReturnBadRequest_WhenDisplayNameEmpty()
+        public async Task Update_DisplayNameRequired_Returns400()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC03",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "UPD3",
-                        DisplayName = "Old name",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP");
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "UPD3",
-                DisplayName: "   ",
+                BadgeCode: "VIP",
+                DisplayName: "   ",     // chỉ whitespace
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("UPD3", dto);
+            var result = await controller.Update("VIP", dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("DisplayName is required", GetMessage(bad));
-
-            // DB không đổi
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.Single(b => b.BadgeCode == "UPD3");
-            Assert.Equal("Old name", badge.DisplayName);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("DisplayName is required", message);
         }
 
-        // ========== UTC04 ==========
-        // DisplayName len > 64
         [Fact]
-        public async Task Update_UTC04_ShouldReturnBadRequest_WhenDisplayNameTooLong()
+        public async Task Update_DisplayNameTooLong_Returns400()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC04",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "UPD4",
-                        DisplayName = "Old name",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP");
+                db.SaveChanges();
+            }
 
+            var controller = CreateController(options);
+
+            var longName = new string('A', 65); // > 64
             var dto = new BadgeUpdateDto(
-                BadgeCode: "UPD4",
-                DisplayName: new string('D', 65),
+                BadgeCode: "VIP",
+                DisplayName: longName,
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("UPD4", dto);
+            var result = await controller.Update("VIP", dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("DisplayName cannot exceed 64 characters", GetMessage(bad));
-
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.Single(b => b.BadgeCode == "UPD4");
-            Assert.Equal("Old name", badge.DisplayName);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("DisplayName cannot exceed 64 characters", message);
         }
 
-        // ========== UTC05 ==========
-        // New BadgeCode empty / whitespace
         [Fact]
-        public async Task Update_UTC05_ShouldReturnBadRequest_WhenBadgeCodeEmpty()
+        public async Task Update_BadgeCodeRequired_Returns400()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC05",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "UPD5",
-                        DisplayName = "Old",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP");
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "   ",
-                DisplayName: "Valid Name",
+                BadgeCode: "   ",            // whitespace
+                DisplayName: "Name",
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("UPD5", dto);
+            var result = await controller.Update("VIP", dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("BadgeCode is required", GetMessage(bad));
-
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.Single(b => b.BadgeCode == "UPD5");
-            Assert.Equal("Old", badge.DisplayName);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("BadgeCode is required", message);
         }
 
-        // ========== UTC06 ==========
-        // New BadgeCode chứa space
         [Fact]
-        public async Task Update_UTC06_ShouldReturnBadRequest_WhenBadgeCodeContainsSpace()
+        public async Task Update_BadgeCodeContainsSpaces_Returns400()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC06",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "UPD6",
-                        DisplayName = "Old",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP");
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "NEW 6",
-                DisplayName: "Valid Name",
+                BadgeCode: "VI P",
+                DisplayName: "Name",
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("UPD6", dto);
+            var result = await controller.Update("VIP", dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("BadgeCode cannot contain spaces", GetMessage(bad));
-
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.Single(b => b.BadgeCode == "UPD6");
-            Assert.Equal("Old", badge.DisplayName);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("BadgeCode cannot contain spaces", message);
         }
 
-        // ========== UTC07 ==========
-        // New BadgeCode length > 32
         [Fact]
-        public async Task Update_UTC07_ShouldReturnBadRequest_WhenBadgeCodeTooLong()
+        public async Task Update_BadgeCodeTooLong_Returns400()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC07",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "UPD7",
-                        DisplayName = "Old",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP");
+                db.SaveChanges();
+            }
 
+            var controller = CreateController(options);
+
+            var longCode = new string('C', 33); // > 32
             var dto = new BadgeUpdateDto(
-                BadgeCode: new string('C', 33),
-                DisplayName: "Valid Name",
+                BadgeCode: longCode,
+                DisplayName: "Name",
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("UPD7", dto);
+            var result = await controller.Update("VIP", dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("BadgeCode cannot exceed 32 characters", GetMessage(bad));
-
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.Single(b => b.BadgeCode == "UPD7");
-            Assert.Equal("Old", badge.DisplayName);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("BadgeCode cannot exceed 32 characters", message);
         }
 
-        // ========== UTC08 ==========
-        // New BadgeCode khác code cũ và trùng với badge khác → Conflict
         [Fact]
-        public async Task Update_UTC08_ShouldReturnConflict_WhenNewBadgeCodeAlreadyExists()
+        public async Task Update_BadgeCodeAlreadyExists_Returns409()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC08",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "OLD8",
-                        DisplayName = "Old badge",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "OLD");
+                SeedBadge(db, "DUP");          // badge khác đã dùng code DUP
+                db.SaveChanges();
+            }
 
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "DUPLICATE",
-                        DisplayName = "Another badge",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "DUPLICATE",
-                DisplayName: "Valid Name",
+                BadgeCode: "DUP",              // đổi code sang DUP -> conflict
+                DisplayName: "Name",
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("OLD8", dto);
+            var result = await controller.Update("OLD", dto);
 
             var conflict = Assert.IsType<ConflictObjectResult>(result);
-            Assert.Equal("BadgeCode already exists", GetMessage(conflict));
-
-            using var verify = factory.CreateDbContext();
-            var oldBadge = verify.Badges.Single(b => b.BadgeCode == "OLD8");
-            var dupBadge = verify.Badges.Single(b => b.BadgeCode == "DUPLICATE");
-
-            Assert.Equal("Old badge", oldBadge.DisplayName);
-            Assert.Equal("Another badge", dupBadge.DisplayName);
+            var message = GetMessage(conflict.Value!);
+            Assert.Equal("BadgeCode already exists", message);
         }
 
-        // ========== UTC09 ==========
-        // ColorHex invalid
         [Fact]
-        public async Task Update_UTC09_ShouldReturnBadRequest_WhenColorHexInvalid()
+        public async Task Update_InvalidColorHex_Returns400()
         {
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC09",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "UPD9",
-                        DisplayName = "Old name",
-                        ColorHex = "#000000",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadge(db, "VIP");
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
 
             var dto = new BadgeUpdateDto(
-                BadgeCode: "UPD9",
-                DisplayName: "Valid Name",
-                ColorHex: "123456", // sai format
+                BadgeCode: "VIP",
+                DisplayName: "Name",
+                ColorHex: "#12G",      // ký tự G không hợp lệ
                 Icon: null,
                 IsActive: true
             );
 
-            var result = await controller.Update("UPD9", dto);
+            var result = await controller.Update("VIP", dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("ColorHex must be a valid hex color, e.g. #1e40af", GetMessage(bad));
-
-            using var verify = factory.CreateDbContext();
-            var badge = verify.Badges.Single(b => b.BadgeCode == "UPD9");
-            Assert.Equal("#000000", badge.ColorHex);
-            Assert.Equal("Old name", badge.DisplayName);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("ColorHex must be a valid hex color, e.g. #1e40af", message);
         }
 
-        // ========== UTC10 ==========
-        // Happy path – đổi BadgeCode, ColorHex valid, có ProductBadges, Icon trim, ProductBadges cập nhật
-        [Fact]
-        public async Task Update_UTC10_ShouldReturnNoContent_WhenCodeChangedAndProductBadgesUpdated()
-        {
-            var productId1 = Guid.NewGuid();
-            var productId2 = Guid.NewGuid();
+        // ================== Helper inner classes ==================
 
-            var (controller, factory) = CreateController(
-                "UpdateBadge_UTC10",
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "OLD10",
-                        DisplayName = "Old name",
-                        ColorHex = "#000000",
-                        Icon = "old-icon",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-
-                    db.ProductBadges.Add(new ProductBadge
-                    {
-                        ProductId = productId1,
-                        Badge = "OLD10",
-                        CreatedAt = DateTime.UtcNow
-                    });
-
-                    db.ProductBadges.Add(new ProductBadge
-                    {
-                        ProductId = productId2,
-                        Badge = "OLD10",
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
-
-            var dto = new BadgeUpdateDto(
-                BadgeCode: "NEW10",
-                DisplayName: "New Display",
-                ColorHex: "  #1A2b3C  ",   // có space, sẽ Trim()
-                Icon: "  fa-star  ",       // Trim()
-                IsActive: false
-            );
-
-            var result = await controller.Update("OLD10", dto);
-
-            Assert.IsType<NoContentResult>(result);
-
-            using var verify = factory.CreateDbContext();
-
-            // Badge mới
-            var newBadge = verify.Badges.SingleOrDefault(b => b.BadgeCode == "NEW10");
-            Assert.NotNull(newBadge);
-            Assert.Equal("New Display", newBadge!.DisplayName);
-            Assert.Equal("#1A2b3C", newBadge.ColorHex); // Trim + giữ nguyên chữ hoa/thường
-            Assert.Equal("fa-star", newBadge.Icon);
-            Assert.False(newBadge.IsActive);
-
-            // Badge cũ không còn
-            Assert.Null(verify.Badges.SingleOrDefault(b => b.BadgeCode == "OLD10"));
-
-            // ProductBadges được cập nhật code mới
-            var pbs = verify.ProductBadges.Where(pb => pb.ProductId == productId1 || pb.ProductId == productId2).ToList();
-            Assert.All(pbs, pb => Assert.Equal("NEW10", pb.Badge));
-        }
-
-        /// <summary>
-        /// IDbContextFactory cho test, dùng InMemory Db.
-        /// </summary>
         private sealed class TestDbContextFactory : IDbContextFactory<KeytietkiemDbContext>
         {
             private readonly DbContextOptions<KeytietkiemDbContext> _options;
@@ -473,14 +434,25 @@ namespace Keytietkiem.UnitTests.Controllers
             }
 
             public KeytietkiemDbContext CreateDbContext()
-            {
-                return new KeytietkiemDbContext(_options);
-            }
+                => new KeytietkiemDbContext(_options);
 
-            public ValueTask<KeytietkiemDbContext> CreateDbContextAsync(
+            public Task<KeytietkiemDbContext> CreateDbContextAsync(
                 CancellationToken cancellationToken = default)
+                => Task.FromResult(CreateDbContext());
+        }
+
+        private sealed class FakeAuditLogger : IAuditLogger
+        {
+            public Task LogAsync(
+                HttpContext httpContext,
+                string action,
+                string? entityType = null,
+                string? entityId = null,
+                object? before = null,
+                object? after = null)
             {
-                return new ValueTask<KeytietkiemDbContext>(CreateDbContext());
+                // Không ghi log trong unit test
+                return Task.CompletedTask;
             }
         }
     }

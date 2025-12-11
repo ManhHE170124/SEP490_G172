@@ -39,7 +39,7 @@ namespace Keytietkiem.Infrastructure
             _endpoint = config["PayOS:Endpoint"] ?? "";
         }
 
-        public async Task<string> CreatePayment(
+        public virtual async Task<string> CreatePayment(
             int orderCode,
             int amount,
             string description,
