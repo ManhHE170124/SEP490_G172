@@ -43,7 +43,7 @@ const BASE_NAV_ITEMS = [
   {
     label: "Bài viết",
     anchor: "blog",
-    path: "/blog",
+    path: "/blogs",
     dropdown: [
       { label: "Mẹo vặt", path: "/blog/tips" },
       { label: "Tin tức", path: "/blog/news" },
@@ -114,8 +114,8 @@ const buildCategoryLink = (category) => {
   const path =
     category?.categoryId || category?.id
       ? `/product-list?category=${encodeURIComponent(
-          category?.categoryId ?? category?.id
-        )}`
+        category?.categoryId ?? category?.id
+      )}`
       : `/product-list/${slug}`;
 
   return {
@@ -1098,7 +1098,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
               </div>
               <div className="alh-toast-message">
                 {activeToast.message &&
-                activeToast.message.length > 100
+                  activeToast.message.length > 100
                   ? activeToast.message.slice(0, 100) + "..."
                   : activeToast.message}
               </div>
