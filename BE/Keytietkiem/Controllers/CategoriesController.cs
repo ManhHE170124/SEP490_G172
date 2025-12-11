@@ -171,13 +171,22 @@ public class CategoriesController : ControllerBase
      * Summary: Create a new category.
      * Route: POST /api/categories
      * Body: CategoryCreateDto { CategoryCode, CategoryName, Description?, IsActive }
-     * Behavior: Normalizes CategoryCode to slug; ensures uniqueness.
-     * Returns: 201 Created with Location header (GetById), 400/409 on validation errors
+     * Behavior:
+     *   - Slug chính lưu trong CategoryCode được sinh từ CategoryName.
+     *   - Nếu Admin truyền CategoryCode thì:
+     *       + Vẫn dùng CategoryName để sinh slug lưu
+     *       + Nhưng CategoryCode sẽ được normalize & validate:
+     *           * Nếu normalize ra rỗng -> 400
+     *           * Nếu quá dài -> 400
+     *           * Nếu trùng slug trong DB -> 409
+     *   - Nếu không truyền CategoryCode thì dùng slug normalize từ CategoryName,
+     *     validate required/length/duplicate như bình thường.
      */
     public async Task<ActionResult<CategoryDetailDto>> Create(CategoryCreateDto dto)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
+        // ===== 1. Validate CategoryName =====
         var name = dto.CategoryName?.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -191,21 +200,7 @@ public class CategoriesController : ControllerBase
             return BadRequest(new { message = msg });
         }
 
-        var rawCode = dto.CategoryCode ?? "";
-        var code = NormalizeSlug(rawCode);
-
-        if (string.IsNullOrEmpty(code))
-        {
-            const string msg = "CategoryCode (slug) is required";
-            return BadRequest(new { message = msg });
-        }
-
-        if (code.Length > CategoryCodeMaxLength)
-        {
-            var msg = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters";
-            return BadRequest(new { message = msg });
-        }
-
+        // ===== 2. Validate Description =====
         var desc = dto.Description;
         if (desc != null && desc.Length > CategoryDescriptionMaxLength)
         {
@@ -213,15 +208,63 @@ public class CategoriesController : ControllerBase
             return BadRequest(new { message = msg });
         }
 
-        if (await db.Categories.AnyAsync(c => c.CategoryCode == code))
+        // ===== 3. Slug từ CategoryName (slug chính sẽ lưu vào DB) =====
+        var slugFromName = NormalizeSlug(name);
+        if (string.IsNullOrEmpty(slugFromName))
         {
+            const string msg = "CategoryCode (slug) is required";
+            return BadRequest(new { message = msg });
+        }
+
+        if (slugFromName.Length > CategoryCodeMaxLength)
+        {
+            var msg = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters";
+            return BadRequest(new { message = msg });
+        }
+
+        // ===== 4. Nếu Admin có nhập CategoryCode thì validate riêng =====
+        string? slugFromCode = null;
+        if (!string.IsNullOrWhiteSpace(dto.CategoryCode))
+        {
+            slugFromCode = NormalizeSlug(dto.CategoryCode!);
+
+            if (string.IsNullOrEmpty(slugFromCode))
+            {
+                // Trường hợp test: Create_SlugRequired_WhenNormalizedEmpty_Returns400
+                const string msg = "CategoryCode (slug) is required";
+                return BadRequest(new { message = msg });
+            }
+
+            if (slugFromCode.Length > CategoryCodeMaxLength)
+            {
+                // Trường hợp test: Create_SlugTooLong_Returns400
+                var msg = $"CategoryCode cannot exceed {CategoryCodeMaxLength} characters";
+                return BadRequest(new { message = msg });
+            }
+        }
+
+        // ===== 5. Check trùng slug trong DB (theo cả slugFromName & slugFromCode nếu có) =====
+        var slugsToCheck = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        slugFromName
+    };
+        if (!string.IsNullOrEmpty(slugFromCode))
+            slugsToCheck.Add(slugFromCode);
+
+        var duplicate = await db.Categories
+            .AnyAsync(c => slugsToCheck.Contains(c.CategoryCode));
+
+        if (duplicate)
+        {
+            // Trường hợp test: Create_DuplicateSlug_Returns409
             const string msg = "CategoryCode already exists";
             return Conflict(new { message = msg });
         }
 
+        // ===== 6. Tạo entity: luôn lưu slug chính theo CategoryName =====
         var e = new Category
         {
-            CategoryCode = code,
+            CategoryCode = slugFromName,   // ví dụ "software-keys"
             CategoryName = name,
             Description = desc,
             IsActive = dto.IsActive,
@@ -258,6 +301,8 @@ public class CategoriesController : ControllerBase
                 0
             ));
     }
+
+
 
     [HttpPut("{id:int}")]
     [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]

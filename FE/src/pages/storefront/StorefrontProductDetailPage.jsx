@@ -212,13 +212,15 @@ const StorefrontProductDetailPage = () => {
     }
   };
 
-  // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
-const isOutOfStock = detail
-  ? !!(
-      detail.isOutOfStock ||
-      (detail.status || "").toString().toUpperCase() === "OUT_OF_STOCK"
-    )
-  : false;
+   // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
+  const isOutOfStock = detail
+    ? !!(
+        detail.isOutOfStock ||
+        (detail.status || "").toString().toUpperCase() === "OUT_OF_STOCK" ||
+        (typeof detail.stockQty === "number" && detail.stockQty <= 0)
+      )
+    : false;
+
 
   const typeLabel = detail
     ? StorefrontProductApi.typeLabelOf(detail.productType)

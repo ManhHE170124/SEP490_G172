@@ -107,7 +107,7 @@ namespace Keytietkiem.Controllers
                 var availableSlots = await db.ProductAccounts
                     .Where(pa => pa.VariantId == variant.VariantId &&
                                  pa.Status == "Active" &&
-                                 pa.MaxUsers > 1)
+                                 pa.MaxUsers > 0) // <-- ĐÃ SỬA: cho phép MaxUsers = 1
                     .Include(pa => pa.ProductAccountCustomers)
                     .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers)
                     .Select(pa => pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive))
@@ -126,7 +126,7 @@ namespace Keytietkiem.Controllers
                     });
                 }
 
-                // For shared accounts, StockQty represents available slots
+                // For shared accounts, StockQty represents available slots (được trừ dần khi add vào cart)
                 variant.StockQty -= addQty;
                 if (variant.StockQty < 0) variant.StockQty = 0;
             }
@@ -435,7 +435,6 @@ namespace Keytietkiem.Controllers
                 if (oldQty > 0)
                 {
                     variant.StockQty += oldQty;
-                    // variant.UpdatedAt = DateTime.UtcNow;
                     await db.SaveChangesAsync();
                 }
 
@@ -454,7 +453,7 @@ namespace Keytietkiem.Controllers
                         var availableSlots = await db.ProductAccounts
                             .Where(pa => pa.VariantId == variant.VariantId &&
                                          pa.Status == "Active" &&
-                                         pa.MaxUsers > 1)
+                                         pa.MaxUsers > 0) // <-- ĐÃ SỬA: cho phép MaxUsers = 1
                             .Include(pa => pa.ProductAccountCustomers)
                             .Where(pa => pa.ProductAccountCustomers.Count(pac => pac.IsActive) < pa.MaxUsers)
                             .Select(pa => pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive))
@@ -484,14 +483,12 @@ namespace Keytietkiem.Controllers
                         variant.StockQty -= delta;
                         if (variant.StockQty < 0) variant.StockQty = 0;
                     }
-                    // variant.UpdatedAt = DateTime.UtcNow;
                 }
                 else if (delta < 0)
                 {
                     // Người dùng giảm bớt -delta sản phẩm -> trả lại kho
                     var giveBack = -delta;
                     variant.StockQty += giveBack;
-                    // variant.UpdatedAt = DateTime.UtcNow;
                 }
 
                 await db.SaveChangesAsync();
@@ -503,6 +500,7 @@ namespace Keytietkiem.Controllers
 
             return Ok(ToDto(cart));
         }
+
 
         // ===== DELETE: /apistorefront/cart/items/{variantId} =====
         [HttpDelete("items/{variantId:guid}")]
@@ -645,27 +643,46 @@ namespace Keytietkiem.Controllers
         private string GetAnonymousCacheKey(string anonId)
             => $"cart:anon:{anonId}";
 
-        // NEW: ưu tiên header X-Guest-Cart-Id, fallback cookie cũ
+        // NEW VERSION
         private string GetOrCreateAnonymousCartId()
         {
+            var ctx = HttpContext;
+
+            // 0) Ưu tiên lấy từ HttpContext.Items (hữu ích cho unit test / cùng HttpContext)
+            if (ctx != null &&
+                ctx.Items.TryGetValue(AnonymousCartCookieName, out var existingObj) &&
+                existingObj is string existingFromItems &&
+                !string.IsNullOrWhiteSpace(existingFromItems))
+            {
+                return existingFromItems;
+            }
+
             // 1) Nếu FE gửi header X-Guest-Cart-Id thì ưu tiên dùng cái đó
             if (Request.Headers.TryGetValue(AnonymousCartHeaderName, out var headerValues))
             {
                 var headerId = headerValues.ToString();
                 if (!string.IsNullOrWhiteSpace(headerId))
                 {
+                    if (ctx != null)
+                    {
+                        ctx.Items[AnonymousCartCookieName] = headerId;
+                    }
                     return headerId;
                 }
             }
 
             // 2) Nếu không có header thì dùng cookie cũ nếu tồn tại
-            if (Request.Cookies.TryGetValue(AnonymousCartCookieName, out var existing) &&
-                !string.IsNullOrWhiteSpace(existing))
+            if (Request.Cookies.TryGetValue(AnonymousCartCookieName, out var existingCookie) &&
+                !string.IsNullOrWhiteSpace(existingCookie))
             {
-                return existing;
+                if (ctx != null)
+                {
+                    ctx.Items[AnonymousCartCookieName] = existingCookie;
+                }
+                return existingCookie;
             }
 
-            // 3) Cuối cùng: tạo mới ID, set cookie (cho tương thích cũ)
+            // 3) Cuối cùng: tạo mới ID, set cookie (cho tương thích cũ) + lưu vào Items
             var newId = Guid.NewGuid().ToString("N");
 
             var options = new CookieOptions
@@ -678,6 +695,12 @@ namespace Keytietkiem.Controllers
             };
 
             Response.Cookies.Append(AnonymousCartCookieName, newId, options);
+
+            if (ctx != null)
+            {
+                ctx.Items[AnonymousCartCookieName] = newId;
+            }
+
             return newId;
         }
 
