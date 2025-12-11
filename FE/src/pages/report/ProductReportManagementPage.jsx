@@ -108,14 +108,17 @@ export default function ProductReportManagementPage() {
         </div>
 
         <div
-          className="grid"
+          className="filter-inline"
           style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 12,
+            marginTop: 16,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "end",
           }}
         >
-          <div className="form-row">
-            <label className="muted">Trạng thái</label>
+          <div className="group" style={{ width: 200 }}>
+            <span>Trạng thái</span>
             <select
               className="input"
               value={filters.status}
@@ -128,12 +131,9 @@ export default function ProductReportManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label>&nbsp;</label>
-            <button className="btn primary" onClick={handleApplyFilters}>
-              Lọc
-            </button>
-          </div>
+          <button className="btn primary" onClick={handleApplyFilters}>
+            Lọc
+          </button>
         </div>
       </section>
 
