@@ -1319,7 +1319,7 @@ const UserProfilePage = () => {
                       type="password"
                       className="profile-input"
                       name="newPassword"
-                      placeholder="Ít nhất 6 ký tự"
+                      placeholder="Ít nhất 8 ký tự, chứa chữ cái và số"
                       value={passwordForm.newPassword}
                       onChange={handlePasswordInput}
                     />

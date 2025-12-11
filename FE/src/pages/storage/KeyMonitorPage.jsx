@@ -798,9 +798,9 @@ export default function KeyMonitorPage() {
               <h3>Nhập key từ CSV</h3>
             </div>
             <div className="modal-body">
-              <div className="grid" style={{ gridTemplateColumns: "1fr" }}>
-                <div className="form-row">
-                  <label>Sản phẩm</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="group">
+                  <span>Sản phẩm</span>
                   <div className="label-chip" style={{ background: "#1e40af" }}>
                     {importProduct?.productName}
                   </div>
@@ -813,8 +813,8 @@ export default function KeyMonitorPage() {
                     </div>
                   )}
                 </div>
-                <div className="form-row">
-                  <label>Biến thể</label>
+                <div className="group">
+                  <span>Biến thể</span>
                   <select
                     className="input"
                     value={selectedVariantId}
@@ -835,8 +835,8 @@ export default function KeyMonitorPage() {
                     ))}
                   </select>
                 </div>
-                <div className="form-row">
-                  <label>Nhà cung cấp</label>
+                <div className="group">
+                  <span>Nhà cung cấp</span>
                   <select
                     className="input"
                     value={selectedSupplierId}
@@ -850,8 +850,8 @@ export default function KeyMonitorPage() {
                     ))}
                   </select>
                 </div>
-                <div className="form-row">
-                  <label>Giá vốn / key</label>
+                <div className="group">
+                  <span>Giá vốn / key</span>
                   <input
                     className="input"
                     type="number"
@@ -862,8 +862,8 @@ export default function KeyMonitorPage() {
                     onChange={(e) => setCogsPrice(e.target.value)}
                   />
                 </div>
-                <div className="form-row">
-                  <label>File CSV</label>
+                <div className="group">
+                  <span>File CSV</span>
                   <input
                     className="input"
                     type="file"
@@ -871,8 +871,8 @@ export default function KeyMonitorPage() {
                     onChange={handleCsvChange}
                   />
                 </div>
-                <div className="form-row">
-                  <label>Loại key</label>
+                <div className="group">
+                  <span>Loại key</span>
                   <select
                     className="input"
                     value={keyType}
@@ -882,8 +882,8 @@ export default function KeyMonitorPage() {
                     <option value="Pool">Chung (Pool)</option>
                   </select>
                 </div>
-                <div className="form-row">
-                  <label>Ngày hết hạn</label>
+                <div className="group">
+                  <span>Ngày hết hạn</span>
                   <input
                     className="input"
                     type="date"

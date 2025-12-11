@@ -48,7 +48,8 @@ public class RegisterDto
     public string Username { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password là bắt buộc")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "Password phải từ 6-100 ký tự")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "Password phải từ 8-100 ký tự")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$", ErrorMessage = "Password phải chứa ít nhất 1 chữ cái và 1 số")]
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Email là bắt buộc")]
@@ -175,8 +176,9 @@ public class ChangePasswordDto
     [Required(ErrorMessage = "CurrentPassword là bắt buộc")]
     public string CurrentPassword { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "NewPassword là bắt buộc")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "NewPassword phải từ 6-100 ký tự")]
+    [Required(ErrorMessage = "Mật khẩu mới là bắt buộc")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "Mật khẩu mới phải từ 8-100 ký tự")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$", ErrorMessage = "Mật khẩu mới phải chứa ít nhất 1 chữ cái và 1 số")]
     public string NewPassword { get; set; } = string.Empty;
 }
 
@@ -199,8 +201,9 @@ public class ResetPasswordDto
     [Required(ErrorMessage = "Token là bắt buộc")]
     public string Token { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "NewPassword là bắt buộc")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "NewPassword phải từ 6-100 ký tự")]
+    [Required(ErrorMessage = "Mật khẩu mới là bắt buộc")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "Mật khẩu mới phải từ 8-100 ký tự")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$", ErrorMessage = "Mật khẩu mới phải chứa ít nhất 1 chữ cái và 1 số")]
     public string NewPassword { get; set; } = string.Empty;
 }
 
