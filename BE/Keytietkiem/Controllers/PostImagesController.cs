@@ -67,7 +67,7 @@ namespace Keytietkiem.Controllers
         [HttpDelete("deleteImage")]
         public async Task<IActionResult> DeleteImage([FromBody] ImageDeleteRequest request)
         {
-            if (string.IsNullOrEmpty(request.PublicId))
+            if (string.IsNullOrWhiteSpace(request.PublicId))
             {
                 return BadRequest(new { message = "PublicId is required." });
             }

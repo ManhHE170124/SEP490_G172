@@ -190,6 +190,13 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            // Check if Slug is unique
+            var existingSlug = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Slug == createPostDto.Slug);
+            if (existingSlug != null)
+            {
+                return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+            }
 
             var newPost = new Post
             {
@@ -332,6 +339,17 @@ namespace Keytietkiem.Controllers
                 if (tagCount != updatePostDto.TagIds.Count)
                 {
                     return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
+                }
+            }
+
+            // Check if Slug is unique (excluding current post)
+            if (existing.Slug != updatePostDto.Slug)
+            {
+                var existingSlug = await _context.Posts
+                    .FirstOrDefaultAsync(p => p.Slug == updatePostDto.Slug && p.PostId != id);
+                if (existingSlug != null)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
                 }
             }
 
@@ -518,7 +536,7 @@ namespace Keytietkiem.Controllers
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
                 .Include(p => p.Tags)
-                .Where(p => p.Slug == slug && p.Status == "Published") 
+                .Where(p => p.Slug == slug && p.Status == "Published")
                 .FirstOrDefaultAsync();
 
             if (post == null)
