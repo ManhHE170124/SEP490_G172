@@ -516,41 +516,84 @@ namespace Keytietkiem.Controllers
                 payment.Status = "Paid";
                 payment.Amount = amountDecimal;
 
-                using var tx = await _context.Database.BeginTransactionAsync();
-
-                // Order tạo từ cart: immutable log
-                var order = new Order
-                {
-                    UserId = userId,
-                    Email = email!,
-                    TotalAmount = totalListAmount,
-                    DiscountAmount = totalListAmount - totalAmount,
-                    FinalAmount = totalAmount,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.Orders.Add(order);
-                await _context.SaveChangesAsync();
-
+                // Chuẩn bị để dùng tiếp sau khi tạo Order + OrderDetails
+                Order order;
                 var orderDetails = new List<OrderDetail>();
-                foreach (var item in items)
-                {
-                    if (item.Quantity <= 0) continue;
 
-                    var orderDetail = new OrderDetail
+                // Nếu DB là relational (SQL Server, v.v.) thì dùng transaction,
+                // còn InMemory (trong unit test) thì bỏ qua để tránh InvalidOperationException.
+                if (_context.Database.IsRelational())
+                {
+                    using var tx = await _context.Database.BeginTransactionAsync();
+
+                    // Order tạo từ cart: immutable log
+                    order = new Order
                     {
-                        OrderId = order.OrderId,
-                        VariantId = item.VariantId,
-                        Quantity = item.Quantity,
-                        UnitPrice = item.UnitPrice
+                        UserId = userId,
+                        Email = email!,
+                        TotalAmount = totalListAmount,
+                        DiscountAmount = totalListAmount - totalAmount,
+                        FinalAmount = totalAmount,
+                        CreatedAt = DateTime.UtcNow
                     };
 
-                    orderDetails.Add(orderDetail);
-                }
-                _context.OrderDetails.AddRange(orderDetails);
+                    _context.Orders.Add(order);
+                    await _context.SaveChangesAsync();
 
-                await _context.SaveChangesAsync();
-                await tx.CommitAsync();
+                    foreach (var item in items)
+                    {
+                        if (item.Quantity <= 0) continue;
+
+                        var orderDetail = new OrderDetail
+                        {
+                            OrderId = order.OrderId,
+                            VariantId = item.VariantId,
+                            Quantity = item.Quantity,
+                            UnitPrice = item.UnitPrice
+                        };
+
+                        orderDetails.Add(orderDetail);
+                    }
+
+                    _context.OrderDetails.AddRange(orderDetails);
+                    await _context.SaveChangesAsync();
+
+                    await tx.CommitAsync();
+                }
+                else
+                {
+                    // Non-relational (ví dụ InMemory trong unit test) – không dùng transaction
+                    order = new Order
+                    {
+                        UserId = userId,
+                        Email = email!,
+                        TotalAmount = totalListAmount,
+                        DiscountAmount = totalListAmount - totalAmount,
+                        FinalAmount = totalAmount,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _context.Orders.Add(order);
+                    await _context.SaveChangesAsync();
+
+                    foreach (var item in items)
+                    {
+                        if (item.Quantity <= 0) continue;
+
+                        var orderDetail = new OrderDetail
+                        {
+                            OrderId = order.OrderId,
+                            VariantId = item.VariantId,
+                            Quantity = item.Quantity,
+                            UnitPrice = item.UnitPrice
+                        };
+
+                        orderDetails.Add(orderDetail);
+                    }
+
+                    _context.OrderDetails.AddRange(orderDetails);
+                    await _context.SaveChangesAsync();
+                }
 
                 // Sau khi đã có Order + OrderDetails, tiến hành gắn key/tài khoản & gửi email
                 try
@@ -611,6 +654,7 @@ namespace Keytietkiem.Controllers
             ClearCartSnapshot(payment.PaymentId);
             await _context.SaveChangesAsync();
         }
+
 
         /// <summary>
         /// Xử lý webhook cho các Payment KHÔNG phải ORDER_PAYMENT

@@ -218,6 +218,7 @@ namespace Keytietkiem.Services
             int pageSize,
             string? status,
             Guid? userId,
+            string? searchTerm = null,
             CancellationToken cancellationToken = default)
         {
             var query = _context.ProductReports
@@ -236,6 +237,15 @@ namespace Keytietkiem.Services
             if (userId.HasValue)
             {
                 query = query.Where(r => r.UserId == userId.Value);
+            }
+
+            // Apply search filter (search in title and email)
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var lowerSearchTerm = searchTerm.ToLower();
+                query = query.Where(r =>
+                    r.Name.ToLower().Contains(lowerSearchTerm) ||
+                    r.User.Email.ToLower().Contains(lowerSearchTerm));
             }
 
             var total = await query.CountAsync(cancellationToken);
@@ -262,6 +272,7 @@ namespace Keytietkiem.Services
         public async Task<PagedResult<ProductReportResponseDto>> GetKeyErrorsAsync(
             int pageNumber,
             int pageSize,
+            string? searchTerm = null,
             CancellationToken cancellationToken = default)
         {
             var query = _context.ProductReports
@@ -271,6 +282,17 @@ namespace Keytietkiem.Services
                 .Include(r => r.User)
                 .Where(r => r.ProductKeyId != null)
                 .AsQueryable();
+
+            // Apply search filter (search in title, email, and order ID)
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var lowerSearchTerm = searchTerm.ToLower();
+                query = query.Where(r =>
+                    r.Name.ToLower().Contains(lowerSearchTerm) ||
+                    r.User.Email.ToLower().Contains(lowerSearchTerm) ||
+                    (r.ProductKey != null && r.ProductKey.AssignedToOrderId != null &&
+                     r.ProductKey.AssignedToOrderId.ToString().ToLower().Contains(lowerSearchTerm)));
+            }
 
             var total = await query.CountAsync(cancellationToken);
 
@@ -305,6 +327,7 @@ namespace Keytietkiem.Services
         public async Task<PagedResult<ProductReportResponseDto>> GetAccountErrorsAsync(
             int pageNumber,
             int pageSize,
+            string? searchTerm = null,
             CancellationToken cancellationToken = default)
         {
             var query = _context.ProductReports
@@ -314,6 +337,15 @@ namespace Keytietkiem.Services
                 .Include(r => r.User)
                 .Where(r => r.ProductAccountId != null)
                 .AsQueryable();
+
+            // Apply search filter (search in title and email)
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var lowerSearchTerm = searchTerm.ToLower();
+                query = query.Where(r =>
+                    r.Name.ToLower().Contains(lowerSearchTerm) ||
+                    r.User.Email.ToLower().Contains(lowerSearchTerm));
+            }
 
             var total = await query.CountAsync(cancellationToken);
 

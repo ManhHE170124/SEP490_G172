@@ -587,10 +587,10 @@ export default function AccountDetailPage() {
             <p style={{ color: "#6b7280", marginBottom: 16 }}>
               Chọn ngày hết hạn mới cho tài khoản này
             </p>
-            <div className="form-row">
-              <label>
+            <div className="group">
+              <span>
                 Ngày hết hạn hiện tại
-              </label>
+              </span>
               <input
                 className="input"
                 type="text"
@@ -598,10 +598,10 @@ export default function AccountDetailPage() {
                 disabled
               />
             </div>
-            <div className="form-row">
-              <label>
+            <div className="group">
+              <span style={{ whiteSpace: "nowrap" }}>
                 Ngày hết hạn mới <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <input
                 className="input"
                 type="date"
@@ -673,16 +673,16 @@ export default function AccountDetailPage() {
           )}
 
           <div
-            className="grid"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              display: "flex",
+              flexWrap: "wrap",
               gap: 12,
             }}
           >
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Sản phẩm <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
@@ -703,10 +703,10 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Biến thể <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
@@ -733,10 +733,10 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Email tài khoản <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <input
                   className="input"
@@ -751,8 +751,8 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>Username (tùy chọn)</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Username (tùy chọn)</span>
               <input
                 className="input"
                 type="text"
@@ -764,10 +764,10 @@ export default function AccountDetailPage() {
               />
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Mật khẩu {isNew && <span style={{ color: "red" }}>*</span>}
-              </label>
+              </span>
               <div>
                 <div style={{ position: "relative" }}>
                   <input
@@ -853,10 +853,10 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Số người dùng tối đa <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <input
                   className="input"
@@ -874,7 +874,7 @@ export default function AccountDetailPage() {
             </div>
 
             {!isNew && (
-              <div className="form-row">
+              <div className="form-row" style={{ flex: "1 1 300px" }}>
                 <label>Trạng thái</label>
                 <input
                   className="input"
@@ -899,10 +899,10 @@ export default function AccountDetailPage() {
             )}
 
             {isNew && (
-              <div className="form-row">
-                <label>
+              <div className="group" style={{ flex: "1 1 300px" }}>
+                <span style={{ whiteSpace: "nowrap" }}>
                   Ngày bắt đầu <span style={{ color: "red" }}>*</span>
-                </label>
+                </span>
                 <input
                   className="input"
                   type="date"
@@ -918,10 +918,10 @@ export default function AccountDetailPage() {
               </div>
             )}
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Ngày hết hạn <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input
                   className="input"
@@ -956,10 +956,10 @@ export default function AccountDetailPage() {
               )}
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Giá nhập <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <input
                   className="input"
@@ -978,8 +978,8 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row" style={{ gridColumn: "1 / -1" }}>
-              <label>Ghi chú</label>
+            <div className="group" style={{ flex: "1 1 100%" }}>
+              <span>Ghi chú</span>
               <div>
                 <textarea
                   className="textarea"
@@ -1212,11 +1212,8 @@ export default function AccountDetailPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, flex: 1 }}>Lịch sử</h3>
-                <label
-                  className="muted"
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
-                >
-                  Kích thước trang:
+            <div className="group" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              Kích thước trang:
                   <select
                     className="input"
                     value={historyPageSize}
@@ -1230,7 +1227,7 @@ export default function AccountDetailPage() {
                     <option value={20}>20</option>
                     <option value={50}>50</option>
                   </select>
-                </label>
+              </div>
                 <button
                   type="button"
                   className="btn"

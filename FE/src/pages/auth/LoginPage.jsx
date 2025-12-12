@@ -96,8 +96,6 @@ export default function LoginPage() {
       // Admin, Storage Staff, Customer Care Staff -> admin dashboard
       if (
         firstRole === "ADMIN" || 
-        firstRole === "STORAGE_STAFF" ||
-        firstRole === "STORAGE STAFF" || // Legacy: "Storage Staff"
         firstRole === "CUSTOMER_CARE" || // Customer Care Staff
         firstRole === "CUSTOMER CARE STAFF" // Legacy
       ) {
@@ -108,6 +106,11 @@ export default function LoginPage() {
         firstRole === "CONTENT CREATOR" // Legacy
       ) {
         navigate("/post-dashboard");
+      }else if (
+        firstRole === "STORAGE_STAFF" ||
+        firstRole === "STORAGE STAFF"  // Legacy: "Storage Staff"
+      ) {
+        navigate("/key-monitor");
       } else {
         // Default: Customer or other roles -> homepage
           navigate("/");

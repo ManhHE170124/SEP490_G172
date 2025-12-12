@@ -922,127 +922,126 @@ export default function SupplierDetailPage() {
 
           {/* Add Package Form */}
           <div
-            className="grid"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              display: "flex",
               gap: 12,
+              flexWrap: "wrap",
+              alignItems: "end",
               marginBottom: 16,
             }}
           >
-            <div className="form-row" style={{ position: "relative" }}>
-              <label>Sản phẩm</label>
-              <div>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Tìm kiếm sản phẩm..."
-                  value={
-                    selectedProduct
-                      ? selectedProduct.productName
-                      : productSearch
-                  }
-                  onChange={handleProductSearchChange}
-                  onFocus={() => setShowProductDropdown(true)}
-                  onBlur={() => {
-                    // Delay to allow click on dropdown item
-                    setTimeout(() => setShowProductDropdown(false), 200);
+            <div className="group" style={{ minWidth: 200, position: "relative" }}>
+              <span>Sản phẩm</span>
+              <input
+                className="input"
+                type="text"
+                placeholder="Tìm kiếm sản phẩm..."
+                value={
+                  selectedProduct
+                    ? selectedProduct.productName
+                    : productSearch
+                }
+                onChange={handleProductSearchChange}
+                onFocus={() => setShowProductDropdown(true)}
+                onBlur={() => {
+                  // Delay to allow click on dropdown item
+                  setTimeout(() => setShowProductDropdown(false), 200);
+                }}
+                disabled={supplierInfo?.status !== "Active"}
+              />
+              {showProductDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                    background: "white",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    zIndex: 1000,
+                    marginTop: "4px",
                   }}
-                  disabled={supplierInfo?.status !== "Active"}
-                />
-                {showProductDropdown && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      maxHeight: "300px",
-                      overflowY: "auto",
-                      background: "white",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                      zIndex: 1000,
-                      marginTop: "4px",
-                    }}
-                    onScroll={handleProductDropdownScroll}
-                  >
-                    {loadingProducts && products.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#666",
-                        }}
-                      >
-                        Đang tải...
-                      </div>
-                    ) : products.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#666",
-                        }}
-                      >
-                        Không tìm thấy sản phẩm
-                      </div>
-                    ) : (
-                      <>
-                        {products.map((product) => (
-                          <div
-                            key={product.productId}
-                            style={{
-                              padding: "10px 12px",
-                              cursor: "pointer",
-                              borderBottom: "1px solid #f0f0f0",
-                              transition: "background-color 0.2s",
-                            }}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              handleProductSelect(product);
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = "#f5f5f5";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = "white";
-                            }}
-                          >
-                            {product.productName}
-                          </div>
-                        ))}
-                        {loadingProducts && (
-                          <div
-                            style={{
-                              padding: "12px",
-                              textAlign: "center",
-                              color: "#666",
-                            }}
-                          >
-                            Đang tải thêm...
-                          </div>
-                        )}
-                        {!loadingProducts && hasMoreProducts && (
-                          <div
-                            style={{
-                              padding: "12px",
-                              textAlign: "center",
-                              color: "#999",
-                              fontSize: "12px",
-                            }}
-                          >
-                            Cuộn xuống để tải thêm
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                  onScroll={handleProductDropdownScroll}
+                >
+                  {loadingProducts && products.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px",
+                        textAlign: "center",
+                        color: "#666",
+                      }}
+                    >
+                      Đang tải...
+                    </div>
+                  ) : products.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px",
+                        textAlign: "center",
+                        color: "#666",
+                      }}
+                    >
+                      Không tìm thấy sản phẩm
+                    </div>
+                  ) : (
+                    <>
+                      {products.map((product) => (
+                        <div
+                          key={product.productId}
+                          style={{
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f0f0f0",
+                            transition: "background-color 0.2s",
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleProductSelect(product);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f5f5f5";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "white";
+                          }}
+                        >
+                          {product.productName}
+                        </div>
+                      ))}
+                      {loadingProducts && (
+                        <div
+                          style={{
+                            padding: "12px",
+                            textAlign: "center",
+                            color: "#666",
+                          }}
+                        >
+                          Đang tải thêm...
+                        </div>
+                      )}
+                      {!loadingProducts && hasMoreProducts && (
+                        <div
+                          style={{
+                            padding: "12px",
+                            textAlign: "center",
+                            color: "#999",
+                            fontSize: "12px",
+                          }}
+                        >
+                          Cuộn xuống để tải thêm
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="form-row">
-              <label>Biến thể</label>
+            <div className="group" style={{ minWidth: 180 }}>
+              <span>Biến thể</span>
               <select
                 className="input"
                 value={packageForm.variantId}
@@ -1069,8 +1068,8 @@ export default function SupplierDetailPage() {
                 ))}
               </select>
             </div>
-            <div className="form-row">
-              <label>Số lượng gói</label>
+            <div className="group" style={{ minWidth: 150 }}>
+              <span>Số lượng gói</span>
               <input
                 className="input"
                 type="number"
@@ -1082,8 +1081,8 @@ export default function SupplierDetailPage() {
                 disabled={supplierInfo?.status !== "Active"}
               />
             </div>
-            <div className="form-row">
-              <label>Giá/gói</label>
+            <div className="group" style={{ minWidth: 150 }}>
+              <span>Giá/gói</span>
               <input
                 className="input"
                 type="number"
@@ -1095,16 +1094,13 @@ export default function SupplierDetailPage() {
                 disabled={supplierInfo?.status !== "Active"}
               />
             </div>
-            <div className="form-row">
-              <label>&nbsp;</label>
-              <button
-                className="btn primary"
-                onClick={handleAddPackage}
-                disabled={supplierInfo?.status !== "Active"}
-              >
-                Thêm gói
-              </button>
-            </div>
+            <button
+              className="btn primary"
+              onClick={handleAddPackage}
+              disabled={supplierInfo?.status !== "Active"}
+            >
+              Thêm gói
+            </button>
           </div>
 
           {/* Packages Table */}

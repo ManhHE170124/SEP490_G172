@@ -38,13 +38,15 @@ public class ProductReportController : ControllerBase
     /// <param name="pageSize">Page size (default: 10)</param>
     /// <param name="status">Optional status filter (Pending, Processing, Resolved)</param>
     /// <param name="userId">Optional user ID filter (for getting user's own reports)</param>
+    /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet]
     [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<IActionResult> GetAllProductReports(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? status = null,
-        [FromQuery] Guid? userId = null)
+        [FromQuery] Guid? userId = null,
+        [FromQuery] string? searchTerm = null)
     {
         if (pageNumber < 1)
             return BadRequest(new { message = "Số trang phải lớn hơn 0" });
@@ -56,7 +58,8 @@ public class ProductReportController : ControllerBase
             pageNumber,
             pageSize,
             status,
-            userId);
+            userId,
+            searchTerm);
 
         return Ok(result);
     }
@@ -151,11 +154,13 @@ public class ProductReportController : ControllerBase
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10)</param>
     /// <param name="status">Optional status filter</param>
+    /// <param name="searchTerm">Optional search term for title</param>
     [HttpGet("my-reports")]
     public async Task<IActionResult> GetMyProductReports(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] string? searchTerm = null)
     {
         if (pageNumber < 1)
             return BadRequest(new { message = "Số trang phải lớn hơn 0" });
@@ -169,7 +174,8 @@ public class ProductReportController : ControllerBase
             pageNumber,
             pageSize,
             status,
-            userId);
+            userId,
+            searchTerm);
 
         return Ok(result);
     }
@@ -179,11 +185,13 @@ public class ProductReportController : ControllerBase
     /// </summary>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10)</param>
+    /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet("key-errors")]
     [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<IActionResult> GetKeyErrors(
         [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null)
     {
         if (pageNumber < 1)
             return BadRequest(new { message = "Số trang phải lớn hơn 0" });
@@ -191,7 +199,7 @@ public class ProductReportController : ControllerBase
         if (pageSize < 1 || pageSize > 100)
             return BadRequest(new { message = "Kích thước trang phải từ 1 đến 100" });
 
-        var result = await _productReportService.GetKeyErrorsAsync(pageNumber, pageSize);
+        var result = await _productReportService.GetKeyErrorsAsync(pageNumber, pageSize, searchTerm);
         return Ok(result);
     }
 
@@ -200,11 +208,13 @@ public class ProductReportController : ControllerBase
     /// </summary>
     /// <param name="pageNumber">Page number (default: 1)</param>
     /// <param name="pageSize">Page size (default: 10)</param>
+    /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet("account-errors")]
     [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
     public async Task<IActionResult> GetAccountErrors(
         [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null)
     {
         if (pageNumber < 1)
             return BadRequest(new { message = "Số trang phải lớn hơn 0" });
@@ -212,7 +222,7 @@ public class ProductReportController : ControllerBase
         if (pageSize < 1 || pageSize > 100)
             return BadRequest(new { message = "Kích thước trang phải từ 1 đến 100" });
 
-        var result = await _productReportService.GetAccountErrorsAsync(pageNumber, pageSize);
+        var result = await _productReportService.GetAccountErrorsAsync(pageNumber, pageSize, searchTerm);
         return Ok(result);
     }
 

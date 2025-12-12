@@ -127,7 +127,7 @@ namespace Keytietkiem.Controllers
                     v.CreatedAt,
                     v.UpdatedAt,
                     v.SellPrice,
-                    v.ListPrice, // dùng ListPrice là giá niêm yết
+                    v.ListPrice,
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
                         .ToList(),
@@ -232,12 +232,8 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
-                    // Ép trạng thái OUT_OF_STOCK nếu tồn kho <= 0
-                    var outOfStock =
-                        string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                        || i.StockQty <= 0;
-
-                    var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+                    var outOfStock = i.StockQty <= 0;
+                    var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
@@ -284,12 +280,8 @@ namespace Keytietkiem.Controllers
             v.ViewCount += 1;
             await db.SaveChangesAsync();
 
-            // Ép trạng thái hết hàng theo tồn kho
-            var detailOutOfStock =
-                string.Equals(v.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                || v.StockQty <= 0;
-
-            var detailStatus = detailOutOfStock ? "OUT_OF_STOCK" : (v.Status ?? "ACTIVE");
+            var detailOutOfStock = v.StockQty <= 0;
+            var detailStatus = detailOutOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
             var p = v.Product;
 
@@ -316,9 +308,8 @@ namespace Keytietkiem.Controllers
                 .Select(x => new StorefrontSiblingVariantDto(
                     x.VariantId,
                     x.Title,
-                    (x.Status == "OUT_OF_STOCK" || x.StockQty <= 0)
-                        ? "OUT_OF_STOCK"
-                        : (x.Status ?? "ACTIVE")
+                    x.StockQty <= 0 ? "OUT_OF_STOCK" : "ACTIVE"
+
                 ))
                 .ToListAsync();
 
@@ -564,11 +555,8 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
-                    var outOfStock =
-                        string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                        || i.StockQty <= 0;
-
-                    var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+                    var outOfStock = i.StockQty <= 0;
+                    var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
