@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 
-namespace Keytietkiem.Tests.Products
+namespace Keytietkiem.UnitTests.Products
 {
     public class ProductVariantsController_Delete_Tests
     {

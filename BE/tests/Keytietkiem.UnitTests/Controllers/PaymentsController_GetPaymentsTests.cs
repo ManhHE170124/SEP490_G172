@@ -12,7 +12,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Keytietkiem.Tests.Controllers
+namespace Keytietkiem.UnitTests.Controllers
 {
     public class PaymentsController_GetPaymentsTests
     {
@@ -239,6 +239,117 @@ namespace Keytietkiem.Tests.Controllers
             var amounts = items.Select(p => p.Amount).ToList();
 
             Assert.Equal(new[] { 50m, 100m, 150m, 200m }, amounts);
+        }
+        /// <summary>
+        /// Status chỉ chứa whitespace -> được coi như không filter,
+        /// kết quả giống hệt call không truyền status.
+        /// </summary>
+        [Fact]
+        public async Task GetPayments_StatusWhitespace_TreatedAsNoFilter()
+        {
+            var (controller, _) = CreateControllerWithSeedData();
+
+            // Không filter status
+            var noStatusResult = await controller.GetPayments(
+                status: null,
+                provider: null,
+                email: null,
+                transactionType: null,
+                sortBy: null,
+                sortDir: null);
+            var noStatusList = ExtractList(noStatusResult);
+
+            // Status toàn whitespace
+            var whitespaceStatusResult = await controller.GetPayments(
+                status: "   ",
+                provider: null,
+                email: null,
+                transactionType: null,
+                sortBy: null,
+                sortDir: null);
+            var whitespaceList = ExtractList(whitespaceStatusResult);
+
+            Assert.Equal(
+                noStatusList.Select(x => x.PaymentId),
+                whitespaceList.Select(x => x.PaymentId));
+        }
+
+        /// <summary>
+        /// Filter TransactionType = "SERVICE_PAYMENT"
+        /// (tương ứng case thứ 2 trong sheet: SUPPORT_PLAN / service).
+        /// </summary>
+        [Fact]
+        public async Task GetPayments_FilterByTransactionType_ServicePayment()
+        {
+            var (controller, _) = CreateControllerWithSeedData();
+
+            var result = await controller.GetPayments(
+                status: null,
+                provider: null,
+                email: null,
+                transactionType: "SERVICE_PAYMENT",
+                sortBy: null,
+                sortDir: null);
+
+            var items = ExtractList(result);
+
+            Assert.Equal(2, items.Count);
+            Assert.All(items, p => Assert.Equal("SERVICE_PAYMENT", p.TransactionType));
+        }
+
+        /// <summary>
+        /// Filter chỉ theo Provider = "PayOS" (không filter email) →
+        /// trả về tất cả payment của PayOS.
+        /// </summary>
+        [Fact]
+        public async Task GetPayments_FilterByProviderOnly_PayOS()
+        {
+            var (controller, _) = CreateControllerWithSeedData();
+
+            var result = await controller.GetPayments(
+                status: null,
+                provider: "PayOS",
+                email: null,
+                transactionType: null,
+                sortBy: null,
+                sortDir: null);
+
+            var items = ExtractList(result);
+
+            Assert.Equal(2, items.Count);
+            Assert.All(items, p => Assert.Equal("PayOS", p.Provider));
+        }
+
+        /// <summary>
+        /// (Optional) Email = "" được xử lý như không filter email
+        /// → kết quả giống call email = null.
+        /// </summary>
+        [Fact]
+        public async Task GetPayments_EmailEmptyString_TreatedAsNoFilter()
+        {
+            var (controller, _) = CreateControllerWithSeedData();
+
+            var noEmailResult = await controller.GetPayments(
+                status: null,
+                provider: null,
+                email: null,
+                transactionType: null,
+                sortBy: null,
+                sortDir: null);
+            var noEmailList = ExtractList(noEmailResult);
+
+            var emptyEmailResult = await controller.GetPayments(
+                status: null,
+                provider: null,
+                email: string.Empty,
+                transactionType: null,
+                sortBy: null,
+                sortDir: null);
+            var emptyEmailList = ExtractList(emptyEmailResult);
+
+            Assert.Equal(
+                noEmailList.Select(x => x.PaymentId),
+                emptyEmailList.Select(x => x.PaymentId));
         }
 
         /// <summary>

@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
-namespace Keytietkiem.Tests.StorefrontCart
+namespace Keytietkiem.UnitTests.StorefrontCart
 {
     public class StorefrontCartController_UpdateItemQuantity_Tests
     {

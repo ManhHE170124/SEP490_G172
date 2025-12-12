@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
-namespace Keytietkiem.Tests.Notifications
+namespace Keytietkiem.UnitTests.Notifications
 {
     public class NotificationsController_CreateManualNotification_Tests
     {

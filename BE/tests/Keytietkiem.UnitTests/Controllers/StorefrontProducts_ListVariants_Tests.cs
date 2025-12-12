@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 
-namespace Keytietkiem.Tests.StorefrontProducts
+namespace Keytietkiem.UnitTests.StorefrontProducts
 {
     public class StorefrontProducts_ListVariants_Tests
     {
