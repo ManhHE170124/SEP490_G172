@@ -1179,6 +1179,8 @@ export default function SupplierDetailPage() {
                             ? "Hết hạn"
                             : account.status === "Full"
                             ? "Đầy"
+                            : account.status === "Error"
+                            ? "Lỗi"
                             : account.status}
                         </span>
                       </td>

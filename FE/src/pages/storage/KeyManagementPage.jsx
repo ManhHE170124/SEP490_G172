@@ -253,9 +253,9 @@ export default function KeyManagementPage() {
             <span className="muted">
               {totalCount} mục · Trang {filters.pageNumber}/{totalPages}
             </span>
-            <button className="btn" onClick={handleExportCSV}>
+            {/* <button className="btn" onClick={handleExportCSV}>
               Xuất CSV
-            </button>
+            </button> */}
           </div>
         </div>
 

@@ -527,7 +527,7 @@ export default function KeyMonitorPage() {
                       <button
                         className="btn"
                         onClick={() =>
-                          (window.location.href = `/keys/${report.productKeyId}`)
+                          (window.location.href = `/reports/${report.id}`)
                         }
                       >
                         Xử lý
@@ -635,7 +635,7 @@ export default function KeyMonitorPage() {
                       <button
                         className="btn"
                         onClick={() =>
-                          (window.location.href = `/accounts/${report.productAccountId}`)
+                          (window.location.href = `/reports/${report.id}`)
                         }
                       >
                         Xử lý

@@ -673,6 +673,16 @@ export default function ProductReportDetailPage() {
             </div>
 
             <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Nhà cung cấp</span>
+              <input
+                className="input"
+                value={report.supplierName || "—"}
+                readOnly
+                disabled
+              />
+            </div>
+
+            <div className="group" style={{ flex: "1 1 300px" }}>
               <span>Ngày tạo</span>
               <input
                 className="input"
