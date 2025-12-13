@@ -621,6 +621,8 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.HasIndex(e => e.Status, "IX_ProductAccounts_Status");
 
+            entity.HasIndex(e => e.SupplierId, "IX_ProductAccount_SupplierId");
+
             entity.HasIndex(e => e.VariantId, "IX_ProductAccounts_Variant");
 
             entity.Property(e => e.ProductAccountId).ValueGeneratedNever();
@@ -639,6 +641,11 @@ public partial class KeytietkiemDbContext : DbContext
                 .IsUnicode(false)
                 .HasDefaultValue("Active");
             entity.Property(e => e.UpdatedAt).HasPrecision(3);
+
+            entity.HasOne(d => d.Supplier).WithMany(p => p.ProductAccounts)
+                .HasForeignKey(d => d.SupplierId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAccount_Supplier");
 
             entity.HasOne(d => d.Variant).WithMany(p => p.ProductAccounts)
                 .HasForeignKey(d => d.VariantId)

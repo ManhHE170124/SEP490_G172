@@ -4,6 +4,7 @@ import { SupplierApi } from "../../services/suppliers";
 import { LicensePackageApi } from "../../services/licensePackages";
 import { ProductApi } from "../../services/products";
 import { ProductVariantsApi } from "../../services/productVariants";
+import { ProductAccountApi } from "../../services/productAccounts";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import CsvUploadModal from "../../components/Modal/CsvUploadModal";
@@ -76,6 +77,10 @@ export default function SupplierDetailPage() {
   const [selectedPackageKeys, setSelectedPackageKeys] = useState(null);
   const [loadingKeys, setLoadingKeys] = useState(false);
 
+  // Product accounts states
+  const [productAccounts, setProductAccounts] = useState([]);
+  const [loadingProductAccounts, setLoadingProductAccounts] = useState(false);
+
   const loadSupplier = useCallback(async () => {
     if (!id || id === "add") {
       console.warn("Attempted to load supplier with invalid id:", id);
@@ -129,6 +134,29 @@ export default function SupplierDetailPage() {
     }
   }, [id, showError]);
 
+  const loadProductAccounts = useCallback(async () => {
+    if (!id || id === "add") return;
+
+    setLoadingProductAccounts(true);
+    try {
+      const data = await ProductAccountApi.list({
+        supplierId: parseInt(id),
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setProductAccounts(data.items || data.data || []);
+    } catch (err) {
+      console.error("Failed to load product accounts:", err);
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Không thể tải danh sách tài khoản sản phẩm";
+      showError("Lỗi tải dữ liệu", errorMsg);
+    } finally {
+      setLoadingProductAccounts(false);
+    }
+  }, [id, showError]);
+
   const loadProducts = useCallback(
     async (page = 1, search = "", append = false) => {
       setLoadingProducts(true);
@@ -160,13 +188,14 @@ export default function SupplierDetailPage() {
     []
   );
 
-  // Load supplier and license packages on mount
+  // Load supplier, license packages, and product accounts on mount
   useEffect(() => {
     if (!isNew) {
       loadSupplier();
       loadLicensePackages();
+      loadProductAccounts();
     }
-  }, [id, isNew, loadSupplier, loadLicensePackages]);
+  }, [id, isNew, loadSupplier, loadLicensePackages, loadProductAccounts]);
 
   // Load initial products when dropdown opens
   useEffect(() => {
@@ -1066,6 +1095,113 @@ export default function SupplierDetailPage() {
           <small className="muted" style={{ display: "block", marginTop: 8 }}>
             "Nhập kho" sẽ tạo lô key mới hoặc bổ sung seat cho pool (nếu là dùng
             chung).
+          </small>
+        </section>
+      )}
+
+      {/* Product Accounts Section - Only shown for existing suppliers */}
+      {!isNew && (
+        <section className="card " style={{ marginTop: 14 }}>
+          <h2 style={{ margin: "0 0 12px" }}>Tài khoản sản phẩm</h2>
+
+          {loadingProductAccounts ? (
+            <div style={{ textAlign: "center", padding: 20 }}>Đang tải...</div>
+          ) : productAccounts.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>
+              Chưa có tài khoản sản phẩm nào từ nhà cung cấp này
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Sản phẩm</th>
+                    <th>Biến thể</th>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Số người dùng</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày hết hạn</th>
+                    <th>Giá nhập</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productAccounts.map((account) => (
+                    <tr key={account.productAccountId}>
+                      <td>{account.productName || "-"}</td>
+                      <td>{account.variantTitle || "-"}</td>
+                      <td>
+                        <ChunkedText
+                          value={account.accountEmail}
+                          fallback="-"
+                          chunkSize={24}
+                          className="chunk-text--wide"
+                        />
+                      </td>
+                      <td>
+                        {account.accountUsername ? (
+                          <ChunkedText
+                            value={account.accountUsername}
+                            fallback="-"
+                            chunkSize={20}
+                            className="chunk-text--wide"
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>
+                        {account.currentUsers}/{account.maxUsers}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            background:
+                              account.status === "Active"
+                                ? "#d1fae5"
+                                : account.status === "Expired"
+                                ? "#fee2e2"
+                                : "#e5e7eb",
+                            color:
+                              account.status === "Active"
+                                ? "#065f46"
+                                : account.status === "Expired"
+                                ? "#991b1b"
+                                : "#374151",
+                          }}
+                        >
+                          {account.status === "Active"
+                            ? "Hoạt động"
+                            : account.status === "Expired"
+                            ? "Hết hạn"
+                            : account.status === "Full"
+                            ? "Đầy"
+                            : account.status}
+                        </span>
+                      </td>
+                      <td>
+                        {account.expiryDate
+                          ? new Date(account.expiryDate).toLocaleDateString(
+                              "vi-VN"
+                            )
+                          : "-"}
+                      </td>
+                      <td>
+                        {account.cogsPrice
+                          ? account.cogsPrice.toLocaleString("vi-VN") + " đ"
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <small className="muted" style={{ display: "block", marginTop: 8 }}>
+            Tổng số: {productAccounts.length} tài khoản
           </small>
         </section>
       )}
