@@ -292,7 +292,11 @@ public class TicketsController : ControllerBase
             {
                 ReplyId = r.ReplyId,
                 SenderId = r.SenderId,
-                SenderName = r.Sender.FullName ?? r.Sender.Email,
+                SenderName = r.Sender != null ? (r.Sender.FullName ?? r.Sender.Email) : "Không rõ",
+
+                // ✅ NEW: map avatar theo đúng user gửi tin
+                SenderAvatarUrl = r.Sender != null ? r.Sender.AvatarUrl : null,
+
                 IsStaffReply = r.IsStaffReply,
                 Message = r.Message,
                 SentAt = r.SentAt
@@ -360,6 +364,7 @@ public class TicketsController : ControllerBase
 
         return Ok(dto);
     }
+
 
     // ============ CUSTOMER CREATE ============
     [HttpPost("create")]

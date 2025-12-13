@@ -94,6 +94,80 @@ function SlaPill({ value }) {
   return <span className={cls}>{MAP_SLA[v] || v}</span>;
 }
 
+// ===== Avatar helpers (Ticket thread) =====
+function getApiRoot() {
+  // base URL giống axiosClient / SignalR setup
+  let apiBase = axiosClient?.defaults?.baseURL || "";
+  if (!apiBase) {
+    apiBase =
+      process.env.REACT_APP_API_URL ||
+      (typeof import.meta !== "undefined" &&
+        import.meta.env &&
+        import.meta.env.VITE_API_BASE_URL) ||
+      "https://localhost:7292/api";
+  }
+  return apiBase.replace(/\/api\/?$/i, "");
+}
+
+function resolveAvatarUrl(rawUrl) {
+  if (!rawUrl) return "";
+  const u = String(rawUrl).trim();
+  if (!u) return "";
+
+  // absolute URL / data URL
+  if (/^(https?:)?\/\//i.test(u) || /^data:/i.test(u) || /^blob:/i.test(u)) {
+    return u;
+  }
+
+  // relative -> prefix theo API root
+  const root = getApiRoot();
+  if (!root) return u;
+
+  if (u.startsWith("/")) return `${root}${u}`;
+  return `${root}/${u}`;
+}
+
+function ChatAvatar({ name, avatarUrl }) {
+  const letter = (String(name || "?").trim().substring(0, 1) || "?").toUpperCase();
+  const src = resolveAvatarUrl(avatarUrl);
+
+  return (
+    <div className="avatar" style={{ position: "relative", overflow: "hidden" }}>
+      {/* fallback chữ cái */}
+      <span
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {letter}
+      </span>
+
+      {/* ảnh avatar nếu có */}
+      {src && (
+        <img
+          src={src}
+          alt={String(name || "")}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+          onError={(e) => {
+            // lỗi ảnh -> ẩn img để fallback chữ cái hiện ra
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ⭐ Format PriorityLevel (0/1/2) → text tiếng Việt
 function fmtPriority(level) {
   if (level === null || level === undefined) return "-";
@@ -222,12 +296,24 @@ export default function AdminTicketDetail() {
     const handleReceiveReply = (reply) => {
       setData((prev) => {
         if (!prev) return prev;
+
         const list = prev.replies || [];
         // tránh trùng khi chính mình gửi: check replyId
         if (list.some((x) => x.replyId === reply.replyId)) return prev;
+
+        // ✅ fallback avatar: nếu reply từ hub thiếu senderAvatarUrl,
+        // lấy avatar từ các message trước đó của cùng senderId (nếu có)
+        let incoming = reply;
+        if (incoming && !incoming.senderAvatarUrl && incoming.senderId) {
+          const cached = list.find(
+            (x) => x.senderId === incoming.senderId && x.senderAvatarUrl
+          )?.senderAvatarUrl;
+          if (cached) incoming = { ...incoming, senderAvatarUrl: cached };
+        }
+
         return {
           ...prev,
-          replies: [...list, reply],
+          replies: [...list, incoming],
         };
       });
     };
@@ -518,9 +604,9 @@ export default function AdminTicketDetail() {
                     key={r.replyId || r.id}
                     className={`msg ${isRightSide ? "msg-me" : "msg-other"}`}
                   >
-                    <div className="avatar">
-                      {sender.substring(0, 1).toUpperCase()}
-                    </div>
+                    {/* ✅ Avatar theo đúng user gửi tin */}
+                    <ChatAvatar name={sender} avatarUrl={r.senderAvatarUrl} />
+
                     <div className="bubble">
                       <div className="head">
                         <span className="name">
