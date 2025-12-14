@@ -5,7 +5,28 @@ import { Link, useSearchParams } from "react-router-dom"; // ✅ Import useSearc
 import "../../styles/Bloglist.css";
 import { postsApi } from "../../services/postsApi";
 
-const pageSize = 10;
+const pageSize = 4;
+
+// Tạo dải số trang: 1, 2, 3, ..., last
+const createPaginationRange = (page, pageCount) => {
+    if (pageCount <= 5) {
+        return Array.from({ length: pageCount }, (_, i) => i + 1);
+    }
+
+    // Đầu danh sách (giống screenshot: 1 2 3 ... 44)
+    if (page <= 2) {
+        return [1, 2, 3, "...", pageCount];
+    }
+
+    // Cuối danh sách: 1 ... 42 43 44
+    if (page >= pageCount - 1) {
+        return [1, "...", pageCount - 2, pageCount - 1, pageCount];
+    }
+
+    // Ở giữa: 1 ... (page-1) page (page+1) ... last
+    return [1, "...", page - 1, page, page + 1, "...", pageCount];
+};
+
 
 const BlogList = () => {
     const [posts, setPosts] = useState([]);
@@ -111,6 +132,10 @@ const BlogList = () => {
     // Pagination
     const total = filteredPosts.length;
     const pageCount = Math.ceil(total / pageSize);
+    const paginationRange = useMemo(
+        () => createPaginationRange(page, pageCount),
+        [page, pageCount]
+    );
 
     const pagedPosts = useMemo(() => {
         const start = (page - 1) * pageSize;
@@ -379,78 +404,95 @@ const BlogList = () => {
                                 </button>
                             </div>
                         ) : (
-                            pagedPosts.map(post => (
-                                <div className="bloglist-post-card" key={post.postId}>
-                                    {post.thumbnail && (
-                                        <img
-                                            src={post.thumbnail}
-                                            alt={post.title}
-                                            className="bloglist-post-thumb"
-                                        />
-                                    )}
-                                    <div className="bloglist-post-meta">
+                            pagedPosts.map((post) => (
+                                <Link
+                                    key={post.postId}
+                                    to={`/blog/${post.slug}`}
+                                    className="bloglist-post-card"
+                                >
+                                    <div className="bloglist-thumb-wrapper">
+                                        {post.thumbnail && (
+                                            <img
+                                                src={post.thumbnail}
+                                                alt={post.title}
+                                                className="bloglist-post-thumb"
+                                            />
+                                        )}
+
+                                        {post.postTypeName && (
+                                            <span className="bloglist-post-tag-chip">
+                                                {post.postTypeName}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <h2 className="bloglist-post-title">{post.title}</h2>
+
+                                    <div className="bloglist-post-meta-row">
+                                        {post.authorName && (
+                                            <>
+                                                <span className="bloglist-post-author">
+                                                    {post.authorName}
+                                                </span>
+                                                <span className="bloglist-post-meta-dot">-</span>
+                                            </>
+                                        )}
+
                                         <span className="bloglist-post-date">
                                             {post.createdAt
                                                 ? new Date(post.createdAt).toLocaleDateString("vi-VN")
                                                 : ""}
                                         </span>
-                                        {post.postTypeName && (
-                                            <span className="bloglist-post-type">
-                                                {" • " + post.postTypeName}
-                                            </span>
-                                        )}
+
+                                        <span className="bloglist-post-comment-count">0</span>
                                     </div>
-                                    <div className="bloglist-post-title">{post.title}</div>
-                                    <div className="bloglist-post-desc">{post.shortDescription}</div>
-                                    <Link className="bloglist-readmore" to={`/blog/${post.slug}`}>
-                                        Đọc tiếp →
-                                    </Link>
-                                </div>
+                                </Link>
                             ))
                         )}
+
                     </div>
 
                     {/* Pagination */}
                     {pageCount > 1 && (
-                        <div className="bloglist-pagination">
-                            <button
-                                disabled={page <= 1}
-                                onClick={() => setPage(page - 1)}
-                                className={page <= 1 ? "disabled" : ""}
-                            >
-                                &lt; Trước
-                            </button>
+                        <div className="bloglist-pagination-wrap">
+                            <div className="bloglist-pagination">
+                                {paginationRange.map((item, idx) => {
+                                    if (item === "...") {
+                                        return (
+                                            <span key={idx} className="bloglist-page-ellipsis">
+                                                ...
+                                            </span>
+                                        );
+                                    }
 
-                            {[...Array(pageCount)].map((_, idx) => {
-                                const pageNum = idx + 1;
-                                // Show first, last, current, and ±1 around current
-                                if (
-                                    pageNum === 1 ||
-                                    pageNum === pageCount ||
-                                    (pageNum >= page - 1 && pageNum <= page + 1)
-                                ) {
+                                    const pageNum = item;
                                     return (
                                         <button
                                             key={idx}
-                                            className={page === pageNum ? "selected" : ""}
+                                            className={
+                                                "bloglist-page-btn" +
+                                                (pageNum === page ? " selected" : "")
+                                            }
                                             onClick={() => setPage(pageNum)}
                                         >
                                             {pageNum}
                                         </button>
                                     );
-                                } else if (pageNum === page - 2 || pageNum === page + 2) {
-                                    return <span key={idx} style={{ padding: '0 4px' }}>...</span>;
-                                }
-                                return null;
-                            })}
+                                })}
 
-                            <button
-                                disabled={page >= pageCount}
-                                onClick={() => setPage(page + 1)}
-                                className={page >= pageCount ? "disabled" : ""}
-                            >
-                                Sau &gt;
-                            </button>
+                                {/* nút mũi tên sang trang sau */}
+                                <button
+                                    className="bloglist-page-btn"
+                                    disabled={page >= pageCount}
+                                    onClick={() => setPage(page + 1)}
+                                >
+                                    &gt;
+                                </button>
+                            </div>
+
+                            <div className="bloglist-page-info">
+                                Trang {page} của {pageCount}
+                            </div>
                         </div>
                     )}
                 </div>

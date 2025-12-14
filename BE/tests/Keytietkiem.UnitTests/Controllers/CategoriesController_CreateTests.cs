@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Keytietkiem.Tests.Controllers
+namespace Keytietkiem.UnitTests.Controllers
 {
     public class CategoriesController_CreateTests
     {
@@ -244,7 +244,33 @@ namespace Keytietkiem.Tests.Controllers
             var message = GetMessage(conflict.Value!);
             Assert.Equal("CategoryCode already exists", message);
         }
+        [Fact]
+        public async Task Create_DuplicateSlug_ExactCode_Returns409()
+        {
+            var options = CreateOptions();
 
+            // Seed sẵn 1 category với code "my-code"
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedCategory(db, "my-code", "Existing category");
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var dto = new CategoryCreateDto(
+                CategoryCode: "my-code",   // đã normalize sẵn, trùng trực tiếp
+                CategoryName: "Another name",
+                Description: null,
+                IsActive: true
+            );
+
+            var result = await controller.Create(dto);
+
+            var conflict = Assert.IsType<ConflictObjectResult>(result.Result);
+            var message = GetMessage(conflict.Value!);
+            Assert.Equal("CategoryCode already exists", message);
+        }
         // ============== Helper inner classes ==============
 
         private sealed class TestDbContextFactory : IDbContextFactory<KeytietkiemDbContext>

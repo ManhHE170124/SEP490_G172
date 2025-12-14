@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Keytietkiem.Tests.Controllers
+namespace Keytietkiem.UnitTests.Controllers
 {
     public class BadgesController_ListTests
     {
@@ -130,6 +130,10 @@ namespace Keytietkiem.Tests.Controllers
 
         // ====== Tests ======
 
+        /// <summary>
+        /// Không filter gì: trả tất cả badge, sort theo DisplayName ASC, ProductCount đúng.
+        /// (Bao phủ: keyword null, active null, sort/direction default, trang hợp lệ)
+        /// </summary>
         [Fact]
         public async Task List_NoFilters_ReturnsAllSortedByNameAndCorrectProductCount()
         {
@@ -170,6 +174,41 @@ namespace Keytietkiem.Tests.Controllers
             Assert.Equal(0, items.Single(i => i.BadgeCode == "VIP").ProductCount);
         }
 
+        /// <summary>
+        /// keyword chỉ chứa khoảng trắng => bị bỏ qua, kết quả giống không filter keyword.
+        /// (Bao phủ: "keyword is null/empty")
+        /// </summary>
+        [Fact]
+        public async Task List_KeywordEmptyOrWhitespace_IsTreatedAsNoFilter()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadges(db);
+            }
+
+            var controller = CreateController(options);
+
+            var result = await controller.List(
+                keyword: "   ",
+                active: null,
+                sort: null,
+                direction: null,
+                page: 1,
+                pageSize: 10);
+
+            var (items, total, page, pageSize) = ReadListResult(result);
+
+            Assert.Equal(4, total);
+            Assert.Equal(4, items.Count);
+            var codes = items.Select(i => i.BadgeCode).OrderBy(x => x).ToArray();
+            Assert.Equal(new[] { "COLD", "HOT", "NEW", "VIP" }, codes);
+        }
+
+        /// <summary>
+        /// Filter keyword và active = true.
+        /// (Bao phủ: keyword có giá trị + active = true)
+        /// </summary>
         [Fact]
         public async Task List_FilterByKeywordAndActiveTrue_ReturnsOnlyMatchingActiveBadges()
         {
@@ -197,6 +236,40 @@ namespace Keytietkiem.Tests.Controllers
             Assert.True(items[0].IsActive);
         }
 
+        /// <summary>
+        /// keyword không match bất kỳ badge nào => trả list rỗng nhưng vẫn 200 OK.
+        /// (Bao phủ: "badge with given code/not found" ở mức search)
+        /// </summary>
+        [Fact]
+        public async Task List_KeywordNotFound_ReturnsEmptyListButOk()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadges(db);
+            }
+
+            var controller = CreateController(options);
+
+            var result = await controller.List(
+                keyword: "XYZ-NOT-EXIST",
+                active: null,
+                sort: "name",
+                direction: "asc",
+                page: 1,
+                pageSize: 10);
+
+            var (items, total, page, pageSize) = ReadListResult(result);
+
+            Assert.Equal(0, total);
+            Assert.Empty(items);
+            Assert.Equal(1, page);
+            Assert.Equal(10, pageSize);
+        }
+
+        /// <summary>
+        /// active = false => chỉ trả badge Inactive.
+        /// </summary>
         [Fact]
         public async Task List_FilterByActiveFalse_ReturnsOnlyInactiveBadges()
         {
@@ -222,6 +295,39 @@ namespace Keytietkiem.Tests.Controllers
             Assert.Contains(items, i => i.BadgeCode == "COLD");
         }
 
+        /// <summary>
+        /// Sort theo code desc hợp lệ.
+        /// (Bao phủ: "Sort & direction valid")
+        /// </summary>
+        [Fact]
+        public async Task List_SortByCodeDescending_WorksCorrectly()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadges(db);
+            }
+
+            var controller = CreateController(options);
+
+            var result = await controller.List(
+                keyword: null,
+                active: null,
+                sort: "code",
+                direction: "desc",
+                page: 1,
+                pageSize: 10);
+
+            var (items, total, page, pageSize) = ReadListResult(result);
+
+            var codes = items.Select(i => i.BadgeCode).ToArray();
+            Assert.Equal(new[] { "VIP", "NEW", "HOT", "COLD" }, codes);
+        }
+
+        /// <summary>
+        /// sort/direction không hợp lệ => fallback về name ASC.
+        /// (Bao phủ: "Sort field or direction invalid")
+        /// </summary>
         [Fact]
         public async Task List_InvalidSortOrDirection_FallsBackToNameAscending()
         {
@@ -250,8 +356,12 @@ namespace Keytietkiem.Tests.Controllers
             );
         }
 
+        /// <summary>
+        /// Paging: page <= 0, pageSize <= 0 => bị clamp thành page = 1, pageSize = 1.
+        /// (Bao phủ: page <= 0, pageSize <= 0)
+        /// </summary>
         [Fact]
-        public async Task List_PagingBoundaries_AreClampedAndCanReturnEmptyLastPage()
+        public async Task List_Paging_PageAndPageSizeLessOrEqualZero_AreClampedToOne()
         {
             var options = CreateOptions();
             using (var db = new KeytietkiemDbContext(options))
@@ -261,8 +371,7 @@ namespace Keytietkiem.Tests.Controllers
 
             var controller = CreateController(options);
 
-            // page <= 0, pageSize <= 0 => clamp
-            var r1 = await controller.List(
+            var result = await controller.List(
                 keyword: null,
                 active: null,
                 sort: null,
@@ -270,14 +379,30 @@ namespace Keytietkiem.Tests.Controllers
                 page: 0,
                 pageSize: 0);
 
-            var (items1, total1, page1, pageSize1) = ReadListResult(r1);
-            Assert.Equal(1, page1);
-            Assert.Equal(1, pageSize1);
-            Assert.Equal(1, items1.Count); // 1 record vì pageSize = 1
-            Assert.Equal(4, total1);
+            var (items, total, page, pageSize) = ReadListResult(result);
 
-            // pageSize > 200 => clamp 200
-            var r2 = await controller.List(
+            Assert.Equal(1, page);
+            Assert.Equal(1, pageSize);
+            Assert.Equal(1, items.Count); // 1 record vì pageSize = 1
+            Assert.Equal(4, total);
+        }
+
+        /// <summary>
+        /// Paging: pageSize > 200 => clamp về 200.
+        /// (Bao phủ: pageSize &gt;= 200)
+        /// </summary>
+        [Fact]
+        public async Task List_Paging_PageSizeGreaterThanMax_IsClampedTo200()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadges(db);
+            }
+
+            var controller = CreateController(options);
+
+            var result = await controller.List(
                 keyword: null,
                 active: null,
                 sort: null,
@@ -285,11 +410,28 @@ namespace Keytietkiem.Tests.Controllers
                 page: 1,
                 pageSize: 1000);
 
-            var (_, _, _, pageSize2) = ReadListResult(r2);
-            Assert.Equal(200, pageSize2);
+            var (_, _, page, pageSize) = ReadListResult(result);
 
-            // page lớn hơn số trang thực tế => list rỗng nhưng total vẫn đúng
-            var r3 = await controller.List(
+            Assert.Equal(1, page);
+            Assert.Equal(200, pageSize);
+        }
+
+        /// <summary>
+        /// Paging: page lớn hơn số trang thực tế => items rỗng nhưng total vẫn đúng.
+        /// (Bao phủ: page &gt;= 1, 1 &lt;= pageSize &lt;= 200, "empty last page")
+        /// </summary>
+        [Fact]
+        public async Task List_Paging_PageGreaterThanTotalPages_ReturnsEmptyListWithCorrectTotal()
+        {
+            var options = CreateOptions();
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedBadges(db);
+            }
+
+            var controller = CreateController(options);
+
+            var result = await controller.List(
                 keyword: null,
                 active: null,
                 sort: null,
@@ -297,11 +439,12 @@ namespace Keytietkiem.Tests.Controllers
                 page: 10,
                 pageSize: 2);
 
-            var (items3, total3, page3, pageSize3) = ReadListResult(r3);
-            Assert.Empty(items3);
-            Assert.Equal(4, total3);
-            Assert.Equal(10, page3);
-            Assert.Equal(2, pageSize3);
+            var (items, total, page, pageSize) = ReadListResult(result);
+
+            Assert.Empty(items);
+            Assert.Equal(4, total);
+            Assert.Equal(10, page);
+            Assert.Equal(2, pageSize);
         }
 
         // ===== Inner test helpers =====

@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
-namespace Keytietkiem.Tests.Products
+namespace Keytietkiem.UnitTests.Products
 {
     public class ProductsController_Delete_Tests
     {

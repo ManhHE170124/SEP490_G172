@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Keytietkiem.Tests.Controllers
+namespace Keytietkiem.UnitTests.Controllers
 {
     public class BadgesController_UpdateTests
     {

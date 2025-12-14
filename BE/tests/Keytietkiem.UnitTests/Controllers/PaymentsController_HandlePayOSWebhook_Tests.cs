@@ -20,7 +20,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
-namespace Keytietkiem.Tests.Controllers
+namespace Keytietkiem.UnitTests.Controllers
 {
     public class PaymentsController_HandlePayOSWebhook_Tests
     {
@@ -584,5 +584,103 @@ namespace Keytietkiem.Tests.Controllers
             var updated = db.Payments.Single(p => p.PaymentId == payment.PaymentId);
             Assert.Equal("Cancelled", updated.Status);
         }
+        /// <summary>
+        /// (Trim code) ORDER_PAYMENT + Pending + success code nhưng Code/Data.Code
+        /// có khoảng trắng hai đầu -> được Trim vẫn xử lý thành công, tạo Order.
+        /// </summary>
+        [Fact]
+        public async Task HandlePayOSWebhook_OrderPayment_Success_WithSpacesInCodes_StillProcesses()
+        {
+            using var db = CreateContext();
+            var cache = new MemoryCache(new MemoryCacheOptions());
+            SeedOrderPaymentAndSnapshot(db, cache, out var payment, out var variant);
+            var controller = CreateController(db, cache);
+
+            var payload = new PayOSWebhookModel
+            {
+                Code = " 00 ", // có space
+                Data = new PayOSWebhookData
+                {
+                    OrderCode = payment.ProviderOrderCode!.Value,
+                    Amount = 200_000, // 2 * 100k
+                    Code = " 00 "     // có space
+                }
+            };
+
+            var result = await controller.HandlePayOSWebhook(payload);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var msg = GetMessage(ok.Value);
+            Assert.Equal("Webhook đã được xử lý.", msg);
+
+            var updatedPayment = db.Payments.Single(p => p.PaymentId == payment.PaymentId);
+            Assert.Equal("Paid", updatedPayment.Status);
+            Assert.Equal(200_000m, updatedPayment.Amount);
+
+            // Đã tạo đúng 1 order + 1 order detail
+            Assert.Single(db.Orders);
+            Assert.Single(db.OrderDetails);
+
+            // Snapshot trong cache phải bị xoá
+            Assert.False(cache.TryGetValue(ItemsKey(payment.PaymentId), out _));
+            Assert.False(cache.TryGetValue(MetaKey(payment.PaymentId), out _));
+        }
+
+        /// <summary>
+        /// (ORDER_PAYMENT nhưng Status != Pending)
+        /// Payment đã được xử lý trước đó (Status = Paid) nên webhook chỉ trả 200 OK
+        /// và không thay đổi gì trong DB, không tạo Order mới.
+        /// </summary>
+        [Fact]
+        public async Task HandlePayOSWebhook_OrderPayment_StatusNotPending_DoesNothing()
+        {
+            using var db = CreateContext();
+            var cache = new MemoryCache(new MemoryCacheOptions());
+
+            var payment = new Payment
+            {
+                PaymentId = Guid.NewGuid(),
+                Amount = 123_000m,              // giá trị ban đầu
+                Status = "Paid",                // đã xử lý trước đó
+                Provider = "PayOS",
+                ProviderOrderCode = 55555,
+                TransactionType = "ORDER_PAYMENT",
+                Email = "buyer@test.com",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.Payments.Add(payment);
+            db.SaveChanges();
+
+            var controller = CreateController(db, cache);
+
+            var payload = new PayOSWebhookModel
+            {
+                Code = "00",
+                Data = new PayOSWebhookData
+                {
+                    OrderCode = payment.ProviderOrderCode!.Value,
+                    Amount = 999_999, // gửi amount khác để kiểm tra có bị đổi hay không
+                    Code = "00"
+                }
+            };
+
+            var result = await controller.HandlePayOSWebhook(payload);
+
+            // Vẫn trả 200 OK nhưng không làm gì thêm
+            var ok = Assert.IsType<OkObjectResult>(result);
+
+            var updated = db.Payments.Single(p => p.PaymentId == payment.PaymentId);
+            Assert.Equal("Paid", updated.Status);         // giữ nguyên
+            Assert.Equal(123_000m, updated.Amount);       // không đổi amount
+
+            Assert.Empty(db.Orders);
+            Assert.Empty(db.OrderDetails);
+
+            // Không có snapshot được tạo hay xoá (cache rỗng)
+            Assert.False(cache.TryGetValue(ItemsKey(payment.PaymentId), out _));
+            Assert.False(cache.TryGetValue(MetaKey(payment.PaymentId), out _));
+        }
+
     }
 }

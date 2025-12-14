@@ -48,14 +48,17 @@ namespace Keytietkiem.Tests.Controllers
             return (string)(p?.GetValue(value) ?? string.Empty);
         }
 
-        private static void SeedProduct(KeytietkiemDbContext db, Guid productId, string name = "Product 1")
+        private static void SeedProduct(
+            KeytietkiemDbContext db,
+            Guid productId,
+            string name = "Product 1")
         {
             db.Products.Add(new Product
             {
                 ProductId = productId,
                 ProductCode = "P-" + productId.ToString("N").Substring(0, 8),
                 ProductName = name,
-                ProductType = "KEY",                 // hoặc ProductEnums.PERSONAL_KEY tuỳ model
+                ProductType = "KEY", // hoặc enum tuỳ model thực tế
                 Slug = "product-" + productId.ToString("N").Substring(0, 8),
                 Status = "ACTIVE",
                 CreatedAt = DateTime.UtcNow
@@ -91,7 +94,7 @@ namespace Keytietkiem.Tests.Controllers
             );
         }
 
-        // ====== TC1: Product not found ======
+        // ====== UT001: Product not found ======
 
         [Fact]
         public async Task SetBadgesForProduct_ProductNotFound_Returns404()
@@ -114,12 +117,72 @@ namespace Keytietkiem.Tests.Controllers
             var message = GetMessage(notFound.Value!);
             Assert.Equal("Product not found", message);
 
-            // Đảm bảo DB không thay đổi ProductBadges
             using var checkDb = new KeytietkiemDbContext(options);
             Assert.Empty(checkDb.ProductBadges);
         }
 
-        // ====== TC2: Product chưa có badge, list codes phức tạp -> gán non-empty ======
+        // ====== UT002: Product chưa có badge, list = null -> không gán gì ======
+
+        [Fact]
+        public async Task SetBadgesForProduct_NoExistingBadges_NullCodes_LeavesBadgesEmpty()
+        {
+            var options = CreateOptions();
+            var productId = Guid.NewGuid();
+
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedProduct(db, productId);
+                SeedBadges(db);
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            IEnumerable<string>? codes = null;
+            var result = await controller.SetBadgesForProduct(productId, codes);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badges = checkDb.ProductBadges
+                .Where(pb => pb.ProductId == productId)
+                .ToList();
+
+            Assert.Empty(badges);
+        }
+
+        // ====== UT003: Product chưa có badge, list chỉ whitespace ======
+
+        [Fact]
+        public async Task SetBadgesForProduct_NoExistingBadges_WhitespaceOnly_LeavesBadgesEmpty()
+        {
+            var options = CreateOptions();
+            var productId = Guid.NewGuid();
+
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedProduct(db, productId);
+                SeedBadges(db);
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var codes = new[] { "   ", "\t" };
+
+            var result = await controller.SetBadgesForProduct(productId, codes);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badges = checkDb.ProductBadges
+                .Where(pb => pb.ProductId == productId)
+                .ToList();
+
+            Assert.Empty(badges);
+        }
+
+        // ====== UT004: Product chưa có badge, list codes phức tạp -> gán non-empty ======
 
         [Fact]
         public async Task SetBadgesForProduct_NoExistingBadges_AssignsUniqueActiveBadges()
@@ -155,13 +218,43 @@ namespace Keytietkiem.Tests.Controllers
                 .Where(pb => pb.ProductId == productId)
                 .ToList();
 
-            // Chỉ HOT và NEW (active) được dùng, mỗi cái 1 lần
             Assert.Equal(2, productBadges.Count);
             var codesAssigned = productBadges.Select(pb => pb.Badge).OrderBy(c => c).ToArray();
             Assert.Equal(new[] { "HOT", "NEW" }, codesAssigned);
         }
 
-        // ====== TC3: Product đang có badge, codes == null -> clear hết ======
+        // ====== UT005: Product chưa có badge, list chỉ inactive / unknown ======
+
+        [Fact]
+        public async Task SetBadgesForProduct_NoExistingBadges_OnlyInactiveOrUnknown_LeavesBadgesEmpty()
+        {
+            var options = CreateOptions();
+            var productId = Guid.NewGuid();
+
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedProduct(db, productId);
+                SeedBadges(db);
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var codes = new[] { "OLD", "UNKNOWN" };
+
+            var result = await controller.SetBadgesForProduct(productId, codes);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badges = checkDb.ProductBadges
+                .Where(pb => pb.ProductId == productId)
+                .ToList();
+
+            Assert.Empty(badges);
+        }
+
+        // ====== UT006: Product đang có badge, codes = null -> clear hết ======
 
         [Fact]
         public async Task SetBadgesForProduct_HasExistingBadges_NullCodes_ClearsAllBadges()
@@ -176,7 +269,6 @@ namespace Keytietkiem.Tests.Controllers
                 SeedProduct(db, otherProductId, "Other product");
                 SeedBadges(db);
 
-                // Product chính có 2 badge
                 db.ProductBadges.AddRange(
                     new ProductBadge
                     {
@@ -191,7 +283,6 @@ namespace Keytietkiem.Tests.Controllers
                         CreatedAt = DateTime.UtcNow
                     });
 
-                // Sản phẩm khác cũng có badge, để chắc chắn không bị ảnh hưởng
                 db.ProductBadges.Add(new ProductBadge
                 {
                     ProductId = otherProductId,
@@ -211,13 +302,11 @@ namespace Keytietkiem.Tests.Controllers
 
             using var checkDb = new KeytietkiemDbContext(options);
 
-            // Product chính: không còn badge nào
             var mainBadges = checkDb.ProductBadges
                 .Where(pb => pb.ProductId == productId)
                 .ToList();
             Assert.Empty(mainBadges);
 
-            // Product khác vẫn giữ nguyên
             var otherBadges = checkDb.ProductBadges
                 .Where(pb => pb.ProductId == otherProductId)
                 .ToList();
@@ -225,7 +314,7 @@ namespace Keytietkiem.Tests.Controllers
             Assert.Equal("HOT", otherBadges[0].Badge);
         }
 
-        // ====== TC4: Product có badge, list chỉ inactive/unknown -> clear hết ======
+        // ====== UT007: Product có badge, list chỉ inactive / unknown -> clear hết ======
 
         [Fact]
         public async Task SetBadgesForProduct_HasExistingBadges_OnlyInactiveOrUnknown_ClearsBadges()
@@ -241,7 +330,7 @@ namespace Keytietkiem.Tests.Controllers
                 db.ProductBadges.Add(new ProductBadge
                 {
                     ProductId = productId,
-                    Badge = "HOT",                 // hiện đang dùng badge active
+                    Badge = "HOT",
                     CreatedAt = DateTime.UtcNow
                 });
 
@@ -250,7 +339,7 @@ namespace Keytietkiem.Tests.Controllers
 
             var controller = CreateController(options);
 
-            var codes = new[] { "OLD", "UNKNOWN" }; // chỉ inactive + unknown
+            var codes = new[] { "OLD", "UNKNOWN" };
 
             var result = await controller.SetBadgesForProduct(productId, codes);
 
@@ -261,8 +350,147 @@ namespace Keytietkiem.Tests.Controllers
                 .Where(pb => pb.ProductId == productId)
                 .ToList();
 
-            // Không còn badge nào vì không có active code hợp lệ trong request
             Assert.Empty(badges);
+        }
+
+        // ====== UT008: Product có badge, list chỉ whitespace -> clear hết ======
+
+        [Fact]
+        public async Task SetBadgesForProduct_HasExistingBadges_WhitespaceOnly_ClearsBadges()
+        {
+            var options = CreateOptions();
+            var productId = Guid.NewGuid();
+
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedProduct(db, productId);
+                SeedBadges(db);
+
+                db.ProductBadges.Add(new ProductBadge
+                {
+                    ProductId = productId,
+                    Badge = "HOT",
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var codes = new[] { "   ", "\t" };
+
+            var result = await controller.SetBadgesForProduct(productId, codes);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badges = checkDb.ProductBadges
+                .Where(pb => pb.ProductId == productId)
+                .ToList();
+
+            Assert.Empty(badges);
+        }
+
+        // ====== UT009: Product có badge, đổi sang set badge active mới ======
+
+        [Fact]
+        public async Task SetBadgesForProduct_HasExistingBadges_UpdateToNewActiveSet()
+        {
+            var options = CreateOptions();
+            var productId = Guid.NewGuid();
+
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedProduct(db, productId);
+                SeedBadges(db);
+
+                db.ProductBadges.Add(new ProductBadge
+                {
+                    ProductId = productId,
+                    Badge = "HOT",
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var codes = new[]
+            {
+                "hot",      // giữ lại
+                " NEW ",    // thêm mới
+                "OLD",      // inactive
+                "UNKNOWN"   // không tồn tại
+            };
+
+            var result = await controller.SetBadgesForProduct(productId, codes);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badges = checkDb.ProductBadges
+                .Where(pb => pb.ProductId == productId)
+                .Select(pb => pb.Badge)
+                .OrderBy(c => c)
+                .ToArray();
+
+            Assert.Equal(new[] { "HOT", "NEW" }, badges);
+        }
+
+        // ====== UT010: Product có badge, gửi cùng set badge (khác case / duplicate) ======
+
+        [Fact]
+        public async Task SetBadgesForProduct_HasExistingBadges_SameActiveCodes_EndsWithSameSet()
+        {
+            var options = CreateOptions();
+            var productId = Guid.NewGuid();
+
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedProduct(db, productId);
+                SeedBadges(db);
+
+                db.ProductBadges.AddRange(
+                    new ProductBadge
+                    {
+                        ProductId = productId,
+                        Badge = "HOT",
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new ProductBadge
+                    {
+                        ProductId = productId,
+                        Badge = "NEW",
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options);
+
+            var codes = new[]
+            {
+                " hot ",
+                "HOT",
+                "new",
+                "NEW"
+            };
+
+            var result = await controller.SetBadgesForProduct(productId, codes);
+
+            Assert.IsType<NoContentResult>(result);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var badges = checkDb.ProductBadges
+                .Where(pb => pb.ProductId == productId)
+                .Select(pb => pb.Badge)
+                .OrderBy(c => c)
+                .ToArray();
+
+            Assert.Equal(new[] { "HOT", "NEW" }, badges);
         }
 
         // ===== inner helper classes =====

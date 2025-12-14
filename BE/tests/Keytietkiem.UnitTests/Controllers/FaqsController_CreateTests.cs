@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Keytietkiem.Tests.Controllers
+namespace Keytietkiem.UnitTests.Controllers
 {
     public class FaqsController_CreateTests
     {
@@ -264,6 +264,90 @@ namespace Keytietkiem.Tests.Controllers
             var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
             var message = GetMessage(badRequest.Value!);
             Assert.Equal("Answer length must be at least 10 characters.", message);
+        }
+        // ======= BỔ SUNG 1 – Question length > 500 (boundary còn lại của UTID04) =======
+
+        [Fact]
+        public async Task Create_QuestionTooLong_Returns400()
+        {
+            var options = CreateOptions();
+            var controller = CreateController(options);
+
+            // > 500 ký tự
+            var longQuestion = new string('Q', 501);
+
+            var dto = new ProductFaqCreateDto(
+                Question: longQuestion,
+                Answer: "Valid answer content with enough length.",
+                SortOrder: 0,
+                IsActive: true,
+                CategoryIds: null,
+                ProductIds: null
+            );
+
+            var result = await controller.Create(dto);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("Question length must be between 10 and 500 characters.", message);
+        }
+
+
+        // ======= BỔ SUNG 2 – CategoryIds/ProductIds chỉ toàn ID không hợp lệ =======
+
+        [Fact]
+        public async Task Create_AllCategoryAndProductIdsInvalid_CreatesFaqWithoutMappings()
+        {
+            var options = CreateOptions();
+            var fixedNow = new DateTime(2025, 1, 3, 0, 0, 0, DateTimeKind.Utc);
+
+            // DB vẫn có ít nhất 1 Category, 1 Product (theo precondition của sheet),
+            // nhưng DTO sẽ không tham chiếu đến các ID này.
+            Guid existingProductId;
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                SeedCategory(db, 1);
+                existingProductId = Guid.NewGuid();
+                SeedProduct(db, existingProductId);
+                db.SaveChanges();
+            }
+
+            var controller = CreateController(options, fixedNow);
+
+            var dto = new ProductFaqCreateDto(
+                Question: "This is a valid FAQ question with normal length.",
+                Answer: "This is a valid answer content with enough length.",
+                SortOrder: 1,
+                IsActive: true,
+                // Chỉ toàn ID category không tồn tại
+                CategoryIds: new[] { 999, 1000 },
+                // Chỉ toàn ID product không tồn tại / invalid
+                ProductIds: new[] { Guid.NewGuid(), Guid.Empty }
+            );
+
+            var result = await controller.Create(dto);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+            var body = Assert.IsType<ProductFaqDetailDto>(created.Value);
+
+            // FAQ vẫn được tạo
+            Assert.True(body.FaqId > 0);
+            Assert.Equal(1, body.SortOrder);
+            Assert.True(body.IsActive);
+            Assert.Equal(fixedNow, body.CreatedAt);
+
+            // Nhưng không có mapping category/product nào được tạo
+            Assert.Empty(body.CategoryIds);
+            Assert.Empty(body.ProductIds);
+
+            using var checkDb = new KeytietkiemDbContext(options);
+            var faq = checkDb.Faqs
+                .Include(f => f.Categories)
+                .Include(f => f.Products)
+                .Single(f => f.FaqId == body.FaqId);
+
+            Assert.Empty(faq.Categories);
+            Assert.Empty(faq.Products);
         }
 
         // ================== Helper inner classes ==================
