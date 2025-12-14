@@ -950,6 +950,9 @@ namespace Keytietkiem.Controllers
             }
 
             // Process PERSONAL_ACCOUNT type variants
+            // NOTE: Personal accounts are assigned 1-to-1 to users. Each account has MaxUsers = 1.
+            // After assignment, account credentials (email, username, password) are sent to the user via email.
+            // The account status remains "Active" and is exclusively assigned to this user's order.
             var personalAccountVariants = variants
                 .Where(x => x.Product.ProductType == ProductEnums.PERSONAL_ACCOUNT)
                 .ToList();
@@ -1011,7 +1014,8 @@ namespace Keytietkiem.Controllers
                             AccountEmail = account.AccountEmail,
                             AccountUsername = account.AccountUsername,
                             AccountPassword = decryptedPassword,
-                            ExpiryDate = account.ExpiryDate
+                            ExpiryDate = account.ExpiryDate,
+                            Notes = account.Notes // Include notes from ProductAccount for additional instructions
                         });
 
                         _logger.LogInformation("Assigned account {AccountId} to order {OrderId}",

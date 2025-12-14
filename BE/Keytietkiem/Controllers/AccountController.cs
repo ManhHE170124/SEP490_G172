@@ -15,6 +15,12 @@ public class AccountController : ControllerBase
     private readonly IAccountService _accountService;
     private readonly IAuditLogger _auditLogger;
 
+    private bool IsValidPhoneNumber(string? phone)
+    {
+        if (string.IsNullOrEmpty(phone)) return true; // Optional, so null/empty is valid (or handle as required elsewhere)
+        return System.Text.RegularExpressions.Regex.IsMatch(phone, @"^0(3|5|7|8|9)[0-9]{8}$");
+    }
+
     public AccountController(IAccountService accountService, IAuditLogger auditLogger)
     {
         _accountService = accountService;
@@ -81,6 +87,11 @@ public class AccountController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
+        if (!string.IsNullOrEmpty(dto.Phone) && !IsValidPhoneNumber(dto.Phone))
+        {
+             return BadRequest(new { message = "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)" });
+        }
+
         try
         {
             var response = await _accountService.RegisterAsync(dto);
@@ -239,6 +250,12 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateAccountProfileDto dto)
     {
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+
+        if (!string.IsNullOrEmpty(dto.Phone) && !IsValidPhoneNumber(dto.Phone))
+        {
+             return BadRequest(new { message = "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)" });
+        }
+
         try
         {
             // Lấy snapshot trước khi update
