@@ -219,7 +219,7 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users
         [HttpGet]
-        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_LIST)]
+        [RequirePermission(ModuleCodes.USER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<UserListItemDto>>> GetUsers(
             string? q,
             string? roleId,
@@ -369,7 +369,7 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users/{id}
         [HttpGet("{id:guid}")]
-        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.USER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<UserDetailDto>> Get(Guid id)
         {
             var u = await _db.Users
@@ -447,7 +447,7 @@ namespace Keytietkiem.Controllers
 
         // POST /api/users
         [HttpPost]
-        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.CREATE)]
+        [RequirePermission(ModuleCodes.USER, PermissionCodes.CREATE)]
         public async Task<ActionResult> Create([FromBody] UserCreateDto dto)
         {
             // Chặn sớm dữ liệu sai format / vượt độ dài DB (DataAnnotations trong DTO)
@@ -565,7 +565,7 @@ namespace Keytietkiem.Controllers
 
         // PUT /api/users/{id}
         [HttpPut("{id:guid}")]
-        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.EDIT)]
+        [RequirePermission(ModuleCodes.USER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UserUpdateDto dto)
         {
             if (id != dto.UserId)
@@ -753,7 +753,7 @@ namespace Keytietkiem.Controllers
 
         // DELETE /api/users/{id}  (giữ behavior toggle Active <-> Disabled như FE đang dùng)
         [HttpDelete("{id:guid}")]
-        [RequirePermission(ModuleCodes.USER_MANAGER, PermissionCodes.DELETE)]
+        [RequirePermission(ModuleCodes.USER, PermissionCodes.DELETE)]
         public async Task<IActionResult> ToggleActive([FromRoute] Guid id)
         {
             var u = await _db.Users

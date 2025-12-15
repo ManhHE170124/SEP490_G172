@@ -89,7 +89,7 @@ export default function AdminPostList() {
           permissionErrorShownRef.current = true;
           showError("Lỗi tải dữ liệu", err.message || "Bạn không có quyền truy cập chức năng này.");
         } else if (!isPermissionError) {
-          showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
+        showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
         }
       }
     } finally {
@@ -234,7 +234,7 @@ export default function AdminPostList() {
       );
       return;
     }
-    navigate(`/post-create-edit/${postId}`);
+      navigate(`/post-create-edit/${postId}`);
   };
 
   const handlePreview = (post) => {

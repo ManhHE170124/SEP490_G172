@@ -61,7 +61,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]    
+    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.VIEW_DETAIL)]    
     /**
      * Summary: Retrieve category list with optional keyword/active filters; supports sorting & pagination.
      * Route: GET /api/categories
@@ -137,7 +137,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.VIEW_DETAIL)]
     /**
      * Summary: Retrieve a single category by id (includes ProductCount).
      * Route: GET /api/categories/{id}
@@ -166,7 +166,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPost]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
+    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.CREATE)]
     /**
      * Summary: Create a new category.
      * Route: POST /api/categories
@@ -305,7 +305,7 @@ public class CategoriesController : ControllerBase
 
 
     [HttpPut("{id:int}")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
+    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.EDIT)]
     /**
      * Summary: Update an existing category by id.
      * Route: PUT /api/categories/{id}
@@ -413,7 +413,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
+    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.DELETE)]
     /**
      * Summary: Delete a category by id.
      * Route: DELETE /api/categories/{id}
@@ -457,7 +457,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:int}/toggle")]
-    [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
+    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.EDIT)]
     /**
      * Summary: Toggle the IsActive state of a category.
      * Route: PATCH /api/categories/{id}/toggle

@@ -444,8 +444,8 @@ export default function SupportDashboardAdminPage() {
 
     // Show loading while checking permission
     if (permissionLoading) {
-        return (
-            <div className="sd-page">
+    return (
+        <div className="sd-page">
                 <div className="sd-loading">Đang kiểm tra quyền truy cập...</div>
             </div>
         );

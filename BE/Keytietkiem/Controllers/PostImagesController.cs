@@ -14,11 +14,16 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Attributes;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PostImagesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -40,6 +45,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpPost("uploadImage")]
         [Consumes("multipart/form-data")]
+        [RequirePermission(POST_IMAGE, CREATE)]
         public async Task<IActionResult> UploadImage([FromForm] ImageUploadRequest request)
         {
             try
@@ -65,6 +71,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK on success, 400 or 500 on error.
          */
         [HttpDelete("deleteImage")]
+        [RequirePermission(POST_IMAGE, DELETE)]
         public async Task<IActionResult> DeleteImage([FromBody] ImageDeleteRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PublicId))

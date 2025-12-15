@@ -13,7 +13,6 @@ import AdminLayout from "../layout/AdminLayout/AdminLayout";
 import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
-import { MODULE_CODES } from "../constants/accessControl";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
@@ -232,14 +231,14 @@ export default function AppRoutes() {
       <Route
         path="/admin/tickets"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "TICKET",
           <AdminTicketManagement />
         )}
       />
       <Route
         path="/admin/tickets/:id"
         element={
-          <ProtectedRoute moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+          <ProtectedRoute moduleCode="TICKET">
             <Suspense fallback={<div>Đang tải chi tiết...</div>}>
               <AdminLayout>
                 <AdminTicketDetail />
@@ -253,14 +252,14 @@ export default function AppRoutes() {
       <Route
         path="/staff/tickets"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "TICKET",
           <StaffTicketManagement />
         )}
       />
       <Route
         path="/staff/tickets/:id"
         element={
-          <ProtectedRoute moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+          <ProtectedRoute moduleCode="TICKET">
             <Suspense fallback={<div>Đang tải chi tiết...</div>}>
               <AdminLayout>
                 <StaffTicketDetail />
@@ -274,14 +273,14 @@ export default function AppRoutes() {
       <Route
         path="/reports"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "PRODUCT_REPORT",
           <ProductReportManagementPage />
         )}
       />
       <Route
         path="/reports/:id"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "PRODUCT_REPORT",
           <ProductReportDetailPage />
         )}
       />
@@ -316,28 +315,28 @@ export default function AppRoutes() {
       <Route
         path="/admin/products"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "PRODUCT",
           <ProductsPage />
         )}
       />
       <Route
         path="/admin/products/add"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "PRODUCT",
           <ProductAdd />
         )}
       />
       <Route
         path="/admin/products/:id"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "PRODUCT",
           <ProductDetail />
         )}
       />
       <Route
         path="/admin/products/:id/variants/:variantId"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "PRODUCT_VARIANT",
           <VariantDetail />
         )}
       />
@@ -346,14 +345,14 @@ export default function AppRoutes() {
       <Route
         path="/admin/categories"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "CATEGORY",
           <CategoryPage />
         )}
       />
       <Route
         path="/admin/orders"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,   // có thể đổi sang module code khác nếu sau này tách quyền
+          "ORDER",
           <OrderPaymentPage />
         )}
       />
@@ -361,7 +360,7 @@ export default function AppRoutes() {
       <Route
         path="/admin/payments"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "ORDER",
           <OrderPaymentPage />
         )}
       />
@@ -369,7 +368,7 @@ export default function AppRoutes() {
       <Route
         path="/admin/faqs"
         element={renderAdminPage(
-          MODULE_CODES.PRODUCT_MANAGER,
+          "FAQ",
           <FaqsPage />
         )}
       />
@@ -382,28 +381,28 @@ export default function AppRoutes() {
       <Route
         path="/admin/users"
         element={renderAdminPage(
-          MODULE_CODES.USER_MANAGER,
+          "USER",
           <AdminUserManagement />
         )}
       />
       <Route
         path="/admin/users"
         element={renderAdminPage(
-          MODULE_CODES.USER_MANAGER,
+          "USER",
           <AdminUserManagement />
         )}
       />
       <Route
         path="/role-manage"
         element={renderAdminPage(
-          MODULE_CODES.ROLE_MANAGER,
+          "ROLE",
           <RoleManage />
         )}
       />
       <Route
         path="/role-assign"
         element={renderAdminPage(
-          MODULE_CODES.ROLE_MANAGER,
+          "ROLE",
           <RoleAssign />
         )}
       />
@@ -411,35 +410,30 @@ export default function AppRoutes() {
       <Route
         path="/post-dashboard"
         element={renderAdminPage(
-          MODULE_CODES.POST_MANAGER,
           <PostDashboardPage />
         )}
       />
       <Route
         path="/admin-post-list"
         element={renderAdminPage(
-          MODULE_CODES.POST_MANAGER,
           <AdminPostList />
         )}
       />
       <Route
         path="/post-create-edit"
         element={renderAdminPage(
-          MODULE_CODES.POST_MANAGER,
           <PostCreateEdit />
         )}
       />
       <Route
         path="/post-create-edit/:postId"
         element={renderAdminPage(
-          MODULE_CODES.POST_MANAGER,
           <PostCreateEdit />
         )}
       />
       <Route
         path="/tag-post-type-manage"
         element={renderAdminPage(
-          MODULE_CODES.POST_MANAGER,
           <TagPostTypeManage />
         )}
       />
@@ -451,21 +445,21 @@ export default function AppRoutes() {
       <Route
         path="/suppliers"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "SUPPLIER",
           <SuppliersPage />
         )}
       />
       <Route
         path="/suppliers/add"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "SUPPLIER",
           <SupplierDetailPage />
         )}
       />
       <Route
         path="/suppliers/:id"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "SUPPLIER",
           <SupplierDetailPage />
         )}
       />
@@ -474,21 +468,21 @@ export default function AppRoutes() {
       <Route
         path="/keys"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_KEY",
           <KeyManagementPage />
         )}
       />
       <Route
         path="/keys/add"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_KEY",
           <KeyDetailPage />
         )}
       />
       <Route
         path="/keys/:id"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_KEY",
           <KeyDetailPage />
         )}
       />
@@ -497,7 +491,7 @@ export default function AppRoutes() {
       <Route
         path="/key-monitor"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_ACCOUNT",
           <KeyMonitorPage />
         )}
       />
@@ -506,21 +500,21 @@ export default function AppRoutes() {
       <Route
         path="/accounts"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_ACCOUNT",
           <AccountManagementPage />
         )}
       />
       <Route
         path="/accounts/add"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_ACCOUNT",
           <AccountDetailPage />
         )}
       />
       <Route
         path="/accounts/:id"
         element={renderAdminPage(
-          MODULE_CODES.WAREHOUSE_MANAGER,
+          "PRODUCT_ACCOUNT",
           <AccountDetailPage />
         )}
       />
@@ -528,35 +522,35 @@ export default function AppRoutes() {
       <Route
         path="/admin/website-config"
         element={renderAdminPage(
-          MODULE_CODES.SETTINGS_MANAGER,
+          "WEBSITE_SETTING",
           <WebsiteConfig />
         )}
       />
        <Route
         path="/admin/notifications"
         element={renderAdminPage(
-          MODULE_CODES.SETTINGS_MANAGER,
+          "WEBSITE_SETTING",
           <AdminNotificationsPage />
         )}
       />
       <Route
         path="/admin/support-dashboard"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "SUPPORT_DASHBOARD",
               <SupportDashboardAdminPage />
         )}
       />
       <Route
         path="/admin/support-chats"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "SUPPORT_CHAT",
           <AdminSupportChatPage />
         )}
       />
       <Route
         path="/staff/support-chats"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "SUPPORT_CHAT",
           <StaffSupportChatPage />
         )}
       />
@@ -572,35 +566,35 @@ export default function AppRoutes() {
       <Route
         path="/admin/support-priority-loyalty-rules"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "SUPPORT_PRIORITY_LOYALTY_RULE",
           <SupportPriorityLoyaltyRulesPage />
         )}
       />
       <Route
         path="/admin/support-plans"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "SUPPORT_PLAN_ADMIN",
           <SupportPlansAdminPage />
         )}
       />
       <Route
         path="/admin/sla-rules"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "SLA_RULE_ADMIN",
           <SlaRulesAdminPage />
         )}
       />
       <Route
         path="/admin/ticket-subject-templates"
         element={renderAdminPage(
-          MODULE_CODES.SUPPORT_MANAGER,
+          "TICKET_SUBJECT_TEMPLATE",
           <TicketSubjectTemplatesAdminPage />
         )}
       />
       <Route
         path="/admin/audit-logs"
         element={renderAdminPage(
-          MODULE_CODES.SETTINGS_MANAGER,
+          "WEBSITE_SETTING",
           <AuditLogsPage />
         )}
       />

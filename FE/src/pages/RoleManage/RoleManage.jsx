@@ -450,42 +450,54 @@ export default function RoleManagement() {
    * @returns {Promise<void>}
    */
   async function onDelete(row) {
-    const label = activeTab === TABS.MODULES ? row.moduleName : activeTab === TABS.PERMISSIONS ? row.permissionName : row.name;
-    const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+    // Hiện tại chỉ cho phép bật/tắt Vai trò, không xoá Module/Permission
+    if (activeTab !== TABS.ROLES) {
+      return;
+    }
+
+    const label = row.name;
+    const entityType = "Role";
+    const isCurrentlyActive = Boolean(row.isActive);
+    const nextActive = !isCurrentlyActive;
+    const actionLabel = nextActive ? "kích hoạt lại" : "vô hiệu hóa";
 
     showWarning(
-      `Xác nhận xóa ${entityType}`,
-      `Bạn sắp xóa ${entityType.toLowerCase()} "${label}". Hành động này không thể hoàn tác!`
+      `Xác nhận ${actionLabel} ${entityType}`,
+      `Bạn sắp ${actionLabel} ${entityType.toLowerCase()} "${label}".`
     );
 
     // Show confirm dialog instead of alert
     showConfirm(
-      `Xác nhận xóa ${entityType}`,
-      `Bạn có chắc chắn muốn xóa "${label}"? Hành động này không thể hoàn tác.`,
+      `Xác nhận ${actionLabel} ${entityType}`,
+      `Bạn có chắc chắn muốn ${actionLabel} "${label}"?`,
       async () => {
         try {
-          if (activeTab === TABS.MODULES) await roleApi.deleteModule(row.moduleId || row.id);
-          else if (activeTab === TABS.PERMISSIONS) await roleApi.deletePermission(row.permissionId || row.id);
-          else await roleApi.deleteRole(row.roleId || row.id);
+          const roleId = row.roleId || row.id;
+          const payload = {
+            name: row.name,
+            code: row.code,
+            isActive: nextActive,
+          };
+
+          await roleApi.updateRole(roleId, payload);
+
           setData((prev) => {
-            const filtered = prev.filter((x) => {
-              const key =
-                activeTab === TABS.MODULES
-                  ? "moduleId"
-                  : activeTab === TABS.PERMISSIONS
-                  ? "permissionId"
-                  : "roleId";
-              const targetId = row[key] ?? row.id;
-              const currentId = x[key] ?? x.id;
-              return currentId !== targetId;
-            });
-            return activeTab === TABS.ROLES
-              ? filterOutCustomerRoles(filtered)
-              : filtered;
+            const list = Array.isArray(prev) ? [...prev] : [];
+            return filterOutCustomerRoles(
+              list.map((x) =>
+                (x.roleId || x.id) === roleId
+                  ? {
+                      ...x,
+                      ...payload,
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : x
+              )
+            );
           });
           showSuccess(
-            `Xóa ${entityType} thành công!`,
-            `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
+            `${nextActive ? "Kích hoạt" : "Vô hiệu hóa"} ${entityType} thành công!`,
+            `${entityType} "${label}" đã được ${nextActive ? "kích hoạt lại" : "vô hiệu hóa"}.`
           );
         } catch (e) {
           // Handle network errors globally - only show one toast
@@ -495,8 +507,8 @@ export default function RoleManagement() {
               showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
             }
           } else {
-            const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
-            showError(`Xóa ${entityType} thất bại!`, errorMessage);
+            const errorMessage = e.response?.data?.message || e.message || "Cập nhật trạng thái thất bại";
+            showError(`Cập nhật trạng thái ${entityType} thất bại!`, errorMessage);
           }
         }
       },
@@ -746,9 +758,17 @@ export default function RoleManagement() {
                       <button className="role-action-btn role-update-btn" title="Sửa" onClick={() => onEdit(row)}>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
                       </button>
-                      <button className="role-action-btn role-delete-btn" title="Xoá" onClick={() => onDelete(row)}>
-                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" /></svg>
-                      </button>
+                      {activeTab === TABS.ROLES && (
+                        <button
+                          className="role-action-btn role-delete-btn"
+                          title={row.isActive ? "Vô hiệu hóa" : "Kích hoạt lại"}
+                          onClick={() => onDelete(row)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

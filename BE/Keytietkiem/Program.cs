@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Keytietkiem.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
@@ -162,6 +163,7 @@ using (var scope = app.Services.CreateScope())
     await roleService.SeedDefaultRolesAsync();
     var accountService = scope.ServiceProvider.GetRequiredService<IAccountService>();
     await accountService.SeedDataAsync();
+    await RolePermissionInitializer.EnsureAsync(scope.ServiceProvider);
 }
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====

@@ -25,11 +25,16 @@ using Keytietkiem.DTOs.Post;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Attributes;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/comments")]
     [ApiController]
+    [Authorize]
     public class PostCommentsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -49,8 +54,9 @@ namespace Keytietkiem.Controllers
          * Params: postId, userId, isApproved, parentCommentId (all optional query params)
          * Returns: 200 OK with list of comments
          */
-        [HttpGet]
-        public async Task<IActionResult> GetComments(
+    [HttpGet]
+    [RequirePermission(POST_COMMENT, VIEW_LIST)]
+    public async Task<IActionResult> GetComments(
             [FromQuery] Guid? postId,
             [FromQuery] Guid? userId,
             [FromQuery] bool? isApproved,
@@ -113,8 +119,9 @@ namespace Keytietkiem.Controllers
          * Params: id (Guid) - comment identifier
          * Returns: 200 OK with comment, 404 if not found
          */
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetCommentById(Guid id)
+    [HttpGet("{id}")]
+    [RequirePermission(POST_COMMENT, VIEW_DETAIL)]
+    public async Task<IActionResult> GetCommentById(Guid id)
         {
             var comment = await _context.PostComments
                 .Include(c => c.User)

@@ -60,7 +60,7 @@ namespace Keytietkiem.Controllers
         /// Sort mặc định: Category -> Severity -> TemplateCode.
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+        [RequirePermission(ModuleCodes.TICKET_SUBJECT_TEMPLATE, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<TicketSubjectTemplateAdminListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] string? severity,
@@ -248,7 +248,7 @@ namespace Keytietkiem.Controllers
         /// Lấy chi tiết 1 TicketSubjectTemplate.
         /// </summary>
         [HttpGet("{templateCode}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.TICKET_SUBJECT_TEMPLATE, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<TicketSubjectTemplateAdminDetailDto>> GetByCode(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -286,7 +286,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới 1 TicketSubjectTemplate.
         /// </summary>
         [HttpPost]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.CREATE)]
+        [RequirePermission(ModuleCodes.TICKET_SUBJECT_TEMPLATE, PermissionCodes.CREATE)]
         public async Task<ActionResult<TicketSubjectTemplateAdminDetailDto>> Create(
             TicketSubjectTemplateAdminCreateDto dto)
         {
@@ -466,7 +466,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật TicketSubjectTemplate (không cho đổi TemplateCode).
         /// </summary>
         [HttpPut("{templateCode}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
+        [RequirePermission(ModuleCodes.TICKET_SUBJECT_TEMPLATE, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(
             string templateCode,
             TicketSubjectTemplateAdminUpdateDto dto)
@@ -617,7 +617,7 @@ namespace Keytietkiem.Controllers
         /// Nếu sau này có FK từ Ticket -> TemplateCode thì nên bổ sung check trước khi xoá.
         /// </summary>
         [HttpDelete("{templateCode}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.DELETE)]
+        [RequirePermission(ModuleCodes.TICKET_SUBJECT_TEMPLATE, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -667,7 +667,7 @@ namespace Keytietkiem.Controllers
         /// Bật / tắt IsActive cho TicketSubjectTemplate.
         /// </summary>
         [HttpPatch("{templateCode}/toggle")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
+        [RequirePermission(ModuleCodes.TICKET_SUBJECT_TEMPLATE, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))

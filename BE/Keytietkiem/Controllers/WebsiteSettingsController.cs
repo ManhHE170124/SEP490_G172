@@ -49,7 +49,7 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always get the first record
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.WEBSITE_SETTING, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> Get()
         {
             // ✅ Use service to get settings
@@ -107,12 +107,12 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always update the FIRST record only
         /// </summary>
         [HttpPost]
-        [RequirePermission(ModuleCodes.SETTINGS_MANAGER, PermissionCodes.EDIT)]
+        [RequirePermission(ModuleCodes.WEBSITE_SETTING, PermissionCodes.EDIT)]
         [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> Save()
-        {
-            WebsiteSettingsRequestDto? data = null;
-            string? logoUrl = null;
+            {
+                WebsiteSettingsRequestDto? data = null;
+                string? logoUrl = null;
 
             try
             {

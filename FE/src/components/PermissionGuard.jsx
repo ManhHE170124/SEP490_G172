@@ -13,7 +13,6 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-import { usePermission } from "../hooks/usePermission";
 
 /**
  * Component that conditionally renders children based on permission
@@ -23,24 +22,12 @@ import { usePermission } from "../hooks/usePermission";
  * @param {ReactNode} fallback - Optional content to render if user doesn't have permission (default: null)
  * @returns {ReactNode} - Children if has permission, fallback otherwise, or null
  */
-const PermissionGuard = ({ moduleCode, permissionCode, children, fallback = null }) => {
-  const { hasPermission, loading } = usePermission(moduleCode, permissionCode);
-
-  // Don't render anything while loading to prevent flash of content
-  if (loading) {
-    return null;
-  }
-
-  if (hasPermission) {
-    return <>{children}</>;
-  }
-
-  return <>{fallback}</>;
+const PermissionGuard = ({ children, fallback = null }) => {
+  // FE no longer gates by permission; always render children
+  return <>{children ?? fallback}</>;
 };
 
 PermissionGuard.propTypes = {
-  moduleCode: PropTypes.string.isRequired,
-  permissionCode: PropTypes.string.isRequired,
   children: PropTypes.node.isRequired,
   fallback: PropTypes.node,
 };

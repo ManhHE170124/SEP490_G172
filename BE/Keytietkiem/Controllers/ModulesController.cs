@@ -50,7 +50,7 @@ namespace Keytietkiem.Controllers
         * Returns: 200 OK with list of modules
         */
         [HttpGet]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_LIST)]
+    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetModules()
         {
             var modules = await _context.Modules
@@ -75,7 +75,7 @@ namespace Keytietkiem.Controllers
          * @Returns: 200 OK with module, 404 if not found
          */
         [HttpGet("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetModuleById(long id)
         {
             var module = await _context.Modules
@@ -106,7 +106,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
         [HttpPost]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.CREATE)]
+    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.CREATE)]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
             if (createModuleDto == null)
@@ -205,7 +205,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404/409 on errors
          */
         [HttpPut("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.EDIT)]
+    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.EDIT)]
         public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
             if (updateModuleDto == null)
@@ -278,7 +278,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.DELETE)]
+    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.DELETE)]
         public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules

@@ -89,7 +89,7 @@ namespace Keytietkiem.Controllers
         /// List SlaRule có filter + paging.
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+        [RequirePermission(ModuleCodes.SLA_RULE_ADMIN, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<SlaRuleAdminListItemDto>>> List(
             [FromQuery] string? severity,
             [FromQuery] int? priorityLevel,
@@ -185,7 +185,7 @@ namespace Keytietkiem.Controllers
         /// GET: /api/sla-rules-admin/{slaRuleId}
         /// </summary>
         [HttpGet("{slaRuleId:int}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequirePermission(ModuleCodes.SLA_RULE_ADMIN, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<SlaRuleAdminDetailDto>> GetById(int slaRuleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -216,7 +216,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới 1 SlaRule.
         /// </summary>
         [HttpPost]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.CREATE)]
+        [RequirePermission(ModuleCodes.SLA_RULE_ADMIN, PermissionCodes.CREATE)]
         public async Task<ActionResult<SlaRuleAdminDetailDto>> Create(
             SlaRuleAdminCreateDto dto)
         {
@@ -344,7 +344,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật 1 SlaRule.
         /// </summary>
         [HttpPut("{slaRuleId:int}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
+        [RequirePermission(ModuleCodes.SLA_RULE_ADMIN, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(
             int slaRuleId,
             SlaRuleAdminUpdateDto dto)
@@ -484,7 +484,7 @@ namespace Keytietkiem.Controllers
         /// Xoá hẳn 1 SlaRule.
         /// </summary>
         [HttpDelete("{slaRuleId:int}")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.DELETE)]
+        [RequirePermission(ModuleCodes.SLA_RULE_ADMIN, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(int slaRuleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -538,7 +538,7 @@ namespace Keytietkiem.Controllers
         /// Bật / tắt IsActive cho SlaRule.
         /// </summary>
         [HttpPatch("{slaRuleId:int}/toggle")]
-        [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.EDIT)]
+        [RequirePermission(ModuleCodes.SLA_RULE_ADMIN, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(int slaRuleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

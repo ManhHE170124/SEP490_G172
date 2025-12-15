@@ -90,7 +90,7 @@ public class TicketsController : ControllerBase
 
     // ============ LIST ============
     [HttpGet]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_LIST)]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
         [FromQuery] string? q,
         [FromQuery] string? status,
@@ -275,7 +275,7 @@ public class TicketsController : ControllerBase
 
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
-    [RequirePermission(ModuleCodes.SUPPORT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_DETAIL)]
     public async Task<ActionResult<TicketDetailDto>> Detail(Guid id)
     {
         var t = await _db.Tickets

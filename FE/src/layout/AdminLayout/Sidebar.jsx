@@ -8,14 +8,13 @@ import React, { Fragment, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import SidebarTooltip from "../../components/SidebarTooltip/SidebarTooltip.jsx";
 import { usePermissions } from "../../context/PermissionContext";
-import { MODULE_CODES } from "../../constants/accessControl";
 import "./Sidebar.css";
 
 const Sidebar = () => {
   const location = useLocation();
   const currentPage = location.pathname.substring(1) || "home";
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { allowedModuleCodes, moduleAccessPermissions, loading: permissionsLoading } = usePermissions();
+  const { allowedModuleCodes } = usePermissions();
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => !prev);
@@ -68,11 +67,13 @@ const Sidebar = () => {
     {
       id: "storage-section",
       title: "Kho & Nhà cung cấp",
-      moduleCode: MODULE_CODES.WAREHOUSE_MANAGER,
+      // Warehouse section is controlled by SUPPLIER module access
+      moduleCode: "SUPPLIER",
       items: [
         {
           id: "suppliers",
           label: "Nhà cung cấp & License",
+          moduleCode: "SUPPLIER",
           to: "/suppliers",
           isActive:
             currentPage === "suppliers" ||
@@ -113,6 +114,7 @@ const Sidebar = () => {
           id: "key-monitor",
           label: "Theo dõi tình trạng",
           to: "/key-monitor",
+          moduleCode: "PRODUCT_ACCOUNT",
           isActive: currentPage === "key-monitor",
           title: "Theo dõi tình trạng",
           ariaLabel: "Theo dõi tình trạng",
@@ -132,6 +134,7 @@ const Sidebar = () => {
           id: "keys",
           label: "Quản lý kho Key",
           to: "/keys",
+          moduleCode: "PRODUCT_KEY",
           isActive:
             currentPage === "keys" || currentPage.startsWith("keys/"),
           title: "Quản lý kho Key",
@@ -153,6 +156,7 @@ const Sidebar = () => {
           id: "accounts",
           label: "Tài khoản chia sẻ",
           to: "/accounts",
+          moduleCode: "PRODUCT_ACCOUNT",
           isActive:
             currentPage === "accounts" ||
             currentPage.startsWith("accounts/"),
@@ -214,12 +218,12 @@ const Sidebar = () => {
     {
       id: "product",
       title: "Quản lý sản phẩm",
-      moduleCode: MODULE_CODES.PRODUCT_MANAGER,
       items: [
         {
           id: "products",
           label: "Quản lý sản phẩm",
           to: "/admin/products",
+          moduleCode: "PRODUCT",
           isActive:
             currentPage === "admin/products" ||
             currentPage.startsWith("admin/products/"),
@@ -246,6 +250,7 @@ const Sidebar = () => {
           id: "categories",
           label: "Quản lý danh mục",
           to: "/admin/categories",
+          moduleCode: "CATEGORY",
           isActive: currentPage === "admin/categories",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -272,6 +277,7 @@ const Sidebar = () => {
           id: "orders-admin",
           label: "Đơn hàng & thanh toán",
           to: "/admin/orders",
+          moduleCode: "ORDER",
           // currentPage ở trên lấy bằng location.pathname.substring(1)
           // nên path "/admin/orders" => currentPage === "admin/orders"
           isActive:
@@ -316,6 +322,7 @@ const Sidebar = () => {
           id: "faqs",
           label: "Câu hỏi thường gặp",
           to: "/admin/faqs",
+          moduleCode: "FAQ",
           isActive: currentPage === "admin/faqs",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -342,12 +349,12 @@ const Sidebar = () => {
     {
       id: "role",
       title: "Quản lý phân quyền",
-      moduleCode: MODULE_CODES.ROLE_MANAGER,
       items: [
         {
           id: "role-manage",
           label: "Quản lý phân quyền",
           to: "/role-manage",
+          moduleCode: "ROLE",
           isActive: currentPage === "role-manage",
           icon: (
             <svg
@@ -367,6 +374,7 @@ const Sidebar = () => {
           id: "role-assign",
           label: "Phân công vai trò",
           to: "/role-assign",
+          moduleCode: "ROLE",
           isActive: currentPage === "role-assign",
           icon: (
             <svg
@@ -405,12 +413,12 @@ const Sidebar = () => {
     {
       id: "warehouse",
       title: "Kho & Nhà cung cấp",
-      moduleCode: MODULE_CODES.WAREHOUSE_MANAGER,
       items: [
         {
           id: "suppliers-main",
           label: "Nhà cung cấp & License",
           to: "/suppliers",
+          moduleCode: "SUPPLIER",
           isActive:
             currentPage === "suppliers" ||
             currentPage.startsWith("suppliers/"),
@@ -447,6 +455,7 @@ const Sidebar = () => {
           id: "key-monitor-main",
           label: "Theo dõi tình trạng",
           to: "/key-monitor",
+          moduleCode: "PRODUCT_ACCOUNT",
           isActive: currentPage === "key-monitor",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -463,6 +472,7 @@ const Sidebar = () => {
           id: "keys-main",
           label: "Quản lý kho Key",
           to: "/keys",
+          moduleCode: "PRODUCT_KEY",
           isActive:
             currentPage === "keys" || currentPage.startsWith("keys/"),
           icon: (
@@ -481,6 +491,7 @@ const Sidebar = () => {
           id: "accounts-main",
           label: "Tài khoản chia sẻ",
           to: "/accounts",
+          moduleCode: "PRODUCT_ACCOUNT",
           isActive:
             currentPage === "accounts" ||
             currentPage.startsWith("accounts/"),
@@ -515,12 +526,12 @@ const Sidebar = () => {
     {
       id: "user",
       title: "Quản lý người dùng",
-      moduleCode: MODULE_CODES.USER_MANAGER,
       items: [
         {
           id: "users",
           label: "Quản lý người dùng",
           to: "/admin/users",
+          moduleCode: "USER",
           isActive:
             currentPage === "admin/users" ||
             currentPage.startsWith("admin/users/"),
@@ -558,12 +569,12 @@ const Sidebar = () => {
     {
       id: "support",
       title: "Quản lý hỗ trợ",
-      moduleCode: MODULE_CODES.SUPPORT_MANAGER,
       items: [
         {
           id: "dashboard",
           label: "Dashboard Hỗ trợ",
           to: "/admin/support-dashboard",
+          moduleCode: "SUPPORT_DASHBOARD",
           isActive: currentPage === "admin/support-dashboard",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -578,6 +589,7 @@ const Sidebar = () => {
           id: "tickets",
           label: "Quản lý phiếu hỗ trợ",
           to: "/admin/tickets",
+          moduleCode: "TICKET",
           isActive:
             currentPage === "admin/tickets" ||
             currentPage.startsWith("admin/tickets/"),
@@ -604,6 +616,7 @@ const Sidebar = () => {
           id: "support-chats",
           label: "Quản lý chat hỗ trợ",
           to: "/admin/support-chats",
+          moduleCode: "SUPPORT_CHAT",
           isActive: currentPage === "admin/support-chats",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -628,6 +641,7 @@ const Sidebar = () => {
           id: "product-reports",
           label: "Báo cáo sản phẩm",
           to: "/reports",
+          moduleCode: "PRODUCT_REPORT",
           isActive:
             currentPage === "reports" ||
             currentPage.startsWith("reports/"),
@@ -676,12 +690,12 @@ const Sidebar = () => {
     {
       id: "posts",
       title: "Quản lý bài viết",
-      moduleCode: MODULE_CODES.POST_MANAGER,
       items: [
         {
           id: "post-dashboard",
           label: "Dashboard Bài viết",
           to: "/post-dashboard",
+          moduleCode: "POST",
           isActive: currentPage === "post-dashboard",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -699,6 +713,7 @@ const Sidebar = () => {
           id: "admin-post-list",
           label: "Danh sách bài viết",
           to: "/admin-post-list",
+          moduleCode: "POST",
           isActive: currentPage === "admin-post-list",
           icon: (
             <svg
@@ -718,6 +733,7 @@ const Sidebar = () => {
           id: "post-create-edit",
           label: "Tạo bài viết",
           to: "/post-create-edit",
+          moduleCode: "POST",
           isActive: currentPage === "post-create-edit",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -762,6 +778,7 @@ const Sidebar = () => {
           id: "tag-post-type",
           label: "Quản lý Thẻ và Danh mục",
           to: "/tag-post-type-manage",
+          moduleCode: "POST_TAG",
           isActive: currentPage === "tag-post-type-manage",
           icon: (
             <svg
@@ -782,12 +799,12 @@ const Sidebar = () => {
     {
       id: "settings",
       title: "Cài đặt",
-      moduleCode: MODULE_CODES.SETTINGS_MANAGER,
       items: [
         {
           id: "website-config",
           label: "Cấu hình trang web",
           to: "/admin/website-config",
+          moduleCode: "WEBSITE_SETTING",
           isActive: currentPage === "admin/website-config",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -808,6 +825,7 @@ const Sidebar = () => {
           id: "support-priority-loyalty-rules",
           label: "Cấu hình quy tắc hỗ trợ",
           to: "/admin/support-priority-loyalty-rules",
+          moduleCode: "SUPPORT_PRIORITY_LOYALTY_RULE",
           isActive: currentPage === "admin/support-priority-loyalty-rules",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -828,6 +846,7 @@ const Sidebar = () => {
           id: "support-plans-admin",
           label: "Cấu hình gói hỗ trợ",
           to: "/admin/support-plans",
+          moduleCode: "SUPPORT_PLAN_ADMIN",
           isActive: currentPage === "admin/support-plans",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -851,6 +870,7 @@ const Sidebar = () => {
           id: "sla-rules-admin",
           label: "Cấu hình SLA",
           to: "/admin/sla-rules",
+          moduleCode: "SLA_RULE_ADMIN",
           isActive: currentPage === "admin/sla-rules",
           icon: (
             <svg
@@ -886,6 +906,7 @@ const Sidebar = () => {
           id: "ticket-subject-templates",
           label: "Cấu hình mẫu chủ đề ticket",
           to: "/admin/ticket-subject-templates",
+          moduleCode: "TICKET_SUBJECT_TEMPLATE",
           isActive: currentPage === "admin/ticket-subject-templates",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -917,6 +938,7 @@ const Sidebar = () => {
           id: "notifications-admin",
           label: "Thông báo hệ thống",
           to: "/admin/notifications",
+          moduleCode: "WEBSITE_SETTING",
           isActive: currentPage === "admin/notifications",
           icon: (
             <svg
@@ -944,6 +966,7 @@ const Sidebar = () => {
           id: "audit-logs",
           label: "Lịch sử thao tác hệ thống",
           to: "/admin/audit-logs",
+          moduleCode: "WEBSITE_SETTING",
           isActive: currentPage === "admin/audit-logs",
           icon: (
             <svg
@@ -976,19 +999,18 @@ const Sidebar = () => {
     },
   ];
 
-  const hasModuleAccess = (moduleCode) => {
-    // When permissions are still loading or not available, hide restricted modules
-    if (!moduleCode) return true;
-    if (permissionsLoading || allowedModuleCodes === null) return false;
-    return allowedModuleCodes.has(moduleCode);
+  const hasItemAccess = (item) => {
+    if (!item.moduleCode) return true;
+    if (!allowedModuleCodes || !(allowedModuleCodes instanceof Set)) {
+      return true; // nếu chưa load quyền, tạm thời cho hiển thị
+    }
+    return allowedModuleCodes.has(String(item.moduleCode).trim().toUpperCase());
   };
 
   const sectionsToRender = (isStorageStaff ? storageSections : defaultSections)
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) =>
-        hasModuleAccess(item.moduleCode || section.moduleCode)
-      ),
+      items: section.items.filter(hasItemAccess),
     }))
     .filter((section) => section.items.length > 0);
 
