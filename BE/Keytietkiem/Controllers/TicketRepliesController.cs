@@ -13,10 +13,12 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization; // ✅ NEW
 
 namespace Keytietkiem.Controllers;
 
 [ApiController]
+[Authorize] // ✅ NEW: bắt buộc đăng nhập
 // Cố định prefix là "api/Tickets" để giữ nguyên route cũ:
 // POST /api/Tickets/{id}/replies
 [Route("api/Tickets")]
@@ -69,6 +71,13 @@ public class TicketRepliesController : ControllerBase
         if (sender is null)
             return Unauthorized();
 
+        // ✅ NEW: chặn user bị khoá
+        if ((sender.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         // 🔒 Kiểm tra quyền gửi phản hồi:
         //  - Chủ ticket (UserId)
         //  - Nhân viên được gán (AssigneeId)
@@ -76,11 +85,12 @@ public class TicketRepliesController : ControllerBase
         var isTicketOwner = t.UserId == sender.UserId;
         var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == sender.UserId;
 
-        var isAdmin = sender.Roles.Any(r =>
+        var isAdmin = (sender.Roles ?? Enumerable.Empty<Role>()).Any(r =>
         {
             var name = (r.Name ?? string.Empty).Trim().ToLowerInvariant();
             var rid = (r.RoleId ?? string.Empty).Trim().ToLowerInvariant();
-            return name == "admin" || rid == "admin";
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant(); // ✅ NEW
+            return name == "admin" || rid == "admin" || code.Contains("admin"); // ✅ NEW
         });
 
         if (!isTicketOwner && !isAssignee && !isAdmin)
@@ -136,7 +146,10 @@ public class TicketRepliesController : ControllerBase
             SenderName = sender.FullName ?? sender.Email ?? string.Empty,
             IsStaffReply = reply.IsStaffReply,
             Message = reply.Message,
-            SentAt = reply.SentAt
+            SentAt = reply.SentAt,
+
+            // ✅ OPTIONAL nhưng nên có để đồng bộ với Detail() đang map SenderAvatarUrl
+            SenderAvatarUrl = sender.AvatarUrl
         };
 
         // 🔔 Broadcast realtime đến tất cả client đang xem ticket này (nhóm "ticket:{id}")
