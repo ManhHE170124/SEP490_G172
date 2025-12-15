@@ -20,13 +20,16 @@ namespace Keytietkiem.Services.Background
         private static readonly TimeSpan PaymentTimeout = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan ConvertingLockTimeout = TimeSpan.FromMinutes(5);
 
-        // DB mới: Payment.Status check constraint có Pending/Paid/Cancelled/Failed/Success/Completed...
+        // DB mới: Payment.Status check constraint có Pending/Paid/Cancelled/Failed/Success/Completed/Timeout...
         private const string PaymentStatusPending = "Pending";
         private const string PaymentStatusPaid = "Paid";
         private const string PaymentStatusSuccess = "Success";
         private const string PaymentStatusCompleted = "Completed";
         private const string PaymentStatusCancelled = "Cancelled";
         private const string PaymentStatusTimeout = "Timeout";
+
+        private const string TargetTypeOrder = "Order";
+        private const string TargetTypeSupportPlan = "SupportPlan";
 
         public PaymentTimeoutService(IServiceProvider sp, ILogger<PaymentTimeoutService> logger)
         {
@@ -43,6 +46,7 @@ namespace Keytietkiem.Services.Background
                     await using var scope = _sp.CreateAsyncScope();
                     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<KeytietkiemDbContext>>();
                     var inventoryReservation = scope.ServiceProvider.GetRequiredService<IInventoryReservationService>();
+                    var payOs = scope.ServiceProvider.GetRequiredService<PayOSService>();
                     await using var db = dbFactory.CreateDbContext();
 
                     var nowUtc = DateTime.UtcNow;
@@ -56,30 +60,47 @@ namespace Keytietkiem.Services.Background
 
                     var cutoff = nowUtc - PaymentTimeout;
 
+                    // ✅ FIX: timeout cho cả Order + SupportPlan (targetId của SupportPlan là userId theo thiết kế mới của bạn)
                     var expiredPending = await db.Payments
                         .Where(p =>
                             p.Provider == "PayOS" &&
                             p.Status == PaymentStatusPending &&
                             p.CreatedAt < cutoff &&
-                            p.TargetType == "Order" &&
-                            p.TargetId != null)
+                            p.TargetId != null &&
+                            (p.TargetType == TargetTypeOrder || p.TargetType == TargetTypeSupportPlan))
                         .ToListAsync(stoppingToken);
 
                     if (expiredPending.Count > 0)
                     {
                         foreach (var pay in expiredPending)
                         {
-                            // Mark payment attempt cancelled (đúng CHECK constraint)
+                            // ✅ Cancel payment link trên PayOS để QR không còn quét được
+                            if (!string.IsNullOrWhiteSpace(pay.PaymentLinkId))
+                            {
+                                try
+                                {
+                                    await payOs.CancelPaymentLink(pay.PaymentLinkId!, "Timeout");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex,
+                                        "Failed to cancel PayOS payment link. PaymentId={PaymentId}, PaymentLinkId={PaymentLinkId}",
+                                        pay.PaymentId, pay.PaymentLinkId);
+                                }
+                            }
+
                             pay.Status = PaymentStatusTimeout;
 
-                            if (Guid.TryParse(pay.TargetId, out var orderId))
+                            // ===== Nếu là Order => có thể cancel order + release inventory (như logic cũ) =====
+                            if (string.Equals(pay.TargetType, TargetTypeOrder, StringComparison.OrdinalIgnoreCase)
+                                && Guid.TryParse(pay.TargetId, out var orderId))
                             {
                                 var order = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == orderId, stoppingToken);
                                 if (order != null && string.Equals(order.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
                                 {
                                     // Nếu có attempt khác còn Pending hoặc đã Paid/Success/Completed thì KHÔNG cancel order
                                     var hasOtherActiveAttempt = await db.Payments.AnyAsync(p =>
-                                        p.TargetType == "Order" &&
+                                        p.TargetType == TargetTypeOrder &&
                                         p.TargetId == pay.TargetId &&
                                         p.PaymentId != pay.PaymentId &&
                                         (
@@ -98,6 +119,9 @@ namespace Keytietkiem.Services.Background
                                     }
                                 }
                             }
+
+                            // ===== Nếu là SupportPlan => chỉ timeout payment + cancel link (KHÔNG đụng inventory/order) =====
+                            // (Không cần làm gì thêm ở đây.)
                         }
 
                         await db.SaveChangesAsync(stoppingToken);

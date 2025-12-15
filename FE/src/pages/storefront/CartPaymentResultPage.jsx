@@ -13,6 +13,25 @@ const useQuery = () => {
 
 const normalizeStatus = (s) => String(s || "").trim().toLowerCase();
 
+const CHECKOUT_LOCK_KEY = "ktk_checkout_lock";
+
+const clearCheckoutLock = () => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(CHECKOUT_LOCK_KEY);
+  } catch {}
+};
+
+const saveCheckoutLock = ({ paymentId, orderId, paymentUrl, expiresAtUtc }) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      CHECKOUT_LOCK_KEY,
+      JSON.stringify({ paymentId, orderId, paymentUrl, expiresAtUtc })
+    );
+  } catch {}
+};
+
 const CartPaymentResultPage = () => {
   const query = useQuery();
   const paymentId = query.get("paymentId") || "";
@@ -24,14 +43,15 @@ const CartPaymentResultPage = () => {
   const [orderId, setOrderId] = useState("");
 
   const removeToast = useCallback((id) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
+
   const addToast = useCallback(
-  (type, title, message) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, type, title, message }]); // ✅ ...prev (KHÔNG phải .prev)
-    setTimeout(() => removeToast(id), 4500);
-  },
-  [removeToast]
-);
+    (type, title, message) => {
+      const id = Date.now() + Math.random();
+      setToasts((prev) => [...prev, { id, type, title, message }]);
+      setTimeout(() => removeToast(id), 4500);
+    },
+    [removeToast]
+  );
 
   const confirmOnce = useCallback(async () => {
     if (!paymentId) return null;
@@ -55,13 +75,11 @@ const CartPaymentResultPage = () => {
     const run = async () => {
       setLoading(true);
       try {
-        // 1) gọi confirm ngay khi return về
         const data = await confirmOnce();
         if (cancelled) return;
 
         const s = normalizeStatus(data?.status);
 
-        // 2) nếu pending => poll vài lần (webhook có thể đến chậm)
         if (s === "pending" || s === "pendingpayment" || s === "processing") {
           for (let i = 0; i < 8; i++) {
             await new Promise((r) => setTimeout(r, 1500));
@@ -91,6 +109,23 @@ const CartPaymentResultPage = () => {
   const isCancelled = s === "cancelled" || s === "canceled";
   const isTimeout = s === "timeout" || s === "expired";
   const isPending = !s || s === "pending" || s === "pendingpayment" || s === "processing";
+
+  useEffect(() => {
+    const st = normalizeStatus(status);
+    if (!st) return;
+
+    const terminal =
+      st === "paid" ||
+      st === "success" ||
+      st === "failed" ||
+      st === "cancelled" ||
+      st === "canceled" ||
+      st === "timeout" ||
+      st === "expired" ||
+      st === "refunded";
+
+    if (terminal) clearCheckoutLock();
+  }, [status]);
 
   const title = isPaid
     ? "Thanh toán thành công"
@@ -127,7 +162,19 @@ const CartPaymentResultPage = () => {
     try {
       setLoading(true);
       const res = await StorefrontPaymentApi.createPayOSPayment(orderId);
-      if (res?.paymentUrl) window.location.href = res.paymentUrl;
+
+      if (res?.paymentUrl) {
+        // createPayOSPayment hiện chưa trả expiresAtUtc => set TTL 5 phút để lock multi-tab
+        const expiresAtUtc = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        saveCheckoutLock({
+          paymentId: res.paymentId,
+          orderId: res.orderId || orderId,
+          paymentUrl: res.paymentUrl,
+          expiresAtUtc,
+        });
+
+        window.location.href = res.paymentUrl;
+      }
     } catch (err) {
       console.error("Pay again failed:", err);
       addToast("error", "Không thể tạo link thanh toán lại", err?.message || "Vui lòng thử lại sau.");

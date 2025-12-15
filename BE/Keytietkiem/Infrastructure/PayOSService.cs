@@ -117,6 +117,46 @@ namespace Keytietkiem.Infrastructure
                 PaymentLinkId = paymentLinkId
             };
         }
+        /// <summary>
+        /// ✅ Hủy payment link trên PayOS để QR/checkoutUrl không còn thanh toán được.
+        /// PayOS API: POST /v2/payment-requests/{paymentLinkId}/cancel
+        /// </summary>
+        public virtual async Task<bool> CancelPaymentLink(string paymentLinkId, string? cancellationReason = null)
+        {
+            if (string.IsNullOrWhiteSpace(paymentLinkId)) return false;
+            if (string.IsNullOrWhiteSpace(_endpoint)) return false;
+
+            var baseUrl = _endpoint.TrimEnd('/');
+            var url = $"{baseUrl}/{paymentLinkId}/cancel";
+
+            var reason = string.IsNullOrWhiteSpace(cancellationReason) ? "Cancelled by system" : cancellationReason.Trim();
+
+            var body = new { cancellationReason = reason };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var jsonString = JsonSerializer.Serialize(body, jsonOptions);
+
+            var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Add("x-client-id", _clientId);
+            req.Headers.Add("x-api-key", _apiKey);
+            req.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+            var resp = await _httpClient.SendAsync(req);
+            var content = await resp.Content.ReadAsStringAsync();
+
+            _logger.LogInformation("PayOS CancelPaymentLink response: {response}", content);
+
+            try
+            {
+                var payOSResponse = JsonSerializer.Deserialize<PayOSResponse>(content, jsonOptions);
+                return payOSResponse != null && payOSResponse.Code == "00";
+            }
+            catch
+            {
+                // best-effort: nếu response không đúng format nhưng HTTP OK
+                return resp.IsSuccessStatusCode;
+            }
+        }
+
 
         /// <summary>
         /// ✅ Verify webhook signature/HMAC:

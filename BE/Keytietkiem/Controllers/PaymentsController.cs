@@ -91,12 +91,16 @@ namespace Keytietkiem.Controllers
             [FromQuery] string? provider,
             [FromQuery] string? email,
             [FromQuery] string? targetType,
+            [FromQuery] string? targetId,
+            [FromQuery] string? q,
             [FromQuery] string? sortBy,
-            [FromQuery] string? sortDir)
+            [FromQuery] string? sortDir,
+            [FromQuery] bool includeTargetInfo = true // ✅ default true để admin thấy đủ info
+        )
         {
             await using var db = _dbFactory.CreateDbContext();
 
-            var query = db.Payments.AsQueryable();
+            var query = db.Payments.AsNoTracking().AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(status))
                 query = query.Where(p => p.Status == status.Trim());
@@ -109,6 +113,23 @@ namespace Keytietkiem.Controllers
 
             if (!string.IsNullOrWhiteSpace(targetType))
                 query = query.Where(p => p.TargetType == targetType.Trim());
+
+            if (!string.IsNullOrWhiteSpace(targetId))
+                query = query.Where(p => p.TargetId == targetId.Trim());
+
+            // ✅ keyword search server-side (đỡ phải load ALL rồi FE filter)
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var kw = q.Trim();
+                query = query.Where(p =>
+                    p.Email.Contains(kw) ||
+                    (p.TargetId != null && p.TargetId.Contains(kw)) ||
+                    (p.TargetType != null && p.TargetType.Contains(kw)) ||
+                    (p.Provider != null && p.Provider.Contains(kw)) ||
+                    (p.PaymentLinkId != null && p.PaymentLinkId.Contains(kw)) ||
+                    (p.ProviderOrderCode != null && p.ProviderOrderCode.ToString()!.Contains(kw)) ||
+                    p.PaymentId.ToString().Contains(kw));
+            }
 
             var sortByNorm = (sortBy ?? "CreatedAt").Trim();
             var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
@@ -142,8 +163,162 @@ namespace Keytietkiem.Controllers
                     break;
             }
 
-            var items = await query
-                .Select(p => new PaymentAdminListItemDTO
+            // ✅ lấy raw trước để tính “latest attempt” theo (TargetType, TargetId)
+            var raw = await query.Select(p => new
+            {
+                p.PaymentId,
+                p.Amount,
+                p.Status,
+                p.CreatedAt,
+                p.Provider,
+                p.ProviderOrderCode,
+                p.PaymentLinkId,
+                p.Email,
+                p.TargetType,
+                p.TargetId
+            }).ToListAsync();
+
+            var nowUtc = DateTime.UtcNow;
+            var timeout = TimeSpan.FromMinutes(5);
+
+            var latestCreatedAtByTarget = raw
+                .GroupBy(x => $"{x.TargetType ?? ""}|{x.TargetId ?? ""}")
+                .ToDictionary(g => g.Key, g => g.Max(v => v.CreatedAt));
+
+            Dictionary<Guid, (Guid OrderId, string Status, string Email, Guid? UserId, string? UserEmail, string? UserName, DateTime CreatedAt, decimal TotalAmount, decimal DiscountAmount)> orderMap
+                = new();
+
+            Dictionary<string, (Guid UserId, string Email, string? FullName)> userByEmailMap
+                = new(StringComparer.OrdinalIgnoreCase);
+
+            Dictionary<int, (int SupportPlanId, string Name, int PriorityLevel, decimal Price)> planMap
+                = new();
+
+            if (includeTargetInfo)
+            {
+                // Orders: TargetId = OrderId (Guid string)
+                var orderIds = raw
+                    .Where(x => string.Equals(x.TargetType, "Order", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.TargetId)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => Guid.TryParse(x, out var id) ? (Guid?)id : null)
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (orderIds.Count > 0)
+                {
+                    var orders = await db.Orders
+                        .AsNoTracking()
+                        .Include(o => o.User)
+                        .Where(o => orderIds.Contains(o.OrderId))
+                        .Select(o => new
+                        {
+                            o.OrderId,
+                            o.Status,
+                            o.Email,
+                            o.UserId,
+                            UserEmail = o.User != null ? o.User.Email : null,
+                            UserName = o.User != null ? (o.User.FullName ?? $"{o.User.FirstName} {o.User.LastName}".Trim()) : null,
+                            o.CreatedAt,
+                            o.TotalAmount,
+                            o.DiscountAmount
+                        })
+                        .ToListAsync();
+
+                    orderMap = orders.ToDictionary(
+                        o => o.OrderId,
+                        o => (o.OrderId, o.Status, o.Email, o.UserId, o.UserEmail, o.UserName, o.CreatedAt, o.TotalAmount, o.DiscountAmount)
+                    );
+                }
+
+                // SupportPlan: TargetId = SupportPlanId (int string)
+                var planIds = raw
+                    .Where(x => string.Equals(x.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.TargetId)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => int.TryParse(x, out var id) ? (int?)id : null)
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (planIds.Count > 0)
+                {
+                    var plans = await db.SupportPlans
+                        .AsNoTracking()
+                        .Where(p => planIds.Contains(p.SupportPlanId))
+                        .Select(p => new { p.SupportPlanId, p.Name, p.PriorityLevel, p.Price })
+                        .ToListAsync();
+
+                    planMap = plans.ToDictionary(p => p.SupportPlanId, p => (p.SupportPlanId, p.Name, p.PriorityLevel, p.Price));
+                }
+
+                // User theo Email payment (đặc biệt hữu ích cho SupportPlan)
+                var emails = raw.Select(x => x.Email).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+                if (emails.Count > 0)
+                {
+                    var users = await db.Users
+                        .AsNoTracking()
+                        .Where(u => emails.Contains(u.Email))
+                        .Select(u => new { u.UserId, u.Email, u.FullName })
+                        .ToListAsync();
+
+                    userByEmailMap = users.ToDictionary(u => u.Email, u => (u.UserId, u.Email, u.FullName), StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
+            var items = raw.Select(p =>
+            {
+                var expiresAt = p.CreatedAt.Add(timeout);
+                var isExpired = string.Equals(p.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase) && nowUtc > expiresAt;
+
+                var key = $"{p.TargetType ?? ""}|{p.TargetId ?? ""}";
+                var isLatest = latestCreatedAtByTarget.TryGetValue(key, out var latestAt) && latestAt == p.CreatedAt;
+
+                // target snapshot quick mapping
+                Guid? orderId = null;
+                string? orderStatus = null;
+                Guid? targetUserId = null;
+                string? targetUserEmail = null;
+                string? targetUserName = null;
+
+                int? supportPlanId = null;
+                string? supportPlanName = null;
+                int? supportPlanPriority = null;
+
+                if (includeTargetInfo)
+                {
+                    if (string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
+                        && Guid.TryParse(p.TargetId, out var oid)
+                        && orderMap.TryGetValue(oid, out var o))
+                    {
+                        orderId = o.OrderId;
+                        orderStatus = o.Status;
+                        targetUserId = o.UserId;
+                        targetUserEmail = o.UserEmail ?? o.Email;
+                        targetUserName = o.UserName;
+                    }
+
+                    if (string.Equals(p.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase)
+                        && int.TryParse(p.TargetId, out var pid)
+                        && planMap.TryGetValue(pid, out var sp))
+                    {
+                        supportPlanId = sp.SupportPlanId;
+                        supportPlanName = sp.Name;
+                        supportPlanPriority = sp.PriorityLevel;
+                    }
+
+                    if (targetUserId == null && userByEmailMap.TryGetValue(p.Email, out var u))
+                    {
+                        targetUserId = u.UserId;
+                        targetUserEmail = u.Email;
+                        targetUserName = u.FullName;
+                    }
+                }
+
+                return new PaymentAdminListItemDTO
                 {
                     PaymentId = p.PaymentId,
                     Amount = p.Amount,
@@ -154,21 +329,132 @@ namespace Keytietkiem.Controllers
                     PaymentLinkId = p.PaymentLinkId,
                     Email = p.Email,
                     TargetType = p.TargetType,
-                    TargetId = p.TargetId
-                })
-                .ToListAsync();
+                    TargetId = p.TargetId,
+
+                    // ✅ bổ sung
+                    ExpiresAtUtc = expiresAt,
+                    IsExpired = isExpired,
+                    IsLatestAttemptForTarget = isLatest,
+
+                    OrderId = orderId,
+                    OrderStatus = orderStatus,
+                    TargetUserId = targetUserId,
+                    TargetUserEmail = targetUserEmail,
+                    TargetUserName = targetUserName,
+
+                    SupportPlanId = supportPlanId,
+                    SupportPlanName = supportPlanName,
+                    SupportPlanPriority = supportPlanPriority
+                };
+            }).ToList();
 
             return Ok(items);
         }
 
         [HttpGet("{paymentId:guid}")]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
-        public async Task<IActionResult> GetPaymentById(Guid paymentId)
+        public async Task<IActionResult> GetPaymentById(
+            Guid paymentId,
+            [FromQuery] bool includeCheckoutUrl = false,
+            [FromQuery] bool includeAttempts = true
+        )
         {
             await using var db = _dbFactory.CreateDbContext();
 
-            var p = await db.Payments.FirstOrDefaultAsync(x => x.PaymentId == paymentId);
+            var p = await db.Payments.AsNoTracking().FirstOrDefaultAsync(x => x.PaymentId == paymentId);
             if (p == null) return NotFound(new { message = "Payment không tồn tại" });
+
+            var nowUtc = DateTime.UtcNow;
+            var timeout = TimeSpan.FromMinutes(5);
+            var expiresAt = p.CreatedAt.Add(timeout);
+            var isExpired = string.Equals(p.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase) && nowUtc > expiresAt;
+
+            string? checkoutUrl = null;
+            if (includeCheckoutUrl
+                && string.Equals(p.Provider, "PayOS", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(p.PaymentLinkId))
+            {
+                // ✅ DB không lưu checkoutUrl -> lấy lại từ PayOS theo PaymentLinkId
+                checkoutUrl = await _payOs.GetCheckoutUrlByPaymentLinkId(p.PaymentLinkId!);
+            }
+
+            var targetSnapshot = new PaymentTargetSnapshotDTO();
+
+            // Target = Order
+            if (string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParse(p.TargetId, out var orderId))
+            {
+                var o = await db.Orders.AsNoTracking()
+                    .Include(x => x.User)
+                    .FirstOrDefaultAsync(x => x.OrderId == orderId);
+
+                if (o != null)
+                {
+                    targetSnapshot.OrderId = o.OrderId;
+                    targetSnapshot.OrderStatus = o.Status;
+                    targetSnapshot.OrderEmail = o.Email;
+                    targetSnapshot.OrderCreatedAt = o.CreatedAt;
+                    targetSnapshot.OrderTotalAmount = o.TotalAmount;
+                    targetSnapshot.OrderDiscountAmount = o.DiscountAmount;
+                    targetSnapshot.OrderFinalAmount = (o.TotalAmount - o.DiscountAmount);
+
+                    if (o.User != null)
+                    {
+                        targetSnapshot.UserId = o.User.UserId;
+                        targetSnapshot.UserEmail = o.User.Email;
+                        targetSnapshot.UserName = o.User.FullName ?? $"{o.User.FirstName} {o.User.LastName}".Trim();
+                    }
+                }
+            }
+
+            // Target = SupportPlan (TargetId = SupportPlanId)
+            if (string.Equals(p.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(p.TargetId, out var planId))
+            {
+                var plan = await db.SupportPlans.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.SupportPlanId == planId);
+
+                if (plan != null)
+                {
+                    targetSnapshot.SupportPlanId = plan.SupportPlanId;
+                    targetSnapshot.SupportPlanName = plan.Name;
+                    targetSnapshot.SupportPlanPriorityLevel = plan.PriorityLevel;
+                    targetSnapshot.SupportPlanPrice = plan.Price;
+                }
+
+                // user lookup theo Payment.Email (flow hiện tại)
+                if (!string.IsNullOrWhiteSpace(p.Email))
+                {
+                    var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == p.Email);
+                    if (user != null)
+                    {
+                        targetSnapshot.UserId = user.UserId;
+                        targetSnapshot.UserEmail = user.Email;
+                        targetSnapshot.UserName = user.FullName;
+                    }
+                }
+            }
+
+            List<PaymentAttemptDTO>? attempts = null;
+            if (includeAttempts && !string.IsNullOrWhiteSpace(p.TargetType) && !string.IsNullOrWhiteSpace(p.TargetId))
+            {
+                attempts = await db.Payments.AsNoTracking()
+                    .Where(x => x.TargetType == p.TargetType && x.TargetId == p.TargetId)
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Select(x => new PaymentAttemptDTO
+                    {
+                        PaymentId = x.PaymentId,
+                        Status = x.Status,
+                        CreatedAt = x.CreatedAt,
+                        Provider = x.Provider,
+                        ProviderOrderCode = x.ProviderOrderCode,
+                        PaymentLinkId = x.PaymentLinkId,
+                        ExpiresAtUtc = x.CreatedAt.Add(timeout),
+                        IsExpired = string.Equals(x.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase)
+                                    && DateTime.UtcNow > x.CreatedAt.Add(timeout)
+                    })
+                    .ToListAsync();
+            }
 
             return Ok(new PaymentDetailDTO
             {
@@ -181,9 +467,17 @@ namespace Keytietkiem.Controllers
                 PaymentLinkId = p.PaymentLinkId,
                 Email = p.Email,
                 TargetType = p.TargetType,
-                TargetId = p.TargetId
+                TargetId = p.TargetId,
+
+                // ✅ bổ sung
+                ExpiresAtUtc = expiresAt,
+                IsExpired = isExpired,
+                CheckoutUrl = checkoutUrl,
+                TargetSnapshot = targetSnapshot,
+                Attempts = attempts
             });
         }
+
 
         // ================== PAYOS WEBHOOK ==================
 
@@ -305,12 +599,23 @@ namespace Keytietkiem.Controllers
                                             && p.Status == PaymentStatusPending)
                                 .ToListAsync();
 
+                            // ✅ FIX: khai báo linksToCancel trong cùng scope với chỗ gọi
+                            var linksToCancel = otherPending
+                                .Select(x => x.PaymentLinkId)
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .Select(x => x!)
+                                .ToList();
+
                             foreach (var p in otherPending)
                                 p.Status = PaymentStatusDupCancelled;
 
                             await db.SaveChangesAsync();
                             await tx.CommitAsync();
+
+                            // ✅ Cancel QR/link của các attempt bị DupCancelled (best-effort, sau commit)
+                            await CancelPayOSLinksBestEffortAsync(linksToCancel, "DupCancelled");
                             return Ok(new { message = "Webhook processed - SupportPlan Paid." });
+
                         }
 
                         // ===== 2) ORDER PAID =====
@@ -364,17 +669,28 @@ namespace Keytietkiem.Controllers
                             order.Status = "Paid";
 
                             var otherPending = await db.Payments
-                                .Where(p => p.TargetType == "Order"
-                                            && p.TargetId == payment.TargetId
-                                            && p.PaymentId != payment.PaymentId
-                                            && p.Status == PaymentStatusPending)
-                                .ToListAsync();
+     .Where(p => p.TargetType == "Order"
+                 && p.TargetId == payment.TargetId
+                 && p.PaymentId != payment.PaymentId
+                 && p.Status == PaymentStatusPending)
+     .ToListAsync();
+
+                            // ✅ FIX: khai báo linksToCancel trong cùng scope với chỗ gọi
+                            var linksToCancel = otherPending
+                                .Select(x => x.PaymentLinkId)
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .Select(x => x!)
+                                .ToList();
 
                             foreach (var p in otherPending)
                                 p.Status = PaymentStatusDupCancelled;
 
                             await db.SaveChangesAsync();
                             await tx.CommitAsync();
+
+                            // ✅ Cancel QR/link của các attempt bị DupCancelled (best-effort, sau commit)
+                            await CancelPayOSLinksBestEffortAsync(linksToCancel, "DupCancelled");
+
 
                             // ✅ sau khi commit: fulfill order (gắn key/account + gửi mail)
                             if (orderId != Guid.Empty)
@@ -850,6 +1166,24 @@ namespace Keytietkiem.Controllers
                     }
                 }
                 catch { }
+            }
+        }
+        private async Task CancelPayOSLinksBestEffortAsync(IEnumerable<string?> paymentLinkIds, string reason)
+        {
+            if (paymentLinkIds == null) return;
+
+            foreach (var id in paymentLinkIds)
+            {
+                if (string.IsNullOrWhiteSpace(id)) continue;
+
+                try
+                {
+                    await _payOs.CancelPaymentLink(id!, reason);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cancel PayOS payment link. PaymentLinkId={PaymentLinkId}, Reason={Reason}", id, reason);
+                }
             }
         }
 

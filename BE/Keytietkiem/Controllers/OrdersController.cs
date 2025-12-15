@@ -48,6 +48,18 @@ namespace Keytietkiem.Controllers
         private const string PayStatus_DupCancelled = "DupCancelled";
         private const string PayStatus_Replaced = "Replaced";
 
+        private sealed class PaymentLite
+        {
+            public Guid PaymentId { get; set; }
+            public decimal Amount { get; set; }
+            public string? Status { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public string? Provider { get; set; }
+            public long? ProviderOrderCode { get; set; }
+            public string? PaymentLinkId { get; set; }
+            public string? TargetId { get; set; }
+        }
+
         public OrdersController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
             IProductAccountService productAccountService,
@@ -482,74 +494,154 @@ namespace Keytietkiem.Controllers
         }
 
         // ================== READ-ONLY ==================
-
         [HttpGet]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetOrders([FromQuery] string? sortBy, [FromQuery] string? sortDir)
         {
             await using var db = _dbFactory.CreateDbContext();
 
-            var query = db.Orders
-                .Include(o => o.User)
-                .Include(o => o.OrderDetails)
-                    .ThenInclude(od => od.Variant)
-                        .ThenInclude(v => v.Product)
-                .AsQueryable();
-
             var sortByNorm = (sortBy ?? "CreatedAt").Trim();
             var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
             var asc = sortDirNorm == "asc";
 
+            // ✅ List nhẹ: không Include sâu, dùng projection + subquery count
+            var baseQuery = db.Orders
+                .AsNoTracking()
+                .Select(o => new
+                {
+                    o.OrderId,
+                    o.UserId,
+                    o.Email,
+                    o.TotalAmount,
+                    o.DiscountAmount,
+                    o.Status,
+                    o.CreatedAt,
+                    UserEmail = o.User != null ? o.User.Email : null,
+                    UserName = o.User != null
+                        ? (o.User.FullName ?? $"{o.User.FirstName} {o.User.LastName}".Trim())
+                        : null,
+                    ItemCount = db.OrderDetails.Count(od => od.OrderId == o.OrderId)
+                });
+
             switch (sortByNorm.ToLowerInvariant())
             {
                 case "orderid":
-                    query = asc ? query.OrderBy(o => o.OrderId) : query.OrderByDescending(o => o.OrderId);
+                    baseQuery = asc ? baseQuery.OrderBy(o => o.OrderId) : baseQuery.OrderByDescending(o => o.OrderId);
                     break;
                 case "customer":
                 case "username":
-                    query = asc
-                        ? query.OrderBy(o => o.User != null ? (o.User.FullName ?? o.User.Email ?? o.Email) : o.Email)
-                        : query.OrderByDescending(o => o.User != null ? (o.User.FullName ?? o.User.Email ?? o.Email) : o.Email);
+                    baseQuery = asc
+                        ? baseQuery.OrderBy(o => o.UserName ?? o.UserEmail ?? o.Email)
+                        : baseQuery.OrderByDescending(o => o.UserName ?? o.UserEmail ?? o.Email);
                     break;
                 case "email":
-                    query = asc ? query.OrderBy(o => o.Email) : query.OrderByDescending(o => o.Email);
+                    baseQuery = asc ? baseQuery.OrderBy(o => o.Email) : baseQuery.OrderByDescending(o => o.Email);
                     break;
                 case "totalamount":
-                    query = asc ? query.OrderBy(o => o.TotalAmount) : query.OrderByDescending(o => o.TotalAmount);
+                    baseQuery = asc ? baseQuery.OrderBy(o => o.TotalAmount) : baseQuery.OrderByDescending(o => o.TotalAmount);
                     break;
                 case "finalamount":
-                    query = asc
-                        ? query.OrderBy(o => (o.TotalAmount - o.DiscountAmount))
-                        : query.OrderByDescending(o => (o.TotalAmount - o.DiscountAmount));
+                    baseQuery = asc
+                        ? baseQuery.OrderBy(o => (o.TotalAmount - o.DiscountAmount))
+                        : baseQuery.OrderByDescending(o => (o.TotalAmount - o.DiscountAmount));
                     break;
                 case "itemcount":
-                    query = asc ? query.OrderBy(o => o.OrderDetails.Count) : query.OrderByDescending(o => o.OrderDetails.Count);
+                    baseQuery = asc ? baseQuery.OrderBy(o => o.ItemCount) : baseQuery.OrderByDescending(o => o.ItemCount);
                     break;
                 default:
-                    query = asc ? query.OrderBy(o => o.CreatedAt) : query.OrderByDescending(o => o.CreatedAt);
+                    baseQuery = asc ? baseQuery.OrderBy(o => o.CreatedAt) : baseQuery.OrderByDescending(o => o.CreatedAt);
                     break;
             }
 
-            var orders = await query.ToListAsync();
+            var orders = await baseQuery.ToListAsync();
 
-            var orderList = orders.Select(o => new OrderListItemDTO
+            // ✅ load payments theo danh sách orderIds (multi-attempt)
+            var orderIdStrs = orders.Select(x => x.OrderId.ToString()).ToList();
+
+            var payments = await db.Payments
+                .AsNoTracking()
+                .Where(p => p.TargetType == "Order" && p.TargetId != null && orderIdStrs.Contains(p.TargetId))
+                .Select(p => new PaymentLite
+                {
+                    PaymentId = p.PaymentId,
+                    Amount = p.Amount,
+                    Status = p.Status,
+                    CreatedAt = p.CreatedAt,
+                    Provider = p.Provider,
+                    ProviderOrderCode = p.ProviderOrderCode,
+                    PaymentLinkId = p.PaymentLinkId,
+                    TargetId = p.TargetId
+                })
+                .ToListAsync();
+
+            var nowUtc = DateTime.UtcNow;
+
+            var paymentGroups = payments
+                .Where(p => p.TargetId != null)
+                .GroupBy(p => p.TargetId!)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var orderList = orders.Select(o =>
             {
-                OrderId = o.OrderId,
-                UserId = o.UserId,
-                Email = o.Email,
-                UserName = o.User != null
-                    ? (o.User.FullName ?? $"{o.User.FirstName} {o.User.LastName}".Trim())
-                    : null,
-                UserEmail = o.User?.Email,
-                TotalAmount = o.TotalAmount,
-                FinalAmount = (o.TotalAmount - o.DiscountAmount),
-                CreatedAt = o.CreatedAt,
-                ItemCount = o.OrderDetails?.Count ?? 0
+                var tid = o.OrderId.ToString();
+
+                paymentGroups.TryGetValue(tid, out var group);
+                group ??= new List<PaymentLite>();
+
+                // ✅ pick best: Paid-like > NeedReview > Pending > latest
+                var best = group.Count > 0
+                    ? group.OrderByDescending(x => IsPaidLike(x.Status))
+                           .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
+                           .ThenByDescending(x => string.Equals(x.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
+                           .ThenByDescending(x => x.CreatedAt)
+                           .FirstOrDefault()
+                    : null;
+
+                var displayStatus = ResolveOrderDisplayStatus(o.Status, best?.Status);
+
+                OrderPaymentSummaryDTO? paySummary = null;
+                if (best != null)
+                {
+                    var expires = best.CreatedAt.Add(PaymentTimeout);
+                    var isExpired = string.Equals(best.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase)
+                                    && nowUtc > expires;
+
+                    paySummary = new OrderPaymentSummaryDTO
+                    {
+                        PaymentId = best.PaymentId,
+                        Amount = best.Amount,
+                        Status = best.Status,
+                        Provider = best.Provider,
+                        ProviderOrderCode = best.ProviderOrderCode,
+                        PaymentLinkId = best.PaymentLinkId,
+                        CreatedAt = best.CreatedAt,
+                        ExpiresAtUtc = expires,
+                        IsExpired = isExpired
+                    };
+                }
+
+                return new OrderListItemDTO
+                {
+                    OrderId = o.OrderId,
+                    UserId = o.UserId,
+                    Email = o.Email,
+                    UserName = o.UserName,
+                    UserEmail = o.UserEmail,
+                    TotalAmount = o.TotalAmount,
+                    FinalAmount = (o.TotalAmount - o.DiscountAmount),
+                    CreatedAt = o.CreatedAt,
+                    ItemCount = o.ItemCount,
+
+                    // ✅ NEW
+                    Status = displayStatus,
+                    OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
+                    Payment = paySummary,
+                    PaymentAttemptCount = group.Count
+                };
             }).ToList();
 
             return Ok(orderList);
         }
-
         [HttpGet("history")]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {
@@ -578,7 +670,8 @@ namespace Keytietkiem.Controllers
                 // ✅ ưu tiên Paid > Pending > latest (tránh case latest là DupCancelled/Replaced)
                 var pay = payments
                     .Where(p => p.TargetId == o.OrderId.ToString())
-                    .OrderByDescending(p => string.Equals(p.Status, PayStatus_Paid, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(p => IsPaidLike(p.Status))
+                    .ThenByDescending(p => string.Equals(p.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
                     .ThenByDescending(p => string.Equals(p.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
                     .ThenByDescending(p => p.CreatedAt)
                     .FirstOrDefault();
@@ -607,10 +700,12 @@ namespace Keytietkiem.Controllers
 
             return Ok(items);
         }
-
         [HttpGet("{id:guid}")]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
-        public async Task<IActionResult> GetOrderById(Guid id)
+        public async Task<IActionResult> GetOrderById(
+            Guid id,
+            [FromQuery] bool includePaymentAttempts = true,
+            [FromQuery] bool includeCheckoutUrl = false)
         {
             try
             {
@@ -627,6 +722,75 @@ namespace Keytietkiem.Controllers
                     return NotFound(new { message = "Đơn hàng không được tìm thấy" });
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
+
+                // ✅ Bổ sung payment summary + attempts (multi-attempt)
+                var nowUtc = DateTime.UtcNow;
+                var targetId = id.ToString();
+
+                var attempts = await db.Payments
+                    .AsNoTracking()
+                    .Where(p => p.TargetType == "Order" && p.TargetId == targetId)
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Select(p => new OrderPaymentAttemptDTO
+                    {
+                        PaymentId = p.PaymentId,
+                        Amount = p.Amount,
+                        Status = p.Status,
+                        Provider = p.Provider,
+                        ProviderOrderCode = p.ProviderOrderCode,
+                        PaymentLinkId = p.PaymentLinkId,
+                        CreatedAt = p.CreatedAt,
+                        ExpiresAtUtc = p.CreatedAt.Add(PaymentTimeout),
+                        IsExpired = string.Equals(p.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase)
+                                    && nowUtc > p.CreatedAt.Add(PaymentTimeout)
+                    })
+                    .ToListAsync();
+
+                // ✅ best: Paid-like > NeedReview > Pending > latest
+                var best = attempts
+                    .OrderByDescending(x => IsPaidLike(x.Status))
+                    .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(x => string.Equals(x.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(x => x.CreatedAt)
+                    .FirstOrDefault();
+
+                if (best != null)
+                {
+                    orderDto.Payment = new OrderPaymentSummaryDTO
+                    {
+                        PaymentId = best.PaymentId,
+                        Amount = best.Amount,
+                        Status = best.Status,
+                        Provider = best.Provider,
+                        ProviderOrderCode = best.ProviderOrderCode,
+                        PaymentLinkId = best.PaymentLinkId,
+                        CreatedAt = best.CreatedAt,
+                        ExpiresAtUtc = best.ExpiresAtUtc,
+                        IsExpired = best.IsExpired
+                    };
+
+                    if (includeCheckoutUrl
+                        && string.Equals(best.Provider, "PayOS", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(best.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(best.PaymentLinkId)
+                        && nowUtc <= best.ExpiresAtUtc)
+                    {
+                        try
+                        {
+                            orderDto.Payment.CheckoutUrl = await _payOs.GetCheckoutUrlByPaymentLinkId(best.PaymentLinkId!);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to fetch checkoutUrl from PayOS for PaymentLinkId={PaymentLinkId}", best.PaymentLinkId);
+                        }
+                    }
+                }
+
+                orderDto.OrderNumber = FormatOrderNumber(orderDto.OrderId, orderDto.CreatedAt);
+
+                if (includePaymentAttempts)
+                    orderDto.PaymentAttempts = attempts;
+
                 return Ok(orderDto);
             }
             catch (Exception ex)
@@ -634,7 +798,6 @@ namespace Keytietkiem.Controllers
                 return StatusCode(500, new { message = "Đã có lỗi hệ thống. Vui lòng thử lại sau.", error = ex.Message });
             }
         }
-
         [HttpGet("{id:guid}/details")]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetOrderDetails(Guid id)
@@ -753,8 +916,9 @@ namespace Keytietkiem.Controllers
                 var relatedPayment = await db.Payments
                     .AsNoTracking()
                     .Where(p => p.TargetType == "Order" && p.TargetId == order.OrderId.ToString())
-                    .OrderByDescending(p => p.Status == PayStatus_Paid)
-                    .ThenByDescending(p => p.Status == PayStatus_Pending)
+                    .OrderByDescending(p => IsPaidLike(p.Status))
+                    .ThenByDescending(p => string.Equals(p.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(p => string.Equals(p.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
                     .ThenByDescending(p => p.CreatedAt)
                     .FirstOrDefaultAsync();
 
@@ -999,9 +1163,22 @@ namespace Keytietkiem.Controllers
                         _logger.LogWarning(ex, "Failed to fetch checkoutUrl from PayOS for PaymentLinkId={PaymentLinkId}", pending.PaymentLinkId);
                     }
                 }
-
+                if (!string.IsNullOrWhiteSpace(pending.PaymentLinkId))
+                {
+                    try
+                    {
+                        await _payOs.CancelPaymentLink(pending.PaymentLinkId!, "Replaced");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to cancel PayOS payment link when replacing attempt. PaymentLinkId={PaymentLinkId}",
+                            pending.PaymentLinkId);
+                    }
+                }
                 pending.Status = PayStatus_Replaced;
                 await db.SaveChangesAsync();
+
             }
 
             var (newPay, payosNew) = await CreateNewOrderPaymentAttemptAsync(
@@ -1082,6 +1259,15 @@ namespace Keytietkiem.Controllers
                 || s.Equals("NeedsManualAction", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool IsPaidLike(string? paymentStatus)
+        {
+            if (string.IsNullOrWhiteSpace(paymentStatus)) return false;
+            var ps = paymentStatus.Trim();
+            return ps.Equals(PayStatus_Paid, StringComparison.OrdinalIgnoreCase)
+                || ps.Equals("Success", StringComparison.OrdinalIgnoreCase)
+                || ps.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+        }
+
         // ✅ cập nhật mapping theo bộ status mới (Timeout/NeedReview)
         private string ResolveOrderDisplayStatus(string? orderStatus, string? paymentStatus)
         {
@@ -1095,7 +1281,7 @@ namespace Keytietkiem.Controllers
 
                 if (os.Equals("PendingPayment", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (ps.Equals(PayStatus_Paid, StringComparison.OrdinalIgnoreCase)) return "Paid";
+                    if (IsPaidLike(ps)) return "Paid";
                     if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return "Cancelled";
                     if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return "CancelledByTimeout";
                     if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return "NeedsManualAction";
@@ -1104,11 +1290,14 @@ namespace Keytietkiem.Controllers
                 return os;
             }
 
+
             if (!string.IsNullOrWhiteSpace(ps))
             {
+                if (IsPaidLike(ps)) return "Paid";
                 if (ps.Equals(PayStatus_Pending, StringComparison.OrdinalIgnoreCase)) return "PendingPayment";
                 if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return "CancelledByTimeout";
                 if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return "NeedsManualAction";
+                if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return "Cancelled";
                 return ps;
             }
 

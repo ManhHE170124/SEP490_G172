@@ -13,6 +13,25 @@ const useQuery = () => {
 
 const normalizeStatus = (s) => String(s || "").trim().toLowerCase();
 
+const CHECKOUT_LOCK_KEY = "ktk_checkout_lock";
+
+const clearCheckoutLock = () => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(CHECKOUT_LOCK_KEY);
+  } catch {}
+};
+
+const saveCheckoutLock = ({ paymentId, orderId, paymentUrl, expiresAtUtc }) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      CHECKOUT_LOCK_KEY,
+      JSON.stringify({ paymentId, orderId, paymentUrl, expiresAtUtc })
+    );
+  } catch {}
+};
+
 const CartPaymentCancelPage = () => {
   const query = useQuery();
   const paymentId = query.get("paymentId") || "";
@@ -66,6 +85,23 @@ const CartPaymentCancelPage = () => {
   const s = normalizeStatus(status);
   const isPaid = s === "paid" || s === "success";
 
+  useEffect(() => {
+    const st = normalizeStatus(status);
+    if (!st) return;
+
+    const terminal =
+      st === "paid" ||
+      st === "success" ||
+      st === "failed" ||
+      st === "cancelled" ||
+      st === "canceled" ||
+      st === "timeout" ||
+      st === "expired" ||
+      st === "refunded";
+
+    if (terminal) clearCheckoutLock();
+  }, [status]);
+
   const title = isPaid ? "Thanh toán đã được ghi nhận" : "Bạn đã huỷ thanh toán";
   const subtitle = isPaid
     ? "Có thể bạn đã huỷ ở bước cuối nhưng giao dịch vẫn thành công. Hãy kiểm tra email/đơn hàng."
@@ -79,7 +115,19 @@ const CartPaymentCancelPage = () => {
     try {
       setLoading(true);
       const res = await StorefrontPaymentApi.createPayOSPayment(orderId);
-      if (res?.paymentUrl) window.location.href = res.paymentUrl;
+
+      if (res?.paymentUrl) {
+        // createPayOSPayment hiện chưa trả expiresAtUtc => set TTL 5 phút để lock multi-tab
+        const expiresAtUtc = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        saveCheckoutLock({
+          paymentId: res.paymentId,
+          orderId: res.orderId || orderId,
+          paymentUrl: res.paymentUrl,
+          expiresAtUtc,
+        });
+
+        window.location.href = res.paymentUrl;
+      }
     } catch (err) {
       console.error("Pay again failed:", err);
       addToast("error", "Không thể tạo link thanh toán lại", err?.message || "Vui lòng thử lại sau.");

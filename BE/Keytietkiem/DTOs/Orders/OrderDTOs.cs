@@ -34,8 +34,7 @@ namespace Keytietkiem.DTOs.Orders
     {
         public Guid OrderId { get; set; }
         public Guid? UserId { get; set; }
-
-        public string Email { get; set; } = null!;
+        public string? Email { get; set; }
 
         public string? UserName { get; set; }
         public string? UserEmail { get; set; }
@@ -43,31 +42,70 @@ namespace Keytietkiem.DTOs.Orders
 
         public decimal TotalAmount { get; set; }
         public decimal DiscountAmount { get; set; }
+        public decimal FinalAmount { get; set; }
 
-        // ✅ DB mới: computed, nhưng DTO vẫn trả về
-        public decimal? FinalAmount { get; set; }
-
-        public string Status { get; set; } = null!;
+        public string? Status { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public List<OrderDetailDTO> OrderDetails { get; set; } = new();
-    }
 
+        // ✅ NEW
+        public string? OrderNumber { get; set; }
+        public OrderPaymentSummaryDTO? Payment { get; set; }
+        public List<OrderPaymentAttemptDTO>? PaymentAttempts { get; set; }
+    }
+    public class OrderPaymentSummaryDTO
+    {
+        public Guid PaymentId { get; set; }
+        public decimal Amount { get; set; }
+        public string? Status { get; set; }
+
+        public string? Provider { get; set; }
+        public long? ProviderOrderCode { get; set; }
+        public string? PaymentLinkId { get; set; }
+
+        public DateTime CreatedAt { get; set; }
+        public DateTime ExpiresAtUtc { get; set; }
+        public bool IsExpired { get; set; }
+
+        // Admin muốn bấm mở lại link (optional, chỉ trả khi includeCheckoutUrl=true)
+        public string? CheckoutUrl { get; set; }
+    }
+    public class OrderPaymentAttemptDTO
+    {
+        public Guid PaymentId { get; set; }
+        public decimal Amount { get; set; }
+        public string? Status { get; set; }
+
+        public string? Provider { get; set; }
+        public long? ProviderOrderCode { get; set; }
+        public string? PaymentLinkId { get; set; }
+
+        public DateTime CreatedAt { get; set; }
+        public DateTime ExpiresAtUtc { get; set; }
+        public bool IsExpired { get; set; }
+    }
     public class OrderListItemDTO
     {
         public Guid OrderId { get; set; }
         public Guid? UserId { get; set; }
-
-        public string Email { get; set; } = null!;
+        public string? Email { get; set; }
 
         public string? UserName { get; set; }
         public string? UserEmail { get; set; }
 
         public decimal TotalAmount { get; set; }
-        public decimal? FinalAmount { get; set; }
+        public decimal FinalAmount { get; set; }
 
         public DateTime CreatedAt { get; set; }
         public int ItemCount { get; set; }
+
+        // ✅ NEW
+        public string? Status { get; set; }
+        public string? OrderNumber { get; set; }
+
+        public OrderPaymentSummaryDTO? Payment { get; set; }
+        public int PaymentAttemptCount { get; set; }
     }
 
     public class OrderHistoryItemDTO

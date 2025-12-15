@@ -35,6 +35,42 @@ const readCustomerFromStorage = () => {
   }
 };
 
+const CHECKOUT_LOCK_KEY = "ktk_checkout_lock";
+
+const readCheckoutLock = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(CHECKOUT_LOCK_KEY);
+    if (!raw) return null;
+
+    const lock = JSON.parse(raw);
+    const expMs = Date.parse(lock?.expiresAtUtc || "");
+    if (!lock?.paymentUrl || !Number.isFinite(expMs)) return null;
+
+    if (Date.now() >= expMs) {
+      window.localStorage.removeItem(CHECKOUT_LOCK_KEY);
+      return null;
+    }
+
+    return lock; // { paymentId, orderId, paymentUrl, expiresAtUtc }
+  } catch {
+    try {
+      window.localStorage.removeItem(CHECKOUT_LOCK_KEY);
+    } catch {}
+    return null;
+  }
+};
+
+const saveCheckoutLock = ({ paymentId, orderId, paymentUrl, expiresAtUtc }) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      CHECKOUT_LOCK_KEY,
+      JSON.stringify({ paymentId, orderId, paymentUrl, expiresAtUtc })
+    );
+  } catch {}
+};
+
 const StorefrontCartPage = () => {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -69,16 +105,17 @@ const StorefrontCartPage = () => {
   }, []);
 
   const addToast = useCallback(
-  (type, title, message) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, type, title, message }]); // ✅ ...prev (KHÔNG phải .prev)
-    setTimeout(() => removeToast(id), 4000);
-  },
-  [removeToast]
-);
-const closeConfirmDialog = () => {
-  setConfirmDialog((prev) => ({ ...prev, isOpen: false, action: null })); // ✅ ...prev (KHÔNG phải .prev)
-};
+    (type, title, message) => {
+      const id = Date.now() + Math.random();
+      setToasts((prev) => [...prev, { id, type, title, message }]);
+      setTimeout(() => removeToast(id), 4000);
+    },
+    [removeToast]
+  );
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog((prev) => ({ ...prev, isOpen: false, action: null }));
+  };
 
   const handleConfirmDialogConfirm = () => {
     if (confirmDialog.action) confirmDialog.action();
@@ -103,7 +140,6 @@ const closeConfirmDialog = () => {
 
       setCart(res);
 
-      // Nếu cart đang Converting: BE sẽ từ chối ghi (409)【:contentReference[oaicite:11]{index=11}】
       if (String(res?.status || "").toLowerCase() === "converting") {
         addToast(
           "warning",
@@ -114,7 +150,6 @@ const closeConfirmDialog = () => {
     } catch (err) {
       console.error("Load cart failed:", err);
 
-      // Nếu BE vô tình trả 401 cho guest thì không ép “đăng nhập”
       if (err?.response?.status === 401 && customer) {
         setError("Bạn cần đăng nhập để sử dụng giỏ hàng.");
       } else {
@@ -135,7 +170,6 @@ const closeConfirmDialog = () => {
   }, [cart]);
 
   const tryAutoReloadAfterConflict = useCallback(() => {
-    // giúp UI tự sync khi bị 409 do cart Converting
     setTimeout(() => loadCart(), 800);
   }, [loadCart]);
 
@@ -274,6 +308,13 @@ const closeConfirmDialog = () => {
     if (checkingOut) return;
     if (!cart?.items?.length) return;
 
+    // ✅ Multi-tab lock: nếu tab khác đã checkout và còn hạn => redirect luôn, KHÔNG gọi checkout API
+    const existingLock = readCheckoutLock();
+    if (existingLock?.paymentUrl) {
+      window.location.href = existingLock.paymentUrl;
+      return;
+    }
+
     const effectiveEmail = ((customer ? cart.accountEmail : null) || localEmail || "").trim();
     if (!effectiveEmail) {
       addToast("warning", "Thiếu email nhận hàng", "Vui lòng nhập email nhận hàng trước khi thanh toán.");
@@ -282,7 +323,6 @@ const closeConfirmDialog = () => {
 
     setCheckingOut(true);
     try {
-      // BE checkout mới yêu cầu guest gửi DeliveryEmail trong body【:contentReference[oaicite:12]{index=12}】
       const checkoutResult = await StorefrontCartApi.checkout({
         deliveryEmail: effectiveEmail,
       });
@@ -290,13 +330,24 @@ const closeConfirmDialog = () => {
       setCart(null);
       setLocalEmail(effectiveEmail);
 
-      // lưu lại để trang return/cancel có thể hiển thị tốt hơn
+      // ✅ lưu lock cho multi-tab (localStorage)
+      if (checkoutResult?.paymentUrl && checkoutResult?.expiresAtUtc) {
+        saveCheckoutLock({
+          paymentId: checkoutResult.paymentId,
+          orderId: checkoutResult.orderId,
+          paymentUrl: checkoutResult.paymentUrl,
+          expiresAtUtc: checkoutResult.expiresAtUtc,
+        });
+      }
+
+      // lưu lại để trang return/cancel có thể hiển thị tốt hơn (cùng tab)
       try {
         window.sessionStorage.setItem(
           "ktk_last_checkout",
           JSON.stringify({
             paymentId: checkoutResult.paymentId,
             orderId: checkoutResult.orderId,
+            paymentUrl: checkoutResult.paymentUrl,
             expiresAtUtc: checkoutResult.expiresAtUtc,
             at: new Date().toISOString(),
           })
@@ -317,7 +368,6 @@ const closeConfirmDialog = () => {
       console.error("Checkout failed:", err);
       const serverMsg = err?.response?.data?.message;
 
-      // BE có thể trả 409 “Cart đang được checkout…”【:contentReference[oaicite:13]{index=13}】
       if (err?.response?.status === 409) {
         addToast("warning", "Giỏ hàng đang checkout", serverMsg || err?.message || "Vui lòng thử lại sau.");
         tryAutoReloadAfterConflict();
