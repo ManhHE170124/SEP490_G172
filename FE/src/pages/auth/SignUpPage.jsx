@@ -248,6 +248,9 @@ export default function SignUpPage() {
     if (!formData.lastName.trim()) {
       return "Vui lòng nhập họ";
     }
+    if (formData.phone && !/^0(3|5|7|8|9)[0-9]{8}$/.test(formData.phone)) {
+       return "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)";
+    }
     if (!formData.password) {
       return "Vui lòng nhập mật khẩu";
     }

@@ -25,6 +25,12 @@ namespace Keytietkiem.Controllers
         private readonly KeytietkiemDbContext _db;
         private readonly IAuditLogger _auditLogger;
 
+        private bool IsValidPhoneNumber(string? phone)
+        {
+            if (string.IsNullOrEmpty(phone)) return true;
+            return System.Text.RegularExpressions.Regex.IsMatch(phone, @"^0(3|5|7|8|9)[0-9]{8}$");
+        }
+
         public UsersController(KeytietkiemDbContext db, IAuditLogger auditLogger)
         {
             _db = db;
@@ -456,6 +462,11 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = GetFirstModelError() });
             }
 
+            if (!string.IsNullOrEmpty(dto.Phone) && !IsValidPhoneNumber(dto.Phone))
+            {
+                 return BadRequest(new { message = "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)" });
+            }
+
             if (!string.IsNullOrEmpty(dto.RoleId))
             {
                 var role = await _db.Roles.FirstOrDefaultAsync(r => r.RoleId == dto.RoleId);
@@ -577,6 +588,11 @@ namespace Keytietkiem.Controllers
             if (!ModelState.IsValid)
             {
                 return BadRequest(new { message = GetFirstModelError() });
+            }
+
+            if (!string.IsNullOrEmpty(dto.Phone) && !IsValidPhoneNumber(dto.Phone))
+            {
+                 return BadRequest(new { message = "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)" });
             }
 
             var u = await _db.Users

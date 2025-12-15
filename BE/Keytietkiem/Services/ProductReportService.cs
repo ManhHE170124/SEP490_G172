@@ -185,7 +185,9 @@ namespace Keytietkiem.Services
                 .Include(r => r.ProductVariant)
                     .ThenInclude(v => v.Product)
                 .Include(r => r.ProductKey)
+                    .ThenInclude(k => k.Supplier)
                 .Include(r => r.ProductAccount)
+                    .ThenInclude(a => a.Supplier)
                 .Include(r => r.User)
                 .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
@@ -205,6 +207,7 @@ namespace Keytietkiem.Services
                 ProductVariantId = report.ProductVariantId,
                 ProductVariantTitle = report.ProductVariant.Title,
                 ProductName = report.ProductVariant.Product.ProductName,
+                SupplierName = report.ProductKey?.Supplier?.Name ?? report.ProductAccount?.Supplier?.Name,
                 UserId = report.UserId,
                 UserEmail = report.User.Email,
                 UserFullName = report.User.FullName,
@@ -279,6 +282,7 @@ namespace Keytietkiem.Services
                 .Include(r => r.ProductVariant)
                     .ThenInclude(v => v.Product)
                 .Include(r => r.ProductKey)
+                    .ThenInclude(k => k.Supplier)
                 .Include(r => r.User)
                 .Where(r => r.ProductKeyId != null)
                 .AsQueryable();
@@ -313,6 +317,7 @@ namespace Keytietkiem.Services
                     ProductVariantId = r.ProductVariantId,
                     ProductVariantTitle = r.ProductVariant.Title,
                     ProductName = r.ProductVariant.Product.ProductName,
+                    SupplierName = r.ProductKey!.Supplier.Name,
                     UserId = r.UserId,
                     UserEmail = r.User.Email,
                     UserFullName = r.User.FullName,
@@ -334,6 +339,7 @@ namespace Keytietkiem.Services
                 .Include(r => r.ProductVariant)
                     .ThenInclude(v => v.Product)
                 .Include(r => r.ProductAccount)
+                    .ThenInclude(a => a.Supplier)
                 .Include(r => r.User)
                 .Where(r => r.ProductAccountId != null)
                 .AsQueryable();
@@ -366,6 +372,7 @@ namespace Keytietkiem.Services
                     ProductVariantId = r.ProductVariantId,
                     ProductVariantTitle = r.ProductVariant.Title,
                     ProductName = r.ProductVariant.Product.ProductName,
+                    SupplierName = r.ProductAccount!.Supplier.Name,
                     UserId = r.UserId,
                     UserEmail = r.User.Email,
                     UserFullName = r.User.FullName,
