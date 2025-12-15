@@ -39,9 +39,13 @@ public partial class ProductVariant
 
     public decimal CogsPrice { get; set; }
 
+    public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
+
     public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
 
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+
+    public virtual ICollection<OrderInventoryReservation> OrderInventoryReservations { get; set; } = new List<OrderInventoryReservation>();
 
     public virtual Product Product { get; set; } = null!;
 

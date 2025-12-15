@@ -3,9 +3,9 @@ using System.Collections.Generic;
 
 namespace Keytietkiem.Models;
 
-public partial class OrderDetail
+public partial class OrderInventoryReservation
 {
-    public long OrderDetailId { get; set; }
+    public long ReservationId { get; set; }
 
     public Guid OrderId { get; set; }
 
@@ -13,13 +13,13 @@ public partial class OrderDetail
 
     public int Quantity { get; set; }
 
-    public decimal UnitPrice { get; set; }
+    public string Status { get; set; } = null!;
 
-    public string? ClaimToken { get; set; }
+    public DateTime ReservedUntilUtc { get; set; }
 
-    public Guid? KeyId { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 
-    public virtual ProductKey? Key { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 
     public virtual Order Order { get; set; } = null!;
 

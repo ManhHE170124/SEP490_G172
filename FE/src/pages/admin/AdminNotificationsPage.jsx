@@ -398,6 +398,7 @@ const AdminNotificationsPage = () => {
           <h1 className="admin-notifications-title">Thông báo hệ thống</h1>
         </div>
         <div>
+          <PermissionGuard moduleCode={MODULE_CODES.SETTINGS_MANAGER} permissionCode={PERMISSION_CODES.CREATE}>
           <button
             type="button"
             className="btn btn-primary"
@@ -405,6 +406,7 @@ const AdminNotificationsPage = () => {
           >
             + Tạo thông báo
           </button>
+          </PermissionGuard>
         </div>
       </div>
 

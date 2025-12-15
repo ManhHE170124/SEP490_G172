@@ -17,11 +17,7 @@ public partial class UserSupportPlanSubscription
 
     public DateTime? ExpiresAt { get; set; }
 
-    public Guid? PaymentId { get; set; }
-
     public string? Note { get; set; }
-
-    public virtual Payment? Payment { get; set; }
 
     public virtual SupportPlan SupportPlan { get; set; } = null!;
 

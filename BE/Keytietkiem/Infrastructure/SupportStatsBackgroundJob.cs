@@ -37,8 +37,8 @@ namespace Keytietkiem.Infrastructure
         private readonly ILogger<SupportStatsUpdateService> _logger;
 
         // Có thể chỉnh cho phù hợp với tải hệ thống
-        private const int DailyWindowDays = 7;   // Tính lại daily stats cho 7 ngày gần nhất
-        private const int WeeklyWindowWeeks = 4; // 4 tuần gần nhất
+        private const int DailyWindowDays = 7;     // Tính lại daily stats cho 7 ngày gần nhất
+        private const int WeeklyWindowWeeks = 4;   // 4 tuần gần nhất
         private const int MonthlyWindowMonths = 6; // 6 tháng gần nhất
 
         public SupportStatsUpdateService(
@@ -717,6 +717,8 @@ namespace Keytietkiem.Infrastructure
                 stat.SessionsCount = sessionsForPriority.Count;
                 stat.AvgFirstResponseMinutes = avgFrt;
                 stat.AvgDurationMinutes = avgDur;
+
+                // NOTE: mapping property -> column name (Duration_0_5_Count...) tuỳ entity config của bạn
                 stat.Duration05Count = b0_5;
                 stat.Duration510Count = b5_10;
                 stat.Duration1020Count = b10_20;
@@ -750,8 +752,34 @@ namespace Keytietkiem.Infrastructure
                 return false;
             }
 
+            // Nếu started sau thời điểm at thì chưa active
+            if (sub.StartedAt > at) return false;
+
             if (sub.ExpiresAt == null) return true;
             return sub.ExpiresAt.Value > at;
+        }
+
+        private static bool IsPaymentPaid(Payment p)
+        {
+            // DB constraint: Pending/Cancelled/Failed/Paid/Success/Completed/Refunded
+            var st = (p.Status ?? string.Empty).Trim();
+            return st.Equals("Paid", StringComparison.OrdinalIgnoreCase)
+                   || st.Equals("Success", StringComparison.OrdinalIgnoreCase)
+                   || st.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSupportPlanPayment(Payment p)
+        {
+            // Với DB mới: phân biệt bằng TargetType + TargetId
+            // Bạn nên set TargetType khi tạo payment support plan (ví dụ: "SupportPlanSubscription")
+            var tt = (p.TargetType ?? string.Empty).Trim();
+
+            return tt.Equals("SupportPlanSubscription", StringComparison.OrdinalIgnoreCase)
+                   || tt.Equals("UserSupportPlanSubscription", StringComparison.OrdinalIgnoreCase)
+                   || tt.Equals("SupportPlan", StringComparison.OrdinalIgnoreCase)
+                   || tt.Equals("SupportPlanPayment", StringComparison.OrdinalIgnoreCase)
+                   || tt.Equals("Service", StringComparison.OrdinalIgnoreCase)
+                   || tt.Equals("SERVICE_PAYMENT", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task RebuildSupportPlanMonthlyStatsAsync(
@@ -768,13 +796,18 @@ namespace Keytietkiem.Infrastructure
             if (!plans.Any())
                 return;
 
-            // Subscriptions liên quan tới khoảng thời gian này
+            // Subscriptions liên quan tới khoảng thời gian này (overlap window)
+            // NOTE: DB mới không còn navigation Payment trong UserSupportPlanSubscription
             var subsInWindow = await db.UserSupportPlanSubscriptions
                 .Include(s => s.SupportPlan)
-                .Include(s => s.Payment)
                 .Where(s =>
                     s.StartedAt < monthEnd &&
                     (s.ExpiresAt == null || s.ExpiresAt >= monthStart))
+                .ToListAsync(ct);
+
+            // Payments trong tháng: lọc riêng theo TargetType/TargetId
+            var paymentsInMonth = await db.Payments
+                .Where(p => p.CreatedAt >= monthStart && p.CreatedAt < monthEnd)
                 .ToListAsync(ct);
 
             // Tickets & chat trong tháng
@@ -833,15 +866,23 @@ namespace Keytietkiem.Infrastructure
                 var newSubsCount = subsForPlan
                     .Count(s => s.StartedAt >= monthStart && s.StartedAt < monthEnd);
 
-                // Revenue từ payment gắn với subscription
-                var revenue = subsForPlan
-                    .Where(s => s.Payment != null)
-                    .Where(s =>
-                        s.Payment!.TransactionType == "SERVICE_PAYMENT" &&
-                        s.Payment.Status == "Paid" &&
-                        s.Payment.CreatedAt >= monthStart &&
-                        s.Payment.CreatedAt < monthEnd)
-                    .Sum(s => s.Payment!.Amount);
+                // ===== Revenue theo DB mới =====
+                // Payment liên kết qua (TargetType, TargetId)
+                // TargetId thường là SubscriptionId (GUID string) hoặc đôi khi là SupportPlanId (string).
+                var subIdStrings = subsForPlan
+                    .Select(s => s.SubscriptionId.ToString())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var planIdString = plan.SupportPlanId.ToString();
+
+                var revenue = paymentsInMonth
+                    .Where(IsSupportPlanPayment)
+                    .Where(IsPaymentPaid)
+                    .Where(p =>
+                        !string.IsNullOrWhiteSpace(p.TargetId) &&
+                        (subIdStrings.Contains(p.TargetId.Trim()) ||
+                         p.TargetId.Trim().Equals(planIdString, StringComparison.OrdinalIgnoreCase)))
+                    .Sum(p => p.Amount);
 
                 // UserIds có plan này trong tháng (simple window overlap)
                 var userIds = subsForPlan
