@@ -13,7 +13,7 @@ import "./Sidebar.css";
 const ROLE_ADMIN = "ADMIN";
 const ROLE_STORAGE_STAFF = "STORAGE_STAFF";
 const ROLE_CONTENT_CREATOR = "CONTENT_CREATOR";
-const ROLE_CUSTOMER_CARE_STAFF = "CUSTOMER_CARE_STAFF";
+const ROLE_CUSTOMER_CARE = "CUSTOMER_CARE";
 
 const Sidebar = () => {
   const location = useLocation();
@@ -461,7 +461,7 @@ const Sidebar = () => {
           id: "dashboard",
           label: "Dashboard Hỗ trợ",
           to: "/admin/support-dashboard",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive: currentPage === "admin/support-dashboard",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -476,7 +476,7 @@ const Sidebar = () => {
           id: "tickets",
           label: "Quản lý phiếu hỗ trợ",
           to: "/admin/tickets",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive:
             currentPage === "admin/tickets" ||
             currentPage.startsWith("admin/tickets/"),
@@ -503,7 +503,7 @@ const Sidebar = () => {
           id: "support-chats",
           label: "Quản lý chat hỗ trợ",
           to: "/admin/support-chats",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive: currentPage === "admin/support-chats",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -528,7 +528,7 @@ const Sidebar = () => {
           id: "product-reports",
           label: "Báo cáo sản phẩm",
           to: "/reports",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive:
             currentPage === "reports" ||
             currentPage.startsWith("reports/"),
@@ -712,7 +712,7 @@ const Sidebar = () => {
           id: "support-priority-loyalty-rules",
           label: "Cấu hình quy tắc hỗ trợ",
           to: "/admin/support-priority-loyalty-rules",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive: currentPage === "admin/support-priority-loyalty-rules",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -733,7 +733,7 @@ const Sidebar = () => {
           id: "support-plans-admin",
           label: "Cấu hình gói hỗ trợ",
           to: "/admin/support-plans",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive: currentPage === "admin/support-plans",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -793,7 +793,7 @@ const Sidebar = () => {
           id: "ticket-subject-templates",
           label: "Cấu hình mẫu chủ đề ticket",
           to: "/admin/ticket-subject-templates",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE_STAFF],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive: currentPage === "admin/ticket-subject-templates",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>

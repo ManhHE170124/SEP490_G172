@@ -312,16 +312,15 @@ export default function AppRoutes() {
       />
 
       {/* Role */}
-      <Route path="/role-manage" element={renderAdminPage(MODULE_CODES.ROLE_MANAGER, <RoleManage />)} />
-      <Route path="/role-assign" element={renderAdminPage(MODULE_CODES.ROLE_MANAGER, <RoleAssign />)} />
+      <Route path="/role-manage" element={renderAdminPage( <RoleManage />)} />
+      <Route path="/role-assign" element={renderAdminPage( <RoleAssign />)} />
 
       {/* Post */}
-      <Route path="/post-dashboard" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostDashboardPage />)} />
-      <Route path="/admin-post-list" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <AdminPostList />)} />
-      <Route path="/post-create-edit" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostCreateEdit />)} />
-      <Route path="/post-create-edit/:postId" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostCreateEdit />)} />
-      <Route path="/tag-post-type-manage" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <TagPostTypeManage />)} />
-
+      <Route path="/post-dashboard" element={renderAdminPage(<PostDashboardPage />)} />
+      <Route path="/admin-post-list" element={renderAdminPage(<AdminPostList />)} />
+      <Route path="/post-create-edit" element={renderAdminPage(<PostCreateEdit />)} />
+      <Route path="/post-create-edit/:postId" element={renderAdminPage(<PostCreateEdit />)} />
+      <Route path="/tag-post-type-manage" element={renderAdminPage(<TagPostTypeManage />)} />
       {/* Suppliers */}
       <Route
         path="/suppliers"
@@ -357,12 +356,12 @@ export default function AppRoutes() {
       />
 
       {/* Product Accounts */}
-      <Route path="/accounts" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountManagementPage />)} />
-      <Route path="/accounts/add" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountDetailPage />)} />
-      <Route path="/accounts/:id" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountDetailPage />)} />
+      <Route path="/accounts" element={renderAdminPage(<AccountManagementPage />)} />
+      <Route path="/accounts/add" element={renderAdminPage(<AccountDetailPage />)} />
+      <Route path="/accounts/:id" element={renderAdminPage(<AccountDetailPage />)} />
 
       {/* Settings */}
-      <Route path="/admin/website-config" element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <WebsiteConfig />)} />
+      <Route path="/admin/website-config" element={renderAdminPage(<WebsiteConfig />)} />
       <Route
         path="/accounts"
         element={renderAdminPage(<AccountManagementPage />)}
@@ -405,8 +404,8 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
-      <Route path="/admin/support-chats" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <AdminSupportChatPage />)} />
-      <Route path="/staff/support-chats" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <StaffSupportChatPage />)} />
+      <Route path="/admin/support-chats" element={renderAdminPage(<AdminSupportChatPage />)} />
+      <Route path="/staff/support-chats" element={renderAdminPage(<StaffSupportChatPage />)} />
 
       {/* Support plan subscription */}
       <Route path="/support/subscription" element={<ClientLayout><SupportPlanSubscriptionPage /></ClientLayout>} />
@@ -422,8 +421,8 @@ export default function AppRoutes() {
         path="/admin/sla-rules"
         element={renderAdminPage(<SlaRulesAdminPage />)}
       />
-      <Route path="/admin/support-plans" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SupportPlansAdminPage />)} />
-      <Route path="/admin/sla-rules" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SlaRulesAdminPage />)} />
+      <Route path="/admin/support-plans" element={renderAdminPage(<SupportPlansAdminPage />)} />
+      <Route path="/admin/sla-rules" element={renderAdminPage(<SlaRulesAdminPage />)} />
       <Route
         path="/admin/ticket-subject-templates"
         element={renderAdminPage(<TicketSubjectTemplatesAdminPage />)}
@@ -432,7 +431,7 @@ export default function AppRoutes() {
         path="/admin/audit-logs"
         element={renderAdminPage(<AuditLogsPage />)}
       />
-      <Route path="/admin/audit-logs" element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <AuditLogsPage />)} />
+      <Route path="/admin/audit-logs" element={renderAdminPage(<AuditLogsPage />)} />
 
       {/* Blogs / Products / Cart */}
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />

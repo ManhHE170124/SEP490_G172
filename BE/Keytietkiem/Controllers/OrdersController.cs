@@ -19,6 +19,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using static Keytietkiem.Constants.ModuleCodes;
 using static Keytietkiem.Constants.PermissionCodes;
+using static Keytietkiem.Constants.RoleCodes;
 
 namespace Keytietkiem.Controllers
 {
@@ -705,7 +706,7 @@ namespace Keytietkiem.Controllers
             return Ok(items);
         }
         [HttpGet("{id:guid}")]
-        [RequirePermission(ModuleCodes.ORDER, PermissionCodes.VIEW_DETAIL)]
+        [Authorize]
         public async Task<IActionResult> GetOrderById(Guid id,
             [FromQuery] bool includePaymentAttempts = true,
             [FromQuery] bool includeCheckoutUrl = false)
@@ -723,6 +724,60 @@ namespace Keytietkiem.Controllers
 
                 if (order == null)
                     return NotFound(new { message = "Đơn hàng không được tìm thấy" });
+
+                // Check permission: Admin/Staff with ORDER.VIEW_DETAIL can view any order
+                // Customer can only view their own orders
+                var currentUserId = GetCurrentUserIdOrNull();
+                var hasPermission = false;
+
+                if (currentUserId.HasValue)
+                {
+                    var user = await db.Users
+                        .Include(u => u.Roles)
+                        .FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
+
+                    if (user != null && user.Roles.Any())
+                    {
+                        var roleCodes = user.Roles
+                            .Where(r => r.IsActive && !string.IsNullOrWhiteSpace(r.Code))
+                            .Select(r => r.Code!.Trim().ToUpper())
+                            .ToList();
+
+                        // Admin has full access
+                        if (roleCodes.Contains(ADMIN))
+                        {
+                            hasPermission = true;
+                        }
+                        else
+                        {
+                            // Check if user has ORDER.VIEW_DETAIL permission
+                            hasPermission = await db.RolePermissions
+                                .Include(rp => rp.Role)
+                                .Include(rp => rp.Module)
+                                .Include(rp => rp.Permission)
+                                .AnyAsync(rp =>
+                                    rp.IsActive &&
+                                    rp.Role != null &&
+                                    rp.Module != null &&
+                                    rp.Permission != null &&
+                                    !string.IsNullOrWhiteSpace(rp.Role.Code) &&
+                                    roleCodes.Contains(rp.Role.Code.ToUpper()) &&
+                                    !string.IsNullOrWhiteSpace(rp.Module.Code) &&
+                                    rp.Module.Code.ToUpper() == ORDER &&
+                                    !string.IsNullOrWhiteSpace(rp.Permission.Code) &&
+                                    rp.Permission.Code.ToUpper() == VIEW_DETAIL);
+                        }
+                    }
+                }
+
+                // If user doesn't have permission, check if it's their own order
+                if (!hasPermission)
+                {
+                    if (!currentUserId.HasValue || order.UserId != currentUserId.Value)
+                    {
+                        return StatusCode(403, new { message = "Bạn không có quyền truy cập chức năng này" });
+                    }
+                }
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
 

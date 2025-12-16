@@ -416,65 +416,86 @@ export default function RoleAssign() {
     }
   };
   
-  /**
-   * @summary: Toggle all permissions (select/deselect all) in local state.
-   * @returns {void}
-   */
-  const handleTickAll = () => {
-    if (!selectedRole || isAdminRoleSelected) return;
-    
-    const allActive = displayPermissions.every(permission => 
-      modules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
-    );
-    
-    const newIsActive = !allActive;
-    
-    // Update local state only
-    const allRolePermissions = [];
-    for (const module of modules) {
-      for (const permission of permissions) {
-        allRolePermissions.push({
-          roleId: selectedRole.roleId,
-          moduleId: module.moduleId,
-          permissionId: permission.permissionId,
-          isActive: newIsActive
-        });
-      }
-    }
-    
-    setRolePermissions(allRolePermissions);
-    
-    // Mark as having unsaved changes
-    setHasUnsavedChanges(true);
-  };
-  
-  /**
-   * @summary: Determine if all permissions are currently selected for the role.
-   * @returns {boolean}
-   */
-  const isAllTicked = displayPermissions.every((permission) =>
-    modules.every((module) =>
-      isPermissionActive(module.moduleId, permission.permissionId)
-    )
-  );
-
-  // Show only modules that have at least one active permission for the selected role
-  // A module is considered "assigned" to a role if it has at least one active permission
+  // Show all modules that have been assigned to the role (have at least one rolePermission entry)
+  // A module is considered "assigned" to a role if it has any rolePermission entry, regardless of isActive
   const visibleModules = useMemo(() => {
     if (!selectedRole || !Array.isArray(rolePermissions) || rolePermissions.length === 0) {
       return [];
     }
 
-    // Get set of module IDs that have at least one active permission
+    // Get set of module IDs that have any rolePermission entry (active or inactive)
     const assignedModuleIds = new Set(
-      rolePermissions
-        .filter((rp) => rp.isActive)
-        .map((rp) => rp.moduleId)
+      rolePermissions.map((rp) => rp.moduleId)
     );
 
     // Filter modules to only show those that are assigned to the role
     return modules.filter((module) => assignedModuleIds.has(module.moduleId));
   }, [modules, selectedRole, rolePermissions]);
+
+  /**
+   * @summary: Determine if all permissions are currently selected for the role.
+   * @returns {boolean}
+   */
+  const isAllTicked = visibleModules.length > 0 && displayPermissions.every((permission) =>
+    visibleModules.every((module) =>
+      isPermissionActive(module.moduleId, permission.permissionId)
+    )
+  );
+
+  /**
+   * @summary: Toggle all permissions (select/deselect all) in local state.
+   * @returns {void}
+   */
+  const handleTickAll = () => {
+    if (!selectedRole || isAdminRoleSelected || visibleModules.length === 0) return;
+    
+    const allActive = displayPermissions.every(permission => 
+      visibleModules.every(module => isPermissionActive(module.moduleId, permission.permissionId))
+    );
+    
+    const newIsActive = !allActive;
+    
+    // Update only visible modules' permissions, preserve existing rolePermissions for other modules
+    setRolePermissions(prev => {
+      // Create a map of existing role permissions for quick lookup
+      const existingMap = new Map(
+        prev.map(rp => [`${rp.moduleId}:${rp.permissionId}`, rp])
+      );
+      
+      // Update permissions for visible modules only
+      const updatedRolePermissions = [...prev];
+      
+      for (const module of visibleModules) {
+        for (const permission of displayPermissions) {
+          const key = `${module.moduleId}:${permission.permissionId}`;
+          const existing = existingMap.get(key);
+          
+          if (existing) {
+            // Update existing permission
+            const index = updatedRolePermissions.findIndex(
+              rp => rp.moduleId === module.moduleId && rp.permissionId === permission.permissionId
+            );
+            if (index !== -1) {
+              updatedRolePermissions[index] = { ...existing, isActive: newIsActive };
+            }
+          } else {
+            // Add new permission entry for visible module
+            updatedRolePermissions.push({
+              roleId: selectedRole.roleId,
+              moduleId: module.moduleId,
+              permissionId: permission.permissionId,
+              isActive: newIsActive
+            });
+          }
+        }
+      }
+      
+      return updatedRolePermissions;
+    });
+    
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true);
+  };
 
   const totalPermissionSlots = useMemo(
     () => visibleModules.length * displayPermissions.length,

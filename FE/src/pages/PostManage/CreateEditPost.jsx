@@ -773,7 +773,18 @@ const CreateEditPost = () => {
       return newTag;
     } catch (err) {
       console.error('Failed to create tag:', err);
-      showError('Lỗi tạo tag mới', 'Không thể tạo tag mới. Vui lòng thử lại.');
+      
+      // Check if it's a permission error (403 Forbidden)
+      if (err?.response?.status === 403) {
+        const errorMessage = err?.response?.data?.message || 'Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.';
+        showError('Không có quyền', errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      // Other errors
+      const errorMessage = err?.response?.data?.message || err?.message || 'Không thể tạo tag mới. Vui lòng thử lại.';
+      showError('Lỗi tạo tag mới', errorMessage);
+      throw new Error(errorMessage);
     }
   };
 

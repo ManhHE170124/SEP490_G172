@@ -82,8 +82,7 @@ export default function LoginPage() {
       
       if (
         firstRole === "ADMIN" || 
-        firstRole === "CUSTOMER_CARE_STAFF" ||
-        firstRole === "CUSTOMER CARE STAFF"
+        firstRole === "CUSTOMER_CARE"
       ) {
         navigate("/admin/support-dashboard");
       } else if (

@@ -128,6 +128,19 @@ const TagsInput = ({
       if (onCreateNewTag) {
         const slug = toSlug(trimmedInput);
         const newTag = await onCreateNewTag(trimmedInput, slug);
+        
+        // Validate newTag before adding to tags
+        if (!newTag) {
+          setError('Không thể tạo tag mới. Vui lòng thử lại.');
+          return;
+        }
+        
+        // Ensure newTag has required properties
+        if (typeof newTag !== 'string' && (!newTag.tagName && !newTag.name)) {
+          setError('Dữ liệu tag không hợp lệ.');
+          return;
+        }
+        
         setTags(prev => [...prev, newTag]);
         setTagInput('');
         setError('');
@@ -136,7 +149,8 @@ const TagsInput = ({
         setError('Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.');
       }
     } catch (err) {
-      setError(err.message || 'Không thể tạo tag mới');
+      // Error message should already be shown by the parent component
+      setError(err.message || 'Không thể tạo tag mới. Vui lòng thử lại.');
     }
   };
 

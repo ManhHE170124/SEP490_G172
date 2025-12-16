@@ -397,15 +397,15 @@ const AdminNotificationsPage = () => {
           <h1 className="admin-notifications-title">Thông báo hệ thống</h1>
         </div>
         <div>
-          <PermissionGuard moduleCode={MODULE_CODES.SETTINGS_MANAGER} permissionCode={PERMISSION_CODES.CREATE}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleOpenCreate}
-          >
-            + Tạo thông báo
-          </button>
-          </PermissionGuard>
+          {hasCreatePermission && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOpenCreate}
+            >
+              + Tạo thông báo
+            </button>
+          )}
         </div>
       </div>
 
