@@ -36,10 +36,8 @@ namespace Keytietkiem.Infrastructure
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<PayOSService> _logger;
-        private readonly string _clientId;
-        private readonly string _apiKey;
-        private readonly string _checksumKey;
-        private readonly string _endpoint;
+        private readonly IConfiguration _config;
+        private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
 
         // ✅ serialize ổn định cho signature (arrays/objects)
         private static readonly JsonSerializerOptions SignatureJsonOptions = new JsonSerializerOptions
@@ -53,10 +51,45 @@ namespace Keytietkiem.Infrastructure
         {
             _httpClient = httpClient;
             _logger = logger;
-            _clientId = config["PayOS:ClientId"] ?? "";
-            _apiKey = config["PayOS:ApiKey"] ?? "";
-            _checksumKey = config["PayOS:ChecksumKey"] ?? "";
-            _endpoint = config["PayOS:Endpoint"] ?? "";
+            _config = config;
+            _dbFactory = dbFactory;
+        }
+
+        private async Task<(string clientId, string apiKey, string checksumKey, string endpoint)> GetSettingsAsync()
+        {
+            // DB-first: lấy từ PaymentGateway Name="PayOS"
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var gw = await db.PaymentGateways
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Name == "PayOS" &&
+                    (x.IsActive == null || x.IsActive == true));
+
+            var clientId = gw?.ClientId?.Trim();
+            var apiKey = gw?.ApiKey?.Trim();
+            var checksumKey = gw?.ChecksumKey?.Trim();
+
+            // Fallback appsettings
+            if (string.IsNullOrWhiteSpace(clientId))
+                clientId = _config["PayOS:ClientId"]?.Trim();
+
+            if (string.IsNullOrWhiteSpace(apiKey))
+                apiKey = _config["PayOS:ApiKey"]?.Trim();
+
+            if (string.IsNullOrWhiteSpace(checksumKey))
+                checksumKey = _config["PayOS:ChecksumKey"]?.Trim();
+
+            var endpoint = _config["PayOS:Endpoint"]?.Trim() ?? "";
+
+            return (clientId ?? "", apiKey ?? "", checksumKey ?? "", endpoint);
+        }
+
+        private static string ComputeSignature(string rawSignature, string checksumKey)
+        {
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(checksumKey));
+            var signatureBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawSignature));
+            return BitConverter.ToString(signatureBytes).Replace("-", "").ToLowerInvariant();
         }
         public virtual async Task<PayOSCreatePaymentResult> CreatePaymentV2(
             int orderCode,
@@ -71,9 +104,7 @@ namespace Keytietkiem.Infrastructure
             var rawSignature =
                 $"amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}";
 
-            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_checksumKey));
-            var signatureBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawSignature));
-            var signature = BitConverter.ToString(signatureBytes).Replace("-", "").ToLowerInvariant();
+            var signature = ComputeSignature(rawSignature, checksumKey);
 
             var requestBody = new
             {
@@ -91,15 +122,21 @@ namespace Keytietkiem.Infrastructure
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             var jsonString = JsonSerializer.Serialize(requestBody, jsonOptions);
 
-            var request = new HttpRequestMessage(HttpMethod.Post, _endpoint);
-            request.Headers.Add("x-client-id", _clientId);
-            request.Headers.Add("x-api-key", _apiKey);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Headers.Add("x-client-id", clientId);
+            request.Headers.Add("x-api-key", apiKey);
             request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
             var responseContent = await response.Content.ReadAsStringAsync();
 
             _logger.LogInformation("PayOS CreatePayment response: {response}", responseContent);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayOS HTTP error: {status} - {body}", (int)response.StatusCode, responseContent);
+                throw new Exception("Lỗi HTTP từ PayOS: " + responseContent);
+            }
 
             var payOSResponse = JsonSerializer.Deserialize<PayOSResponse>(responseContent, jsonOptions);
             if (payOSResponse == null || payOSResponse.Code != "00")
