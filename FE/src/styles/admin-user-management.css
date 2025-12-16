@@ -1,9 +1,14 @@
 /* File: admin-user-management.css
  * Purpose: UI for Admin User Management page
  * Style: đồng bộ với TicketSubjectTemplatesAdminPage
+ *
+ * NOTE (refactor):
+ * - Toàn bộ class được prefix "ktk-um-" để tránh trùng với page khác.
+ * - Scope toàn trang bằng wrapper ".ktk-admin-user-mgmt" để không ảnh hưởng global.
  */
 
-:root {
+.ktk-admin-user-mgmt {
+  /* ===== Tokens (scope trong trang) ===== */
   --ink: #0b1220;
   --muted: #6b7280;
   --line: #e5e7eb;
@@ -20,41 +25,30 @@
   --text-muted: var(--muted);
   --border-color: var(--line);
   --light: #f9fafb;
-}
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
+  min-height: 100%;
   margin: 0;
   background: var(--page);
   color: var(--ink);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-}
 
-/* PAGE LAYOUT */
-
-.page {
+  /* PAGE LAYOUT (thay cho .page cũ) */
   padding: 24px 16px 32px;
 }
 
+.ktk-admin-user-mgmt * {
+  box-sizing: border-box;
+}
+
 @media (min-width: 1024px) {
-  .page {
+  .ktk-admin-user-mgmt {
     padding: 32px 24px 40px;
   }
 }
 
 /* CARD */
-
-.card {
+.ktk-um-card {
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -62,51 +56,48 @@ body {
 }
 
 /* HEADER */
-
-.card-header {
+.ktk-um-cardHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
 }
 
-.card-header .left h2 {
+.ktk-um-cardHeader .ktk-um-left h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--ink);
 }
 
-.muted {
+.ktk-um-muted {
   color: var(--muted);
   font-size: 13px;
   margin-top: 4px;
 }
 
 /* ROW + GROUP (FILTER) */
-
-.row {
+.ktk-um-row {
   display: flex;
   align-items: center;
 }
 
-.group {
+.ktk-um-group {
   display: flex;
   flex-direction: column;
   font-size: 13px;
 }
 
-.group span {
+.ktk-um-group span {
   display: block;
   color: var(--muted);
   margin-bottom: 4px;
 }
 
 /* INPUTS & SELECTS */
-
-.input,
-.group input,
-.group select {
+.ktk-um-input,
+.ktk-um-group input,
+.ktk-um-group select {
   height: 36px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -116,16 +107,15 @@ body {
   background: #ffffff;
 }
 
-.input:focus,
-.group input:focus,
-.group select:focus {
+.ktk-um-input:focus,
+.ktk-um-group input:focus,
+.ktk-um-group select:focus {
   border-color: #a5b4fc;
   box-shadow: 0 0 0 1px #c7d2fe;
 }
 
 /* BUTTONS */
-
-.btn {
+.ktk-um-btn {
   border-radius: 999px;
   border: 1px solid transparent;
   background: #ffffff;
@@ -142,63 +132,61 @@ body {
     color 0.15s ease, transform 0.05s ease;
 }
 
-.btn.primary {
+.ktk-um-btn--primary {
   background: var(--primary);
   border-color: var(--primary);
   color: #ffffff;
 }
 
-.btn.primary:hover {
+.ktk-um-btn--primary:hover {
   background: #1d4ed8;
   border-color: #1d4ed8;
 }
 
-.btn.ghost {
+.ktk-um-btn--ghost {
   background: #ffffff;
   border-color: var(--line);
   color: var(--ink);
 }
 
-.btn.ghost:hover {
+.ktk-um-btn--ghost:hover {
   background: #f3f4ff;
   border-color: #e0e7ff;
 }
 
-.btn:disabled {
+.ktk-um-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 /* TABLE */
-
-.table {
+.ktk-um-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 12px;
   font-size: 13px;
 }
 
-.table th,
-.table td {
+.ktk-um-table th,
+.ktk-um-table td {
   border-bottom: 1px solid var(--line);
   padding: 8px 10px;
   text-align: left;
 }
 
-.table thead th {
+.ktk-um-table thead th {
   background: #f9fafb;
   font-weight: 600;
   color: var(--muted);
   font-size: 12px;
 }
 
-.table tbody tr:hover {
+.ktk-um-table tbody tr:hover {
   background: #f9fafb;
 }
 
 /* STATUS PILL */
-
-.status {
+.ktk-um-status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -210,21 +198,20 @@ body {
   text-transform: uppercase;
 }
 
-.status.s-ok {
+.ktk-um-status--ok {
   background: #dcfce7;
   color: #166534;
   border: 1px solid #bbf7d0;
 }
 
-.status.s-bad {
+.ktk-um-status--bad {
   background: #fee2e2;
   color: #b91c1c;
   border: 1px solid #fecaca;
 }
 
-/* BADGES (priority, temp...) */
-
-.badge {
+/* BADGES */
+.ktk-um-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -234,29 +221,27 @@ body {
   border: 1px solid transparent;
 }
 
-.badge.gray {
+.ktk-um-badge--gray {
   background: #f3f4f6;
   border-color: #e5e7eb;
   color: #4b5563;
 }
 
-.badge.purple {
+.ktk-um-badge--purple {
   background: #eef2ff;
   border-color: #e0e7ff;
   color: #4f46e5;
 }
 
 /* ACTIONS COLUMN */
-
-.actions-td {
+.ktk-um-actionsTd {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
 }
 
 /* PAGER */
-
-.pager {
+.ktk-um-pager {
   margin-top: 14px;
   display: flex;
   justify-content: space-between;
@@ -265,17 +250,17 @@ body {
   font-size: 13px;
 }
 
-.pager-left {
+.ktk-um-pagerLeft {
   color: var(--muted);
 }
 
-.pager-right {
+.ktk-um-pagerRight {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.pager-btn {
+.ktk-um-pagerBtn {
   min-width: 32px;
   height: 32px;
   border-radius: 999px;
@@ -285,14 +270,13 @@ body {
   cursor: pointer;
 }
 
-.pager-btn:disabled {
+.ktk-um-pagerBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
 /* MODAL */
-
-.modal-overlay {
+.ktk-um-modalOverlay {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
@@ -302,12 +286,12 @@ body {
   z-index: 40;
 }
 
-.modal-overlay.active {
+.ktk-um-modalOverlay--active {
   opacity: 1;
   pointer-events: auto;
 }
 
-.modal {
+.ktk-um-modal {
   width: 100%;
   max-width: 840px;
   max-height: 90vh;
@@ -319,21 +303,21 @@ body {
   flex-direction: column;
 }
 
-.modal-header {
+.ktk-um-modalHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
 
-.modal-title {
+.ktk-um-modalTitle {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
   color: var(--ink);
 }
 
-.modal-close {
+.ktk-um-modalClose {
   border: none;
   background: transparent;
   cursor: pointer;
@@ -348,65 +332,63 @@ body {
   transition: background-color 0.2s;
 }
 
-.modal-close:hover {
+.ktk-um-modalClose:hover {
   background-color: var(--light);
   color: var(--ink);
 }
 
-.modal-body {
+.ktk-um-modalBody {
   margin-bottom: 16px;
   flex: 1;
   overflow-y: auto;
 }
 
 /* FORM GRID */
-
-.form-grid {
+.ktk-um-formGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px 20px;
 }
 
-.form-group {
+.ktk-um-formGroup {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.form-group-full {
+.ktk-um-formGroupFull {
   grid-column: 1 / -1;
 }
 
-.form-label {
+.ktk-um-formLabel {
   font-size: 13px;
   font-weight: 500;
   color: var(--ink);
 }
 
-.form-input {
+.ktk-um-formInput {
   border-radius: 10px;
   border: 1px solid var(--border-color);
   padding: 8px 10px;
   font-size: 13px;
 }
 
-.form-input.error {
+.ktk-um-formInput.ktk-um-isError {
   border-color: var(--danger);
 }
 
-.error-message {
+.ktk-um-errorMessage {
   font-size: 11px;
   color: var(--danger);
 }
 
-.hint-text {
+.ktk-um-hintText {
   font-size: 12px;
   color: var(--muted);
 }
 
 /* MODAL FOOTER */
-
-.modal-footer {
+.ktk-um-modalFooter {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -414,7 +396,7 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
-.btn-modal {
+.ktk-um-btnModal {
   padding: 8px 18px;
   border-radius: 999px;
   font-size: 13px;
@@ -424,50 +406,49 @@ body {
     transform 0.05s ease;
 }
 
-.btn-modal-secondary {
+.ktk-um-btnModal--secondary {
   background: #ffffff;
   border-color: var(--line);
   color: var(--ink);
 }
 
-.btn-modal-secondary:hover:not(:disabled) {
+.ktk-um-btnModal--secondary:hover:not(:disabled) {
   background: #f3f4ff;
   border-color: #e0e7ff;
 }
 
-.btn-modal-primary {
+.ktk-um-btnModal--primary {
   background: var(--primary);
   border-color: var(--primary);
   color: #ffffff;
 }
 
-.btn-modal-primary:hover:not(:disabled) {
+.ktk-um-btnModal--primary:hover:not(:disabled) {
   background: #1d4ed8;
   border-color: #1d4ed8;
 }
 
-.btn-modal:disabled {
+.ktk-um-btnModal:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 /* RESPONSIVE */
-
 @media (max-width: 768px) {
-  .card {
+  .ktk-um-card {
     padding: 16px 14px 14px;
   }
 
-  .form-grid {
+  .ktk-um-formGrid {
     grid-template-columns: 1fr;
   }
 
-  .actions-td {
+  .ktk-um-actionsTd {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .row {
+  .ktk-um-row {
     flex-wrap: wrap;
   }
 }
