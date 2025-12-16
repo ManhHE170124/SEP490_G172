@@ -1,4 +1,4 @@
-// services/orderApi.js 
+// services/orderApi.js
 import axiosClient from "../api/axiosClient";
 
 const END = {
@@ -17,9 +17,6 @@ export const orderApi = {
 
   /**
    * Fetch paginated order history for a specific user
-   * @param {string} userId - Required user ID
-   * @param {object} params - Optional filters: keyword, minAmount, maxAmount, fromDate, toDate, status, sortBy, sortDir, page, pageSize
-   * @returns {Promise<{items: array, totalItems: number, page: number, pageSize: number, totalPages: number}>}
    */
   history: (userId, params = {}) => {
     if (!userId) {
@@ -32,14 +29,27 @@ export const orderApi = {
 
   /**
    * Xem chi tiết 1 đơn (OrderDTO)
+   * ✅ Cho phép truyền query params để khớp controller mới:
+   * { includePaymentAttempts, includeCheckoutUrl, ... }
    */
-  get: (id) => axiosClient.get(`${END.ORDERS}/${id}`),
+  get: (id, params) => {
+    const cfg = params ? { params } : undefined;
+    return axiosClient.get(`${END.ORDERS}/${id}`, cfg);
+  },
 
   /**
    * Chỉ lấy phần chi tiết items của 1 đơn
    */
-  getDetails: (id) => axiosClient.get(`${END.ORDERS}/${id}/details`),
+  getDetails: (id, params) => {
+    const cfg = params ? { params } : undefined;
+    return axiosClient.get(`${END.ORDERS}/${id}/details`, cfg);
+  },
 
-  getDetailCredentials: (orderId, orderDetailId) =>
-    axiosClient.get(`${END.ORDERS}/${orderId}/details/${orderDetailId}/credentials`),
+  getDetailCredentials: (orderId, orderDetailId, params) => {
+    const cfg = params ? { params } : undefined;
+    return axiosClient.get(
+      `${END.ORDERS}/${orderId}/details/${orderDetailId}/credentials`,
+      cfg
+    );
+  },
 };

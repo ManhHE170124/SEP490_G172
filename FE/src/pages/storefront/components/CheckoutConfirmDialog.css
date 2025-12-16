@@ -1,0 +1,140 @@
+.sfcf-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+}
+
+.sfcf-modal {
+  width: min(560px, 100%);
+  background: #fff;
+  border-radius: 18px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.25);
+}
+
+.sfcf-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  margin: 4px auto 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 900;
+  font-size: 20px;
+}
+
+.sfcf-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.sfcf-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.sfcf-kv {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.sfcf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sfcf-row span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.sfcf-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+}
+
+.sfcf-money {
+  color: #ef4444;
+}
+
+.sfcf-ellipsis {
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sfcf-note {
+  margin-top: 10px;
+  border-left: 3px solid #f59e0b;
+  padding-left: 10px;
+}
+
+.sfcf-note-title {
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.sfcf-ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sfcf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sfcf-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.sfcf-btn:hover {
+  background: #f3f4f6;
+}
+
+.sfcf-btn-ghost {
+  background: #f3f4f6;
+}
+
+.sfcf-btn-primary {
+  border-color: #ef4444;
+  background: #ef4444;
+  color: #fff;
+}
+
+.sfcf-btn-primary:hover {
+  background: #dc2626;
+}

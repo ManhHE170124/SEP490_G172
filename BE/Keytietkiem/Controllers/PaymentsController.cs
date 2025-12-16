@@ -95,7 +95,7 @@ namespace Keytietkiem.Controllers
             [FromQuery] string? q,
             [FromQuery] string? sortBy,
             [FromQuery] string? sortDir,
-            [FromQuery] bool includeTargetInfo = true // ✅ default true để admin thấy đủ info
+            [FromQuery] bool includeTargetInfo = false // ✅ default true để admin thấy đủ info
         )
         {
             await using var db = _dbFactory.CreateDbContext();

@@ -1,67 +1,314 @@
-/* OrderPaymentPage.css */
+/* OrderPaymentPage.css (UI/UX refresh) */
 
-/* Header cho card Order / Payment */
-.order-payment-header {
+.op-page .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.op-page .order-payment-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 }
 
-.order-payment-header h2 {
+.op-page .order-payment-header h2 {
   margin: 0;
 }
 
-/* Filter hàng ngang */
-.order-filters,
-.payment-filters {
+.op-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* toolbar / filters */
+.op-toolbar {
+  margin-top: 12px;
+}
+
+.op-filters {
   display: flex;
   gap: 10px;
-  margin-top: 12px;
-  flex-wrap: nowrap;
   align-items: flex-end;
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 
-/* Grid meta info trong modal detail */
-.order-meta-grid,
-.payment-meta-grid {
+.op-filters-advanced {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.op-group span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.op-group input,
+.op-group select {
+  height: 36px;
+}
+
+/* compact compare card */
+.op-compare-card {
+  overflow: hidden;
+}
+
+.op-compare-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
-@media (max-width: 768px) {
-  .order-meta-grid,
-  .payment-meta-grid {
+@media (max-width: 900px) {
+  .op-compare-grid {
     grid-template-columns: 1fr;
   }
 }
 
-/* Badge trạng thái */
+.op-compare-panel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.op-compare-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.op-compare-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.op-compare-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.op-amount {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.op-empty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 0;
+}
+
+/* Table: gọn + dễ scan */
+.op-table {
+  width: 100%;
+}
+
+.op-table thead th {
+  white-space: nowrap;
+}
+
+.op-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.op-row-click {
+  cursor: default;
+}
+
+.op-th-actions,
+.op-td-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* primary cell 2 lines */
+.op-cell-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.op-cell-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.op-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.op-cell-sub {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Payment mini cell */
+.op-pay-cell {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.op-submono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Target cell */
+.op-target-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.op-target-id {
+  color: var(--ink);
+}
+
+.op-target-sub {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.op-subtext {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* icon buttons */
+.op-actions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.op-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.op-icon-btn:hover {
+  background: #f3f4f6;
+}
+
+.op-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.op-icon-btn.primary {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+}
+
+.op-icon-btn.ghost {
+  background: transparent;
+}
+
+/* chips */
+.op-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  width: fit-content;
+}
+
+.op-chip-order {
+  border-color: rgba(37, 99, 235, 0.35);
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.op-chip-plan {
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #047857;
+  background: rgba(16, 185, 129, 0.06);
+}
+
+/* Modal helpers */
+.op-2col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.op-3col {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .op-2col,
+  .op-3col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Badge trạng thái (giữ logic cũ) ===== */
 .status-pill {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.status-pill.order-pending,
 .status-pill.payment-pending {
   background: #fef3c7;
   color: #92400e;
 }
 
-.status-pill.order-paid,
 .status-pill.payment-paid {
   background: #ecfdf5;
   color: #065f46;
 }
 
-.status-pill.order-cancelled,
-.status-pill.order-failed,
 .status-pill.payment-cancelled,
 .status-pill.payment-failed {
   background: #fee2e2;
@@ -73,72 +320,12 @@
   color: #075985;
 }
 
-.status-pill.order-unknown,
 .status-pill.payment-unknown {
   background: #e5e7eb;
   color: #374151;
 }
 
-/* Title nhỏ cho từng block trong modal detail */
-.detail-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-top: 8px;
-  margin-bottom: 4px;
-}
-
-/* Box thông tin trong modal detail */
-.detail-section-box {
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  padding: 10px 12px;
-  background: #f9fafb;
-}
-
-/* Label + value */
-.detail-label {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.detail-value {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-/* Table line items trong Order detail */
-.order-items-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 6px;
-}
-
-.order-items-table th,
-.order-items-table td {
-  font-size: 12px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-}
-
-/* Nhỏ lại text trong cột tiền */
-.text-right {
-  text-align: right;
-}
-
-.text-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-}
-
-/* Căn lề trái cho bảng orders/payments trên page này */
-.table th,
-.table td {
-  text-align: left;
-}
-
-/* Header sort (click để sort theo cột) */
+/* Table header sort */
 .table-sort-header {
   background: none;
   border: none;

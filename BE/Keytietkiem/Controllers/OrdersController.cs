@@ -496,7 +496,12 @@ namespace Keytietkiem.Controllers
         // ================== READ-ONLY ==================
         [HttpGet]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
-        public async Task<IActionResult> GetOrders([FromQuery] string? sortBy, [FromQuery] string? sortDir)
+        public async Task<IActionResult> GetOrders(
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir,
+            [FromQuery] bool includePaymentSummary = false,      // ✅ default false (list gọn)
+            [FromQuery] bool includePaymentAttemptCount = false  // ✅ default false (list gọn)
+        )
         {
             await using var db = _dbFactory.CreateDbContext();
 
@@ -555,7 +560,34 @@ namespace Keytietkiem.Controllers
 
             var orders = await baseQuery.ToListAsync();
 
-            // ✅ load payments theo danh sách orderIds (multi-attempt)
+            // ✅ MẶC ĐỊNH: trả list gọn, không join Payment
+            if (!includePaymentSummary && !includePaymentAttemptCount)
+            {
+                var lean = orders.Select(o => new OrderListItemDTO
+                {
+                    OrderId = o.OrderId,
+                    UserId = o.UserId,
+                    Email = o.Email,
+                    UserName = o.UserName,
+                    UserEmail = o.UserEmail,
+                    TotalAmount = o.TotalAmount,
+                    FinalAmount = (o.TotalAmount - o.DiscountAmount),
+                    CreatedAt = o.CreatedAt,
+                    ItemCount = o.ItemCount,
+
+                    Status = o.Status,
+                    OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
+
+                    // ✅ không nhét payment vào list
+                    Payment = null,
+                    PaymentAttemptCount = 0
+                }).ToList();
+
+                return Ok(lean);
+            }
+
+            // ================== OPTIONAL: nếu admin muốn kèm payment summary / attempt count ==================
+
             var orderIdStrs = orders.Select(x => x.OrderId.ToString()).ToList();
 
             var payments = await db.Payments
@@ -588,19 +620,23 @@ namespace Keytietkiem.Controllers
                 paymentGroups.TryGetValue(tid, out var group);
                 group ??= new List<PaymentLite>();
 
-                // ✅ pick best: Paid-like > NeedReview > Pending > latest
-                var best = group.Count > 0
-                    ? group.OrderByDescending(x => IsPaidLike(x.Status))
-                           .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
-                           .ThenByDescending(x => string.Equals(x.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
-                           .ThenByDescending(x => x.CreatedAt)
-                           .FirstOrDefault()
-                    : null;
+                PaymentLite? best = null;
+                if (includePaymentSummary && group.Count > 0)
+                {
+                    // ✅ pick best: Paid-like > NeedReview > Pending > latest
+                    best = group.OrderByDescending(x => IsPaidLike(x.Status))
+                                .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
+                                .ThenByDescending(x => string.Equals(x.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
+                                .ThenByDescending(x => x.CreatedAt)
+                                .FirstOrDefault();
+                }
 
-                var displayStatus = ResolveOrderDisplayStatus(o.Status, best?.Status);
+                var displayStatus = includePaymentSummary
+                    ? ResolveOrderDisplayStatus(o.Status, best?.Status)
+                    : o.Status;
 
                 OrderPaymentSummaryDTO? paySummary = null;
-                if (best != null)
+                if (includePaymentSummary && best != null)
                 {
                     var expires = best.CreatedAt.Add(PaymentTimeout);
                     var isExpired = string.Equals(best.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase)
@@ -632,16 +668,17 @@ namespace Keytietkiem.Controllers
                     CreatedAt = o.CreatedAt,
                     ItemCount = o.ItemCount,
 
-                    // ✅ NEW
                     Status = displayStatus,
                     OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
+
                     Payment = paySummary,
-                    PaymentAttemptCount = group.Count
+                    PaymentAttemptCount = includePaymentAttemptCount ? group.Count : 0
                 };
             }).ToList();
 
             return Ok(orderList);
         }
+
         [HttpGet("history")]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {

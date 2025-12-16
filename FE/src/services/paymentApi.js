@@ -5,7 +5,7 @@ const END = { PAYMENTS: "payments" };
 
 export const paymentApi = {
   /**
-   * params (BE): status, provider, email, targetType, sortBy, sortDir, ...
+   * params (BE): status, provider, email, targetType, targetId, q, sortBy, sortDir, ...
    * (compat) FE cũ: transactionType -> sẽ map sang targetType
    */
   list: (params = {}) => {
@@ -20,5 +20,12 @@ export const paymentApi = {
     return axiosClient.get(END.PAYMENTS, { params: p });
   },
 
-  get: (id) => axiosClient.get(`${END.PAYMENTS}/${id}`),
+  /**
+   * ✅ Cho phép truyền query params để khớp controller mới:
+   * { includeCheckoutUrl, includeAttempts, includeTargetInfo }
+   */
+  get: (id, params) => {
+    const cfg = params ? { params } : undefined;
+    return axiosClient.get(`${END.PAYMENTS}/${id}`, cfg);
+  },
 };
