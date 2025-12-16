@@ -24,12 +24,15 @@ const BlogDetail = () => {
     const [commentTotalPages, setCommentTotalPages] = useState(1);
     const [commentsLoading, setCommentsLoading] = useState(false);
 
+    // Form bình luận / reply
     const [newComment, setNewComment] = useState("");
     const [newCommentLoading, setNewCommentLoading] = useState(false);
 
-    // Reply state: chỉ cho phép mở 1 form reply tại 1 comment
-    const [replyTargetId, setReplyTargetId] = useState(null);
-    const [replyContent, setReplyContent] = useState("");
+    // comment đang được rep (để hiển thị preview + @)
+    const [replyTargetComment, setReplyTargetComment] = useState(null);
+
+    // trạng thái mở/đóng danh sách reply theo comment cha
+    const [expandedReplies, setExpandedReplies] = useState({});
 
     const [currentUser, setCurrentUser] = useState(null);
 
@@ -37,24 +40,7 @@ const BlogDetail = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    // Đọc user từ localStorage (để gửi comment / reply)
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem("user");
-            if (raw) {
-                setCurrentUser(JSON.parse(raw));
-            }
-        } catch (e) {
-            console.error("Cannot parse user from localStorage", e);
-        }
-    }, []);
-
-    useEffect(() => {
-        setRelatedPage(1);
-        loadPost();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [slug]);
-
+    // ===== Helpers =====
     const formatDate = (dateString) => {
         if (!dateString) return "";
         try {
@@ -69,6 +55,30 @@ const BlogDetail = () => {
         }
     };
 
+    const truncateText = (text, maxLength = 120) => {
+        if (!text) return "";
+        const plain = String(text).replace(/\s+/g, " ").trim();
+        if (plain.length <= maxLength) return plain;
+        return plain.slice(0, maxLength - 1) + "…";
+    };
+
+    // ===== Effect: đọc user & load post =====
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem("user");
+            if (raw) setCurrentUser(JSON.parse(raw));
+        } catch (e) {
+            console.error("Cannot parse user from localStorage", e);
+        }
+    }, []);
+
+    useEffect(() => {
+        setRelatedPage(1);
+        loadPost();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [slug]);
+
+    // ===== API: load comments =====
     const loadComments = async (postIdValue, page = 1) => {
         if (!postIdValue) return;
 
@@ -91,7 +101,7 @@ const BlogDetail = () => {
                 pagination = data.pagination || null;
             }
 
-            // Chỉ hiển thị comment đã duyệt
+            // Chỉ hiển thị comment đã được duyệt
             const visible = (items || []).filter(
                 (c) => (c.isApproved ?? c.IsApproved ?? false) === true
             );
@@ -119,6 +129,7 @@ const BlogDetail = () => {
         }
     };
 
+    // ===== API: load post + related + comments =====
     const loadPost = async () => {
         setLoading(true);
         setError("");
@@ -136,7 +147,6 @@ const BlogDetail = () => {
 
             setPost(postData);
 
-            // Related posts
             if (postData.postId) {
                 const related = await postsApi.getRelatedPosts(postData.postId, 20);
 
@@ -147,7 +157,6 @@ const BlogDetail = () => {
                 setRelatedPosts(filtered);
                 setRelatedPage(1);
 
-                // Comments cho bài viết
                 await loadComments(postData.postId, 1);
             } else {
                 setRelatedPosts([]);
@@ -161,6 +170,7 @@ const BlogDetail = () => {
         }
     };
 
+    // ===== Share =====
     const sharePost = (platform) => {
         const url = window.location.href;
         const title = post?.title || "";
@@ -188,45 +198,56 @@ const BlogDetail = () => {
         }
     };
 
-    // Slider related posts
-    const totalRelated = relatedPosts.length;
-    const relatedPageCount =
-        totalRelated > 0 ? Math.ceil(totalRelated / RELATED_PAGE_SIZE) : 0;
+    // ===== Comment helpers (UI) =====
+    const topLevelComments = useMemo(
+        () => comments.filter((c) => !c.parentId),
+        [comments]
+    );
 
-    const safeRelatedPage =
-        relatedPageCount > 0 ? Math.min(relatedPage, relatedPageCount) : 1;
+    const repliesByParent = useMemo(() => {
+        const map = {};
+        comments.forEach((c) => {
+            if (!c.parentId) return;
+            if (!map[c.parentId]) map[c.parentId] = [];
+            map[c.parentId].push(c);
+        });
+        return map;
+    }, [comments]);
 
-    const visibleRelated = useMemo(() => {
-        if (relatedPageCount === 0) return [];
-        const start = (safeRelatedPage - 1) * RELATED_PAGE_SIZE;
-        return relatedPosts.slice(start, start + RELATED_PAGE_SIZE);
-    }, [relatedPosts, safeRelatedPage, relatedPageCount]);
+    const toggleRepliesForComment = (commentId) => {
+        setExpandedReplies((prev) => ({
+            ...prev,
+            [commentId]: !prev[commentId],
+        }));
+    };
 
-    // Comment: đổi trang
     const handleChangeCommentPage = (newPage) => {
         if (!post?.postId) return;
         if (newPage < 1 || newPage > commentTotalPages) return;
         loadComments(post.postId, newPage);
     };
 
-    // Comment: click "Phản hồi"
-    const handleClickReply = (commentId) => {
+    const handleClickReply = (comment) => {
         if (!currentUser) {
             alert("Bạn cần đăng nhập để phản hồi.");
             return;
         }
 
-        // bấm lại cùng 1 comment thì đóng form
-        setReplyTargetId((prev) => (prev === commentId ? null : commentId));
-        setReplyContent("");
+        setReplyTargetComment(comment);
+
+        // Tự chèn @Tên vào đầu ô nhập
+        const mention = `@${comment.userName} `;
+        setNewComment(mention);
     };
 
-    // Comment / Reply: gửi
-    const handleSubmitComment = async (e, parentId = null) => {
-        e.preventDefault();
+    const clearReplyTarget = () => {
+        setReplyTargetComment(null);
+        setNewComment("");
+    };
 
-        const contentToSend = parentId ? replyContent : newComment;
-        if (!contentToSend.trim()) return;
+    const handleSubmitComment = async (e) => {
+        e.preventDefault();
+        if (!newComment.trim()) return;
 
         if (!currentUser) {
             alert("Bạn cần đăng nhập để bình luận.");
@@ -244,19 +265,22 @@ const BlogDetail = () => {
                 return;
             }
 
+            // Nếu đang reply thì parentId là comment gốc (nếu reply 1 reply) hoặc chính comment đó
+            let parentIdForApi = null;
+            if (replyTargetComment) {
+                parentIdForApi =
+                    replyTargetComment.parentId || replyTargetComment.id;
+            }
+
             await postsApi.createComment({
                 postId: post.postId,
                 userId,
-                content: contentToSend.trim(),
-                parentCommentId: parentId,
+                content: newComment.trim(),
+                parentCommentId: parentIdForApi,
             });
 
-            if (parentId) {
-                setReplyContent("");
-                setReplyTargetId(null);
-            } else {
-                setNewComment("");
-            }
+            setNewComment("");
+            setReplyTargetComment(null);
 
             await loadComments(post.postId, 1);
         } catch (err) {
@@ -266,6 +290,20 @@ const BlogDetail = () => {
             setNewCommentLoading(false);
         }
     };
+
+    // ===== Related slider =====
+    const totalRelated = relatedPosts.length;
+    const relatedPageCount =
+        totalRelated > 0 ? Math.ceil(totalRelated / RELATED_PAGE_SIZE) : 0;
+
+    const safeRelatedPage =
+        relatedPageCount > 0 ? Math.min(relatedPage, relatedPageCount) : 1;
+
+    const visibleRelated = useMemo(() => {
+        if (relatedPageCount === 0) return [];
+        const start = (safeRelatedPage - 1) * RELATED_PAGE_SIZE;
+        return relatedPosts.slice(start, start + RELATED_PAGE_SIZE);
+    }, [relatedPosts, safeRelatedPage, relatedPageCount]);
 
     // ===== Loading / Error =====
     if (loading) {
@@ -395,69 +433,94 @@ const BlogDetail = () => {
 
                 {commentsLoading ? (
                     <div className="comments-loading">Đang tải bình luận...</div>
-                ) : comments.length === 0 ? (
+                ) : topLevelComments.length === 0 ? (
                     <p className="comments-empty">
                         Chưa có bình luận nào. Hãy là người đầu tiên!
                     </p>
                 ) : (
                     <ul className="comment-list">
-                        {comments.map((c) => (
-                            <li
-                                key={c.id}
-                                className={
-                                    c.parentId
-                                        ? "comment-item comment-item--child"
-                                        : "comment-item"
-                                }
-                            >
-                                <div className="comment-header">
-                                    <div className="comment-author-block">
-                                        <span className="comment-author">{c.userName}</span>
-                                        {c.userEmail && (
-                                            <span className="comment-email">({c.userEmail})</span>
+                        {topLevelComments.map((c) => {
+                            const replies = repliesByParent[c.id] || [];
+                            const isExpanded = !!expandedReplies[c.id];
+
+                            return (
+                                <li key={c.id} className="comment-item">
+                                    <div className="comment-header">
+                                        <div className="comment-author-block">
+                                            <span className="comment-author">{c.userName}</span>
+                                            {c.userEmail && (
+                                                <span className="comment-email">({c.userEmail})</span>
+                                            )}
+                                        </div>
+                                        <span className="comment-date">
+                                            {formatDate(c.createdAt)}
+                                        </span>
+                                    </div>
+
+                                    <p className="comment-content">{c.content}</p>
+
+                                    <div className="comment-actions">
+                                        <button
+                                            type="button"
+                                            className="comment-reply-btn"
+                                            onClick={() => handleClickReply(c)}
+                                        >
+                                            ↪ Phản hồi
+                                        </button>
+
+                                        {replies.length > 0 && (
+                                            <button
+                                                type="button"
+                                                className="comment-replies-toggle"
+                                                onClick={() => toggleRepliesForComment(c.id)}
+                                            >
+                                                {isExpanded
+                                                    ? `Ẩn ${replies.length} phản hồi`
+                                                    : `${replies.length} phản hồi`}
+                                            </button>
                                         )}
                                     </div>
-                                    <span className="comment-date">
-                                        {formatDate(c.createdAt)}
-                                    </span>
-                                </div>
 
-                                <p className="comment-content">{c.content}</p>
+                                    {isExpanded && replies.length > 0 && (
+                                        <ul className="comment-replies-list">
+                                            {replies.map((r) => (
+                                                <li
+                                                    key={r.id}
+                                                    className="comment-item comment-item--child"
+                                                >
+                                                    <div className="comment-header">
+                                                        <div className="comment-author-block">
+                                                            <span className="comment-author">
+                                                                {r.userName}
+                                                            </span>
+                                                            {r.userEmail && (
+                                                                <span className="comment-email">
+                                                                    ({r.userEmail})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="comment-date">
+                                                            {formatDate(r.createdAt)}
+                                                        </span>
+                                                    </div>
+                                                    <p className="comment-content">{r.content}</p>
 
-                                <div className="comment-actions">
-                                    <button
-                                        type="button"
-                                        className="comment-reply-btn"
-                                        onClick={() => handleClickReply(c.id)}
-                                    >
-                                        ↪ Phản hồi
-                                    </button>
-                                </div>
-
-                                {/* Reply form dưới mỗi comment */}
-                                {currentUser && replyTargetId === c.id && (
-                                    <form
-                                        className="comment-reply-form"
-                                        onSubmit={(e) => handleSubmitComment(e, c.id)}
-                                    >
-                                        <textarea
-                                            className="comment-textarea comment-reply-textarea"
-                                            rows={2}
-                                            placeholder={`Phản hồi lại ${c.userName}...`}
-                                            value={replyContent}
-                                            onChange={(e) => setReplyContent(e.target.value)}
-                                        />
-                                        <button
-                                            type="submit"
-                                            className="btn comment-submit-btn"
-                                            disabled={newCommentLoading || !replyContent.trim()}
-                                        >
-                                            {newCommentLoading ? "Đang gửi..." : "Gửi phản hồi"}
-                                        </button>
-                                    </form>
-                                )}
-                            </li>
-                        ))}
+                                                    <div className="comment-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="comment-reply-btn"
+                                                            onClick={() => handleClickReply(r)}
+                                                        >
+                                                            ↪ Phản hồi
+                                                        </button>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
 
@@ -496,14 +559,37 @@ const BlogDetail = () => {
                                 </strong>
                             </div>
 
-                            <form
-                                className="comment-form"
-                                onSubmit={(e) => handleSubmitComment(e, null)}
-                            >
+                            {/* Preview comment đang rep (kiểu Zalo) */}
+                            {replyTargetComment && (
+                                <div className="reply-preview">
+                                    <div className="reply-preview-header">
+                                        <span className="reply-preview-label">Đang phản hồi</span>
+                                        <button
+                                            type="button"
+                                            className="reply-preview-close"
+                                            onClick={clearReplyTarget}
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                    <div className="reply-preview-user">
+                                        @{replyTargetComment.userName}
+                                    </div>
+                                    <div className="reply-preview-content">
+                                        {truncateText(replyTargetComment.content, 120)}
+                                    </div>
+                                </div>
+                            )}
+
+                            <form className="comment-form" onSubmit={handleSubmitComment}>
                                 <textarea
                                     className="comment-textarea"
                                     rows={3}
-                                    placeholder="Nhập bình luận của bạn..."
+                                    placeholder={
+                                        replyTargetComment
+                                            ? `Phản hồi ${replyTargetComment.userName}...`
+                                            : "Nhập bình luận của bạn..."
+                                    }
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
                                 />
