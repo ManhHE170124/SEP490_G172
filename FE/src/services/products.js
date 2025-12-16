@@ -12,10 +12,14 @@ export const PRODUCT_TYPES = [
 ];
 
 // VIỆT HOÁ trạng thái
+// Lưu ý logic mới BE:
+// - ACTIVE       : Hiển thị & còn hàng
+// - OUT_OF_STOCK : Hết hàng nhưng vẫn hiển thị
+// - INACTIVE     : Ẩn hoàn toàn (chỉ khi admin set)
 export const PRODUCT_STATUSES = [
   { value: "ACTIVE",       label: "Hiển thị" },
-  { value: "INACTIVE",     label: "Ẩn" },
   { value: "OUT_OF_STOCK", label: "Hết hàng" },
+  { value: "INACTIVE",     label: "Ẩn" },
 ];
 
 // Helper: map code -> label (VI)
@@ -47,6 +51,12 @@ const normalizePaged = (res, fallbackPageSize = 10) => {
   };
 };
 
+// Helper normalize status code theo BE mới
+const normalizeStatusCode = (status, fallback = "OUT_OF_STOCK") => {
+  const raw = (status ?? "").toString().trim().toUpperCase();
+  return raw || fallback;
+};
+
 // ==== Chuẩn hoá item list (ProductListItemDto) ====
 // DTO BE: (… , int TotalStockQty, IEnumerable<int> CategoryIds, IEnumerable<string> BadgeCodes)
 const normalizeListItem = (p = {}) => ({
@@ -54,22 +64,24 @@ const normalizeListItem = (p = {}) => ({
   productCode: p.productCode ?? p.ProductCode,
   productName: p.productName ?? p.ProductName,
   productType: p.productType ?? p.ProductType,
-  totalStock:  p.totalStockQty ?? p.TotalStockQty ?? 0, // <-- ĐÚNG FIELD
-  status:      (p.status ?? p.Status ?? "INACTIVE").toString().toUpperCase(),
+  totalStock:  p.totalStockQty ?? p.TotalStockQty ?? 0, // tổng stock của các biến thể
+  status:      normalizeStatusCode(p.status ?? p.Status),
   categoryIds: p.categoryIds ?? p.CategoryIds ?? [],
-  badges:      p.badgeCodes  ?? p.BadgeCodes  ?? [],     // <-- ĐÚNG FIELD (mảng code)
+  badges:      p.badgeCodes  ?? p.BadgeCodes  ?? [],     // mảng code badge
 });
 
 // ==== Chuẩn hoá chi tiết (ProductDetailDto) ====
-// DTO BE: … IEnumerable<string> BadgeCodes
+// DTO BE: ProductDetailDto(..., Status, IEnumerable<int> CategoryIds, IEnumerable<string> BadgeCodes, IEnumerable<ProductVariantMiniDto> Variants)
 const normalizeDetail = (p = {}) => ({
   productId:   p.productId   ?? p.ProductId,
   productCode: p.productCode ?? p.ProductCode,
   productName: p.productName ?? p.ProductName,
   productType: p.productType ?? p.ProductType,
-  status:      (p.status ?? p.Status ?? "INACTIVE").toString().toUpperCase(),
+  status:      normalizeStatusCode(p.status ?? p.Status),
   categoryIds: p.categoryIds ?? p.CategoryIds ?? [],
-  badges:      p.badgeCodes  ?? p.BadgeCodes  ?? [],     // <-- ĐÚNG FIELD (mảng code)
+  badges:      p.badgeCodes  ?? p.BadgeCodes  ?? [],
+
+  // Hiện tại BE chưa trả FAQ trong ProductDetailDto => fallback []
   faqs: (p.faqs ?? p.Faqs ?? []).map((f) => ({
     faqId:     f.faqId ?? f.FaqId,
     question:  f.question ?? f.Question,
@@ -77,13 +89,15 @@ const normalizeDetail = (p = {}) => ({
     sortOrder: f.sortOrder ?? f.SortOrder ?? 0,
     isActive:  !!(f.isActive ?? f.IsActive ?? true),
   })),
+
+  // Variants mini (không kèm giá)
   variants: (p.variants ?? p.Variants ?? []).map((v) => ({
     variantId:    v.variantId ?? v.VariantId,
     variantCode:  v.variantCode ?? v.VariantCode ?? "",
     title:        v.title ?? v.Title ?? "",
     durationDays: v.durationDays ?? v.DurationDays ?? null,
     stockQty:     v.stockQty ?? v.StockQty ?? 0,
-    status:       (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
+    status:       normalizeStatusCode(v.status ?? v.Status),
   })),
 });
 
@@ -125,9 +139,10 @@ export const ProductApi = {
   },
 
   // ===== TOGGLE (PATCH /api/products/{id}/toggle) =====
+  // BE trả { productId, status }
   toggle: async (id) => {
     const axiosRes = await axiosClient.patch(`${ROOT}/${id}/toggle`);
-    return axiosRes?.data ?? axiosRes; // { productId, status }
+    return axiosRes?.data ?? axiosRes;
   },
 
   // ===== DELETE =====

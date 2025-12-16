@@ -61,6 +61,10 @@ namespace Keytietkiem.DTOs.Tickets
         public long ReplyId { get; set; }           // bigint -> long
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = "";
+
+        // ✅ NEW: Avatar của người gửi (User.AvatarUrl)
+        public string? SenderAvatarUrl { get; set; }
+
         public bool IsStaffReply { get; set; }
         public string Message { get; set; } = "";
         public DateTime SentAt { get; set; }

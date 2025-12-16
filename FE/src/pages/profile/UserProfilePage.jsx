@@ -520,6 +520,15 @@ const UserProfilePage = () => {
         avatarUrl: profileForm.avatarUrl || null,
       };
 
+      if (payload.phone && !/^0(3|5|7|8|9)[0-9]{8}$/.test(payload.phone)) {
+         setProfileNotice({
+          type: "error",
+          message: "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)",
+        });
+        setSavingProfile(false);
+        return;
+      }
+
       const response = await profileService.updateProfile(payload);
       const updated = unwrapData(response) ?? payload;
       const mergedProfile = {
@@ -1319,7 +1328,7 @@ const UserProfilePage = () => {
                       type="password"
                       className="profile-input"
                       name="newPassword"
-                      placeholder="Ít nhất 6 ký tự"
+                      placeholder="Ít nhất 8 ký tự, chứa chữ cái và số"
                       value={passwordForm.newPassword}
                       onChange={handlePasswordInput}
                     />

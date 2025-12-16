@@ -1,7 +1,11 @@
 // File: src/pages/admin/SupportDashboardAdminPage.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import "../../styles/SupportDashboardAdminPage.css";
 import { supportDashboardAdminApi } from "../../api/supportDashboardAdminApi";
+import useToast from "../../hooks/useToast";
+import ToastContainer from "../../components/Toast/ToastContainer";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import {
     LineChart,
     Line,
@@ -98,6 +102,20 @@ function EmptyState({ message = "Không có dữ liệu." }) {
 }
 
 export default function SupportDashboardAdminPage() {
+    const { toasts, showError, removeToast } = useToast();
+    
+    // Check permission to view list
+    const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "VIEW_LIST");
+    
+    // Global network error handler
+    const networkErrorShownRef = useRef(false);
+    // Global permission error handler - only show one toast for permission errors
+    const permissionErrorShownRef = useRef(false);
+    useEffect(() => {
+        networkErrorShownRef.current = false;
+        permissionErrorShownRef.current = false;
+    }, []);
+
     const [rangeDays, setRangeDays] = useState(7);
     const monthOptions = useMemo(() => buildLastMonthsOptions(12), []);
     const [selectedMonth, setSelectedMonth] = useState(
@@ -188,6 +206,25 @@ export default function SupportDashboardAdminPage() {
                     err?.message ||
                     "Không thể tải dữ liệu dashboard.";
                 setError(msg);
+                
+                // Handle network errors globally - only show one toast
+                if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+                    if (!networkErrorShownRef.current) {
+                        networkErrorShownRef.current = true;
+                        showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+                    }
+                } else {
+                    // Check if error message contains permission denied - only show once
+                    const isPermissionError = err.message?.includes('không có quyền') || 
+                                              err.message?.includes('quyền truy cập') ||
+                                              err.response?.status === 403;
+                    if (isPermissionError && !permissionErrorShownRef.current) {
+                        permissionErrorShownRef.current = true;
+                        showError("Lỗi tải dữ liệu", msg);
+                    } else if (!isPermissionError) {
+                        showError("Lỗi", msg);
+                    }
+                }
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -405,8 +442,30 @@ export default function SupportDashboardAdminPage() {
         ];
     }, [overview, rangeDays]);
 
+    // Show loading while checking permission
+    if (permissionLoading) {
+        return (
+            <div className="sd-page">
+                <div className="sd-loading">Đang kiểm tra quyền truy cập...</div>
+            </div>
+        );
+    }
+
+    // Show access denied message if no VIEW_LIST permission
+    if (!canViewList) {
+        return (
+            <div className="sd-page">
+                <div className="sd-error">
+                    <h2>Không có quyền truy cập</h2>
+                    <p>Bạn không có quyền xem dashboard hỗ trợ. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="sd-page">
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
             <div className="sd-header">
                 <div>
                     <h1 className="sd-title">Support Dashboard</h1>

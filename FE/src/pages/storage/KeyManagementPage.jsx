@@ -1,15 +1,31 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
 
 export default function KeyManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
+
+  // Check permissions
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_LIST");
+  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canDelete } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "DELETE");
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [keys, setKeys] = useState([]);
@@ -62,7 +78,26 @@ export default function KeyManagementPage() {
         err.response?.data?.message ||
         err.message ||
         "Không thể tải danh sách key";
-      showError("Lỗi tải dữ liệu", errorMsg);
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          showError("Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          showError("Lỗi tải dữ liệu", errorMsg);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -93,6 +128,10 @@ export default function KeyManagementPage() {
   };
 
   const handleDeleteKey = (keyId) => {
+    if (!canDelete) {
+      showError("Không có quyền", "Bạn không có quyền xóa key.");
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: "Xác nhận xóa key",
@@ -139,6 +178,35 @@ export default function KeyManagementPage() {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
   };
 
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Kho Product Key</h1>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Kho Product Key</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách key. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -162,20 +230,29 @@ export default function KeyManagementPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>Kho Key phần mềm</h1>
-          <Link className="btn primary" to="/keys/add">
+          <Link 
+            className="btn primary" 
+            to="/keys/add"
+            onClick={(e) => {
+              // Note: CREATE permission check will be done in KeyDetailPage
+            }}
+          >
             + Tạo key mới
           </Link>
         </div>
 
         <div
-          className="grid"
+          className="filter-inline"
           style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 12,
+            marginTop: 16,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "end",
           }}
         >
-          <div className="form-row">
-            <label className="muted">Tìm kiếm</label>
+          <div className="group" style={{ flex: "1 1 200px" }}>
+            <span>Tìm kiếm</span>
             <input
               className="input"
               placeholder="Tên/SKU/Key..."
@@ -184,8 +261,8 @@ export default function KeyManagementPage() {
             />
           </div>
 
-          <div className="form-row">
-            <label className="muted">Sản phẩm</label>
+          <div className="group" style={{ width: 180 }}>
+            <span>Sản phẩm</span>
             <select
               className="input"
               value={filters.productId}
@@ -200,8 +277,8 @@ export default function KeyManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label className="muted">Loại key</label>
+          <div className="group" style={{ width: 150 }}>
+            <span>Loại key</span>
             <select
               className="input"
               value={filters.type}
@@ -213,8 +290,8 @@ export default function KeyManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label className="muted">Trạng thái</label>
+          <div className="group" style={{ width: 150 }}>
+            <span>Trạng thái</span>
             <select
               className="input"
               value={filters.status}
@@ -229,12 +306,9 @@ export default function KeyManagementPage() {
             </select>
           </div>
 
-          <div className="form-row">
-            <label>&nbsp;</label>
-            <button className="btn primary" onClick={handleApplyFilters}>
-              Lọc
-            </button>
-          </div>
+          <button className="btn primary" onClick={handleApplyFilters}>
+            Lọc
+          </button>
         </div>
       </section>
 
@@ -253,9 +327,9 @@ export default function KeyManagementPage() {
             <span className="muted">
               {totalCount} mục · Trang {filters.pageNumber}/{totalPages}
             </span>
-            <button className="btn" onClick={handleExportCSV}>
+            {/* <button className="btn" onClick={handleExportCSV}>
               Xuất CSV
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -271,7 +345,6 @@ export default function KeyManagementPage() {
                     <th>Key/Pool</th>
                     <th>Loại</th>
                     <th>Trạng thái</th>
-                    <th>Gắn đơn</th>
                     <th>Cập nhật</th>
                     <th>Thao tác</th>
                   </tr>
@@ -296,6 +369,12 @@ export default function KeyManagementPage() {
                             <Link
                               to={`/keys/${key.keyId}`}
                               style={{ fontFamily: "monospace" }}
+                              onClick={(e) => {
+                                if (!canViewDetail) {
+                                  e.preventDefault();
+                                  showError("Không có quyền", "Bạn không có quyền xem chi tiết key.");
+                                }
+                              }}
                             >
                               {key.keyString.substring(0, 20)}...
                             </Link>
@@ -329,7 +408,6 @@ export default function KeyManagementPage() {
                               {getStatusLabel(key.status)}
                             </span>
                           </td>
-                          <td>{key.orderCode || "—"}</td>
                           <td>
                             {key.updatedAt
                               ? new Date(key.updatedAt).toLocaleDateString(
@@ -343,20 +421,16 @@ export default function KeyManagementPage() {
                                 className="btn"
                                 to={`/keys/${key.keyId}`}
                                 style={{ padding: "4px 8px", fontSize: "13px" }}
+                                onClick={(e) => {
+                                  if (!canViewDetail) {
+                                    e.preventDefault();
+                                    showError("Không có quyền", "Bạn không có quyền xem chi tiết key.");
+                                  }
+                                }}
                               >
                                 Chi tiết
                               </Link>
-                              {key.status === "Available" && (
-                                <button
-                                  className="btn"
-                                  style={{
-                                    padding: "4px 8px",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Gắn đơn
-                                </button>
-                              )}
+                              
                               {!key.orderCode && (
                                 <button
                                   className="btn"

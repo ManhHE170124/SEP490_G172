@@ -67,7 +67,7 @@ const ClientLayout = ({ children }) => {
         profile={profile}
         profileLoading={profileLoading}
       />
-      <main className="al-admin-main">{children}</main>
+      <main className="al-admin-main" style={{ overflow: "visible" }}>{children}</main>
       <Footer />
 
       {/* ✅ Widget chat cho customer */}

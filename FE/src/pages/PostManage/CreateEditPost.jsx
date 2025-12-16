@@ -22,6 +22,8 @@ import { postsApi, extractPublicId } from '../../services/postsApi';
 import useToast from '../../hooks/useToast';
 import ToastContainer from '../../components/Toast/ToastContainer';
 import TagsInput from '../../components/TagsInput/TagsInput';
+import { usePermission } from '../../hooks/usePermission';
+import { MODULE_CODES } from '../../constants/accessControl';
 
 const CreateEditPost = () => {
   const { postId } = useParams();
@@ -43,6 +45,7 @@ const CreateEditPost = () => {
   const [availableTags, setAvailableTags] = useState([]);
   const [featuredImage, setFeaturedImage] = useState(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState(null); // Cloudinary URL
+  const [postSlug, setPostSlug] = useState(''); // Store slug for preview
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentFilter, setCommentFilter] = useState('all'); // 'all', 'visible', 'hidden'
@@ -58,6 +61,12 @@ const CreateEditPost = () => {
   const [openDropdown, setOpenDropdown] = useState(null); // CommentId with open dropdown
   const [seoScore, setSeoScore] = useState(null); // null = chưa đánh giá, object = đã đánh giá
   const [isEvaluatingSeo, setIsEvaluatingSeo] = useState(false);
+
+  // Check permission to create tags
+  const { hasPermission: canCreateTag } = usePermission(MODULE_CODES.POST_MANAGER, "CREATE");
+  
+  // Check permission to view detail (for edit mode)
+  const { hasPermission: canViewDetail, loading: permissionLoading } = usePermission(MODULE_CODES.POST_MANAGER, "VIEW_DETAIL");
 
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -173,6 +182,7 @@ const CreateEditPost = () => {
         setPosttypeId(postData.posttypeId || postData.postTypeId || postData.PosttypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
         setFeaturedImage(postData.thumbnail || null);
+        setPostSlug(postData.slug || postData.Slug || ''); // Store slug for preview
 
         if (postData.tags && Array.isArray(postData.tags)) {
           setTags(postData.tags);
@@ -992,7 +1002,11 @@ const CreateEditPost = () => {
       let result;
       if (isEditMode) {
         // Update existing post
-        await postsApi.updatePost(postId, postData);
+        const updatedPost = await postsApi.updatePost(postId, postData);
+        // Update slug if returned from API
+        if (updatedPost?.slug || updatedPost?.Slug) {
+          setPostSlug(updatedPost.slug || updatedPost.Slug);
+        }
         showSuccess(
           successTitle,
           successMessage
@@ -1000,6 +1014,10 @@ const CreateEditPost = () => {
       } else {
         // Create new post
         result = await postsApi.createPost(postData);
+        // Store slug if returned from API
+        if (result?.slug || result?.Slug) {
+          setPostSlug(result.slug || result.Slug);
+        }
         showSuccess(
           successTitle,
           successMessage
@@ -1058,9 +1076,33 @@ const handlePublish = () =>
   );
 
   const handlePreview = () => {
-    // TODO: Open preview in new tab
-    console.log('Previewing post...', { title, content, thumbnail: featuredImageUrl });
-    showInfo('Preview', 'Chức năng xem trước đang được phát triển.');
+    if (!canViewDetail) {
+      showError(
+        "Không có quyền",
+        "Bạn không có quyền xem chi tiết bài viết."
+      );
+      return;
+    }
+    
+    // In edit mode, use stored slug
+    if (isEditMode && postSlug) {
+      window.open(`/blog/${postSlug}`, '_blank');
+      return;
+    }
+    
+    // In create mode, generate slug from title
+    if (!isEditMode && title.trim()) {
+      const slug = toSlug(title);
+      if (slug) {
+        // For new posts, we can't preview until saved, but we can show a message
+        showInfo('Xem trước', 'Vui lòng lưu bài viết trước để có thể xem trước. Sau khi lưu, bạn có thể xem trước bài viết.');
+      } else {
+        showError('Lỗi', 'Vui lòng nhập tiêu đề bài viết trước.');
+      }
+      return;
+    }
+    
+    showError('Lỗi', 'Không thể xem trước bài viết. Vui lòng kiểm tra lại thông tin.');
   };
 
   const handleDelete = () => {
@@ -1703,6 +1745,48 @@ const handlePublish = () =>
     }
   };
 
+  // Show loading while checking permission (only in edit mode)
+  if (isEditMode && permissionLoading) {
+    return (
+      <main className="cep-main">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div className="cep-loading-spinner" />
+          <div>Đang kiểm tra quyền...</div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show access denied message if no VIEW_DETAIL permission in edit mode
+  if (isEditMode && !canViewDetail) {
+    return (
+      <main className="cep-main">
+        <ToastContainer
+          toasts={toasts}
+          onRemove={removeToast}
+          confirmDialog={confirmDialog}
+        />
+        <div className="cep-page-header">
+          <h1 className="cep-page-title">Cập nhật bài viết</h1>
+        </div>
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+          <h2>Không có quyền chỉnh sửa bài viết</h2>
+          <p style={{ color: '#666', marginBottom: '24px' }}>
+            Bạn không có quyền xem chi tiết và chỉnh sửa bài viết. Vui lòng liên hệ quản trị viên để được cấp quyền.
+          </p>
+          <button 
+            className="btn primary" 
+            onClick={() => navigate('/admin-post-list')}
+            style={{ marginTop: '16px' }}
+          >
+            Quay lại danh sách
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="cep-main">
       {/* Page Header */}
@@ -2194,7 +2278,7 @@ const handlePublish = () =>
               tags={tags}
               setTags={setTags}
               availableTags={availableTags}
-              onCreateNewTag={handleCreateNewTag}
+              onCreateNewTag={canCreateTag ? handleCreateNewTag : null}
             />
           </div>
 

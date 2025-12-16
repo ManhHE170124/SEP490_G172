@@ -18,6 +18,9 @@ using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Post;
+using Keytietkiem.Attributes;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 
 namespace Keytietkiem.Controllers
 {
@@ -89,6 +92,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created tag, 400/409 on validation errors
          */
         [HttpPost]
+        [RequirePermission(POST_MANAGER, CREATE)]
         public async Task<IActionResult> CreateTag([FromBody] CreateTagDTO createTagDto)
         {
             if (createTagDto == null)

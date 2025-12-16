@@ -1,13 +1,31 @@
 // src/pages/admin/ProductsPage.jsx
-import React from "react";
+import React, { useRef } from "react";
 import { Link } from "react-router-dom";
 import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "./admin.css";
 
 export default function ProductsPage() {
+  // Check permissions
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "VIEW_LIST");
+  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canCreate } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "CREATE");
+  const { hasPermission: canEdit } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "EDIT");
+  const { hasPermission: canDelete } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "DELETE");
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  React.useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
+
   // ====== Toast & ConfirmDialog ======
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
@@ -118,7 +136,7 @@ export default function ProductsPage() {
     const params = {
       keyword: query.keyword || undefined,
       categoryId: query.categoryId || undefined,
-      type: query.type || undefined,
+      type: query.type || undefined, // map sang [FromQuery(Name="type")] productType
       status: query.status || undefined,
       badge: query.badge || undefined,
       sort: query.sort || "name",
@@ -137,11 +155,27 @@ export default function ProductsPage() {
       setTotal(t);
     } catch (err) {
       console.error(err);
-      addToast(
-        "error",
-        "Lỗi",
-        err?.response?.data?.message || "Không tải được sản phẩm."
-      );
+      const errorMsg = err?.response?.data?.message || err.message || "Không tải được sản phẩm.";
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          addToast("error", "Lỗi kết nối", "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.");
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          addToast("error", "Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          addToast("error", "Lỗi", errorMsg);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -185,11 +219,16 @@ export default function ProductsPage() {
     }));
   };
 
-  // Đổi trạng thái từ list, toast chi tiết hơn
+  // Đổi trạng thái từ list, logic theo controller mới (ACTIVE / INACTIVE / OUT_OF_STOCK)
   const toggleStatus = async (p) => {
+    if (!canEdit) {
+      addToast("error", "Không có quyền", "Bạn không có quyền thay đổi trạng thái sản phẩm.");
+      return;
+    }
     try {
       const res = await ProductApi.toggle(p.productId);
-      const next = (res?.status || res?.Status || "").toUpperCase();
+      const nextRaw = res?.status ?? res?.Status;
+      const next = (nextRaw || "").toUpperCase();
 
       await load();
 
@@ -218,9 +257,9 @@ export default function ProductsPage() {
         const totalStock = p.totalStock ?? 0;
         const msg =
           totalStock <= 0
-            ? `Không thể bật hiển thị vì sản phẩm "${p.productName}" đang hết hàng. Hãy nhập tồn kho trước khi bật hiển thị.`
+            ? `Sản phẩm "${p.productName}" hiện đang hết hàng nên sẽ hiển thị với trạng thái "Hết hàng". Khách vẫn xem được nhưng không thể mua cho đến khi bạn nhập thêm tồn kho.`
             : `Trạng thái sản phẩm "${p.productName}" đang là "Hết hàng".`;
-        addToast("warning", "Không thể bật hiển thị", msg);
+        addToast("info", "Trạng thái hết hàng", msg);
       } else {
         addToast(
           "success",
@@ -238,61 +277,8 @@ export default function ProductsPage() {
     }
   };
 
+  // Xoá sản phẩm: để BE quyết định chặn (409) nếu còn variant/đơn hàng
   const deleteProduct = (p) => {
-    // Check chặn xoá nếu đã có biến thể / FAQ / đơn hàng
-    const hasVariants =
-      p.hasVariants ||
-      (typeof p.variantCount === "number" && p.variantCount > 0);
-    const hasFaqs =
-      p.hasFaqs || (typeof p.faqCount === "number" && p.faqCount > 0);
-    const hasOrders =
-      p.hasOrders || (typeof p.orderCount === "number" && p.orderCount > 0);
-
-    if (hasVariants || hasFaqs || hasOrders) {
-      const reasons = [];
-
-      if (hasVariants) {
-        const count =
-          typeof p.variantCount === "number" ? p.variantCount : null;
-        reasons.push(
-          count && count > 0
-            ? `${count} biến thể / key`
-            : "các biến thể / key đã được cấu hình"
-        );
-      }
-
-      if (hasFaqs) {
-        const count = typeof p.faqCount === "number" ? p.faqCount : null;
-        reasons.push(
-          count && count > 0
-            ? `${count} câu hỏi FAQ`
-            : "các câu hỏi FAQ đi kèm sản phẩm"
-        );
-      }
-
-      if (hasOrders) {
-        const count =
-          typeof p.orderCount === "number" ? p.orderCount : null;
-        reasons.push(
-          count && count > 0
-            ? `${count} đơn hàng đã phát sinh`
-            : "các đơn hàng đã phát sinh từ sản phẩm này"
-        );
-      }
-
-      const reasonText =
-        reasons.length > 0
-          ? `vì đã có ${reasons.join(", ")}`
-          : "vì đã có dữ liệu liên quan (biến thể / FAQ / đơn hàng)";
-
-      addToast(
-        "error",
-        "Không thể xoá sản phẩm",
-        `Không thể xoá sản phẩm "${p.productName}" ${reasonText}. Vui lòng ẩn sản phẩm (tắt hiển thị) thay vì xoá vĩnh viễn để tránh mất dữ liệu.`
-      );
-      return;
-    }
-
     openConfirm({
       title: "Xoá sản phẩm?",
       message: `Xoá sản phẩm "${p.productName}"? Hành động này không thể hoàn tác!`,
@@ -303,15 +289,51 @@ export default function ProductsPage() {
           await load();
         } catch (e) {
           console.error(e);
-          addToast(
-            "error",
-            "Lỗi",
-            e?.response?.data?.message || "Xoá sản phẩm thất bại."
-          );
+
+          const status = e?.response?.status;
+          const data = e?.response?.data || {};
+          const msg =
+            data.message || e.message || "Xoá sản phẩm thất bại.";
+
+          if (status === 409) {
+            // Bị chặn vì đã có biến thể / đơn hàng... => hiển thị message từ server
+            addToast("warning", "Không thể xoá sản phẩm", msg);
+          } else {
+            addToast("error", "Lỗi", msg);
+          }
         }
       },
     });
   };
+
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h2>Danh sách sản phẩm</h2>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h2>Danh sách sản phẩm</h2>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách sản phẩm. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -325,7 +347,16 @@ export default function ProductsPage() {
             }}
           >
             <h2>Danh sách sản phẩm</h2>
-            <Link className="btn primary" to="/admin/products/add">
+            <Link 
+              className="btn primary" 
+              to="/admin/products/add"
+              onClick={(e) => {
+                if (!canCreate) {
+                  e.preventDefault();
+                  addToast("error", "Không có quyền", "Bạn không có quyền tạo sản phẩm mới.");
+                }
+              }}
+            >
               + Thêm sản phẩm
             </Link>
           </div>
@@ -595,6 +626,12 @@ export default function ProductsPage() {
                           className="action-btn edit-btn"
                           to={`/admin/products/${p.productId}`}
                           title="Chi tiết / Biến thể"
+                          onClick={(e) => {
+                            if (!canViewDetail) {
+                              e.preventDefault();
+                              addToast("error", "Không có quyền", "Bạn không có quyền xem chi tiết sản phẩm.");
+                            }
+                          }}
                         >
                           <svg
                             viewBox="0 0 24 24"

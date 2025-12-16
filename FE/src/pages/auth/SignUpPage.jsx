@@ -248,11 +248,17 @@ export default function SignUpPage() {
     if (!formData.lastName.trim()) {
       return "Vui lòng nhập họ";
     }
+    if (formData.phone && !/^0(3|5|7|8|9)[0-9]{8}$/.test(formData.phone)) {
+       return "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)";
+    }
     if (!formData.password) {
       return "Vui lòng nhập mật khẩu";
     }
-    if (formData.password.length < 6) {
-      return "Mật khẩu phải có ít nhất 6 ký tự";
+    if (formData.password.length < 8) {
+      return "Mật khẩu phải có ít nhất 8 ký tự";
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.password)) {
+      return "Mật khẩu phải chứa ít nhất 1 chữ cái và 1 số";
     }
     if (formData.password !== formData.confirmPassword) {
       return "Mật khẩu không khớp";

@@ -4,6 +4,7 @@ import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { ProductAccountApi } from "../../services/productAccounts";
 import { ProductApi } from "../../services/products";
 import { ProductVariantsApi } from "../../services/productVariants";
+import { SupplierApi } from "../../services/suppliers";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
@@ -23,6 +24,7 @@ export default function AccountDetailPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [accountInfo, setAccountInfo] = useState(null);
+  const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [variants, setVariants] = useState([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
@@ -30,6 +32,7 @@ export default function AccountDetailPage() {
   const [actualPassword, setActualPassword] = useState("");
 
   const [formData, setFormData] = useState({
+    supplierId: "",
     productId: "",
     variantId: "",
     accountEmail: "",
@@ -93,9 +96,22 @@ export default function AccountDetailPage() {
     try {
       const data = await ProductAccountApi.get(id);
       setAccountInfo(data);
+
+      // Ensure the account's supplier is in the suppliers list
+      if (data.supplierId && data.supplierName) {
+        setSuppliers(prev => {
+          const exists = prev.some(s => s.supplierId === data.supplierId);
+          if (!exists) {
+            return [...prev, { supplierId: data.supplierId, name: data.supplierName }];
+          }
+          return prev;
+        });
+      }
+
       const variantId =
         data.variantId || data.productVariantId || data.productVariantId?.value;
       setFormData({
+        supplierId: data.supplierId ? data.supplierId.toString() : "",
         productId: data.productId,
         variantId: variantId ? variantId.toString() : "",
         accountEmail: data.accountEmail,
@@ -121,6 +137,23 @@ export default function AccountDetailPage() {
       setLoading(false);
     }
   }, [id, navigate, showError]);
+
+  const loadSuppliers = useCallback(async (loadAll = false) => {
+    try {
+      const params = {
+        pageNumber: 1,
+        pageSize: 100,
+      };
+      // Only filter by Active status when creating new account
+      if (!loadAll) {
+        params.status = "Active";
+      }
+      const data = await SupplierApi.list(params);
+      setSuppliers(data.items || data.data || []);
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+    }
+  }, []);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -291,12 +324,14 @@ export default function AccountDetailPage() {
   ]);
 
   useEffect(() => {
+    // Load all suppliers when viewing existing account, only active when creating new
+    loadSuppliers(!isNew);
     loadProducts();
     if (!isNew) {
       loadProductAccount();
       loadHistory(true);
     }
-  }, [isNew, loadProductAccount, loadProducts, loadHistory]);
+  }, [isNew, loadProductAccount, loadSuppliers, loadProducts, loadHistory]);
 
   // Load variants when product changes
   useEffect(() => {
@@ -336,6 +371,10 @@ export default function AccountDetailPage() {
 
   const validateForm = () => {
     const newErrors = {};
+
+    if (!formData.supplierId) {
+      newErrors.supplierId = "Nhà cung cấp là bắt buộc";
+    }
 
     if (!formData.productId) {
       newErrors.productId = "Sản phẩm là bắt buộc";
@@ -406,6 +445,7 @@ export default function AccountDetailPage() {
     try {
       const isPersonal = selectedProduct?.productType === "PERSONAL_ACCOUNT";
       const payload = {
+        supplierId: parseInt(formData.supplierId),
         variantId: formData.variantId,
         accountEmail: formData.accountEmail,
         accountUsername: formData.accountUsername || null,
@@ -471,6 +511,10 @@ export default function AccountDetailPage() {
 
   const handleChange = (field, value) => {
     setFormData((prev) => {
+      // Reset product and variant when supplier changes
+      if (field === "supplierId" && value !== prev.supplierId) {
+        return { ...prev, [field]: value, productId: "", variantId: "" };
+      }
       // Reset variant when product changes
       if (field === "productId" && value !== prev.productId) {
         return { ...prev, [field]: value, variantId: "" };
@@ -587,10 +631,10 @@ export default function AccountDetailPage() {
             <p style={{ color: "#6b7280", marginBottom: 16 }}>
               Chọn ngày hết hạn mới cho tài khoản này
             </p>
-            <div className="form-row">
-              <label>
+            <div className="group">
+              <span>
                 Ngày hết hạn hiện tại
-              </label>
+              </span>
               <input
                 className="input"
                 type="text"
@@ -598,10 +642,10 @@ export default function AccountDetailPage() {
                 disabled
               />
             </div>
-            <div className="form-row">
-              <label>
+            <div className="group">
+              <span style={{ whiteSpace: "nowrap" }}>
                 Ngày hết hạn mới <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <input
                 className="input"
                 type="date"
@@ -673,24 +717,52 @@ export default function AccountDetailPage() {
           )}
 
           <div
-            className="grid"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              display: "flex",
+              flexWrap: "wrap",
               gap: 12,
             }}
           >
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
+                Nhà cung cấp <span style={{ color: "red" }}>*</span>
+              </span>
+              <div>
+                <select
+                  className="input"
+                  value={formData.supplierId}
+                  onChange={(e) => handleChange("supplierId", e.target.value)}
+                  disabled={!isNew}
+                >
+                  <option value="">Chọn nhà cung cấp</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.supplierId} value={supplier.supplierId.toString()}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.supplierId && (
+                  <small style={{ color: "red" }}>{errors.supplierId}</small>
+                )}
+              </div>
+            </div>
+
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Sản phẩm <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
                   value={formData.productId}
                   onChange={(e) => handleChange("productId", e.target.value)}
-                  disabled={!isNew}
+                  disabled={!isNew || !formData.supplierId}
                 >
-                  <option value="">Chọn sản phẩm</option>
+                  <option value="">
+                    {!formData.supplierId
+                      ? "Chọn nhà cung cấp trước"
+                      : "Chọn sản phẩm"}
+                  </option>
                   {products.map((product) => (
                     <option key={product.productId} value={product.productId}>
                       {product.productName}
@@ -703,10 +775,10 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Biến thể <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
@@ -733,10 +805,10 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Email tài khoản <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <input
                   className="input"
@@ -751,8 +823,8 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>Username (tùy chọn)</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Username (tùy chọn)</span>
               <input
                 className="input"
                 type="text"
@@ -764,10 +836,10 @@ export default function AccountDetailPage() {
               />
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Mật khẩu {isNew && <span style={{ color: "red" }}>*</span>}
-              </label>
+              </span>
               <div>
                 <div style={{ position: "relative" }}>
                   <input
@@ -853,10 +925,10 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Số người dùng tối đa <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <input
                   className="input"
@@ -874,7 +946,7 @@ export default function AccountDetailPage() {
             </div>
 
             {!isNew && (
-              <div className="form-row">
+              <div className="form-row" style={{ flex: "1 1 300px" }}>
                 <label>Trạng thái</label>
                 <input
                   className="input"
@@ -899,10 +971,10 @@ export default function AccountDetailPage() {
             )}
 
             {isNew && (
-              <div className="form-row">
-                <label>
+              <div className="group" style={{ flex: "1 1 300px" }}>
+                <span style={{ whiteSpace: "nowrap" }}>
                   Ngày bắt đầu <span style={{ color: "red" }}>*</span>
-                </label>
+                </span>
                 <input
                   className="input"
                   type="date"
@@ -918,10 +990,10 @@ export default function AccountDetailPage() {
               </div>
             )}
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Ngày hết hạn <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input
                   className="input"
@@ -956,10 +1028,10 @@ export default function AccountDetailPage() {
               )}
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Giá nhập <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <input
                   className="input"
@@ -978,8 +1050,8 @@ export default function AccountDetailPage() {
               </div>
             </div>
 
-            <div className="form-row" style={{ gridColumn: "1 / -1" }}>
-              <label>Ghi chú</label>
+            <div className="group" style={{ flex: "1 1 100%" }}>
+              <span>Ghi chú</span>
               <div>
                 <textarea
                   className="textarea"
@@ -1212,11 +1284,8 @@ export default function AccountDetailPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, flex: 1 }}>Lịch sử</h3>
-                <label
-                  className="muted"
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
-                >
-                  Kích thước trang:
+            <div className="group" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              Kích thước trang:
                   <select
                     className="input"
                     value={historyPageSize}
@@ -1230,7 +1299,7 @@ export default function AccountDetailPage() {
                     <option value={20}>20</option>
                     <option value={50}>50</option>
                   </select>
-                </label>
+              </div>
                 <button
                   type="button"
                   className="btn"

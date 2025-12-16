@@ -19,7 +19,11 @@ public partial class Order
 
     public DateTime CreatedAt { get; set; }
 
+    public string Status { get; set; } = null!;
+
     public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+
+    public virtual ICollection<OrderInventoryReservation> OrderInventoryReservations { get; set; } = new List<OrderInventoryReservation>();
 
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
 

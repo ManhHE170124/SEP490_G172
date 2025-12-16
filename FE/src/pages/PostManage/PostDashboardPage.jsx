@@ -12,16 +12,24 @@ import { postsApi } from "../../services/postsApi";
 import useToast from "../../hooks/useToast";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import PerformanceStatistics from "../../components/PostPerformanceStatistics/PerformanceStatistics";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 import "./PostDashboardPage.css";
 
 export default function PostDashboardPage() {
   const navigate = useNavigate();
   const { toasts, showError, removeToast, confirmDialog } = useToast();
   
+  // Check permission to view list
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.POST_MANAGER, "VIEW_LIST");
+  
   // Global network error handler
   const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
   useEffect(() => {
     networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
   }, []);
 
   // Data state
@@ -48,7 +56,16 @@ export default function PostDashboardPage() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
-        showError("Lỗi", err.message || "Không thể tải dữ liệu dashboard");
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          showError("Lỗi tải dữ liệu", err.message || "Bạn không có quyền truy cập chức năng này.");
+        } else if (!isPermissionError) {
+          showError("Lỗi", err.message || "Không thể tải dữ liệu dashboard");
+        }
       }
     } finally {
       setLoading(false);
@@ -67,6 +84,44 @@ export default function PostDashboardPage() {
       totalViews
     };
   }, [posts]);
+
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="pdp-dashboard-container">
+        <div className="pdp-loading-state">
+          <div className="pdp-loading-spinner" />
+          <div>Đang kiểm tra quyền...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="pdp-dashboard-container">
+        <ToastContainer
+          toasts={toasts}
+          onRemove={removeToast}
+          confirmDialog={confirmDialog}
+        />
+        <div className="pdp-dashboard-header">
+          <div>
+            <h1 className="pdp-dashboard-title">Dashboard Bài viết</h1>
+            <p className="pdp-dashboard-subtitle">Thống kê và phân tích hiệu suất bài viết</p>
+          </div>
+        </div>
+        <div className="pdp-error-state" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+          <h2>Không có quyền xem danh sách</h2>
+          <p style={{ color: '#666', marginBottom: '24px' }}>
+            Bạn không có quyền xem dashboard và danh sách bài viết. Vui lòng liên hệ quản trị viên để được cấp quyền.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pdp-dashboard-container">

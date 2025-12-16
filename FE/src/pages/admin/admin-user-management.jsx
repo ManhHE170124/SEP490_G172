@@ -36,6 +36,8 @@ import {
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import axiosClient from "../../api/axiosClient";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 
 function ErrorDialog({ message, onClose, showError }) {
   // Đẩy lỗi chung lên toast
@@ -83,6 +85,22 @@ const formatCurrency = (value) => {
 export default function AdminUserManagement() {
   const { toasts, showSuccess, showError, removeToast } =
     useToast();
+
+  // Check permissions
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.USER_MANAGER, "VIEW_LIST");
+  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.USER_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canCreate } = usePermission(MODULE_CODES.USER_MANAGER, "CREATE");
+  const { hasPermission: canEdit } = usePermission(MODULE_CODES.USER_MANAGER, "EDIT");
+  const { hasPermission: canDelete } = usePermission(MODULE_CODES.USER_MANAGER, "DELETE");
+
+  // Global network error handler
+  const networkErrorShownRef = React.useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = React.useRef(false);
+  React.useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
 
   const [uiFilters, setUiFilters] = useState(initialFilters);
   const [applied, setApplied] = useState(initialFilters);
@@ -214,11 +232,31 @@ export default function AdminUserManagement() {
           ...prev,
           items: [],
         }));
+        
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+          }
+        } else {
+          // Check if error message contains permission denied - only show once
+          const isPermissionError = err.message?.includes('không có quyền') || 
+                                    err.message?.includes('quyền truy cập') ||
+                                    err.response?.status === 403;
+          if (isPermissionError && !permissionErrorShownRef.current) {
+            permissionErrorShownRef.current = true;
+            const errorMsg = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+            showError("Lỗi tải dữ liệu", errorMsg);
+          } else if (!isPermissionError) {
+            showError("Lỗi", err.message || "Không tải được danh sách người dùng.");
+          }
+        }
       } finally {
         setLoading(false);
       }
     },
-    [applied]
+    [applied, showError]
   );
 
   useEffect(() => {
@@ -265,6 +303,10 @@ export default function AdminUserManagement() {
     }));
 
   const openAdd = () => {
+    if (!canCreate) {
+      showError("Không có quyền", "Bạn không có quyền tạo người dùng mới.");
+      return;
+    }
     setMode("add");
     setForm({
       userId: "",
@@ -298,6 +340,10 @@ export default function AdminUserManagement() {
   };
 
   const openViewOrEdit = async (id, m) => {
+    if (!canViewDetail) {
+      showError("Không có quyền", "Bạn không có quyền xem chi tiết và chỉnh sửa người dùng.");
+      return;
+    }
     try {
       const u = await usersApi.get(id);
 
@@ -511,6 +557,14 @@ export default function AdminUserManagement() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (mode === "add" && !canCreate) {
+      showError("Không có quyền", "Bạn không có quyền tạo người dùng mới.");
+      return;
+    }
+    if (mode === "edit" && !canEdit) {
+      showError("Không có quyền", "Bạn không có quyền cập nhật người dùng.");
+      return;
+    }
     if (!validateForm()) {
       return;
     }
@@ -612,6 +666,10 @@ export default function AdminUserManagement() {
   };
 
   const toggleDisable = async (u) => {
+    if (!canDelete) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái người dùng.");
+      return;
+    }
     if (u.isTemp) {
       setErrorMsg(
         "Không thể thay đổi trạng thái người dùng tạm thời. Vui lòng thao tác với người dùng thật."
@@ -669,6 +727,39 @@ export default function AdminUserManagement() {
     data.totalItems || 0,
     applied.page * applied.pageSize
   );
+
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page user-mgmt-page">
+        <div className="card" style={{ margin: "0 auto", maxWidth: 1120 }}>
+          <div className="card-header">
+            <h2>Quản lý người dùng</h2>
+          </div>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page user-mgmt-page">
+        <div className="card" style={{ margin: "0 auto", maxWidth: 1120 }}>
+          <div className="card-header">
+            <h2>Quản lý người dùng</h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách người dùng. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

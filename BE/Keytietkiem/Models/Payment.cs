@@ -19,7 +19,9 @@ public partial class Payment
 
     public string Email { get; set; } = null!;
 
-    public string TransactionType { get; set; } = null!;
+    public string TargetType { get; set; } = null!;
 
-    public virtual ICollection<UserSupportPlanSubscription> UserSupportPlanSubscriptions { get; set; } = new List<UserSupportPlanSubscription>();
+    public string? TargetId { get; set; }
+
+    public string? PaymentLinkId { get; set; }
 }

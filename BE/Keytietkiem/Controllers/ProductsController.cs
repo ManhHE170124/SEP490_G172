@@ -34,6 +34,10 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using static Keytietkiem.Constants.ModuleCodes;
+using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -69,48 +73,70 @@ namespace Keytietkiem.Controllers
             if (string.IsNullOrWhiteSpace(code)) return string.Empty;
             var s = code.Trim();
 
-            // Bỏ dấu
+            // 1. Bỏ dấu (normalize Unicode, bỏ NonSpacingMark)
             s = s.Normalize(NormalizationForm.FormD);
             var chars = s.Where(c =>
                 CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark);
             s = new string(chars.ToArray());
 
-            // Ký tự không phải chữ/số -> "_"
+            // 2. Xoá toàn bộ khoảng trắng bên trong (join các "word code" lại)
+            //    ví dụ: "pro duct-01" -> "product-01"
+            s = Regex.Replace(s, @"\s+", string.Empty);
+
+            // 3. Các ký tự không phải chữ/số (ví dụ: '-', '.', '#', …) -> "_"
             s = Regex.Replace(s, "[^A-Za-z0-9]+", "_");
+
+            // 4. Gộp "_" liên tiếp và trim "_" ở đầu/cuối
             s = Regex.Replace(s, "_+", "_").Trim('_');
 
             return s.ToUpperInvariant();
         }
 
+        /// <summary>
+        /// Quy ước status cho Product:
+        /// - ACTIVE      : đang hiển thị và còn hàng.
+        /// - OUT_OF_STOCK: hết hàng nhưng vẫn hiển thị.
+        /// - INACTIVE    : ẩn hoàn toàn, chỉ khi admin set explicit.
+        /// 
+        /// Hết hàng KHÔNG bao giờ tự chuyển sang INACTIVE, chỉ OUT_OF_STOCK.
+        /// Nếu admin chọn INACTIVE trong dto.Status thì luôn INACTIVE, bất kể tồn kho.
+        /// </summary>
         private static string ResolveStatusFromTotalStock(int totalStock, string? desired)
         {
             var d = (desired ?? string.Empty).Trim().ToUpperInvariant();
 
+            // Admin cố tình set INACTIVE => giữ INACTIVE, không phụ thuộc stock
+            if (d == "INACTIVE")
+                return "INACTIVE";
+
+            // Hết hàng => luôn OUT_OF_STOCK (hết hàng nhưng vẫn hiện)
             if (totalStock <= 0)
             {
-                // Nếu explicit INACTIVE -> coi là nháp/ẩn, không phải hết hàng
-                if (d == "INACTIVE")
-                    return "INACTIVE";
-
-                // Mặc định hết hàng
                 return "OUT_OF_STOCK";
             }
 
-            if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d))
+            // Còn hàng:
+            if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d) && d != "OUT_OF_STOCK")
                 return d;
 
+            // Mặc định khi có hàng mà không truyền status hợp lệ: ACTIVE
             return "ACTIVE";
         }
 
         private static string ToggleVisibility(string current, int totalStock)
         {
+            // Hết hàng: vẫn hiển thị nhưng trạng thái là OUT_OF_STOCK
             if (totalStock <= 0) return "OUT_OF_STOCK";
+
+            // Khi còn hàng: toggle giữa ACTIVE <-> INACTIVE
             return string.Equals(current, "ACTIVE", StringComparison.OrdinalIgnoreCase)
-                ? "INACTIVE" : "ACTIVE";
+                ? "INACTIVE"
+                : "ACTIVE";
         }
 
         // ===== LIST (không giá) =====
         [HttpGet("list")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] int? categoryId,
@@ -200,6 +226,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL (Images + FAQs + Variants) =====
         [HttpGet("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<ActionResult<ProductDetailDto>> GetById(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -232,6 +259,7 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE (không giá) =====
         [HttpPost]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
         public async Task<ActionResult<ProductDetailDto>> Create(ProductCreateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType))
@@ -263,7 +291,7 @@ namespace Keytietkiem.Controllers
                 ProductCode = normalizedCode,
                 ProductName = name,
                 ProductType = dto.ProductType.Trim(),
-                Status = "INACTIVE", // sẽ set lại theo stock sau
+                Status = "INACTIVE", // sẽ set lại theo stock sau (OUT_OF_STOCK / ACTIVE tuỳ tồn kho)
                 Slug = dto.Slug ?? normalizedCode,
                 CreatedAt = _clock.UtcNow
             };
@@ -304,12 +332,13 @@ namespace Keytietkiem.Controllers
                     entity.ProductType,
                     entity.Status
                 }
-);
+            );
 
             return await GetById(entity.ProductId);
         }
 
         [HttpPut("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Update(Guid id, ProductUpdateDto dto)
         {
             if (!ProductEnums.Types.Contains(dto.ProductType))
@@ -437,13 +466,14 @@ namespace Keytietkiem.Controllers
                     Categories = e.Categories.Select(c => c.CategoryId).ToList(),
                     Badges = e.ProductBadges.Select(b => b.Badge).ToList()
                 }
- );
+            );
 
             return NoContent();
         }
 
         // ===== TOGGLE PRODUCT VISIBILITY =====
         [HttpPatch("{id:guid}/toggle")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
         public async Task<IActionResult> Toggle(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -469,13 +499,14 @@ namespace Keytietkiem.Controllers
                 entityId: e.ProductId.ToString(),
                 before: beforeSnapshot,
                 after: new { e.ProductId, e.Status }
-);
+            );
 
             return Ok(new { e.ProductId, e.Status });
         }
 
         // ===== DELETE (chặn nếu còn Variant / FAQ / (tuỳ chọn) đơn hàng) =====
         [HttpDelete("{id:guid}")]
+        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
         public async Task<IActionResult> Delete(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -541,7 +572,7 @@ namespace Keytietkiem.Controllers
                 entityId: p.ProductId.ToString(),
                 before: beforeSnapshot,
                 after: null
-);
+            );
 
             return NoContent();
         }

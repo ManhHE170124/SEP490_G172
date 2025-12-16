@@ -46,7 +46,9 @@
 
 .profile-sidebar {
   position: sticky;
-  top: 24px;
+  top: 160px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
 }
 
 .profile-card {

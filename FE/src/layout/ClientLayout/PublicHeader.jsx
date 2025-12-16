@@ -30,14 +30,14 @@ const BASE_NAV_ITEMS = [
   {
     label: "Dịch vụ hỗ trợ",
     anchor: "support-service",
-    path: "/support-service",
+    path: "/support/subscription",
     dropdown: [
-      { label: "Hỗ trợ cài đặt từ xa", path: "/support-service/remote" },
+      { label: "Các gói hỗ trợ", path: "/support/subscription" },
       {
         label: "Hướng dẫn sử dụng",
         path: "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
       },
-      { label: "Fix lỗi phần mềm đã mua", path: "/support-service/fix" },
+      { label: "Ticket hỗ trợ", path: "/tickets" },
     ],
   },
   {

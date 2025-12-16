@@ -3,6 +3,8 @@ import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SupportPlansAdminApi } from "../../services/supportPlansAdmin";
 import "../../styles/SupportPlansAdminPage.css";
+import { usePermission } from "../../hooks/usePermission";
+import { MODULE_CODES } from "../../constants/accessControl";
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
 const RequiredMark = () => (
@@ -365,6 +367,13 @@ function SupportPlanModal({
 
 /* ============ Page: SupportPlansAdminPage ============ */
 export default function SupportPlansAdminPage() {
+  // Check permissions
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "VIEW_LIST");
+  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "VIEW_DETAIL");
+  const { hasPermission: canCreate } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "CREATE");
+  const { hasPermission: canEdit } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "EDIT");
+  const { hasPermission: canDelete } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "DELETE");
+
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
   const toastIdRef = React.useRef(1);
@@ -414,6 +423,15 @@ export default function SupportPlansAdminPage() {
   });
   const [planSubmitting, setPlanSubmitting] = React.useState(false);
 
+  // Global network error handler
+  const networkErrorShownRef = React.useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = React.useRef(false);
+  React.useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
+
   const loadPlans = React.useCallback(() => {
     setLoading(true);
 
@@ -443,10 +461,28 @@ export default function SupportPlansAdminPage() {
       })
       .catch((err) => {
         console.error(err);
-        addToast("error", "Không tải được danh sách gói hỗ trợ.", "Lỗi");
+        // Handle network errors globally - only show one toast
+        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+          if (!networkErrorShownRef.current) {
+            networkErrorShownRef.current = true;
+            addToast("error", "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.", "Lỗi kết nối");
+          }
+        } else {
+          // Check if error message contains permission denied - only show once
+          const isPermissionError = err.message?.includes('không có quyền') || 
+                                    err.message?.includes('quyền truy cập') ||
+                                    err.response?.status === 403;
+          if (isPermissionError && !permissionErrorShownRef.current) {
+            permissionErrorShownRef.current = true;
+            const errorMsg = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+            addToast("error", errorMsg, "Lỗi tải dữ liệu");
+          } else if (!isPermissionError) {
+            addToast("error", "Không tải được danh sách gói hỗ trợ.", "Lỗi");
+          }
+        }
       })
       .finally(() => setLoading(false));
-  }, [query, page, pageSize]);
+  }, [query, page, pageSize, addToast]);
 
   React.useEffect(() => {
     const t = setTimeout(loadPlans, 300);
@@ -458,10 +494,19 @@ export default function SupportPlansAdminPage() {
     [total, pageSize]
   );
 
-  const openAddPlan = () =>
+  const openAddPlan = () => {
+    if (!canCreate) {
+      addToast("error", "Bạn không có quyền tạo gói hỗ trợ mới.", "Không có quyền");
+      return;
+    }
     setPlanModal({ open: true, mode: "add", data: null });
+  };
 
   const openEditPlan = async (p) => {
+    if (!canViewDetail) {
+      addToast("error", "Bạn không có quyền xem chi tiết và chỉnh sửa gói hỗ trợ.", "Không có quyền");
+      return;
+    }
     try {
       const detail = await SupportPlansAdminApi.get(p.supportPlanId);
       setPlanModal({
@@ -481,6 +526,14 @@ export default function SupportPlansAdminPage() {
   };
 
   const handlePlanSubmit = async (payload) => {
+    if (planModal.mode === "add" && !canCreate) {
+      addToast("error", "Bạn không có quyền tạo gói hỗ trợ mới.", "Không có quyền");
+      return;
+    }
+    if (planModal.mode === "edit" && !canEdit) {
+      addToast("error", "Bạn không có quyền cập nhật gói hỗ trợ.", "Không có quyền");
+      return;
+    }
     setPlanSubmitting(true);
     try {
       if (planModal.mode === "add") {
@@ -509,6 +562,10 @@ export default function SupportPlansAdminPage() {
   };
 
   const togglePlanActive = async (p) => {
+    if (!canEdit) {
+      addToast("error", "Bạn không có quyền cập nhật trạng thái gói hỗ trợ.", "Không có quyền");
+      return;
+    }
     try {
       await SupportPlansAdminApi.toggle(p.supportPlanId);
       addToast("success", "Đã cập nhật trạng thái gói hỗ trợ.", "Thành công");
@@ -525,6 +582,10 @@ export default function SupportPlansAdminPage() {
   };
 
   const deletePlan = (p) => {
+    if (!canDelete) {
+      addToast("error", "Bạn không có quyền xóa gói hỗ trợ.", "Không có quyền");
+      return;
+    }
     openConfirm({
       title: "Xoá gói hỗ trợ?",
       message: `Xoá gói "${p.name}" với mức ưu tiên ${priorityLabel(
@@ -558,6 +619,39 @@ export default function SupportPlansAdminPage() {
     });
     setPage(1);
   };
+
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page support-plans-page">
+        <div className="card">
+          <div className="card-header">
+            <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
+          </div>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page support-plans-page">
+        <div className="card">
+          <div className="card-header">
+            <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
+          </div>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách gói hỗ trợ. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

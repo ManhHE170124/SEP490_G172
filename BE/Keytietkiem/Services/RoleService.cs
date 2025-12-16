@@ -53,6 +53,7 @@ public class RoleService : IRoleService
         {
             RoleId = roleId,
             Name = roleId,
+            Code = roleId.ToUpper().Replace(" ", "_"), // Set Code for permission checks
             IsSystem = true,
             IsActive = true,
             CreatedAt = _clock.UtcNow
@@ -66,6 +67,24 @@ public class RoleService : IRoleService
             await transaction.CommitAsync(cancellationToken);
 
             _logger.LogInformation("Successfully seeded {Count} default roles", rolesToAdd.Count);
+            
+            // Update existing roles that might be missing Code
+            var existingRolesWithoutCode = await _context.Roles
+                .Where(r => string.IsNullOrWhiteSpace(r.Code) && DefaultRoles.Contains(r.RoleId))
+                .ToListAsync(cancellationToken);
+
+            if (existingRolesWithoutCode.Any())
+            {
+                _logger.LogInformation("Updating Code for {Count} existing roles...", existingRolesWithoutCode.Count);
+                foreach (var role in existingRolesWithoutCode)
+                {
+                    role.Code = role.RoleId.ToUpper().Replace(" ", "_");
+                    role.UpdatedAt = _clock.UtcNow;
+                }
+                _context.Roles.UpdateRange(existingRolesWithoutCode);
+                await _context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Successfully updated Code for existing roles.");
+            }
         }
         catch (Exception ex)
         {

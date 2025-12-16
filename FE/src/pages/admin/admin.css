@@ -4,6 +4,7 @@
   --line: #e5e7eb;
   --page: #f3f6fa;
   --card: #fff;
+  --hover: #f9fafb;
   --primary: #2563eb;
   --success: #10b981;
   --warning: #f59e0b;
@@ -125,6 +126,7 @@ textarea {
   border-radius: 12px;
   background: #fff;
 }
+
 .chunk-text {
   display: inline-block;
   max-width: 100%;
@@ -963,44 +965,62 @@ label {
   border-right: 1px solid var(--line);
   border-radius: 0 10px 10px 0;
 }
-/* Giữ label + dấu * trên cùng 1 dòng, dùng cho mọi form */
-.input-group .group > span {
-  display: inline-flex;       /* span trở thành 1 khối inline */
-  align-items: center;        /* căn giữa theo chiều dọc */
-  gap: 4px;                   /* khoảng cách giữa text và * */
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
-  white-space: nowrap;        /* không cho tự xuống dòng trong label */
-}
-/* Bảng FAQ + Biến thể (dùng chung class .variants-table) */
-.variants-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 8px;
-  table-layout: fixed; /* chia cột cố định, không bóp cột Thao tác quá nhỏ */
+
+/* ====== Report Form Fields (ProductReportDetailPage) ====== */
+.report-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-/* Cell & header căn giữa chiều dọc, nhìn giống UI mẫu */
-.variants-table th,
-.variants-table td {
-  padding: 12px 10px;
-  vertical-align: middle;
-}
-
-/* Cột THAO TÁC: đủ chỗ cho 3 nút, không cho xuống dòng */
-.variants-table th:last-child,
-.variants-table td:last-child,
-.variants-table .td-actions {
-  width: 180px;        /* đủ chỗ 2 icon + 1 switch */
-  max-width: 180px;
-  white-space: nowrap; /* không cho wrap các nút */
-}
-
-/* Nhóm nút thao tác luôn nằm 1 hàng */
-.variants-table .td-actions .action-buttons {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.report-form-field label {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+  margin-bottom: 0;
   white-space: nowrap;
+}
+
+.report-form-field label span {
+  color: red;
+  margin-left: 2px;
+}
+
+.report-form-field select,
+.report-form-field input,
+.report-form-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.report-form-field select:focus,
+.report-form-field input:focus,
+.report-form-field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* ====== Fix red asterisk for all .group fields ====== */
+.group > span {
+  white-space: nowrap !important;
+  display: inline-block !important;
+}
+
+.group > span > span {
+  color: red !important;
+  margin-left: 2px;
+  display: inline !important;
+}
+
+.main .group > span {
+  white-space: nowrap !important;
+  display: inline-block !important;
 }
