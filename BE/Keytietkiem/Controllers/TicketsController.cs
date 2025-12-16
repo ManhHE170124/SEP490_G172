@@ -1,4 +1,5 @@
-﻿using Keytietkiem.DTOs.Common;
+﻿// File: Controllers/TicketsController.cs
+using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
@@ -21,6 +22,7 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // ✅ NEW: bắt buộc đăng nhập cho toàn bộ Tickets APIs
 public class TicketsController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
@@ -59,6 +61,46 @@ public class TicketsController : ControllerBase
     private static IQueryable<Ticket> BaseQuery(KeytietkiemDbContext db) => db.Tickets.AsNoTracking()
         .Include(t => t.User)
         .Include(t => t.Assignee);
+
+    // ✅ NEW: helpers role tối thiểu để kiểm tra quyền theo yêu cầu
+    private static bool IsCustomer(User u)
+    {
+        // FIX: tránh bắt nhầm role kiểu "customer-care-staff" là customer
+        if (u.Roles == null || u.Roles.Count == 0) return false;
+
+        var hasCustomer = u.Roles.Any(r =>
+        {
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return code.Contains("customer");
+        });
+
+        // Nếu đồng thời là staff/admin thì không coi là customer
+        if (hasCustomer && IsStaffOrAdmin(u)) return false;
+
+        return hasCustomer;
+    }
+
+    private static bool IsCareStaff(User u)
+    {
+        return u.Roles != null && u.Roles.Any(r =>
+        {
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return code.Contains("care");
+        });
+    }
+
+    private static bool IsAdmin(User u)
+    {
+        return u.Roles != null && u.Roles.Any(r =>
+        {
+            var name = (r.Name ?? string.Empty).Trim().ToLowerInvariant();
+            var rid = (r.RoleId ?? string.Empty).Trim().ToLowerInvariant();
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return name == "admin" || rid == "admin" || code.Contains("admin");
+        });
+    }
+
+    private static bool IsStaffOrAdmin(User u) => IsAdmin(u) || IsCareStaff(u);
 
     /// <summary>
     /// Sinh TicketCode mới dạng TCK-0001 dựa trên TicketCode lớn nhất hiện có.
@@ -238,6 +280,26 @@ public class TicketsController : ControllerBase
             return Unauthorized(new { message = "Bạn cần đăng nhập để xem ticket của mình." });
         }
 
+        // ✅ NEW: chỉ cho phép Customer xem list ticket của mình
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (me is null)
+            return Unauthorized();
+
+        if ((me.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsCustomer(me))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         // Chỉ lấy ticket của chính user đang đăng nhập
         var query = BaseQuery(_db).Where(t => t.UserId == userId);
 
@@ -286,6 +348,41 @@ public class TicketsController : ControllerBase
             .FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
 
+        // ✅ NEW: Customer chỉ được xem ticket của chính mình, Staff/Admin xem được
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (me is null)
+            return Unauthorized();
+
+        if ((me.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (IsCustomer(me))
+        {
+            if (t.UserId != me.UserId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Bạn không có quyền truy cập ticket này." });
+            }
+        }
+        else
+        {
+            if (!IsStaffOrAdmin(me))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Bạn không có quyền truy cập chức năng này." });
+            }
+        }
+
         var replies = await _db.TicketReplies.AsNoTracking()
             .Include(r => r.Sender)
             .Where(r => r.TicketId == id)
@@ -294,7 +391,11 @@ public class TicketsController : ControllerBase
             {
                 ReplyId = r.ReplyId,
                 SenderId = r.SenderId,
-                SenderName = r.Sender.FullName ?? r.Sender.Email,
+                SenderName = r.Sender != null ? (r.Sender.FullName ?? r.Sender.Email) : "Không rõ",
+
+                // ✅ NEW: map avatar theo đúng user gửi tin
+                SenderAvatarUrl = r.Sender != null ? r.Sender.AvatarUrl : null,
+
                 IsStaffReply = r.IsStaffReply,
                 Message = r.Message,
                 SentAt = r.SentAt
@@ -363,7 +464,6 @@ public class TicketsController : ControllerBase
         return Ok(dto);
     }
 
-    // ============ CUSTOMER: Xem chi tiết ticket của chính mình ============
     [HttpGet("customer/{id:guid}")]
     [Authorize]
     public async Task<ActionResult<TicketDetailDto>> GetCustomerTicketDetail(Guid id)
@@ -503,12 +603,15 @@ public class TicketsController : ControllerBase
         if (sender is null)
             return Unauthorized();
 
-        // Chỉ cho phép khách hàng tạo ticket (lọc theo Role.Code chứa "customer")
-        var isCustomer = sender.Roles.Any(r =>
+        // ✅ NEW: chặn user bị khoá
+        if ((sender.Status ?? "Active") != "Active")
         {
-            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
-            return code.Contains("customer");
-        });
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        // Chỉ cho phép khách hàng tạo ticket (lọc theo Role.Code chứa "customer")
+        var isCustomer = IsCustomer(sender);
 
         if (!isCustomer)
         {
@@ -583,6 +686,30 @@ public class TicketsController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<List<TicketSubjectTemplateDto>>> GetSubjectTemplates([FromQuery] bool activeOnly = true)
     {
+        // ✅ NEW: chỉ Customer mới được xem templates (vì phục vụ create ticket)
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (me is null)
+            return Unauthorized();
+
+        if ((me.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsCustomer(me))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ khách hàng mới được phép tạo ticket." });
+        }
+
         var query = _db.TicketSubjectTemplates.AsNoTracking();
 
         if (activeOnly)
@@ -614,6 +741,30 @@ public class TicketsController : ControllerBase
     [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignTicketDto dto)
     {
+        // ✅ NEW: chỉ Staff/Admin (ưu tiên Admin) mới được gán người khác
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền gán ticket." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
 
@@ -758,8 +909,42 @@ public class TicketsController : ControllerBase
     [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> TransferToTech(Guid id, [FromBody] AssignTicketDto dto)
     {
+        // ✅ NEW: chỉ assignee hoặc admin mới được transfer
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
+
+        if (!IsAdmin(actor))
+        {
+            var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == actor.UserId;
+            if (!isAssignee)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Người dùng không có quyền hạn để chuyển ticket." });
+            }
+        }
 
         var st = NormStatus(t.Status);
         if (st is "Closed" or "Completed")
@@ -822,8 +1007,42 @@ public class TicketsController : ControllerBase
     [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> Complete(Guid id)
     {
+        // ✅ NEW: chỉ assignee hoặc admin mới được complete
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
+
+        if (!IsAdmin(actor))
+        {
+            var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == actor.UserId;
+            if (!isAssignee)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Người dùng không có quyền hạn để hoàn thành ticket." });
+            }
+        }
 
         var st = NormStatus(t.Status);
         if (st is "Closed" or "Completed")
@@ -880,6 +1099,30 @@ public class TicketsController : ControllerBase
     [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> Close(Guid id)
     {
+        // ✅ NEW: chỉ Admin mới được close (tránh staff/customer tự đóng ticket)
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền đóng ticket." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
 
@@ -960,6 +1203,30 @@ public class TicketsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        // ✅ NEW: chỉ Staff/Admin mới được xem danh sách assignees
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
@@ -997,6 +1264,30 @@ public class TicketsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        // ✅ NEW: chỉ Staff/Admin mới được xem danh sách transfer assignees
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 

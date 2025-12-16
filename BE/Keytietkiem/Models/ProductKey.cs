@@ -23,13 +23,13 @@ public partial class ProductKey
 
     public string? Notes { get; set; }
 
-    public Guid? AssignedToOrderId { get; set; }
-
     public DateTime? UpdatedAt { get; set; }
 
     public Guid VariantId { get; set; }
 
-    public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+    public Guid? AssignedToOrderId { get; set; }
+
+    public virtual OrderDetail? OrderDetail { get; set; }
 
     public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
 

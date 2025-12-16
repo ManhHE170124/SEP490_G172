@@ -23,7 +23,7 @@ const FieldError = ({ message }) =>
 
 const EllipsisCell = ({ children, title, maxWidth = 260, mono = false }) => (
   <div
-    className={mono ? "mono" : undefined}
+    className={mono ? "splr-mono" : undefined}
     title={title ?? (typeof children === "string" ? children : "")}
     style={{
       maxWidth,
@@ -67,11 +67,11 @@ const priorityBadgeClass = (level) => {
   const n = Number(level);
   switch (n) {
     case 1:
-      return "badge level-priority";
+      return "splr-badge splr-level-priority";
     case 2:
-      return "badge level-vip";
+      return "splr-badge splr-level-vip";
     default:
-      return "badge level-other";
+      return "splr-badge splr-level-other";
   }
 };
 
@@ -202,32 +202,36 @@ function RuleModal({
   if (!open) return null;
 
   return (
-    <div className="cat-modal-backdrop">
-      <div className="cat-modal-card">
-        <div className="cat-modal-header">
+    <div className="splr-modal-backdrop">
+      <div className="splr-modal-card">
+        <div className="splr-modal-header">
           <h3>{isEdit ? "Chỉnh sửa rule ưu tiên" : "Thêm rule ưu tiên"}</h3>
           {/* Trạng thái + luật ngay cạnh */}
-          <div className="group" style={{ marginTop: 8 }}>
+          <div className="splr-group" style={{ marginTop: 8 }}>
             <div
-              className="row"
+              className="splr-row"
               style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}
             >
-              <label className="switch" title="Bật/Tắt rule">
+              <label className="splr-switch" title="Bật/Tắt rule">
                 <input
                   type="checkbox"
                   checked={!!form.isActive}
                   onChange={() => set("isActive", !form.isActive)}
                 />
-                <span className="slider" />
+                <span className="splr-slider" />
               </label>
               <span
-                className={form.isActive ? "badge green" : "badge gray"}
+                className={
+                  form.isActive
+                    ? "splr-badge splr-badge--green"
+                    : "splr-badge splr-badge--gray"
+                }
                 style={{ textTransform: "none" }}
               >
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
 
-              {/* <div className="muted support-priority-modal-note">
+              {/* <div className="splr-muted splr-modal-note">
                 <strong>Quy tắc khi bật rule:</strong>
                 <div>
                   - Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>1 rule đang bật</b>.
@@ -251,10 +255,10 @@ function RuleModal({
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="cat-modal-body input-group">
+          <div className="splr-modal-body splr-input-group">
             {/* Hàng 1: Tổng chi tiêu tối thiểu + Mức ưu tiên */}
-            <div className="row" style={{ gap: 16 }}>
-              <div className="group" style={{ flex: 1 }}>
+            <div className="splr-row" style={{ gap: 16 }}>
+              <div className="splr-group" style={{ flex: 1 }}>
                 <span>
                   Tổng chi tiêu tối thiểu (TotalProductSpend) <RequiredMark />
                 </span>
@@ -269,7 +273,7 @@ function RuleModal({
                 <FieldError message={errors.minTotalSpend} />
               </div>
 
-              <div className="group" style={{ width: 240 }}>
+              <div className="splr-group" style={{ width: 240 }}>
                 <span>
                   Mức ưu tiên (PriorityLevel) <RequiredMark />
                 </span>
@@ -286,10 +290,10 @@ function RuleModal({
             </div>
           </div>
 
-          <div className="cat-modal-footer">
+          <div className="splr-modal-footer">
             <button
               type="button"
-              className="btn"
+              className="splr-btn"
               onClick={handleClose}
               disabled={submitting}
             >
@@ -297,7 +301,7 @@ function RuleModal({
             </button>
             <button
               type="submit"
-              className="btn primary"
+              className="splr-btn splr-primary"
               disabled={submitting}
             >
               {submitting
@@ -506,8 +510,8 @@ export default function SupportPriorityLoyaltyRulesPage() {
   // ===== Render =====
   return (
     <>
-      <div className="page">
-        <div className="card">
+      <div className="splr-page">
+        <div className="splr-card">
           {/* Header */}
           <div
             style={{
@@ -519,7 +523,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
             <h2>Cấu hình ưu tiên hỗ trợ theo tổng chi tiêu</h2>
           </div>
 
-          <p className="muted" style={{ marginTop: 4 }}>
+          <p className="splr-muted" style={{ marginTop: 4 }}>
             Định nghĩa các mốc <b>TotalProductSpend</b> tương ứng với
             <b> PriorityLevel</b> (1 = Priority, 2 = VIP, …). Level 0 (Standard)
             là mức mặc định, không cấu hình tại màn hình này. Hệ thống sẽ dựa
@@ -528,8 +532,8 @@ export default function SupportPriorityLoyaltyRulesPage() {
           </p>
 
           {/* Ghi chú luật rule ưu tiên */}
-          <div className="support-priority-rules-note">
-            <div className="support-priority-rules-note-title">
+          <div className="splr-rules-note">
+            <div className="splr-rules-note-title">
               Luật khi tạo & bật rule ưu tiên:
             </div>
             <ul>
@@ -553,9 +557,9 @@ export default function SupportPriorityLoyaltyRulesPage() {
           </div>
 
           {/* Bộ lọc + nút trên cùng một hàng */}
-          <div className="input-group filter-row">
+          <div className="splr-input-group splr-filter-row">
             {/* Filter: Priority */}
-            <div className="group" style={{ width: 220 }}>
+            <div className="splr-group" style={{ width: 220 }}>
               <span>Mức ưu tiên</span>
               <select
                 value={query.priorityLevel}
@@ -573,7 +577,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
             </div>
 
             {/* Filter: Status */}
-            <div className="group" style={{ width: 220 }}>
+            <div className="splr-group" style={{ width: 220 }}>
               <span>Trạng thái</span>
               <select
                 value={query.active}
@@ -588,13 +592,15 @@ export default function SupportPriorityLoyaltyRulesPage() {
             </div>
 
             {/* Cụm Làm mới + Đặt lại + (loading) ngay cạnh filter */}
-            <div className="group filter-actions">
+            <div className="splr-group splr-filter-actions">
               <span>&nbsp;</span>
-              <div className="filter-actions-inner">
-                {loading && <span className="badge gray">Đang tải…</span>}
+              <div className="splr-filter-actions-inner">
+                {loading && (
+                  <span className="splr-badge splr-badge--gray">Đang tải…</span>
+                )}
 
                 <button
-                  className="btn ghost"
+                  className="splr-btn splr-ghost"
                   onClick={loadRules}
                   disabled={loading}
                   title="Làm mới dữ liệu với bộ lọc hiện tại"
@@ -603,7 +609,7 @@ export default function SupportPriorityLoyaltyRulesPage() {
                 </button>
 
                 <button
-                  className="btn secondary"
+                  className="splr-btn splr-secondary"
                   onClick={() =>
                     setQuery({
                       priorityLevel: "",
@@ -620,16 +626,19 @@ export default function SupportPriorityLoyaltyRulesPage() {
             </div>
 
             {/* Nút Thêm rule: sát phải hàng */}
-            <div className="group filter-add">
+            <div className="splr-group splr-filter-add">
               <span>&nbsp;</span>
-              <button className="btn primary" onClick={openAddRule}>
+              <button
+                className="splr-btn splr-primary"
+                onClick={openAddRule}
+              >
                 Thêm rule ưu tiên
               </button>
             </div>
           </div>
 
           {/* Bảng rules */}
-          <table className="table" style={{ marginTop: 10 }}>
+          <table className="splr-table" style={{ marginTop: 10 }}>
             <thead>
               <tr>
                 <th
@@ -752,12 +761,14 @@ export default function SupportPriorityLoyaltyRulesPage() {
                   <td>
                     <button
                       type="button"
-                      className="btn ghost status-btn"
+                      className="splr-btn splr-ghost splr-status-btn"
                       onClick={() => toggleRuleActive(r)}
                     >
                       <span
                         className={
-                          r.isActive ? "badge green" : "badge gray"
+                          r.isActive
+                            ? "splr-badge splr-badge--green"
+                            : "splr-badge splr-badge--gray"
                         }
                         style={{ textTransform: "none" }}
                       >
@@ -767,17 +778,17 @@ export default function SupportPriorityLoyaltyRulesPage() {
                   </td>
                   <td>
                     <div
-                      className="row"
+                      className="splr-row"
                       style={{ gap: 8, justifyContent: "flex-end" }}
                     >
                       <button
-                        className="btn secondary"
+                        className="splr-btn splr-secondary"
                         onClick={() => openEditRule(r)}
                       >
                         Sửa
                       </button>
                       <button
-                        className="btn danger"
+                        className="splr-btn splr-danger"
                         onClick={() => deleteRule(r)}
                       >
                         Xoá
@@ -798,22 +809,22 @@ export default function SupportPriorityLoyaltyRulesPage() {
           </table>
 
           {/* Pagination */}
-          <div className="pager">
-            <div className="pager-left">
+          <div className="splr-pager">
+            <div className="splr-pager-left">
               <button
-                className="pager-btn"
+                className="splr-pager-btn"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 ‹ Trước
               </button>
 
-              <span className="pager-current">
+              <span className="splr-pager-current">
                 Trang <b>{page}</b> / {totalPages}
               </span>
 
               <button
-                className="pager-btn"
+                className="splr-pager-btn"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
@@ -821,10 +832,10 @@ export default function SupportPriorityLoyaltyRulesPage() {
               </button>
             </div>
 
-            <div className="pager-right">
-              <span className="pager-page-size-label">Số dòng / trang:</span>
+            <div className="splr-pager-right">
+              <span className="splr-pager-page-size-label">Số dòng / trang:</span>
               <select
-                className="pager-page-size"
+                className="splr-pager-page-size"
                 value={pageSize}
                 onChange={(e) => {
                   const v = Number(e.target.value || 10);

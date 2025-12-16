@@ -26,7 +26,7 @@ const FieldError = ({ message }) =>
 
 const EllipsisCell = ({ children, title, maxWidth = 260, mono = false }) => (
   <div
-    className={mono ? "mono" : undefined}
+    className={mono ? "ktk-spa-mono" : undefined}
     title={title ?? (typeof children === "string" ? children : "")}
     style={{
       maxWidth,
@@ -72,11 +72,11 @@ const priorityBadgeClass = (level) => {
   const n = Number(level);
   switch (n) {
     case 1:
-      return "badge level-priority";
+      return "ktk-spa-badge ktk-spa-badge--level-priority";
     case 2:
-      return "badge level-vip";
+      return "ktk-spa-badge ktk-spa-badge--level-vip";
     default:
-      return "badge level-other";
+      return "ktk-spa-badge ktk-spa-badge--level-other";
   }
 };
 
@@ -246,22 +246,27 @@ function SupportPlanModal({
   if (!open) return null;
 
   return (
-    <div className="cat-modal-backdrop">
-      <div className="cat-modal-card">
-        <div className="cat-modal-header">
+    <div className="ktk-spa-modalBackdrop">
+      <div className="ktk-spa-modalCard">
+        <div className="ktk-spa-modalHeader">
           <h3>{isEdit ? "Chỉnh sửa gói hỗ trợ" : "Thêm gói hỗ trợ"}</h3>
-          <div className="group" style={{ marginTop: 8 }}>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <label className="switch" title="Bật/Tắt gói hỗ trợ">
+
+          <div className="ktk-spa-group" style={{ marginTop: 8 }}>
+            <div className="ktk-spa-row" style={{ gap: 8, alignItems: "center" }}>
+              <label className="ktk-spa-switch" title="Bật/Tắt gói hỗ trợ">
                 <input
                   type="checkbox"
                   checked={!!form.isActive}
                   onChange={() => set("isActive", !form.isActive)}
                 />
-                <span className="slider" />
+                <span className="ktk-spa-slider" />
               </label>
               <span
-                className={form.isActive ? "badge green" : "badge gray"}
+                className={
+                  form.isActive
+                    ? "ktk-spa-badge ktk-spa-badge--green"
+                    : "ktk-spa-badge ktk-spa-badge--gray"
+                }
                 style={{ textTransform: "none" }}
               >
                 {form.isActive ? "Đang bật" : "Đang tắt"}
@@ -271,9 +276,9 @@ function SupportPlanModal({
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="cat-modal-body input-group">
-            <div className="row" style={{ gap: 16 }}>
-              <div className="group" style={{ flex: 1 }}>
+          <div className="ktk-spa-modalBody">
+            <div className="ktk-spa-row" style={{ gap: 16 }}>
+              <div className="ktk-spa-group" style={{ flex: 1 }}>
                 <span>
                   Tên gói hỗ trợ <RequiredMark />
                 </span>
@@ -286,7 +291,7 @@ function SupportPlanModal({
                 <FieldError message={errors.name} />
               </div>
 
-              <div className="group" style={{ width: 240 }}>
+              <div className="ktk-spa-group" style={{ width: 240 }}>
                 <span>
                   Mức ưu tiên (PriorityLevel) <RequiredMark />
                 </span>
@@ -305,8 +310,8 @@ function SupportPlanModal({
               </div>
             </div>
 
-            <div className="row" style={{ gap: 16, marginTop: 12 }}>
-              <div className="group" style={{ width: 280 }}>
+            <div className="ktk-spa-row" style={{ gap: 16, marginTop: 12 }}>
+              <div className="ktk-spa-group" style={{ width: 280 }}>
                 <span>
                   Giá gói (VNĐ) <RequiredMark />
                 </span>
@@ -322,8 +327,8 @@ function SupportPlanModal({
               </div>
             </div>
 
-            <div className="row" style={{ marginTop: 12 }}>
-              <div className="group" style={{ flex: 1 }}>
+            <div className="ktk-spa-row" style={{ marginTop: 12 }}>
+              <div className="ktk-spa-group" style={{ flex: 1 }}>
                 <span>Mô tả gói hỗ trợ</span>
                 <textarea
                   rows={3}
@@ -336,10 +341,10 @@ function SupportPlanModal({
             </div>
           </div>
 
-          <div className="cat-modal-footer">
+          <div className="ktk-spa-modalFooter">
             <button
               type="button"
-              className="btn"
+              className="ktk-spa-btn"
               onClick={handleClose}
               disabled={submitting}
             >
@@ -347,7 +352,7 @@ function SupportPlanModal({
             </button>
             <button
               type="submit"
-              className="btn primary"
+              className="ktk-spa-btn ktk-spa-btn--primary"
               disabled={submitting}
             >
               {submitting
@@ -368,11 +373,26 @@ function SupportPlanModal({
 /* ============ Page: SupportPlansAdminPage ============ */
 export default function SupportPlansAdminPage() {
   // Check permissions
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "VIEW_LIST");
-  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "VIEW_DETAIL");
-  const { hasPermission: canCreate } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "CREATE");
-  const { hasPermission: canEdit } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "EDIT");
-  const { hasPermission: canDelete } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "DELETE");
+  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(
+    MODULE_CODES.SUPPORT_MANAGER,
+    "VIEW_LIST"
+  );
+  const { hasPermission: canViewDetail } = usePermission(
+    MODULE_CODES.SUPPORT_MANAGER,
+    "VIEW_DETAIL"
+  );
+  const { hasPermission: canCreate } = usePermission(
+    MODULE_CODES.SUPPORT_MANAGER,
+    "CREATE"
+  );
+  const { hasPermission: canEdit } = usePermission(
+    MODULE_CODES.SUPPORT_MANAGER,
+    "EDIT"
+  );
+  const { hasPermission: canDelete } = usePermission(
+    MODULE_CODES.SUPPORT_MANAGER,
+    "DELETE"
+  );
 
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
@@ -384,10 +404,7 @@ export default function SupportPlansAdminPage() {
 
   const addToast = (type, message, title) => {
     const id = toastIdRef.current++;
-    setToasts((prev) => [
-      ...prev,
-      { id, type, message, title: title || undefined },
-    ]);
+    setToasts((prev) => [...prev, { id, type, message, title: title || undefined }]);
     setTimeout(() => removeToast(id), 5000);
     return id;
   };
@@ -454,27 +471,32 @@ export default function SupportPlansAdminPage() {
           : [];
         setPlans(items);
         setPage(typeof res?.page === "number" ? res.page : page);
-        setPageSize(
-          typeof res?.pageSize === "number" ? res.pageSize : pageSize
-        );
+        setPageSize(typeof res?.pageSize === "number" ? res.pageSize : pageSize);
         setTotal(typeof res?.total === "number" ? res.total : items.length);
       })
       .catch((err) => {
         console.error(err);
-        // Handle network errors globally - only show one toast
-        if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (err.isNetworkError || err.message === "Lỗi kết nối đến máy chủ") {
           if (!networkErrorShownRef.current) {
             networkErrorShownRef.current = true;
-            addToast("error", "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.", "Lỗi kết nối");
+            addToast(
+              "error",
+              "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.",
+              "Lỗi kết nối"
+            );
           }
         } else {
-          // Check if error message contains permission denied - only show once
-          const isPermissionError = err.message?.includes('không có quyền') || 
-                                    err.message?.includes('quyền truy cập') ||
-                                    err.response?.status === 403;
+          const isPermissionError =
+            err.message?.includes("không có quyền") ||
+            err.message?.includes("quyền truy cập") ||
+            err.response?.status === 403;
+
           if (isPermissionError && !permissionErrorShownRef.current) {
             permissionErrorShownRef.current = true;
-            const errorMsg = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+            const errorMsg =
+              err?.response?.data?.message ||
+              err.message ||
+              "Bạn không có quyền truy cập chức năng này.";
             addToast("error", errorMsg, "Lỗi tải dữ liệu");
           } else if (!isPermissionError) {
             addToast("error", "Không tải được danh sách gói hỗ trợ.", "Lỗi");
@@ -482,7 +504,7 @@ export default function SupportPlansAdminPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, [query, page, pageSize, addToast]);
+  }, [query, page, pageSize]);
 
   React.useEffect(() => {
     const t = setTimeout(loadPlans, 300);
@@ -504,16 +526,16 @@ export default function SupportPlansAdminPage() {
 
   const openEditPlan = async (p) => {
     if (!canViewDetail) {
-      addToast("error", "Bạn không có quyền xem chi tiết và chỉnh sửa gói hỗ trợ.", "Không có quyền");
+      addToast(
+        "error",
+        "Bạn không có quyền xem chi tiết và chỉnh sửa gói hỗ trợ.",
+        "Không có quyền"
+      );
       return;
     }
     try {
       const detail = await SupportPlansAdminApi.get(p.supportPlanId);
-      setPlanModal({
-        open: true,
-        mode: "edit",
-        data: detail,
-      });
+      setPlanModal({ open: true, mode: "edit", data: detail });
     } catch (e) {
       console.error(e);
       addToast(
@@ -540,10 +562,7 @@ export default function SupportPlansAdminPage() {
         await SupportPlansAdminApi.create(payload);
         addToast("success", "Đã tạo gói hỗ trợ mới.", "Thành công");
       } else if (planModal.mode === "edit" && planModal.data) {
-        await SupportPlansAdminApi.update(
-          planModal.data.supportPlanId,
-          payload
-        );
+        await SupportPlansAdminApi.update(planModal.data.supportPlanId, payload);
         addToast("success", "Đã cập nhật gói hỗ trợ.", "Thành công");
       }
 
@@ -551,11 +570,7 @@ export default function SupportPlansAdminPage() {
       loadPlans();
     } catch (e) {
       console.error(e);
-      addToast(
-        "error",
-        e?.response?.data?.message || "Lưu gói hỗ trợ thất bại.",
-        "Lỗi"
-      );
+      addToast("error", e?.response?.data?.message || "Lưu gói hỗ trợ thất bại.", "Lỗi");
     } finally {
       setPlanSubmitting(false);
     }
@@ -574,8 +589,7 @@ export default function SupportPlansAdminPage() {
       console.error(e);
       addToast(
         "error",
-        e?.response?.data?.message ||
-          "Không thể cập nhật trạng thái gói hỗ trợ.",
+        e?.response?.data?.message || "Không thể cập nhật trạng thái gói hỗ trợ.",
         "Lỗi"
       );
     }
@@ -588,11 +602,7 @@ export default function SupportPlansAdminPage() {
     }
     openConfirm({
       title: "Xoá gói hỗ trợ?",
-      message: `Xoá gói "${p.name}" với mức ưu tiên ${priorityLabel(
-        p.priorityLevel
-      )} và giá ${formatCurrency(
-        p.price
-      )}? Hành động này không thể hoàn tác!`,
+      message: `Xoá gói "${p.name}" với mức ưu tiên ${priorityLabel(p.priorityLevel)} và giá ${formatCurrency(p.price)}? Hành động này không thể hoàn tác!`,
       onConfirm: async () => {
         try {
           await SupportPlansAdminApi.remove(p.supportPlanId);
@@ -600,11 +610,7 @@ export default function SupportPlansAdminPage() {
           loadPlans();
         } catch (e) {
           console.error(e);
-          addToast(
-            "error",
-            e?.response?.data?.message || "Xoá gói hỗ trợ thất bại.",
-            "Lỗi"
-          );
+          addToast("error", e?.response?.data?.message || "Xoá gói hỗ trợ thất bại.", "Lỗi");
         }
       },
     });
@@ -620,12 +626,11 @@ export default function SupportPlansAdminPage() {
     setPage(1);
   };
 
-  // Show loading while checking permission
   if (permissionLoading) {
     return (
-      <div className="page support-plans-page">
-        <div className="card">
-          <div className="card-header">
+      <div className="ktk-support-plans-admin">
+        <div className="ktk-spa-card">
+          <div className="ktk-spa-cardHeader">
             <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
           </div>
           <div style={{ padding: "20px", textAlign: "center" }}>
@@ -636,17 +641,19 @@ export default function SupportPlansAdminPage() {
     );
   }
 
-  // Show access denied message if no VIEW_LIST permission
   if (!canViewList) {
     return (
-      <div className="page support-plans-page">
-        <div className="card">
-          <div className="card-header">
+      <div className="ktk-support-plans-admin">
+        <div className="ktk-spa-card">
+          <div className="ktk-spa-cardHeader">
             <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
           </div>
           <div style={{ padding: "20px" }}>
             <h2>Không có quyền truy cập</h2>
-            <p>Bạn không có quyền xem danh sách gói hỗ trợ. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+            <p>
+              Bạn không có quyền xem danh sách gói hỗ trợ. Vui lòng liên hệ quản trị viên để
+              được cấp quyền.
+            </p>
           </div>
         </div>
       </div>
@@ -655,12 +662,12 @@ export default function SupportPlansAdminPage() {
 
   return (
     <>
-      <div className="page support-plans-page">
-        <div className="card">
-          <div className="card-header">
-            <div className="left">
+      <div className="ktk-support-plans-admin">
+        <div className="ktk-spa-card">
+          <div className="ktk-spa-cardHeader">
+            <div className="ktk-spa-left">
               <h2>Cấu hình gói hỗ trợ (Support Plans)</h2>
-              <p className="muted">
+              <p className="ktk-spa-muted">
                 Quản lý các gói hỗ trợ (Standard, Priority, VIP...) mà khách
                 hàng có thể đăng ký. Mỗi <b>PriorityLevel</b> có tối đa{" "}
                 <b>1 gói đang hoạt động</b> tại một thời điểm. Hệ thống cũng
@@ -669,11 +676,8 @@ export default function SupportPlansAdminPage() {
             </div>
           </div>
 
-          {/* Ghi chú luật gói hỗ trợ */}
-          <div className="support-plan-rules-note">
-            <div className="support-plan-rules-note-title">
-              Luật khi tạo & bật gói hỗ trợ:
-            </div>
+          <div className="ktk-spa-rulesNote">
+            <div className="ktk-spa-rulesNoteTitle">Luật khi tạo & bật gói hỗ trợ:</div>
             <ul>
               <li>
                 Mỗi <b>PriorityLevel</b> chỉ có tối đa <b>1 gói đang bật</b>.
@@ -700,9 +704,8 @@ export default function SupportPlansAdminPage() {
             </ul>
           </div>
 
-          {/* Hàng filter + nút */}
           <div
-            className="row"
+            className="ktk-spa-row"
             style={{
               gap: 10,
               marginTop: 12,
@@ -710,9 +713,8 @@ export default function SupportPlansAdminPage() {
               flexWrap: "nowrap",
             }}
           >
-            {/* Cụm filter + Làm mới + Đặt lại (bên trái, chiếm rộng) */}
             <div
-              className="row"
+              className="ktk-spa-row"
               style={{
                 gap: 12,
                 flex: 1,
@@ -720,15 +722,12 @@ export default function SupportPlansAdminPage() {
                 alignItems: "flex-end",
               }}
             >
-              <div className="group" style={{ width: 220 }}>
+              <div className="ktk-spa-group" style={{ width: 220 }}>
                 <span>Mức ưu tiên</span>
                 <select
                   value={query.priorityLevel}
                   onChange={(e) =>
-                    setQuery((s) => ({
-                      ...s,
-                      priorityLevel: e.target.value,
-                    }))
+                    setQuery((s) => ({ ...s, priorityLevel: e.target.value }))
                   }
                 >
                   <option value="">Tất cả</option>
@@ -740,7 +739,7 @@ export default function SupportPlansAdminPage() {
                 </select>
               </div>
 
-              <div className="group" style={{ width: 220 }}>
+              <div className="ktk-spa-group" style={{ width: 220 }}>
                 <span>Trạng thái</span>
                 <select
                   value={query.active}
@@ -754,19 +753,20 @@ export default function SupportPlansAdminPage() {
                 </select>
               </div>
 
-              {/* Nhóm Làm mới + Đặt lại */}
               <div
-                className="row"
+                className="ktk-spa-row"
                 style={{
                   gap: 8,
                   alignItems: "flex-end",
                   flexShrink: 0,
                 }}
               >
-                {loading && <span className="badge gray">Đang tải…</span>}
+                {loading && (
+                  <span className="ktk-spa-badge ktk-spa-badge--gray">Đang tải…</span>
+                )}
 
                 <button
-                  className="btn ghost"
+                  className="ktk-spa-btn ktk-spa-btn--ghost"
                   onClick={loadPlans}
                   disabled={loading}
                   title="Làm mới dữ liệu với bộ lọc hiện tại"
@@ -775,7 +775,7 @@ export default function SupportPlansAdminPage() {
                 </button>
 
                 <button
-                  className="btn secondary"
+                  className="ktk-spa-btn ktk-spa-btn--secondary"
                   onClick={resetFilters}
                   title="Xoá bộ lọc"
                 >
@@ -784,9 +784,8 @@ export default function SupportPlansAdminPage() {
               </div>
             </div>
 
-            {/* Nút Thêm gói nằm sát phải */}
             <button
-              className="btn primary"
+              className="ktk-spa-btn ktk-spa-btn--primary"
               style={{ flexShrink: 0, whiteSpace: "nowrap" }}
               onClick={openAddPlan}
             >
@@ -794,8 +793,7 @@ export default function SupportPlansAdminPage() {
             </button>
           </div>
 
-          {/* Bảng plans – giống style SLA */}
-          <table className="table" style={{ marginTop: 10 }}>
+          <table className="ktk-spa-table">
             <thead>
               <tr>
                 <th style={{ width: 80 }}>ID</th>
@@ -803,14 +801,7 @@ export default function SupportPlansAdminPage() {
                 <th style={{ width: 160 }}>Mức ưu tiên</th>
                 <th style={{ width: 160 }}>Giá gói</th>
                 <th style={{ width: 140 }}>Trạng thái</th>
-                <th
-                  style={{
-                    width: 180,
-                    paddingRight: 10,
-                  }}
-                >
-                  Thao tác
-                </th>
+                <th style={{ width: 180, paddingRight: 10 }}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -822,13 +813,13 @@ export default function SupportPlansAdminPage() {
                     </EllipsisCell>
                   </td>
                   <td>
-                    <div className="col">
+                    <div className="ktk-spa-col">
                       <EllipsisCell maxWidth={260} title={p.name}>
                         <b>{p.name}</b>
                       </EllipsisCell>
                       {p.description && (
                         <EllipsisCell maxWidth={260} title={p.description}>
-                          <span className="muted">{p.description}</span>
+                          <span className="ktk-spa-muted">{p.description}</span>
                         </EllipsisCell>
                       )}
                     </div>
@@ -839,31 +830,26 @@ export default function SupportPlansAdminPage() {
                     </span>
                   </td>
                   <td>
-                    <EllipsisCell
-                      mono
-                      maxWidth={160}
-                      title={formatCurrency(p.price)}
-                    >
+                    <EllipsisCell mono maxWidth={160} title={formatCurrency(p.price)}>
                       {formatCurrency(p.price)}
                     </EllipsisCell>
                   </td>
-
-                  {/* Cột Trạng thái: badge Hiển thị / Ẩn giống SLA */}
                   <td>
                     <span
-                      className={p.isActive ? "badge green" : "badge gray"}
+                      className={
+                        p.isActive
+                          ? "ktk-spa-badge ktk-spa-badge--green"
+                          : "ktk-spa-badge ktk-spa-badge--gray"
+                      }
                       style={{ textTransform: "none" }}
                     >
                       {p.isActive ? "Hiển thị" : "Ẩn"}
                     </span>
                   </td>
-
-                  {/* Cột Thao tác: switch + icon Sửa/Xoá giống SLA */}
                   <td>
-                    <div className="action-buttons">
-                      {/* Switch bật/tắt */}
+                    <div className="ktk-spa-actionButtons">
                       <label
-                        className="switch"
+                        className="ktk-spa-switch"
                         title={p.isActive ? "Đang bật" : "Đang tắt"}
                       >
                         <input
@@ -871,17 +857,15 @@ export default function SupportPlansAdminPage() {
                           checked={!!p.isActive}
                           onChange={() => togglePlanActive(p)}
                         />
-                        <span className="slider" />
+                        <span className="ktk-spa-slider" />
                       </label>
 
-                      {/* Nút Sửa */}
                       <button
                         type="button"
-                        className="action-btn edit-btn"
+                        className="ktk-spa-actionBtn ktk-spa-actionBtn--edit"
                         onClick={() => openEditPlan(p)}
                         title="Chỉnh sửa gói hỗ trợ"
                       >
-                        {/* icon bút chì */}
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
@@ -896,14 +880,12 @@ export default function SupportPlansAdminPage() {
                         </svg>
                       </button>
 
-                      {/* Nút Xoá */}
                       <button
                         type="button"
-                        className="action-btn delete-btn"
+                        className="ktk-spa-actionBtn ktk-spa-actionBtn--delete"
                         onClick={() => deletePlan(p)}
                         title="Xoá gói hỗ trợ"
                       >
-                        {/* icon thùng rác */}
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
@@ -943,29 +925,27 @@ export default function SupportPlansAdminPage() {
             </tbody>
           </table>
 
-          {/* Pagination giống SLA */}
-          <div className="pager">
-            <div className="pager-left">
+          <div className="ktk-spa-pager">
+            <div className="ktk-spa-pagerLeft">
               <button
-                className="pager-btn"
+                className="ktk-spa-pagerBtn"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 ‹ Trước
               </button>
 
-              <span className="pager-info">
+              <span className="ktk-spa-pagerInfo">
                 Trang {page} / {totalPages}{" "}
                 {total > 0 && (
                   <>
-                    • Tổng{" "}
-                    <b>{total.toLocaleString("vi-VN")} gói</b>
+                    • Tổng <b>{total.toLocaleString("vi-VN")} gói</b>
                   </>
                 )}
               </span>
 
               <button
-                className="pager-btn"
+                className="ktk-spa-pagerBtn"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
@@ -973,8 +953,8 @@ export default function SupportPlansAdminPage() {
               </button>
             </div>
 
-            <div className="pager-right">
-              <span className="muted">Mỗi trang:</span>
+            <div className="ktk-spa-pagerRight">
+              <span className="ktk-spa-muted">Mỗi trang:</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
@@ -997,12 +977,7 @@ export default function SupportPlansAdminPage() {
         open={planModal.open}
         mode={planModal.mode}
         initial={planModal.data}
-        onClose={() =>
-          setPlanModal((m) => ({
-            ...m,
-            open: false,
-          }))
-        }
+        onClose={() => setPlanModal((m) => ({ ...m, open: false }))}
         onSubmit={handlePlanSubmit}
         submitting={planSubmitting}
         addToast={addToast}

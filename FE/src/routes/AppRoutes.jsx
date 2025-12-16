@@ -2,13 +2,12 @@
  * File: AppRoutes.jsx
  * Author: Keytietkiem Team
  * Created: 18/10/2025
- * Last Updated: 25/10/2025
- * Version: 1.0.0
+ * Last Updated: 15/12/2025
+ * Version: 1.0.1
  * Purpose: Application routes with layout separation (Client and Admin)
  */
 import { Route, Routes } from "react-router-dom";
 import { Suspense, lazy } from "react";
-// import { Routes, Route } from "react-router-dom";
 import AdminLayout from "../layout/AdminLayout/AdminLayout";
 import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
@@ -36,7 +35,7 @@ import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
 import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
-import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx"; 
+import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -68,10 +67,10 @@ import BlogList from "../pages/blog/Bloglist.jsx";
 import StorefrontProductListPage from "../pages/storefront/StorefrontProductListPage.jsx";
 import StorefrontHomepagePage from "../pages/storefront/StorefrontHomepagePage.jsx";
 import StorefrontProductDetailPage from "../pages/storefront/StorefrontProductDetailPage.jsx";
-import StorefrontCartPage from "../pages/storefront/StorefrontCartPage";
-import PaymentCancelPage from "../pages/storefront/PaymentCancelPage";
-import PaymentResultPage from "../pages/storefront/PaymentResultPage";
-import BlogDetail from '../pages/blog/BlogDetail.jsx';
+import StorefrontCartPage from "../pages/storefront/StorefrontCartPage.jsx";
+import CartPaymentCancelPage from "../pages/storefront/CartPaymentCancelPage.jsx";
+import CartPaymentResultPage from "../pages/storefront/CartPaymentResultPage.jsx";
+import BlogDetail from "../pages/blog/BlogDetail.jsx";
 
 // Customer ticket pages
 import CustomerTicketCreatePage from "../pages/tickets/customer-ticket-create";
@@ -96,8 +95,6 @@ import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
 import SupportDashboardAdminPage from "../pages/admin/SupportDashboardAdminPage";
 
-
-
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
   import("../pages/admin/admin-ticket-detail.jsx").then((m) => ({
@@ -105,8 +102,8 @@ const AdminTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-          ? m.AdminTicketDetail
-          : () => null,
+        ? m.AdminTicketDetail
+        : () => null,
   }))
 );
 
@@ -117,15 +114,11 @@ const StaffTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.StaffTicketDetail === "function"
-          ? m.StaffTicketDetail
-          : () => null,
+        ? m.StaffTicketDetail
+        : () => null,
   }))
 );
 
-/**
- * @summary: Configure and render application routes with appropriate layouts.
- * @returns {JSX.Element} - Routes configuration with ClientLayout and AdminLayout
- */
 export default function AppRoutes() {
   const renderAdminPage = (component) => (
     <ProtectedRoute>
@@ -140,93 +133,29 @@ export default function AppRoutes() {
         path="/"
         element={
           <ClientLayout>
-            {/* dùng homepage storefront mới làm trang mặc định */}
             <StorefrontHomepagePage />
           </ClientLayout>
         }
       />
 
-      <Route
-        path="/login"
-        element={
-          <ClientLayout>
-            <LoginPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          <ClientLayout>
-            <SignUpPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/forgot-password"
-        element={
-          <ClientLayout>
-            <ForgotPasswordPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/check-reset-email"
-        element={
-          <ClientLayout>
-            <CheckEmailPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/reset-password"
-        element={
-          <ClientLayout>
-            <ResetPasswordPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/account/profile"
-        element={
-          <ClientLayout>
-            <UserProfilePage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ClientLayout>
-            <UserProfilePage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/orderhistory/:id"
-        element={
-          <ClientLayout>
-            <OrderHistoryDetailPage />
-          </ClientLayout>
-        }
-      />
-      <Route path="/admin" element={<div />} />
-      <Route
-        path="/admin/profile"
-        element={
-          <AdminLayout>
-            <AdminProfilePage />
-          </AdminLayout>
-        }
-      />
-      <Route
-        path="/staff/profile"
-        element={
-          <AdminLayout>
-            <AdminProfilePage />
-          </AdminLayout>
-        }
-      />
+      {/* Auth */}
+      <Route path="/login" element={<ClientLayout><LoginPage /></ClientLayout>} />
+      <Route path="/register" element={<ClientLayout><SignUpPage /></ClientLayout>} />
+      <Route path="/forgot-password" element={<ClientLayout><ForgotPasswordPage /></ClientLayout>} />
+      <Route path="/check-reset-email" element={<ClientLayout><CheckEmailPage /></ClientLayout>} />
+      <Route path="/reset-password" element={<ClientLayout><ResetPasswordPage /></ClientLayout>} />
+
+      {/* Profile */}
+      <Route path="/account/profile" element={<ClientLayout><UserProfilePage /></ClientLayout>} />
+      <Route path="/profile" element={<ClientLayout><UserProfilePage /></ClientLayout>} />
+
+      {/* Order history (cũ) */}
+      <Route path="/orderhistory/:id" element={<ClientLayout><OrderHistoryDetailPage /></ClientLayout>} />
+
+      {/* Admin Profile */}
+      <Route path="/admin/profile" element={<AdminLayout><AdminProfilePage /></AdminLayout>} />
+      <Route path="/staff/profile" element={<AdminLayout><AdminProfilePage /></AdminLayout>} />
+
       {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
@@ -332,11 +261,11 @@ export default function AppRoutes() {
         path="/admin/orders"
         element={renderAdminPage(<OrderPaymentPage />)}
       />
-      {/* Alias: /admin/payments cũng mở cùng page */}
       <Route
         path="/admin/payments"
         element={renderAdminPage(<OrderPaymentPage />)}
       />
+
       {/* FAQs */}
       <Route
         path="/admin/faqs"
@@ -382,8 +311,16 @@ export default function AppRoutes() {
         element={renderAdminPage(<TagPostTypeManage />)}
       />
 
-      {/* 404 - Default to Client Layout - Fallbacks*/}
-      <Route path="*" element={<Page404 />} />
+      {/* Role */}
+      <Route path="/role-manage" element={renderAdminPage(MODULE_CODES.ROLE_MANAGER, <RoleManage />)} />
+      <Route path="/role-assign" element={renderAdminPage(MODULE_CODES.ROLE_MANAGER, <RoleAssign />)} />
+
+      {/* Post */}
+      <Route path="/post-dashboard" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostDashboardPage />)} />
+      <Route path="/admin-post-list" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <AdminPostList />)} />
+      <Route path="/post-create-edit" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostCreateEdit />)} />
+      <Route path="/post-create-edit/:postId" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostCreateEdit />)} />
+      <Route path="/tag-post-type-manage" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <TagPostTypeManage />)} />
 
       {/* Suppliers */}
       <Route
@@ -420,6 +357,12 @@ export default function AppRoutes() {
       />
 
       {/* Product Accounts */}
+      <Route path="/accounts" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountManagementPage />)} />
+      <Route path="/accounts/add" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountDetailPage />)} />
+      <Route path="/accounts/:id" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountDetailPage />)} />
+
+      {/* Settings */}
+      <Route path="/admin/website-config" element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <WebsiteConfig />)} />
       <Route
         path="/accounts"
         element={renderAdminPage(<AccountManagementPage />)}
@@ -462,6 +405,11 @@ export default function AppRoutes() {
           </ClientLayout>
         }
       />
+      <Route path="/admin/support-chats" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <AdminSupportChatPage />)} />
+      <Route path="/staff/support-chats" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <StaffSupportChatPage />)} />
+
+      {/* Support plan subscription */}
+      <Route path="/support/subscription" element={<ClientLayout><SupportPlanSubscriptionPage /></ClientLayout>} />
       <Route
         path="/admin/support-priority-loyalty-rules"
         element={renderAdminPage(<SupportPriorityLoyaltyRulesPage />)}
@@ -474,6 +422,8 @@ export default function AppRoutes() {
         path="/admin/sla-rules"
         element={renderAdminPage(<SlaRulesAdminPage />)}
       />
+      <Route path="/admin/support-plans" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SupportPlansAdminPage />)} />
+      <Route path="/admin/sla-rules" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SlaRulesAdminPage />)} />
       <Route
         path="/admin/ticket-subject-templates"
         element={renderAdminPage(<TicketSubjectTemplatesAdminPage />)}
@@ -482,48 +432,28 @@ export default function AppRoutes() {
         path="/admin/audit-logs"
         element={renderAdminPage(<AuditLogsPage />)}
       />
+      <Route path="/admin/audit-logs" element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <AuditLogsPage />)} />
 
-
-
+      {/* Blogs / Products / Cart */}
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
+      <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
-      <Route
-        path="/cart/payment-cancel"
-        element={
-          <ClientLayout>
-            <PaymentCancelPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/cart/payment-result"
-        element={
-          <ClientLayout>
-            <PaymentResultPage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/homepage"
-        element={
-          <ClientLayout>
-            <StorefrontHomepagePage />
-          </ClientLayout>
-        }
-      />
-      <Route
-        path="/access-denied"
-        element={
-          <ClientLayout>
-            <AccessDenied />
-          </ClientLayout>
-        }
-      />
-      <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
 
-      {/* Fallbacks */}
+      {/* ✅ BE default PayOS redirect */}
+      <Route path="/checkout/return" element={<ClientLayout><CartPaymentResultPage /></ClientLayout>} />
+      <Route path="/checkout/cancel" element={<ClientLayout><CartPaymentCancelPage /></ClientLayout>} />
+
+      {/* ✅ Alias route (giữ nếu FE đang dùng link cũ) */}
+      <Route path="/cart/payment-result" element={<ClientLayout><CartPaymentResultPage /></ClientLayout>} />
+      <Route path="/cart/payment-cancel" element={<ClientLayout><CartPaymentCancelPage /></ClientLayout>} />
+
+      <Route path="/homepage" element={<ClientLayout><StorefrontHomepagePage /></ClientLayout>} />
+
+      <Route path="/access-denied" element={<ClientLayout><AccessDenied /></ClientLayout>} />
+
+      {/* Fallback */}
       <Route path="*" element={<Page404 />} />
     </Routes>
   );

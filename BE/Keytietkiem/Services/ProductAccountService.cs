@@ -50,6 +50,7 @@ public class ProductAccountService : IProductAccountService
         var query = _productAccountRepository.Query()
             .Include(pa => pa.Variant)
                 .ThenInclude(v => v.Product)
+            .Include(pa => pa.Supplier)
             .Include(pa => pa.ProductAccountCustomers)
             .AsQueryable();
 
@@ -90,6 +91,8 @@ public class ProductAccountService : IProductAccountService
                 VariantId = pa.VariantId,
                 VariantTitle = pa.Variant.Title,
                 ProductName = pa.Variant.Product.ProductName,
+                SupplierId = pa.SupplierId,
+                SupplierName = pa.Supplier.Name,
                 AccountEmail = pa.AccountEmail,
                 AccountUsername = pa.AccountUsername,
                 MaxUsers = pa.MaxUsers,
@@ -99,7 +102,7 @@ public class ProductAccountService : IProductAccountService
                 SellPrice = pa.Variant.SellPrice,
                 ExpiryDate = pa.ExpiryDate,
                 CreatedAt = pa.CreatedAt,
-                OrderId = pa.ProductAccountCustomers.First(x=> x.OrderId.HasValue).OrderId
+                OrderId = pa.ProductAccountCustomers.FirstOrDefault(x=> x.OrderId.HasValue).OrderId
             })
             .ToListAsync(cancellationToken);
 
@@ -131,6 +134,7 @@ public class ProductAccountService : IProductAccountService
         var account = await _productAccountRepository.Query()
             .Include(pa => pa.Variant)
                 .ThenInclude(v => v.Product)
+            .Include(pa => pa.Supplier)
             .Include(pa => pa.ProductAccountCustomers)
             .ThenInclude(pac => pac.User)
             .FirstOrDefaultAsync(pa => pa.ProductAccountId == productAccountId, cancellationToken);
@@ -148,6 +152,8 @@ public class ProductAccountService : IProductAccountService
             VariantId = account.VariantId,
             VariantTitle = account.Variant.Title,
             ProductName = account.Variant.Product.ProductName,
+            SupplierId = account.SupplierId,
+            SupplierName = account.Supplier?.Name ?? string.Empty,
             AccountEmail = account.AccountEmail,
             AccountUsername = account.AccountUsername,
             AccountPassword = password,
@@ -192,6 +198,12 @@ public class ProductAccountService : IProductAccountService
 
         if (variant == null) throw new KeyNotFoundException("Không tìm thấy biến thể sản phẩm");
 
+        // Validate supplier exists
+        var supplierExists = await _context.Suppliers
+            .AnyAsync(s => s.SupplierId == createDto.SupplierId, cancellationToken);
+
+        if (!supplierExists) throw new KeyNotFoundException($"Không tìm thấy nhà cung cấp với ID: {createDto.SupplierId}");
+
         // Validate product type supports shared accounts
         if (!(variant.Product.ProductType == nameof(ProductEnums.SHARED_ACCOUNT) ||
               variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT)))
@@ -217,6 +229,7 @@ public class ProductAccountService : IProductAccountService
         {
             ProductAccountId = Guid.NewGuid(),
             VariantId = createDto.VariantId,
+            SupplierId = createDto.SupplierId,
             AccountEmail = (createDto.AccountEmail ?? string.Empty).Trim(),
             AccountUsername = string.IsNullOrWhiteSpace(createDto.AccountUsername)
                 ? null
@@ -283,6 +296,17 @@ public class ProductAccountService : IProductAccountService
             .FirstOrDefaultAsync(v => v.VariantId == account.VariantId, cancellationToken);
 
         if (variant == null) throw new KeyNotFoundException("Không tìm thấy biến thể sản phẩm");
+
+        // Validate and update supplier if provided
+        if (updateDto.SupplierId.HasValue && account.SupplierId != updateDto.SupplierId.Value)
+        {
+            var supplierExists = await _context.Suppliers
+                .AnyAsync(s => s.SupplierId == updateDto.SupplierId.Value, cancellationToken);
+
+            if (!supplierExists) throw new KeyNotFoundException($"Không tìm thấy nhà cung cấp với ID: {updateDto.SupplierId.Value}");
+
+            account.SupplierId = updateDto.SupplierId.Value;
+        }
 
         var updIsPersonal = variant.Product.ProductType == nameof(ProductEnums.PERSONAL_ACCOUNT);
         if (updIsPersonal)

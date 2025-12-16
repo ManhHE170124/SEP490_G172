@@ -53,7 +53,8 @@ function fmtDateTime(value) {
 function normalizeStatus(status) {
   const v = String(status || "").toLowerCase();
   if (v === "open" || v === "new") return "New";
-  if (["processing", "inprogress", "in_process"].includes(v)) return "InProgress";
+  if (["processing", "inprogress", "in_process"].includes(v))
+    return "InProgress";
   if (["done", "resolved", "completed"].includes(v)) return "Completed";
   if (v === "closed" || v === "close") return "Closed";
   return "New";
@@ -70,8 +71,8 @@ function fmtPriority(level) {
     typeof level === "number"
       ? level
       : typeof level === "string" && level.trim() !== ""
-        ? Number(level)
-        : NaN;
+      ? Number(level)
+      : NaN;
   if (!Number.isFinite(num)) return "-";
   return MAP_PRIORITY[num] || "-";
 }
@@ -83,10 +84,10 @@ function StatusPill({ value }) {
     v === "New"
       ? "new"
       : v === "InProgress"
-        ? "processing"
-        : v === "Completed"
-          ? "completed"
-          : "closed";
+      ? "processing"
+      : v === "Completed"
+      ? "completed"
+      : "closed";
   return <span className={`ctd-pill ctd-pill-status-${key}`}>{text}</span>;
 }
 
@@ -98,6 +99,96 @@ function SlaPill({ value }) {
   const key =
     v === "OK" ? "ok" : v === "Overdue" ? "overdue" : v ? "warning" : "none";
   return <span className={`ctd-pill ctd-pill-sla-${key}`}>{text}</span>;
+}
+
+// ===== Avatar helpers (Ticket thread) =====
+function getApiRoot() {
+  let apiBase = axiosClient?.defaults?.baseURL || "";
+  if (!apiBase) {
+    apiBase =
+      process.env.REACT_APP_API_URL ||
+      (typeof import.meta !== "undefined" &&
+        import.meta.env &&
+        import.meta.env.VITE_API_BASE_URL) ||
+      "https://localhost:7292/api";
+  }
+  return apiBase.replace(/\/api\/?$/i, "");
+}
+
+function resolveAvatarUrl(rawUrl) {
+  if (!rawUrl) return "";
+  const u = String(rawUrl).trim();
+  if (!u) return "";
+
+  // absolute URL / data URL
+  if (/^(https?:)?\/\//i.test(u) || /^data:/i.test(u) || /^blob:/i.test(u)) {
+    return u;
+  }
+
+  const root = getApiRoot();
+  if (!root) return u;
+
+  if (u.startsWith("/")) return `${root}${u}`;
+  return `${root}/${u}`;
+}
+
+function getLocalUserAvatarUrl() {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return "";
+    const u = JSON.parse(raw);
+    return (
+      u?.avatarUrl ||
+      u?.AvatarUrl ||
+      u?.user?.avatarUrl ||
+      u?.user?.AvatarUrl ||
+      u?.userInfo?.avatarUrl ||
+      u?.userInfo?.AvatarUrl ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+function CustomerThreadAvatar({ name, avatarUrl }) {
+  const letter = (String(name || "?").trim().substring(0, 1) || "?").toUpperCase();
+  const src = resolveAvatarUrl(avatarUrl);
+
+  return (
+    <div className="ctd-msg-avatar" style={{ position: "relative", overflow: "hidden" }}>
+      {/* fallback chữ cái */}
+      <span
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {letter}
+      </span>
+
+      {/* ảnh avatar nếu có */}
+      {src && (
+        <img
+          src={src}
+          alt={String(name || "")}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 export default function CustomerTicketDetailPage() {
@@ -132,15 +223,10 @@ export default function CustomerTicketDetailPage() {
       } catch (err) {
         console.error("Failed to load ticket detail", err);
         if (!cancelled) {
-          // If 403 Forbidden, show as NotFound (Ticket không tồn tại)
-          if (err?.response?.status === 403) {
-            setLoadError("Ticket không tồn tại.");
-          } else {
-            setLoadError(
-              err?.response?.data?.message ||
+          setLoadError(
+            err?.response?.data?.message ||
               "Không tải được thông tin ticket. Vui lòng thử lại."
-            );
-          }
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -196,9 +282,34 @@ export default function CustomerTicketDetailPage() {
           return prev;
         }
 
+        // ✅ fallback avatar:
+        // - Nếu incoming thiếu senderAvatarUrl:
+        //   + staff: ưu tiên lấy từ cache theo senderId
+        //   + customer: lấy avatar từ localStorage (user)
+        let incoming = reply;
+        if (incoming && !incoming.senderAvatarUrl) {
+          const senderId = incoming.senderId;
+          const isStaff =
+            incoming?.isStaffReply ??
+            incoming?.isFromStaff ??
+            incoming?.isStaff ??
+            incoming?.fromStaff ??
+            false;
+
+          if (isStaff && senderId) {
+            const cached = list.find(
+              (x) => x.senderId === senderId && x.senderAvatarUrl
+            )?.senderAvatarUrl;
+            if (cached) incoming = { ...incoming, senderAvatarUrl: cached };
+          } else {
+            const meAvatar = getLocalUserAvatarUrl();
+            if (meAvatar) incoming = { ...incoming, senderAvatarUrl: meAvatar };
+          }
+        }
+
         const next = {
           ...prev,
-          replies: [...list, reply],
+          replies: [...list, incoming],
         };
 
         // KHÔNG scroll ở đây – để useEffect [ticket?.replies] xử lý theo isAtBottomRef
@@ -218,10 +329,10 @@ export default function CustomerTicketDetailPage() {
     return () => {
       connection
         .invoke("LeaveTicketGroup", id)
-        .catch(() => { })
+        .catch(() => {})
         .finally(() => {
           connection.off("ReceiveReply", handleReceiveReply);
-          connection.stop().catch(() => { });
+          connection.stop().catch(() => {});
         });
     };
   }, [id]);
@@ -281,6 +392,13 @@ export default function CustomerTicketDetailPage() {
         message: msg,
       });
 
+      // ✅ nếu reply trả về chưa có avatar, gán avatar của user hiện tại để hiển thị ngay
+      let created = createdReply;
+      if (created && !created.senderAvatarUrl) {
+        const meAvatar = getLocalUserAvatarUrl();
+        if (meAvatar) created = { ...created, senderAvatarUrl: meAvatar };
+      }
+
       setReplyText("");
 
       // Append tin nhắn mới vào list, nhưng có kiểm tra trùng để không bị double
@@ -288,18 +406,15 @@ export default function CustomerTicketDetailPage() {
         if (!prev) return prev;
         const list = prev.replies || [];
 
-        const newId = createdReply?.replyId ?? createdReply?.id ?? null;
-        if (
-          newId !== null &&
-          list.some((r) => (r.replyId ?? r.id) === newId)
-        ) {
+        const newId = created?.replyId ?? created?.id ?? null;
+        if (newId !== null && list.some((r) => (r.replyId ?? r.id) === newId)) {
           // Reply này đã được SignalR đẩy vào trước rồi
           return prev;
         }
 
         const next = {
           ...prev,
-          replies: [...list, createdReply],
+          replies: [...list, created],
         };
 
         // KHÔNG scroll ở đây – để useEffect [ticket?.replies] xử lý theo isAtBottomRef
@@ -309,7 +424,7 @@ export default function CustomerTicketDetailPage() {
       console.error("Failed to send reply", err);
       setSendError(
         err?.response?.data?.message ||
-        "Không gửi được phản hồi. Vui lòng thử lại."
+          "Không gửi được phản hồi. Vui lòng thử lại."
       );
     } finally {
       setSending(false);
@@ -427,6 +542,8 @@ export default function CustomerTicketDetailPage() {
                   reply?.isStaff ??
                   reply?.fromStaff ??
                   false;
+
+                // customer: tin staff là "other", tin customer là "me"
                 const isMe = !isStaff;
 
                 const rawSenderName =
@@ -438,31 +555,33 @@ export default function CustomerTicketDetailPage() {
                 // 👇 Logic theo yêu cầu:
                 // - Nếu là nhân viên → luôn hiển thị "Nhân viên hỗ trợ"
                 // - Ngược lại → dùng tên thật (hoặc fallback "Bạn")
-                const senderName = isStaff ? "Nhân viên hỗ trợ" : rawSenderName || "Bạn";
+                const senderName = isStaff
+                  ? "Nhân viên hỗ trợ"
+                  : rawSenderName || "Bạn";
 
                 const timeValue = reply?.sentAt || reply?.createdAt;
-
-                const firstChar = (rawSenderName || "?").charAt(0).toUpperCase();
 
                 return (
                   <div
                     key={reply.replyId || reply.id}
-                    className={`ctd-msg ${isMe ? "ctd-msg-me" : "ctd-msg-other"
-                      }`}
+                    className={`ctd-msg ${
+                      isMe ? "ctd-msg-me" : "ctd-msg-other"
+                    }`}
                   >
-                    <div className="ctd-msg-avatar">{firstChar}</div>
+                    {/* ✅ Avatar theo đúng user gửi tin */}
+                    <CustomerThreadAvatar
+                      name={senderName}
+                      avatarUrl={reply?.senderAvatarUrl}
+                    />
+
                     <div className="ctd-msg-bubble">
                       <div className="ctd-msg-head">
-                        <span className="ctd-msg-name">
-                          {senderName}
-                        </span>
+                        <span className="ctd-msg-name">{senderName}</span>
                         <span className="ctd-msg-time">
                           {fmtDateTime(timeValue)}
                         </span>
                       </div>
-                      <div className="ctd-msg-text">
-                        {reply.message || ""}
-                      </div>
+                      <div className="ctd-msg-text">{reply.message || ""}</div>
                     </div>
                   </div>
                 );

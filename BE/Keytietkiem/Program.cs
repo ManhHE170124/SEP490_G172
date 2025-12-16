@@ -1,20 +1,22 @@
-﻿using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Keytietkiem.Authorization;
+﻿using Keytietkiem.Authorization;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
 using Keytietkiem.Repositories;
 using Keytietkiem.Services;
+using Keytietkiem.Services.Background;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Keytietkiem.Infrastructure;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
@@ -56,6 +58,9 @@ builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();  // ✅ chỉ 1 lần
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();          // ✅ chỉ 1 lần
+builder.Services.AddHostedService<CartCleanupService>();
+builder.Services.AddHostedService<PaymentTimeoutService>();
+builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 
 // Clock (mockable for tests) – dùng luôn block này
 builder.Services.AddSingleton<IClock, SystemClock>();                                         // ✅ chỉ 1 lần
@@ -124,6 +129,52 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("CartPolicy", context =>
+    {
+        var http = context.Request.HttpContext;
+
+        var remoteIp = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        // logged-in => key theo UserId
+        var userId =
+            http.User?.FindFirstValue("uid") ??
+            http.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        string identityKey;
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            identityKey = "u_" + userId;
+        }
+        else
+        {
+            // guest => anonId từ cookie, fallback header
+            http.Request.Cookies.TryGetValue("ktk_anon_id", out var anonId);
+            if (string.IsNullOrWhiteSpace(anonId))
+            {
+                anonId = http.Request.Headers["X-Guest-Cart-Id"].FirstOrDefault();
+            }
+            identityKey = "g_" + (anonId ?? "unknown");
+        }
+
+        var key = $"{remoteIp}_{identityKey}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: key,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 2
+            });
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 // ===== Authorization with Permission-based system =====
 builder.Services.AddAuthorization(options =>
 {
@@ -142,7 +193,7 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler
 // ===== Stats service + background job =====
 // (ISupportStatsUpdateService đã đăng ký phía trên => KHÔNG lặp lại)
 // ✅ Job thống kê support hằng ngày
-builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+//builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
@@ -207,7 +258,7 @@ app.UseStatusCodePages(async context =>
 app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseRateLimiter();
 // ===== Endpoint mapping =====
 app.MapControllers();
 
