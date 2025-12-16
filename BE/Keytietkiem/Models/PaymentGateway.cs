@@ -16,4 +16,10 @@ public partial class PaymentGateway
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    public string? ClientId { get; set; }
+
+    public string? ApiKey { get; set; }
+
+    public string? ChecksumKey { get; set; }
 }
