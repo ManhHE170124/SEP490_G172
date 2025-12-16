@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
-import PermissionGuard from "../../components/PermissionGuard";
 import { usePermission } from "../../hooks/usePermission";
 import { MODULE_CODES, PERMISSION_CODES } from "../../constants/roleConstants";
 
@@ -613,7 +612,6 @@ const AdminNotificationsPage = () => {
                       </span>
                     </td>
                     <td className="notif-actions-cell">
-                      <PermissionGuard moduleCode={MODULE_CODES.SETTINGS_MANAGER} permissionCode={PERMISSION_CODES.VIEW_DETAIL}>
                       <button
                         type="button"
                         className="btn btn-link"
@@ -621,7 +619,6 @@ const AdminNotificationsPage = () => {
                       >
                         Chi tiết
                       </button>
-                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

@@ -22,6 +22,7 @@ using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using static Keytietkiem.Constants.ModuleCodes;
 using static Keytietkiem.Constants.PermissionCodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
@@ -30,6 +31,7 @@ namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/categories")]
+[Authorize]
 public class CategoriesController : ControllerBase
 {
     private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;

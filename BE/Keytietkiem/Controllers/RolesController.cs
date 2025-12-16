@@ -26,6 +26,7 @@ using Keytietkiem.DTOs.Roles;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
@@ -40,6 +41,7 @@ namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class RolesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -55,6 +57,7 @@ namespace Keytietkiem.Controllers
         /// Get a list of roles excluding any role whose name contains "admin" (case-insensitive).
         /// </summary>
         [HttpGet]
+        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> Get()
         {
             var roles = await _context.Roles
@@ -562,8 +565,9 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Retrieve modules that the provided role codes can access for a specific permission.
          * Route: POST /api/roles/module-access
-         * Body: ModuleAccessRequestDTO - list of role codes and optional permission code (defaults to ACCESS)
+         * Body: ModuleAccessRequestDTO - list of role codes and permission code (required, no default)
          * Returns: 200 OK with list of modules the roles can access
+         * Note: PermissionCode is now required (ACCESS permission has been removed)
          */
         [HttpPost("module-access")]
         public async Task<IActionResult> GetModuleAccessForRoles([FromBody] ModuleAccessRequestDTO request)
@@ -584,9 +588,12 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Danh sách vai trò không được để trống." });
             }
 
-            var permissionCode = string.IsNullOrWhiteSpace(request.PermissionCode)
-                ? "ACCESS"
-                : request.PermissionCode.Trim().ToUpper();
+            if (string.IsNullOrWhiteSpace(request.PermissionCode))
+            {
+                return BadRequest(new { message = "PermissionCode là bắt buộc." });
+            }
+
+            var permissionCode = request.PermissionCode.Trim().ToUpper();
 
             var modules = await _context.RolePermissions
                 .Include(rp => rp.Module)

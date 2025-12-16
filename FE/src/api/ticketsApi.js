@@ -26,6 +26,11 @@ export const ticketsApi = {
     return axiosClient.get(`/tickets/${id}`);
   },
 
+  // Customer xem ticket detail của chính mình
+  customerDetail(id) {
+    return axiosClient.get(`/tickets/customer/${id}`);
+  },
+
   assign(id, assigneeId) {
     return axiosClient.post(`/tickets/${id}/assign`, { assigneeId });
   },

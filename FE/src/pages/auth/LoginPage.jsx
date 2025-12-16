@@ -59,8 +59,6 @@ export default function LoginPage() {
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("profile-updated"));
-        // Trigger event to fetch permissions immediately after login
-        window.dispatchEvent(new Event("role-permissions-updated"));
       }
 
       // Store username if remember me is checked
@@ -76,39 +74,27 @@ export default function LoginPage() {
         "Đăng nhập thành công"
       );
 
-      // Trigger permissions fetch immediately after login
-      // This ensures permissions are loaded before redirecting
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("role-permissions-updated"));
-      }
-      
-      // Wait a short time for permissions to start fetching
-      // ProtectedRoute will handle waiting for permissions to load
-      await new Promise(resolve => setTimeout(resolve, 300));
-
       // Redirect based on user role
       // Backend returns Role.Code (e.g., "ADMIN", "STORAGE_STAFF", "CONTENT_CREATOR")
       // Also check for legacy role names for backward compatibility
       const userRoles = response.user.roles || [];
       const firstRole = userRoles[0]?.toUpperCase() || "";
       
-      // Check role code or legacy role name
-      // Admin, Storage Staff, Customer Care Staff -> admin dashboard
       if (
         firstRole === "ADMIN" || 
-        firstRole === "CUSTOMER_CARE" || // Customer Care Staff
-        firstRole === "CUSTOMER CARE STAFF" // Legacy
+        firstRole === "CUSTOMER_CARE_STAFF" ||
+        firstRole === "CUSTOMER CARE STAFF"
       ) {
         navigate("/admin/support-dashboard");
       } else if (
         // Content Creator -> post dashboard
         firstRole === "CONTENT_CREATOR" ||
-        firstRole === "CONTENT CREATOR" // Legacy
+        firstRole === "CONTENT CREATOR" 
       ) {
         navigate("/post-dashboard");
       }else if (
         firstRole === "STORAGE_STAFF" ||
-        firstRole === "STORAGE STAFF"  // Legacy: "Storage Staff"
+        firstRole === "STORAGE STAFF" 
       ) {
         navigate("/key-monitor");
       } else {

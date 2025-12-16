@@ -46,8 +46,6 @@ export default function RoleAssign() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [moduleToAssign, setModuleToAssign] = useState("");
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   
   // Modal states
   const [addRoleOpen, setAddRoleOpen] = useState(false);
@@ -57,19 +55,9 @@ export default function RoleAssign() {
   const isAdminRoleSelected =
     selectedRole?.code?.toUpperCase() === ADMIN_ROLE_CODE;
 
-  // Derived permission sets
-  const accessPermissionId = useMemo(() => {
-    const accessPerm = permissions.find(
-      (p) => String(p.code || "").trim().toUpperCase() === "ACCESS"
-    );
-    return accessPerm ? accessPerm.permissionId : null;
-  }, [permissions]);
-
+  // Display all permissions (ACCESS has been removed)
   const displayPermissions = useMemo(
-    () =>
-      permissions.filter(
-        (p) => String(p.code || "").trim().toUpperCase() !== "ACCESS"
-      ),
+    () => permissions,
     [permissions]
   );
 
@@ -412,7 +400,6 @@ export default function RoleAssign() {
         "Lưu thay đổi thành công!",
         `Đã cập nhật tất cả quyền cho Vai trò "${selectedRole.name}"`
       );
-      window.dispatchEvent(new Event("role-permissions-updated"));
     } catch (error) {
       // Handle network errors globally - only show one toast
       if (error.isNetworkError || error.message === 'Lỗi kết nối đến máy chủ') {
@@ -471,14 +458,23 @@ export default function RoleAssign() {
     )
   );
 
-  // Only show modules that have ACCESS permission active for the selected role
+  // Show only modules that have at least one active permission for the selected role
+  // A module is considered "assigned" to a role if it has at least one active permission
   const visibleModules = useMemo(() => {
-    if (!selectedRole || !accessPermissionId) return modules;
+    if (!selectedRole || !Array.isArray(rolePermissions) || rolePermissions.length === 0) {
+      return [];
+    }
 
-    return modules.filter((module) =>
-      isPermissionActive(module.moduleId, accessPermissionId)
+    // Get set of module IDs that have at least one active permission
+    const assignedModuleIds = new Set(
+      rolePermissions
+        .filter((rp) => rp.isActive)
+        .map((rp) => rp.moduleId)
     );
-  }, [modules, selectedRole, accessPermissionId, rolePermissions]);
+
+    // Filter modules to only show those that are assigned to the role
+    return modules.filter((module) => assignedModuleIds.has(module.moduleId));
+  }, [modules, selectedRole, rolePermissions]);
 
   const totalPermissionSlots = useMemo(
     () => visibleModules.length * displayPermissions.length,
@@ -508,86 +504,6 @@ export default function RoleAssign() {
     return sum;
   }, [rolePermissions, selectedRole, visibleModules, displayPermissions]);
 
-  const handleUnassignModule = (moduleId) => {
-    if (!selectedRole || isAdminRoleSelected || !accessPermissionId) return;
-
-    setRolePermissions((prev) => {
-      const existing = prev.find(
-        (rp) =>
-          rp.moduleId === moduleId && rp.permissionId === accessPermissionId
-      );
-
-      if (existing) {
-        return prev.map((rp) =>
-          rp.moduleId === moduleId && rp.permissionId === accessPermissionId
-            ? { ...rp, isActive: false }
-            : rp
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          roleId: selectedRole.roleId,
-          moduleId,
-          permissionId: accessPermissionId,
-          isActive: false,
-        },
-      ];
-    });
-
-    setHasUnsavedChanges(true);
-  };
-
-  const unassignedModules = useMemo(() => {
-    if (!accessPermissionId) return [];
-    return modules.filter(
-      (module) => !isPermissionActive(module.moduleId, accessPermissionId)
-    );
-  }, [modules, accessPermissionId, rolePermissions]);
-
-  const handleAssignModule = () => {
-    if (!selectedRole || isAdminRoleSelected || !accessPermissionId) return;
-    if (!moduleToAssign) {
-      showWarning(
-        "Chưa chọn mô-đun",
-        "Vui lòng chọn một mô-đun để gán cho vai trò."
-      );
-      return;
-    }
-
-    const moduleId = Number(moduleToAssign);
-    if (!moduleId) return;
-
-    setRolePermissions((prev) => {
-      const existing = prev.find(
-        (rp) =>
-          rp.moduleId === moduleId && rp.permissionId === accessPermissionId
-      );
-
-      if (existing) {
-        return prev.map((rp) =>
-          rp.moduleId === moduleId && rp.permissionId === accessPermissionId
-            ? { ...rp, isActive: true }
-            : rp
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          roleId: selectedRole.roleId,
-          moduleId,
-          permissionId: accessPermissionId,
-          isActive: true,
-        },
-      ];
-    });
-
-    setModuleToAssign("");
-    setIsAssignModalOpen(false);
-    setHasUnsavedChanges(true);
-  };
   
   if (isInitialLoading) {
     return (
@@ -616,9 +532,6 @@ export default function RoleAssign() {
                 {permission.permissionName}
               </th>
             ))}
-            <th scope="col" className="ra-actions-col">
-              Thao tác
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -646,18 +559,6 @@ export default function RoleAssign() {
                   />
                 </td>
               ))}
-              <td className="ra-actions-cell">
-                <button
-                  type="button"
-                  className="ra-btn ra-btn--ghost ra-btn--sm"
-                  disabled={
-                    isAdminRoleSelected || !accessPermissionId
-                  }
-                  onClick={() => handleUnassignModule(module.moduleId)}
-                >
-                  Bỏ gán
-                </button>
-              </td>
             </tr>
           ))}
         </tbody>
@@ -684,20 +585,7 @@ export default function RoleAssign() {
       <header className="ra-page-header">
         <div className="ra-page-heading">
           <h1>Phân công vai trò</h1>
-          <div className="ra-page-subrow">
-            <p>Quản lý quyền truy cập theo mô-đun cho từng vai trò trong hệ thống.</p>
-            <button
-              type="button"
-              className="ra-btn ra-btn--primary ra-btn--sm"
-              onClick={() => setIsAssignModalOpen(true)}
-              disabled={
-                !selectedRole ||
-                isAdminRoleSelected
-              }
-            >
-              Gán mô-đun cho vai trò
-            </button>
-          </div>
+          <p>Quản lý quyền truy cập theo mô-đun cho từng vai trò trong hệ thống.</p>
         </div>
       </header>
 
@@ -809,64 +697,6 @@ export default function RoleAssign() {
           <div className="ra-permission-scroll">{permissionContent}</div>
         </section>
       </div>
-
-      {/* Modals */}
-      {isAssignModalOpen && (
-        <div className="ra-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="ra-modal">
-            <div className="ra-modal-header">
-              <h2>Gán mô-đun cho vai trò</h2>
-            </div>
-            <div className="ra-modal-body">
-              {!accessPermissionId ? (
-                <p>Không tìm thấy quyền ACCESS trong hệ thống. Vui lòng cấu hình quyền trước.</p>
-              ) : unassignedModules.length === 0 ? (
-                <p>Vai trò này đã được gán tất cả mô-đun khả dụng.</p>
-              ) : (
-                <label className="ra-module-assign__label">
-                  Chọn mô-đun:
-                  <select
-                    className="ra-select"
-                    value={moduleToAssign}
-                    onChange={(e) => setModuleToAssign(e.target.value)}
-                  >
-                    <option value="">-- Chọn mô-đun --</option>
-                    {unassignedModules.map((module) => (
-                      <option key={module.moduleId} value={module.moduleId}>
-                        {module.moduleName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-            </div>
-            <div className="ra-modal-footer">
-              <button
-                type="button"
-                className="ra-btn ra-btn--ghost"
-                onClick={() => {
-                  setIsAssignModalOpen(false);
-                  setModuleToAssign("");
-                }}
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                className="ra-btn ra-btn--primary"
-                onClick={handleAssignModule}
-                disabled={
-                  !accessPermissionId ||
-                  !moduleToAssign ||
-                  unassignedModules.length === 0
-                }
-              >
-                Gán mô-đun
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <RoleModal
         isOpen={addRoleOpen}

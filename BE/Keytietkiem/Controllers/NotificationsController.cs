@@ -205,6 +205,8 @@ namespace Keytietkiem.Controllers
         /// Danh sách thông báo (Admin) với filter + phân trang + sort + search.
         /// </summary>
         [HttpGet]
+        [Authorize]
+        [RequirePermission(ModuleCodes.NOTIFICATION, PermissionCodes.VIEW_LIST)]
         [ProducesResponseType(typeof(NotificationListResponseDto), 200)]
         public async Task<ActionResult<NotificationListResponseDto>> GetNotifications(
             [FromQuery] NotificationAdminFilterDto filter)
@@ -296,6 +298,8 @@ namespace Keytietkiem.Controllers
         /// Chi tiết thông báo (Admin).
         /// </summary>
         [HttpGet("{id:int}")]
+        [Authorize]
+        [RequirePermission(ModuleCodes.NOTIFICATION, PermissionCodes.VIEW_DETAIL)]
         [ProducesResponseType(typeof(NotificationDetailDto), 200)]
         [ProducesResponseType(404)]
         public async Task<ActionResult<NotificationDetailDto>> GetNotificationDetail(int id)
@@ -521,6 +525,8 @@ namespace Keytietkiem.Controllers
         /// Tạo thông báo thủ công và gán cho danh sách user cụ thể.
         /// </summary>
         [HttpPost]
+        [Authorize]
+        [RequirePermission(ModuleCodes.NOTIFICATION, PermissionCodes.CREATE)]
         [ProducesResponseType(typeof(object), 201)]
         [ProducesResponseType(400)]
         public async Task<ActionResult> CreateManualNotification(

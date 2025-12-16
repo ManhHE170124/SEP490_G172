@@ -5,6 +5,7 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -62,6 +63,7 @@ namespace Keytietkiem.Controllers
         // ===== GET: /apistorefront/cart =====
         // Áp dụng cho cả guest và user đã đăng nhập
         [HttpGet]
+        [AllowAnonymous]
         public ActionResult<StorefrontCartDto> GetCart()
         {
             var (cacheKey, _, isAuthenticated) = GetCartContext();
@@ -73,6 +75,7 @@ namespace Keytietkiem.Controllers
         // Body: { "variantId": "...", "quantity": 1 }
         // Áp dụng cho cả guest và user đã đăng nhập
         [HttpPost("items")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontCartDto>> AddItem([FromBody] AddToCartRequestDto dto)
         {
             var (cacheKey, userId, isAuthenticated) = GetCartContext();
@@ -193,6 +196,7 @@ namespace Keytietkiem.Controllers
         //  - Xoá cart đang hiển thị (cache cart theo user/anon).
         //  - Trả về PaymentId + PaymentUrl cho FE redirect.
         [HttpPost("checkout")]
+        [AllowAnonymous]
         public async Task<ActionResult<CartCheckoutResultDto>> Checkout()
         {
             var (cartCacheKey, userId, isAuthenticated) = GetCartContext();
@@ -386,6 +390,7 @@ namespace Keytietkiem.Controllers
         // ===== PUT: /apistorefront/cart/items/{variantId} =====
         // Body: { "quantity": 3 }
         [HttpPut("items/{variantId:guid}")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontCartDto>> UpdateItemQuantity(
             Guid variantId,
             [FromBody] UpdateCartItemRequestDto dto)
@@ -504,6 +509,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE: /apistorefront/cart/items/{variantId} =====
         [HttpDelete("items/{variantId:guid}")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontCartDto>> RemoveItem(Guid variantId)
         {
             var (cacheKey, userId, isAuthenticated) = GetCartContext();
@@ -539,6 +545,7 @@ namespace Keytietkiem.Controllers
         // ===== PUT: /apistorefront/cart/receiver-email =====
         // Body: { "receiverEmail": "abc@gmail.com" }
         [HttpPut("receiver-email")]
+        [AllowAnonymous]
         public ActionResult<StorefrontCartDto> SetReceiverEmail([FromBody] SetCartReceiverEmailRequestDto dto)
         {
             var (cacheKey, userId, isAuthenticated) = GetCartContext();
@@ -558,6 +565,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE: /apistorefront/cart =====
         [HttpDelete]
+        [AllowAnonymous]
         public async Task<IActionResult> ClearCart([FromQuery] bool skipRestoreStock = false)
         {
             var (cacheKey, userId, isAuthenticated) = GetCartContext();

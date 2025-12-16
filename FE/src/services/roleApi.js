@@ -64,7 +64,7 @@ export const roleApi = {
   deletePermission: (id) => axiosClient.delete(`${END.PERMISSIONS}/${id}`),
   
   /// Module Access
-  getModuleAccess: (roleCodes = [], permissionCode = "ACCESS") =>
+  getModuleAccess: (roleCodes = [], permissionCode) =>
     axiosClient.post(`${END.ROLES}/module-access`, {
       roleCodes,
       permissionCode,

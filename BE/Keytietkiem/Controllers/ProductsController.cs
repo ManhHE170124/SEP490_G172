@@ -44,11 +44,13 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/products")]
+    [Authorize]
     public class ProductsController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;

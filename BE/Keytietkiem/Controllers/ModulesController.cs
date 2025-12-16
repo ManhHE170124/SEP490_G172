@@ -13,6 +13,7 @@
  *   - PUT    /api/modules/{id}         : Update a module
  *   - DELETE /api/modules/{id}         : Delete a module and its role-permissions
  */
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Keytietkiem.DTOs.Roles;
 using Keytietkiem.Models;
@@ -30,6 +31,7 @@ namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ModulesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;

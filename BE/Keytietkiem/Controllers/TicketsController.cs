@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Keytietkiem.Controllers;
 
@@ -222,6 +223,7 @@ public class TicketsController : ControllerBase
 
     // ============ LIST: Ticket của chính khách hàng đang đăng nhập ============
     [HttpGet("customer")]
+    [Authorize]
     public async Task<ActionResult<PagedResult<CustomerTicketListItemDto>>> MyTickets(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
@@ -361,8 +363,112 @@ public class TicketsController : ControllerBase
         return Ok(dto);
     }
 
+    // ============ CUSTOMER: Xem chi tiết ticket của chính mình ============
+    [HttpGet("customer/{id:guid}")]
+    [Authorize]
+    public async Task<ActionResult<TicketDetailDto>> GetCustomerTicketDetail(Guid id)
+    {
+        // Lấy UserId từ claim
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized(new { message = "Bạn cần đăng nhập để xem ticket của mình." });
+        }
+
+        var t = await _db.Tickets
+            .Include(x => x.User)
+            .Include(x => x.Assignee)
+            .FirstOrDefaultAsync(x => x.TicketId == id);
+
+        if (t == null) return NotFound();
+
+        // Kiểm tra ownership: chỉ cho phép chủ ticket xem
+        if (t.UserId != userId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền xem ticket này." });
+        }
+
+        var replies = await _db.TicketReplies.AsNoTracking()
+            .Include(r => r.Sender)
+            .Where(r => r.TicketId == id)
+            .OrderBy(r => r.SentAt)
+            .Select(r => new TicketReplyDto
+            {
+                ReplyId = r.ReplyId,
+                SenderId = r.SenderId,
+                SenderName = r.Sender.FullName ?? r.Sender.Email,
+                IsStaffReply = r.IsStaffReply,
+                Message = r.Message,
+                SentAt = r.SentAt
+            })
+            .ToListAsync();
+
+        var relatedRaw = await _db.Tickets.AsNoTracking()
+            .Where(x => x.UserId == t.UserId && x.TicketId != t.TicketId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.TicketId,
+                x.TicketCode,
+                x.Subject,
+                x.Status,
+                x.Severity,
+                x.SlaStatus,
+                x.CreatedAt
+            })
+            .Take(10)
+            .ToListAsync();
+
+        var related = relatedRaw.Select(x => new RelatedTicketDto
+        {
+            TicketId = x.TicketId,
+            TicketCode = x.TicketCode ?? "",
+            Subject = x.Subject ?? "",
+            Status = NormStatus(x.Status),
+            Severity = ParseSeverity(x.Severity),
+            SlaStatus = ParseSla(x.SlaStatus),
+            CreatedAt = x.CreatedAt
+        }).ToList();
+
+        var dto = new TicketDetailDto
+        {
+            TicketId = t.TicketId,
+            TicketCode = t.TicketCode ?? "",
+            Subject = t.Subject ?? "",
+            Description = t.Description,
+            Status = NormStatus(t.Status),
+            Severity = ParseSeverity(t.Severity),
+            PriorityLevel = t.PriorityLevel,
+            SlaStatus = ParseSla(t.SlaStatus),
+            AssignmentState = ParseAssignState(t.AssignmentState),
+
+            FirstResponseDueAt = t.FirstResponseDueAt,
+            FirstRespondedAt = t.FirstRespondedAt,
+            ResolutionDueAt = t.ResolutionDueAt,
+            ResolvedAt = t.ResolvedAt,
+
+            CustomerName = t.User.FullName ?? "",
+            CustomerEmail = t.User.Email,
+            CustomerPhone = t.User.Phone,
+
+            AssigneeId = t.AssigneeId,
+            AssigneeName = t.Assignee != null ? (t.Assignee.FullName ?? t.Assignee.Email) : null,
+            AssigneeEmail = t.Assignee?.Email,
+
+            CreatedAt = t.CreatedAt,
+            UpdatedAt = t.UpdatedAt,
+
+            Replies = replies,
+            RelatedTickets = related
+        };
+
+        return Ok(dto);
+    }
+
     // ============ CUSTOMER CREATE ============
     [HttpPost("create")]
+    [Authorize]
     public async Task<ActionResult<CustomerTicketCreatedDto>> CreateCustomerTicket([FromBody] CustomerCreateTicketDto dto)
     {
         var templateCode = (dto?.TemplateCode ?? string.Empty).Trim();
@@ -474,6 +580,7 @@ public class TicketsController : ControllerBase
 
     // ============ SUBJECT TEMPLATES (Customer create) ============
     [HttpGet("subject-templates")]
+    [AllowAnonymous]
     public async Task<ActionResult<List<TicketSubjectTemplateDto>>> GetSubjectTemplates([FromQuery] bool activeOnly = true)
     {
         var query = _db.TicketSubjectTemplates.AsNoTracking();
@@ -503,6 +610,8 @@ public class TicketsController : ControllerBase
     public class AssignTicketDto { public Guid AssigneeId { get; set; } }
 
     [HttpPost("{id:guid}/assign")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignTicketDto dto)
     {
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
@@ -564,6 +673,8 @@ public class TicketsController : ControllerBase
     /// POST /api/tickets/{id}/assign-me
     /// </summary>
     [HttpPost("{id:guid}/assign-me")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> AssignToMe(Guid id)
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -643,6 +754,8 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/transfer-tech")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> TransferToTech(Guid id, [FromBody] AssignTicketDto dto)
     {
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
@@ -705,6 +818,8 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/complete")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> Complete(Guid id)
     {
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
@@ -761,6 +876,8 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/close")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
     public async Task<IActionResult> Close(Guid id)
     {
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
@@ -836,6 +953,8 @@ public class TicketsController : ControllerBase
 
     // GET /api/tickets/assignees?q=&page=&pageSize=
     [HttpGet("assignees")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<List<StaffMiniDto>>> GetAssignableStaff(
         [FromQuery] string? q,
         [FromQuery] int page = 1,
@@ -870,6 +989,8 @@ public class TicketsController : ControllerBase
 
     // GET /api/tickets/assignees/transfer?excludeUserId=&q=&page=&pageSize=
     [HttpGet("assignees/transfer")]
+    [Authorize]
+    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_LIST)]
     public async Task<ActionResult<List<StaffMiniDto>>> GetTransferAssignees(
         [FromQuery] Guid? excludeUserId,
         [FromQuery] string? q,

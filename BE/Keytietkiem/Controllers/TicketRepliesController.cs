@@ -5,6 +5,7 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Utils;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -44,6 +45,7 @@ public class TicketRepliesController : ControllerBase
     /// </summary>
     /// <param name="id">TicketId</param>
     [HttpPost("{id:guid}/replies")]
+    [Authorize]
     public async Task<ActionResult<TicketReplyDto>> CreateReply(Guid id, [FromBody] CreateTicketReplyDto dto)
     {
         var msg = (dto?.Message ?? string.Empty).Trim();

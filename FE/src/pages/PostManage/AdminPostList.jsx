@@ -12,19 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { postsApi } from "../../services/postsApi";
 import useToast from "../../hooks/useToast";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 import "./AdminPostList.css";
 
 export default function AdminPostList() {
   const navigate = useNavigate();
   const { toasts, showInfo, showSuccess, showError, removeToast, confirmDialog, showConfirm } = useToast();
-  
-  // Check permission to view list
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.POST_MANAGER, "VIEW_LIST");
-  
-  // Check permission to view detail (for preview and edit)
-  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.POST_MANAGER, "VIEW_DETAIL");
   
   // Global network error handler - only show one toast for network errors
   const networkErrorShownRef = useRef(false);
@@ -227,24 +219,10 @@ export default function AdminPostList() {
   };
 
   const handleEdit = (postId) => {
-    if (!canViewDetail) {
-      showError(
-        "Không có quyền",
-        "Bạn không có quyền xem chi tiết và chỉnh sửa bài viết."
-      );
-      return;
-    }
-      navigate(`/post-create-edit/${postId}`);
+    navigate(`/post-create-edit/${postId}`);
   };
 
   const handlePreview = (post) => {
-    if (!canViewDetail) {
-      showError(
-        "Không có quyền",
-        "Bạn không có quyền xem chi tiết bài viết."
-      );
-      return;
-    }
     if (!post.slug) {
       showError("Lỗi", "Bài viết chưa có slug. Vui lòng cập nhật bài viết trước.");
       return;
@@ -408,44 +386,6 @@ export default function AdminPostList() {
   useEffect(() => {
     setPage(1);
   }, [search, posttypeFilter, statusFilter, sortKey, sortOrder]);
-
-  // Show loading while checking permission
-  if (permissionLoading) {
-    return (
-      <div className="apl-post-list-container">
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div className="apl-loading-spinner" />
-          <div>Đang kiểm tra quyền...</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show access denied message if no VIEW_LIST permission
-  if (!canViewList) {
-    return (
-      <div className="apl-post-list-container">
-        <ToastContainer
-          toasts={toasts}
-          onRemove={removeToast}
-          confirmDialog={confirmDialog}
-        />
-        <div className="apl-post-list-header">
-          <div>
-            <h1 className="apl-post-list-title">Quản lý bài viết</h1>
-            <p className="apl-post-list-subtitle">Quản lý, chỉnh sửa và xóa bài viết</p>
-          </div>
-        </div>
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-          <h2>Không có quyền xem danh sách</h2>
-          <p style={{ color: '#666', marginBottom: '24px' }}>
-            Bạn không có quyền xem danh sách bài viết. Vui lòng liên hệ quản trị viên để được cấp quyền.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="apl-post-list-container">

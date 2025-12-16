@@ -137,8 +137,6 @@ export default function RoleManagement() {
   // Roles-only status filter
   const [roleStatus, setRoleStatus] = useState("all"); // all | active | inactive
 
-  // Modal for adding role (Modal)
-  const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [page, setPage] = useState(1);
@@ -178,10 +176,9 @@ export default function RoleManagement() {
    * based on the currently active tab (Modules, Permissions, or Roles).
    * @returns column definitions and button labels dynamically per active tab.
    */
-  const { columns, addButtonText } = useMemo(() => {
+  const { columns } = useMemo(() => {
     if (activeTab === TABS.MODULES) {
       return {
-        addButtonText: "Thêm Mô-đun",
         columns: [
           { key: "moduleName", label: "Tên Mô-đun" },
           { key: "code", label: "Mã" },
@@ -193,7 +190,6 @@ export default function RoleManagement() {
     }
     if (activeTab === TABS.PERMISSIONS) {
       return {
-        addButtonText: "Thêm Quyền",
         columns: [
           { key: "permissionName", label: "Tên quyền" },
           { key: "code", label: "Mã" },
@@ -204,7 +200,6 @@ export default function RoleManagement() {
       };
     }
     return {
-      addButtonText: "Thêm Vai trò",
       columns: [
         { key: "name", label: "Tên Vai trò" },
         { key: "code", label: "Mã" },
@@ -277,134 +272,6 @@ export default function RoleManagement() {
     return filteredSorted.slice(start, start + pageSize);
   }, [filteredSorted, currentPage, pageSize]);
 
-  const [addModuleOpen, setAddModuleOpen] = useState(false);
-  const [addPermissionOpen, setAddPermissionOpen] = useState(false);
-
-  /**
-   * @summary: Handle clicking the Add button based on active tab.
-   * @returns {void}
-   */
-  function onClickAdd() {
-    if (activeTab === TABS.ROLES) {
-      setAddRoleOpen(true);
-      return;
-    }
-    if (activeTab === TABS.MODULES) {
-      setAddModuleOpen(true);
-      return;
-    }
-    if (activeTab === TABS.PERMISSIONS) {
-      setAddPermissionOpen(true);
-      return;
-    }
-  }
-
-  /**
-   * @summary: Create a new Role entity.
-   * @param {{ name: string, isSystem?: boolean }} form - Role form payload
-   * @returns {Promise<void>}
-   */
-  async function handleCreateRole(form) {
-    try {
-      setSubmitting(true);
-      const created = await roleApi.createRole({
-        name: form.name,
-        code: form.code,
-        isSystem: form.isSystem || false
-      });
-      setData((prev) =>
-        filterOutCustomerRoles(Array.isArray(prev) ? [...prev, created] : [created])
-      );
-      setAddRoleOpen(false);
-      showSuccess(
-        "Tạo Vai trò thành công!",
-        `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
-      );
-    } catch (e) {
-      // Handle network errors globally - only show one toast
-      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
-        showError("Tạo Vai trò thất bại!", errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  /**
-   * @summary: Create a new Module entity.
-   * @param {{ moduleName: string, description?: string }} form - Module form payload
-   * @returns {Promise<void>}
-   */
-  async function handleCreateModule(form) {
-    try {
-      setSubmitting(true);
-      const created = await roleApi.createModule({
-        moduleName: form.moduleName,
-        code: form.code,
-        description: form.description || ""
-      });
-      setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
-      setAddModuleOpen(false);
-      showSuccess(
-        "Tạo Mô-đun thành công!",
-        `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và quyền.`
-      );
-    } catch (e) {
-      // Handle network errors globally - only show one toast
-      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
-        showError("Tạo Mô-đun thất bại!", errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  /**
-   * @summary: Create a new Permission entity.
-   * @param {{ permissionName: string, description?: string }} form - Permission form payload
-   * @returns {Promise<void>}
-   */
-  async function handleCreatePermission(form) {
-    try {
-      setSubmitting(true);
-      const created = await roleApi.createPermission({
-        permissionName: form.permissionName,
-        code: form.code,
-        description: form.description || ""
-      });
-      setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
-      setAddPermissionOpen(false);
-      showSuccess(
-        "Tạo Quyền thành công!",
-        `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
-      );
-    } catch (e) {
-      // Handle network errors globally - only show one toast
-      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
-        showError("Tạo Quyền thất bại!", errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   const [editOpen, setEditOpen] = useState(false);
   const [editFields, setEditFields] = useState([]);
@@ -423,21 +290,21 @@ export default function RoleManagement() {
       setEditTitle("Sửa Mô-đun");
       setEditFields([
         { name: "moduleName", label: "Tên mô-đun", required: true, minLength: 2, maxLength: 80, defaultValue: row.moduleName },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", readonly: true },
         { name: "description", label: "Mô tả", type: "textarea", maxLength: 200, defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
       setEditTitle("Sửa Quyền");
       setEditFields([
         { name: "permissionName", label: "Tên quyền", required: true, minLength: 2, maxLength: 100, defaultValue: row.permissionName },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", readonly: true },
         { name: "description", label: "Mô tả", type: "textarea", maxLength: 300, defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
         { name: "name", label: "Tên vai trò", required: true, minLength: 2, maxLength: 60, defaultValue: row.name },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", readonly: true },
         { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
@@ -664,52 +531,8 @@ export default function RoleManagement() {
               </select>
             </div>
           )}
-          <button className="role-add-button" onClick={onClickAdd}>{addButtonText}</button>
         </div>
       </div>
-      {activeTab === TABS.ROLES && (
-        <RoleModal
-          isOpen={addRoleOpen}
-          title="Thêm Vai trò"
-          fields={[
-            { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
-            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
-            { name: "isSystem", label: "System Role", type: "checkbox" },
-          ]}
-          onClose={() => setAddRoleOpen(false)}
-          onSubmit={handleCreateRole}
-          submitting={submitting}
-        />
-      )}
-      {activeTab === TABS.MODULES && (
-        <RoleModal
-          isOpen={addModuleOpen}
-          title="Thêm Mô-đun"
-          fields={[
-            { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
-            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
-            { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
-          ]}
-          onClose={() => setAddModuleOpen(false)}
-          onSubmit={handleCreateModule}
-          submitting={submitting}
-        />
-      )}
-      {activeTab === TABS.PERMISSIONS && (
-        <RoleModal
-          isOpen={addPermissionOpen}
-          title="Thêm Quyền"
-          fields={[
-            { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
-            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
-            { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
-          ]}
-          onClose={() => setAddPermissionOpen(false)}
-          onSubmit={handleCreatePermission}
-          submitting={submitting}
-        />
-      )}
-
       <div className="role-table-container">
         {loading ? (
           <div className="role-loading-state">

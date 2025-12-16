@@ -12,8 +12,11 @@
 /**
  * FE no longer enforces permissions; BE is the source of truth.
  * Always allow; loading is always false.
+ * @param {string} moduleCode - Module code (ignored, kept for compatibility)
+ * @param {string} permissionCode - Permission code (ignored, kept for compatibility)
+ * @returns {{hasPermission: boolean, loading: boolean}}
  */
-export const usePermission = () => {
+export const usePermission = (moduleCode, permissionCode) => {
   return { hasPermission: true, loading: false };
 };
 

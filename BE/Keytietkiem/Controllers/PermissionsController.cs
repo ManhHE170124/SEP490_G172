@@ -22,6 +22,7 @@ using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using static Keytietkiem.Constants.ModuleCodes;
 using static Keytietkiem.Constants.PermissionCodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Roles;
@@ -32,6 +33,7 @@ namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PermissionsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;

@@ -8,6 +8,7 @@ using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using static Keytietkiem.Constants.ModuleCodes;
 using static Keytietkiem.Constants.PermissionCodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/products/{productId:guid}/variants")]
+    [Authorize]
     public class ProductVariantsController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;

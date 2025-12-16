@@ -84,6 +84,8 @@ namespace Keytietkiem.Controllers
 
         // ===== API ADMIN: list payment =====
         [HttpGet]
+        [Authorize]
+        [RequirePermission(ModuleCodes.PAYMENT, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
             [FromQuery] string? provider,
@@ -194,6 +196,8 @@ namespace Keytietkiem.Controllers
         // ===== API ADMIN: xem chi tiết 1 payment =====
         // GET /api/payments/{paymentId}
         [HttpGet("{paymentId:guid}")]
+        [Authorize]
+        [RequirePermission(ModuleCodes.PAYMENT, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetPaymentById(Guid paymentId)
         {
             var payment = await _context.Payments
@@ -699,7 +703,7 @@ namespace Keytietkiem.Controllers
         // ===== API: Tạo Payment + PayOS checkoutUrl cho gói hỗ trợ (subscription 1 tháng) =====
         // POST /api/payments/payos/create-support-plan
         [HttpPost("payos/create-support-plan")]
-        [Authorize] // Customer phải đăng nhập
+        [Authorize]
         public async Task<IActionResult> CreateSupportPlanPayOSPayment(
             [FromBody] CreateSupportPlanPayOSPaymentDTO dto)
         {

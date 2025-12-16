@@ -163,7 +163,7 @@ using (var scope = app.Services.CreateScope())
     await roleService.SeedDefaultRolesAsync();
     var accountService = scope.ServiceProvider.GetRequiredService<IAccountService>();
     await accountService.SeedDataAsync();
-    await RolePermissionInitializer.EnsureAsync(scope.ServiceProvider);
+    // RolePermissionInitializer removed - permissions are now seeded via SQL script
 }
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====

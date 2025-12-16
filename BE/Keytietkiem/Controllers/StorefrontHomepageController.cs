@@ -1,6 +1,7 @@
 ﻿using Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +31,7 @@ namespace Keytietkiem.Controllers
         /// - M?i c?p nh?t: sort theo UpdatedAt m?i nh?t
         /// </summary>
         [HttpGet("products")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontHomepageProductsDto>> GetHomepageProducts()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

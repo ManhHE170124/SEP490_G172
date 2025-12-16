@@ -11,6 +11,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Models;
+using Keytietkiem.Constants;
 using System.Security.Claims;
 
 namespace Keytietkiem.Authorization
@@ -83,6 +84,13 @@ namespace Keytietkiem.Authorization
 
             if (roleCodes.Count == 0)
             {
+                return;
+            }
+
+            // Bypass permission check for ADMIN role - Admin has full access to all modules
+            if (roleCodes.Contains(RoleCodes.ADMIN))
+            {
+                context.Succeed(requirement);
                 return;
             }
 

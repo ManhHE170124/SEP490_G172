@@ -8,6 +8,7 @@ using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using static Keytietkiem.Constants.ModuleCodes;
 using static Keytietkiem.Constants.PermissionCodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Services.Interfaces;
@@ -17,6 +18,7 @@ namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class OrdersController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -137,6 +139,7 @@ namespace Keytietkiem.Controllers
         /// Lịch sử đơn hàng của 1 user (read-only)
         /// </summary>
         [HttpGet("history")]
+        [Authorize]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {
             if (!userId.HasValue)

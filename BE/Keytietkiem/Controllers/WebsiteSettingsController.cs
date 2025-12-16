@@ -12,6 +12,7 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/admin/settings")]
+    [Authorize]
     public class WebsiteSettingsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
