@@ -44,11 +44,11 @@ const BASE_NAV_ITEMS = [
     label: "Bài viết",
     anchor: "blog",
     path: "/blogs",
-    dropdown: [
-      { label: "Mẹo vặt", path: "/blog/tips" },
-      { label: "Tin tức", path: "/blog/news" },
-      { label: "Hướng dẫn nhanh", path: "/blog/quick-guides" },
-    ],
+    // dropdown: [
+    //   { label: "Mẹo vặt", path: "/blog/tips" },
+    //   { label: "Tin tức", path: "/blog/news" },
+    //   { label: "Hướng dẫn nhanh", path: "/blog/quick-guides" },
+    // ],
   },
   {
     label: "Hướng dẫn",

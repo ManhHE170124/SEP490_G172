@@ -8,6 +8,8 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -36,10 +38,8 @@ namespace Keytietkiem.Infrastructure
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<PayOSService> _logger;
-        private readonly string _clientId;
-        private readonly string _apiKey;
-        private readonly string _checksumKey;
-        private readonly string _endpoint;
+        private readonly IConfiguration _config;
+        private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
 
         // ✅ serialize ổn định cho signature (arrays/objects)
         private static readonly JsonSerializerOptions SignatureJsonOptions = new JsonSerializerOptions
@@ -49,15 +49,54 @@ namespace Keytietkiem.Infrastructure
             WriteIndented = false
         };
 
-        public PayOSService(HttpClient httpClient, ILogger<PayOSService> logger, IConfiguration config)
+        public PayOSService(
+            HttpClient httpClient,
+            ILogger<PayOSService> logger,
+            IConfiguration config,
+            IDbContextFactory<KeytietkiemDbContext> dbFactory)
         {
             _httpClient = httpClient;
             _logger = logger;
-            _clientId = config["PayOS:ClientId"] ?? "";
-            _apiKey = config["PayOS:ApiKey"] ?? "";
-            _checksumKey = config["PayOS:ChecksumKey"] ?? "";
-            _endpoint = config["PayOS:Endpoint"] ?? "";
+            _config = config;
+            _dbFactory = dbFactory;
         }
+
+        /// <summary>
+        /// DB-first: lấy PayOS keys từ PaymentGateway(Name="PayOS", IsActive=true),
+        /// fallback appsettings nếu DB chưa có.
+        /// </summary>
+        private async Task<(string clientId, string apiKey, string checksumKey, string endpoint)> GetSettingsAsync()
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var gw = await db.PaymentGateways
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Name == "PayOS" &&
+                    (x.IsActive == null || x.IsActive == true));
+
+            var clientId = gw?.ClientId?.Trim();
+            var apiKey = gw?.ApiKey?.Trim();
+            var checksumKey = gw?.ChecksumKey?.Trim();
+
+            if (string.IsNullOrWhiteSpace(clientId)) clientId = _config["PayOS:ClientId"]?.Trim();
+            if (string.IsNullOrWhiteSpace(apiKey)) apiKey = _config["PayOS:ApiKey"]?.Trim();
+            if (string.IsNullOrWhiteSpace(checksumKey)) checksumKey = _config["PayOS:ChecksumKey"]?.Trim();
+            var endpoint = _config["PayOS:Endpoint"]?.Trim() ?? "";
+
+            return (clientId ?? "", apiKey ?? "", checksumKey ?? "", endpoint);
+        }
+
+        private static string ComputeHmacSha256Hex(string data, string key)
+        {
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(key));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        // =========================
+        // 1) CREATE PAYMENT (V2)
+        // =========================
         public virtual async Task<PayOSCreatePaymentResult> CreatePaymentV2(
             int orderCode,
             int amount,
@@ -68,12 +107,20 @@ namespace Keytietkiem.Infrastructure
             string buyerName,
             string buyerEmail)
         {
+            var (clientId, apiKey, checksumKey, endpoint) = await GetSettingsAsync();
+
+            if (string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(apiKey) ||
+                string.IsNullOrWhiteSpace(checksumKey) ||
+                string.IsNullOrWhiteSpace(endpoint))
+            {
+                throw new InvalidOperationException("Thiếu cấu hình PayOS (ClientId/ApiKey/ChecksumKey/Endpoint).");
+            }
+
             var rawSignature =
                 $"amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}";
 
-            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_checksumKey));
-            var signatureBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawSignature));
-            var signature = BitConverter.ToString(signatureBytes).Replace("-", "").ToLowerInvariant();
+            var signature = ComputeHmacSha256Hex(rawSignature, checksumKey);
 
             var requestBody = new
             {
@@ -91,9 +138,9 @@ namespace Keytietkiem.Infrastructure
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             var jsonString = JsonSerializer.Serialize(requestBody, jsonOptions);
 
-            var request = new HttpRequestMessage(HttpMethod.Post, _endpoint);
-            request.Headers.Add("x-client-id", _clientId);
-            request.Headers.Add("x-api-key", _apiKey);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Headers.Add("x-client-id", clientId);
+            request.Headers.Add("x-api-key", apiKey);
             request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
@@ -101,10 +148,12 @@ namespace Keytietkiem.Infrastructure
 
             _logger.LogInformation("PayOS CreatePayment response: {response}", responseContent);
 
+            if (!response.IsSuccessStatusCode)
+                throw new Exception("Lỗi HTTP từ PayOS: " + responseContent);
+
             var payOSResponse = JsonSerializer.Deserialize<PayOSResponse>(responseContent, jsonOptions);
             if (payOSResponse == null || payOSResponse.Code != "00")
                 throw new Exception("Lỗi từ PayOS: " + responseContent);
-
             var checkoutUrl = payOSResponse.Data?.CheckoutUrl;
             if (string.IsNullOrWhiteSpace(checkoutUrl))
                 throw new Exception("Không tìm thấy checkoutUrl trong phản hồi PayOS.");
@@ -117,27 +166,29 @@ namespace Keytietkiem.Infrastructure
                 PaymentLinkId = paymentLinkId
             };
         }
-        /// <summary>
-        /// ✅ Hủy payment link trên PayOS để QR/checkoutUrl không còn thanh toán được.
-        /// PayOS API: POST /v2/payment-requests/{paymentLinkId}/cancel
-        /// </summary>
+
+        // =========================
+        // 2) CANCEL PAYMENT LINK
+        // =========================
         public virtual async Task<bool> CancelPaymentLink(string paymentLinkId, string? cancellationReason = null)
         {
             if (string.IsNullOrWhiteSpace(paymentLinkId)) return false;
-            if (string.IsNullOrWhiteSpace(_endpoint)) return false;
 
-            var baseUrl = _endpoint.TrimEnd('/');
+            var (clientId, apiKey, _, endpoint) = await GetSettingsAsync();
+            if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(endpoint))
+                return false;
+
+            var baseUrl = endpoint.TrimEnd('/');
             var url = $"{baseUrl}/{paymentLinkId}/cancel";
 
             var reason = string.IsNullOrWhiteSpace(cancellationReason) ? "Cancelled by system" : cancellationReason.Trim();
-
             var body = new { cancellationReason = reason };
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             var jsonString = JsonSerializer.Serialize(body, jsonOptions);
 
-            var req = new HttpRequestMessage(HttpMethod.Post, url);
-            req.Headers.Add("x-client-id", _clientId);
-            req.Headers.Add("x-api-key", _apiKey);
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Add("x-client-id", clientId);
+            req.Headers.Add("x-api-key", apiKey);
             req.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
             var resp = await _httpClient.SendAsync(req);
@@ -152,29 +203,28 @@ namespace Keytietkiem.Infrastructure
             }
             catch
             {
-                // best-effort: nếu response không đúng format nhưng HTTP OK
                 return resp.IsSuccessStatusCode;
             }
         }
 
+        // =========================
+        // 3) VERIFY WEBHOOK SIGNATURE
+        // =========================
 
         /// <summary>
-        /// ✅ Verify webhook signature/HMAC:
-        /// - Build query string từ object "data" theo key alphabet: key=value&...
-        /// - Value null/undefined/"null"/"undefined" => ""
-        /// - Array/Object => stringify JSON ổn định (sort keys)
-        /// - HMAC_SHA256(checksumKey) => hex lowercase
+        /// ✅ Khuyến nghị dùng bản async (vì checksumKey nằm DB)
         /// </summary>
-        public virtual bool VerifyWebhookSignature(object data, string? signature)
+        public virtual async Task<bool> VerifyWebhookSignatureAsync(object data, string? signature)
         {
             if (data == null) return false;
             if (string.IsNullOrWhiteSpace(signature)) return false;
-            if (string.IsNullOrWhiteSpace(_checksumKey)) return false;
+
+            var (_, _, checksumKey, _) = await GetSettingsAsync();
+            if (string.IsNullOrWhiteSpace(checksumKey)) return false;
 
             JsonElement el;
             try
             {
-                // Quan trọng: camelCase khi serialize để match field names PayOS
                 el = JsonSerializer.SerializeToElement(data, SignatureJsonOptions);
             }
             catch
@@ -182,20 +232,38 @@ namespace Keytietkiem.Infrastructure
                 return false;
             }
 
-            return VerifyWebhookSignature(el, signature);
+            return VerifyWebhookSignatureCore(el, signature, checksumKey);
         }
 
         /// <summary>
-        /// Overload: nếu bạn có sẵn JsonElement data
+        /// Giữ lại hàm sync để khỏi sửa nhiều chỗ gọi.
+        /// (Nếu bạn có thể sửa caller, hãy chuyển sang VerifyWebhookSignatureAsync)
         /// </summary>
+        public virtual bool VerifyWebhookSignature(object data, string? signature)
+        {
+            return VerifyWebhookSignatureAsync(data, signature).GetAwaiter().GetResult();
+        }
+
+        public virtual async Task<bool> VerifyWebhookSignatureAsync(JsonElement data, string? signature)
+        {
+            var (_, _, checksumKey, _) = await GetSettingsAsync();
+            if (string.IsNullOrWhiteSpace(checksumKey)) return false;
+
+            return VerifyWebhookSignatureCore(data, signature, checksumKey);
+        }
+
         public virtual bool VerifyWebhookSignature(JsonElement data, string? signature)
+        {
+            return VerifyWebhookSignatureAsync(data, signature).GetAwaiter().GetResult();
+        }
+
+        private static bool VerifyWebhookSignatureCore(JsonElement data, string? signature, string checksumKey)
         {
             if (data.ValueKind != JsonValueKind.Object) return false;
             if (string.IsNullOrWhiteSpace(signature)) return false;
-            if (string.IsNullOrWhiteSpace(_checksumKey)) return false;
 
             var queryStr = BuildQueryStringSorted(data);
-            var computed = ComputeHmacSha256Hex(queryStr, _checksumKey);
+            var computed = ComputeHmacSha256Hex(queryStr, checksumKey);
 
             return FixedTimeEqualsHex(computed, signature.Trim());
         }
@@ -219,7 +287,6 @@ namespace Keytietkiem.Infrastructure
 
         private static string ToSignatureValueString(JsonElement value)
         {
-            // null/undefined => ""
             if (value.ValueKind == JsonValueKind.Null || value.ValueKind == JsonValueKind.Undefined)
                 return "";
 
@@ -233,7 +300,6 @@ namespace Keytietkiem.Infrastructure
                     return s;
 
                 case JsonValueKind.Number:
-                    // dùng raw để tránh format lại
                     return value.GetRawText();
 
                 case JsonValueKind.True:
@@ -242,7 +308,6 @@ namespace Keytietkiem.Infrastructure
 
                 case JsonValueKind.Array:
                 case JsonValueKind.Object:
-                    // normalize keys để stringify ổn định
                     var normalized = NormalizeJsonForStableJson(value);
                     return JsonSerializer.Serialize(normalized, SignatureJsonOptions);
 
@@ -292,13 +357,6 @@ namespace Keytietkiem.Infrastructure
             }
         }
 
-        private static string ComputeHmacSha256Hex(string data, string key)
-        {
-            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(key));
-            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
-            return Convert.ToHexString(hash).ToLowerInvariant();
-        }
-
         private static bool FixedTimeEqualsHex(string aHex, string bHex)
         {
             var a = aHex.Trim().ToLowerInvariant();
@@ -311,22 +369,22 @@ namespace Keytietkiem.Infrastructure
             return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
         }
 
-        /// <summary>
-        /// Lấy lại checkoutUrl theo paymentLinkId (idempotency: DB không lưu checkoutUrl).
-        /// Endpoint GET phụ thuộc PayOS, ở đây dùng dạng: {Endpoint}/{paymentLinkId}
-        /// (nếu endpoint config đã là .../payment-requests)
-        /// </summary>
+        // =========================
+        // 4) GET CHECKOUT URL BY PAYMENT LINK ID
+        // =========================
         public virtual async Task<string?> GetCheckoutUrlByPaymentLinkId(string paymentLinkId)
         {
             if (string.IsNullOrWhiteSpace(paymentLinkId)) return null;
-            if (string.IsNullOrWhiteSpace(_endpoint)) return null;
 
-            var baseUrl = _endpoint.TrimEnd('/');
+            var (clientId, apiKey, _, endpoint) = await GetSettingsAsync();
+            if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(endpoint))
+                return null;
+            var baseUrl = endpoint.TrimEnd('/');
             var getUrl = $"{baseUrl}/{paymentLinkId}";
 
-            var req = new HttpRequestMessage(HttpMethod.Get, getUrl);
-            req.Headers.Add("x-client-id", _clientId);
-            req.Headers.Add("x-api-key", _apiKey);
+            using var req = new HttpRequestMessage(HttpMethod.Get, getUrl);
+            req.Headers.Add("x-client-id", clientId);
+            req.Headers.Add("x-api-key", apiKey);
 
             var resp = await _httpClient.SendAsync(req);
             var content = await resp.Content.ReadAsStringAsync();
