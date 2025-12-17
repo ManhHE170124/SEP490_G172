@@ -20,13 +20,9 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Keytietkiem.Models;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.DTOs.Roles;
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
@@ -52,7 +48,7 @@ namespace Keytietkiem.Controllers
         * Returns: 200 OK with list of modules
         */
         [HttpGet]
-    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.VIEW_LIST)]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetModules()
         {
             var modules = await _context.Modules
@@ -77,7 +73,7 @@ namespace Keytietkiem.Controllers
          * @Returns: 200 OK with module, 404 if not found
          */
         [HttpGet("{id}")]
-    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetModuleById(long id)
         {
             var module = await _context.Modules
@@ -108,7 +104,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
         [HttpPost]
-    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.CREATE)]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
             if (createModuleDto == null)
@@ -207,7 +203,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404/409 on errors
          */
         [HttpPut("{id}")]
-    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
             if (updateModuleDto == null)
@@ -280,7 +276,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
-    [RequirePermission(ModuleCodes.MODULE, PermissionCodes.DELETE)]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules

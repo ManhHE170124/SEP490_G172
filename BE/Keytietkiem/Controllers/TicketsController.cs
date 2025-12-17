@@ -9,8 +9,6 @@ using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Http;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -133,7 +131,7 @@ public class TicketsController : ControllerBase
 
     // ============ LIST ============
     [HttpGet]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_LIST)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
         [FromQuery] string? q,
         [FromQuery] string? status,
@@ -339,7 +337,7 @@ public class TicketsController : ControllerBase
 
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<TicketDetailDto>> Detail(Guid id)
     {
         var t = await _db.Tickets
@@ -738,7 +736,7 @@ public class TicketsController : ControllerBase
 
     [HttpPost("{id:guid}/assign")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignTicketDto dto)
     {
         // ✅ NEW: chỉ Staff/Admin (ưu tiên Admin) mới được gán người khác
@@ -825,7 +823,7 @@ public class TicketsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/assign-me")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> AssignToMe(Guid id)
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -906,7 +904,7 @@ public class TicketsController : ControllerBase
 
     [HttpPost("{id:guid}/transfer-tech")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> TransferToTech(Guid id, [FromBody] AssignTicketDto dto)
     {
         // ✅ NEW: chỉ assignee hoặc admin mới được transfer
@@ -1004,7 +1002,7 @@ public class TicketsController : ControllerBase
 
     [HttpPost("{id:guid}/complete")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> Complete(Guid id)
     {
         // ✅ NEW: chỉ assignee hoặc admin mới được complete
@@ -1096,7 +1094,7 @@ public class TicketsController : ControllerBase
 
     [HttpPost("{id:guid}/close")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> Close(Guid id)
     {
         // ✅ NEW: chỉ Admin mới được close (tránh staff/customer tự đóng ticket)
@@ -1197,7 +1195,7 @@ public class TicketsController : ControllerBase
     // GET /api/tickets/assignees?q=&page=&pageSize=
     [HttpGet("assignees")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_LIST)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<List<StaffMiniDto>>> GetAssignableStaff(
         [FromQuery] string? q,
         [FromQuery] int page = 1,
@@ -1257,7 +1255,7 @@ public class TicketsController : ControllerBase
     // GET /api/tickets/assignees/transfer?excludeUserId=&q=&page=&pageSize=
     [HttpGet("assignees/transfer")]
     [Authorize]
-    [RequirePermission(ModuleCodes.TICKET, PermissionCodes.VIEW_LIST)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<List<StaffMiniDto>>> GetTransferAssignees(
         [FromQuery] Guid? excludeUserId,
         [FromQuery] string? q,

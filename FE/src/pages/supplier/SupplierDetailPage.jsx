@@ -12,8 +12,6 @@ import ViewKeysModal from "../../components/Modal/ViewKeysModal";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
 import { formatDate } from "../../utils/formatDate";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 
 export default function SupplierDetailPage() {
@@ -24,10 +22,11 @@ export default function SupplierDetailPage() {
   const { toasts, showSuccess, showError, showWarning, removeToast } =
     useToast();
 
-  // Check permissions
-  const { hasPermission: canViewDetail, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
-  const { hasPermission: canCreate } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "CREATE");
-  const { hasPermission: canEdit } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "EDIT");
+  // Permission checks removed - now role-based on backend
+  const canViewDetail = true;
+  const permissionLoading = false;
+  const canCreate = true;
+  const canEdit = true;
 
   // Global network error handler
   const networkErrorShownRef = useRef(false);

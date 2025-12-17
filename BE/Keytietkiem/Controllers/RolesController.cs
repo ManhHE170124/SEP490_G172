@@ -30,11 +30,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.DTOs.Roles;
 using System.Linq;
 
 namespace Keytietkiem.Controllers
@@ -57,7 +54,7 @@ namespace Keytietkiem.Controllers
         /// Get a list of roles excluding any role whose name contains "admin" (case-insensitive).
         /// </summary>
         [HttpGet]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> Get()
         {
             var roles = await _context.Roles
@@ -76,7 +73,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of roles
          */
         [HttpGet("list")]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoles()
         {
             var roles = await _context.Roles
@@ -101,7 +98,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with role, 404 if not found
          */
         [HttpGet("{id}")]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoleById(string id)
         {
             var role = await _context.Roles
@@ -146,7 +143,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created role, 400/409 on validation errors
          */
         [HttpPost]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
             if (createRoleDto == null)
@@ -260,7 +257,7 @@ namespace Keytietkiem.Controllers
         * Returns: 204 No Content, 400/404 on errors
         */
         [HttpPut("{id}")]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDTO updateRoleDto)
         {
             if (updateRoleDto == null)
@@ -341,7 +338,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeleteRoleById(string id)
         {
             var existingRole = await _context.Roles.FindAsync(id);
@@ -411,7 +408,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with role permissions matrix, 404 if role not found
          */
         [HttpGet("{id}/permissions")]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRolePermissions(string id)
         {
             var role = await _context.Roles
@@ -454,7 +451,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with updated role permissions, 400/404 on errors
          */
         [HttpPut("{id}/permissions")]
-        [RequirePermission(ModuleCodes.ROLE, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRolePermissions(string id, [FromBody] BulkRolePermissionUpdateDTO updateDto)
         {
             if (updateDto == null || updateDto.RolePermissions == null || !updateDto.RolePermissions.Any())

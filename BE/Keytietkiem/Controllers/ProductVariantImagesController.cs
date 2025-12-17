@@ -16,8 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Attributes;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -45,7 +44,7 @@ namespace Keytietkiem.Controllers
         /// </summary>
         [HttpPost("uploadImage")]
         [Consumes("multipart/form-data")]
-        [RequirePermission(PRODUCT_VARIANT_IMAGE, CREATE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> UploadImage([FromForm] VariantImageUploadRequest request)
         {
             try
@@ -85,7 +84,7 @@ namespace Keytietkiem.Controllers
         /// Delete an image from Cloudinary by public id.
         /// </summary>
         [HttpDelete("deleteImage")]
-        [RequirePermission(PRODUCT_VARIANT_IMAGE, DELETE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> DeleteImage([FromBody] VariantImageDeleteRequest request)
         {
             if (string.IsNullOrWhiteSpace(request?.PublicId))

@@ -473,10 +473,10 @@ const Sidebar = () => {
           ),
         },
         {
-          id: "tickets",
+          id: "tickets-admin",
           label: "Quản lý phiếu hỗ trợ",
           to: "/admin/tickets",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive:
             currentPage === "admin/tickets" ||
             currentPage.startsWith("admin/tickets/"),
@@ -500,11 +500,63 @@ const Sidebar = () => {
           ),
         },
         {
-          id: "support-chats",
+          id: "tickets-staff",
+          label: "Quản lý phiếu hỗ trợ",
+          to: "/staff/tickets",
+          allowedRoles: [ROLE_CUSTOMER_CARE],
+          isActive:
+            currentPage === "staff/tickets" ||
+            currentPage.startsWith("staff/tickets/"),
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="12"
+                cy="7"
+                r="4"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
+        {
+          id: "support-chats-admin",
           label: "Quản lý chat hỗ trợ",
           to: "/admin/support-chats",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/support-chats",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="12"
+                cy="7"
+                r="4"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          ),
+        },
+        {
+          id: "support-chats-staff",
+          label: "Quản lý chat hỗ trợ",
+          to: "/staff/support-chats",
+          allowedRoles: [ROLE_CUSTOMER_CARE],
+          isActive: currentPage === "staff/support-chats",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path

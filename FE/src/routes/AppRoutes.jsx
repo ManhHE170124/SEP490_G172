@@ -16,7 +16,6 @@ import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
 //Role Management Pages
-import RoleAssign from "../pages/RoleManage/RoleAssign";
 import RoleManage from "../pages/RoleManage/RoleManage";
 // Post Management Pages
 import AdminPostList from "../pages/PostManage/AdminPostList";
@@ -120,8 +119,11 @@ const StaffTicketDetail = lazy(() =>
 );
 
 export default function AppRoutes() {
+  // Các role được phép truy cập trang admin
+  const ADMIN_ROLES = ["ADMIN", "STORAGE_STAFF", "CUSTOMER_CARE", "CONTENT_CREATOR"];
+
   const renderAdminPage = (component) => (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={ADMIN_ROLES}>
       <AdminLayout>{component}</AdminLayout>
     </ProtectedRoute>
   );
@@ -164,7 +166,7 @@ export default function AppRoutes() {
       <Route
         path="/admin/tickets/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={ADMIN_ROLES}>
             <Suspense fallback={<div>Đang tải chi tiết...</div>}>
               <AdminLayout>
                 <AdminTicketDetail />
@@ -182,7 +184,7 @@ export default function AppRoutes() {
       <Route
         path="/staff/tickets/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={ADMIN_ROLES}>
             <Suspense fallback={<div>Đang tải chi tiết...</div>}>
               <AdminLayout>
                 <StaffTicketDetail />
@@ -285,10 +287,6 @@ export default function AppRoutes() {
         path="/role-manage"
         element={renderAdminPage(<RoleManage />)}
       />
-      <Route
-        path="/role-assign"
-        element={renderAdminPage(<RoleAssign />)}
-      />
       {/* Post Routes */}
       <Route
         path="/post-dashboard"
@@ -313,7 +311,7 @@ export default function AppRoutes() {
 
       {/* Role */}
       <Route path="/role-manage" element={renderAdminPage( <RoleManage />)} />
-      <Route path="/role-assign" element={renderAdminPage( <RoleAssign />)} />
+      {/* RoleAssign đã bị xóa - chức năng phân quyền chi tiết không còn sử dụng */}
 
       {/* Post */}
       <Route path="/post-dashboard" element={renderAdminPage(<PostDashboardPage />)} />

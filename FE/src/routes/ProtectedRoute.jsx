@@ -3,12 +3,14 @@ import PropTypes from "prop-types";
 import { Navigate } from "react-router-dom";
 
 /**
- * ProtectedRoute chỉ kiểm tra đăng nhập.
- * Phân quyền chi tiết (module/permission) được xử lý hoàn toàn ở backend.
+ * ProtectedRoute kiểm tra đăng nhập và role.
+ * - Nếu chưa đăng nhập → redirect /login
+ * - Nếu đã đăng nhập nhưng không có role phù hợp → redirect /not-found
  */
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles }) => {
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [hasRequiredRole, setHasRequiredRole] = React.useState(true);
 
   React.useEffect(() => {
     const publicPaths = [
@@ -30,15 +32,27 @@ const ProtectedRoute = ({ children }) => {
     }
 
     const accessToken = localStorage.getItem("access_token");
-    const user = localStorage.getItem("user");
+    const userStr = localStorage.getItem("user");
 
-    if (accessToken && user) {
+    if (accessToken && userStr) {
       setIsAuthenticated(true);
+      
+      // Check role nếu allowedRoles được truyền vào
+      if (allowedRoles && allowedRoles.length > 0) {
+        try {
+          const user = JSON.parse(userStr);
+          const userRoles = user.roles || [];
+          const hasRole = userRoles.some((role) => allowedRoles.includes(role));
+          setHasRequiredRole(hasRole);
+        } catch {
+          setHasRequiredRole(false);
+        }
+      }
     } else {
       setIsAuthenticated(false);
     }
     setIsCheckingAuth(false);
-  }, []);
+  }, [allowedRoles]);
 
   if (isCheckingAuth) {
     return null;
@@ -48,11 +62,16 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
+  if (!hasRequiredRole) {
+    return <Navigate to="/not-found" replace />;
+  }
+
   return children;
 };
 
 ProtectedRoute.propTypes = {
   children: PropTypes.node.isRequired,
+  allowedRoles: PropTypes.arrayOf(PropTypes.string),
 };
 
 export default ProtectedRoute;

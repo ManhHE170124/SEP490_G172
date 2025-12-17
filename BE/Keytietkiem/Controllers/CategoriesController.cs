@@ -20,8 +20,6 @@ using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -63,7 +61,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
-    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.VIEW_DETAIL)]    
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]    
     /**
      * Summary: Retrieve category list with optional keyword/active filters; supports sorting & pagination.
      * Route: GET /api/categories
@@ -139,7 +137,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     /**
      * Summary: Retrieve a single category by id (includes ProductCount).
      * Route: GET /api/categories/{id}
@@ -168,7 +166,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPost]
-    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.CREATE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     /**
      * Summary: Create a new category.
      * Route: POST /api/categories
@@ -307,7 +305,7 @@ public class CategoriesController : ControllerBase
 
 
     [HttpPut("{id:int}")]
-    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     /**
      * Summary: Update an existing category by id.
      * Route: PUT /api/categories/{id}
@@ -415,7 +413,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.DELETE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     /**
      * Summary: Delete a category by id.
      * Route: DELETE /api/categories/{id}
@@ -459,7 +457,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:int}/toggle")]
-    [RequirePermission(ModuleCodes.CATEGORY, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     /**
      * Summary: Toggle the IsActive state of a category.
      * Route: PATCH /api/categories/{id}/toggle

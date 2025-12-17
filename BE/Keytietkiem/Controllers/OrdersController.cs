@@ -17,8 +17,6 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using static Keytietkiem.Constants.RoleCodes;
 
 namespace Keytietkiem.Controllers
@@ -497,7 +495,7 @@ namespace Keytietkiem.Controllers
 
         // ================== READ-ONLY ==================
         [HttpGet]
-        [RequirePermission(ModuleCodes.ORDER, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrders(
             [FromQuery] string? sortBy,
             [FromQuery] string? sortDir)
@@ -725,49 +723,17 @@ namespace Keytietkiem.Controllers
                 if (order == null)
                     return NotFound(new { message = "Đơn hàng không được tìm thấy" });
 
-                // Check permission: Admin/Staff with ORDER.VIEW_DETAIL can view any order
+                // Check role: Admin/Storage Staff can view any order
                 // Customer can only view their own orders
                 var currentUserId = GetCurrentUserIdOrNull();
-                var hasPermission = false;
-
-                if (currentUserId.HasValue)
+                var roleCodes = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                
+                bool hasPermission = false;
+                
+                // Admin or Storage Staff have full access
+                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
                 {
-                    var user = await db.Users
-                        .Include(u => u.Roles)
-                        .FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
-
-                    if (user != null && user.Roles.Any())
-                    {
-                        var roleCodes = user.Roles
-                            .Where(r => r.IsActive && !string.IsNullOrWhiteSpace(r.Code))
-                            .Select(r => r.Code!.Trim().ToUpper())
-                            .ToList();
-
-                        // Admin has full access
-                        if (roleCodes.Contains(ADMIN))
-                        {
-                            hasPermission = true;
-                        }
-                        else
-                        {
-                            // Check if user has ORDER.VIEW_DETAIL permission
-                            hasPermission = await db.RolePermissions
-                                .Include(rp => rp.Role)
-                                .Include(rp => rp.Module)
-                                .Include(rp => rp.Permission)
-                                .AnyAsync(rp =>
-                                    rp.IsActive &&
-                                    rp.Role != null &&
-                                    rp.Module != null &&
-                                    rp.Permission != null &&
-                                    !string.IsNullOrWhiteSpace(rp.Role.Code) &&
-                                    roleCodes.Contains(rp.Role.Code.ToUpper()) &&
-                                    !string.IsNullOrWhiteSpace(rp.Module.Code) &&
-                                    rp.Module.Code.ToUpper() == ORDER &&
-                                    !string.IsNullOrWhiteSpace(rp.Permission.Code) &&
-                                    rp.Permission.Code.ToUpper() == VIEW_DETAIL);
-                        }
-                    }
+                    hasPermission = true;
                 }
 
                 // If user doesn't have permission, check if it's their own order
@@ -775,7 +741,8 @@ namespace Keytietkiem.Controllers
                 {
                     if (!currentUserId.HasValue || order.UserId != currentUserId.Value)
                     {
-                        return StatusCode(403, new { message = "Bạn không có quyền truy cập chức năng này" });
+                        // Return 404-like message for security (don't reveal resource existence)
+                        return NotFound(new { message = "Đơn hàng không tồn tại." });
                     }
                 }
 
@@ -857,7 +824,7 @@ namespace Keytietkiem.Controllers
             }
         }
         [HttpGet("{id:guid}/details")]
-        [RequirePermission(ModuleCodes.ORDER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrderDetails(Guid id)
         {
             await using var db = _dbFactory.CreateDbContext();

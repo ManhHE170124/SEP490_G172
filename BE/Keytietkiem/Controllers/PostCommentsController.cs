@@ -27,8 +27,7 @@ using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Attributes;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -55,7 +54,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of comments
          */
     [HttpGet]
-    [RequirePermission(POST_COMMENT, VIEW_LIST)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
     public async Task<IActionResult> GetComments(
             [FromQuery] Guid? postId,
             [FromQuery] Guid? userId,
@@ -120,7 +119,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with comment, 404 if not found
          */
     [HttpGet("{id}")]
-    [RequirePermission(POST_COMMENT, VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
     public async Task<IActionResult> GetCommentById(Guid id)
         {
             var comment = await _context.PostComments

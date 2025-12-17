@@ -53,7 +53,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpGet]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosts()
         {
             var posts = await _context.Posts
@@ -96,7 +96,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpGet("{id}")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPostById(Guid id)
         {
             var post = await _context.Posts
@@ -146,7 +146,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpPost]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreatePost([FromBody] CreatePostDTO createPostDto)
         {
             if (createPostDto == null)
@@ -301,7 +301,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpPut("{id}")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdatePost(Guid id, [FromBody] UpdatePostDTO updatePostDto)
         {
             if (updatePostDto == null)
@@ -404,7 +404,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpDelete("{id}")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePost(Guid id)
         {
             var existingPost = await _context.Posts
@@ -430,7 +430,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpGet("posttypes")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST_TYPE, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosttypes()
         {
             var postTypes = await _context.PostTypes
@@ -448,7 +448,7 @@ namespace Keytietkiem.Controllers
 
         [HttpPost("posttypes")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST_TYPE, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
             if (createPostTypeDto == null)
@@ -482,7 +482,7 @@ namespace Keytietkiem.Controllers
 
         [HttpPut("posttypes/{id}")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST_TYPE, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
             if (updatePostTypeDto == null)
@@ -513,7 +513,7 @@ namespace Keytietkiem.Controllers
 
         [HttpDelete("posttypes/{id}")]
         [Authorize]
-        [RequirePermission(ModuleCodes.POST_TYPE, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePosttype(Guid id)
         {
             var existing = await _context.PostTypes

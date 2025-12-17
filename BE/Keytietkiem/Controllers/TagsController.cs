@@ -20,8 +20,7 @@ using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Post;
 using Keytietkiem.Attributes;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -44,7 +43,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of tags
          */
         [HttpGet]
-        [RequirePermission(POST_TAG, VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTags()
         {
             var tags = await _context.Tags
@@ -67,7 +66,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with tag, 404 if not found
          */
         [HttpGet("{id}")]
-        [RequirePermission(POST_TAG, VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTagById(Guid id)
         {
             var tag = await _context.Tags
@@ -96,7 +95,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created tag, 400/409 on validation errors
          */
         [HttpPost]
-        [RequirePermission(POST_TAG, CREATE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreateTag([FromBody] CreateTagDTO createTagDto)
         {
             if (createTagDto == null)
@@ -154,7 +153,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404/409 on errors
          */
         [HttpPut("{id}")]
-        [RequirePermission(POST_TAG, EDIT)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdateTag(Guid id, [FromBody] UpdateTagDTO updateTagDto)
         {
             if (updateTagDto == null)
@@ -206,7 +205,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
-        [RequirePermission(POST_TAG, DELETE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteTag(Guid id)
         {
             var existingTag = await _context.Tags

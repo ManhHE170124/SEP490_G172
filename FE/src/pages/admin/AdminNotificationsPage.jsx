@@ -3,8 +3,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES, PERMISSION_CODES } from "../../constants/roleConstants";
 
 const severityOptions = [
   { value: "", label: "Tất cả mức độ" },
@@ -45,9 +43,9 @@ function severityClass(sev) {
 }
 
 const AdminNotificationsPage = () => {
-  // Permission checks
-  const { hasPermission: hasCreatePermission } = usePermission(MODULE_CODES.SETTINGS_MANAGER, PERMISSION_CODES.CREATE);
-  const { hasPermission: hasViewDetailPermission } = usePermission(MODULE_CODES.SETTINGS_MANAGER, PERMISSION_CODES.VIEW_DETAIL);
+  // Permission checks removed - now role-based on backend
+  const hasCreatePermission = true;
+  const hasViewDetailPermission = true;
   
   const [filters, setFilters] = useState({
     search: "",

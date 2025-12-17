@@ -239,7 +239,7 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users
         [HttpGet]
-        [RequirePermission(ModuleCodes.USER, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult<PagedResult<UserListItemDto>>> GetUsers(
             string? q,
             string? roleId,
@@ -376,7 +376,7 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users/{id}
         [HttpGet("{id:guid}")]
-        [RequirePermission(ModuleCodes.USER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult<UserDetailDto>> Get(Guid id)
         {
             var u = await _db.Set<User>()
@@ -459,7 +459,7 @@ namespace Keytietkiem.Controllers
 
         // POST /api/users
         [HttpPost]
-        [RequirePermission(ModuleCodes.USER, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult> Create([FromBody] UserCreateDto dto)
         {
             if (!ModelState.IsValid)
@@ -574,7 +574,7 @@ namespace Keytietkiem.Controllers
 
         // PUT /api/users/{id}
         [HttpPut("{id:guid}")]
-        [RequirePermission(ModuleCodes.USER, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UserUpdateDto dto)
         {
             if (id != dto.UserId)
@@ -747,7 +747,7 @@ namespace Keytietkiem.Controllers
 
         // DELETE /api/users/{id}  (toggle Active <-> Disabled)
         [HttpDelete("{id:guid}")]
-        [RequirePermission(ModuleCodes.USER, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> ToggleActive([FromRoute] Guid id)
         {
             var u = await _db.Set<User>()
