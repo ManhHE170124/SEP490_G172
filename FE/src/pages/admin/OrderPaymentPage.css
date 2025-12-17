@@ -16,13 +16,6 @@
   margin: 0;
 }
 
-.op-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 /* toolbar / filters */
 .op-toolbar {
   margin-top: 12px;
@@ -35,12 +28,6 @@
   flex-wrap: wrap;
 }
 
-.op-filters-advanced {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--line);
-}
-
 .op-group span {
   font-size: 12px;
   color: var(--muted);
@@ -49,64 +36,6 @@
 .op-group input,
 .op-group select {
   height: 36px;
-}
-
-/* compact compare card */
-.op-compare-card {
-  overflow: hidden;
-}
-
-.op-compare-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-@media (max-width: 900px) {
-  .op-compare-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.op-compare-panel {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 10px 12px;
-  background: #fff;
-}
-
-.op-compare-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.op-compare-label {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.op-compare-meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
-.op-amount {
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.op-empty {
-  font-size: 13px;
-  color: var(--muted);
-  padding: 6px 0;
 }
 
 /* Table: gọn + dễ scan */
@@ -166,13 +95,6 @@
 }
 
 /* Payment mini cell */
-.op-pay-cell {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .op-submono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
@@ -185,10 +107,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.op-target-id {
-  color: var(--ink);
 }
 
 .op-target-sub {
@@ -289,7 +207,7 @@
   }
 }
 
-/* ===== Badge trạng thái (giữ logic cũ) ===== */
+/* ===== Badge trạng thái ===== */
 .status-pill {
   display: inline-flex;
   align-items: center;

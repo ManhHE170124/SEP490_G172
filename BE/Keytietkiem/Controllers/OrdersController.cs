@@ -5,6 +5,7 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -497,187 +498,117 @@ namespace Keytietkiem.Controllers
         [HttpGet]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
         public async Task<IActionResult> GetOrders(
-            [FromQuery] string? sortBy,
-            [FromQuery] string? sortDir,
-            [FromQuery] bool includePaymentSummary = false,      // ✅ default false (list gọn)
-            [FromQuery] bool includePaymentAttemptCount = false  // ✅ default false (list gọn)
-        )
+     [FromQuery] string? search = null,                 // ✅ search theo OrderId hoặc mail
+     [FromQuery] DateTime? createdFrom = null,
+     [FromQuery] DateTime? createdTo = null,
+     [FromQuery] string? orderStatus = null,
+     [FromQuery] decimal? minTotal = null,              // ✅ filter theo giá tiền tổng (FinalAmount)
+     [FromQuery] decimal? maxTotal = null,
+     [FromQuery] string? sortBy = "createdat",           // orderid|amount|status|createdat
+     [FromQuery] string? sortDir = "desc",               // asc|desc
+     [FromQuery] int pageIndex = 1,
+     [FromQuery] int pageSize = 20)
         {
             await using var db = _dbFactory.CreateDbContext();
 
-            var sortByNorm = (sortBy ?? "CreatedAt").Trim();
-            var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
-            var asc = sortDirNorm == "asc";
+            if (pageIndex <= 0) pageIndex = 1;
+            if (pageSize <= 0) pageSize = 20;
 
-            // ✅ List nhẹ: không Include sâu, dùng projection + subquery count
-            var baseQuery = db.Orders
-                .AsNoTracking()
-                .Select(o => new
+            var query = db.Orders.AsNoTracking().AsQueryable();
+
+            // ✅ Search theo OrderId (Guid) hoặc email (guest Email / user Email)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+
+                if (Guid.TryParse(term, out var oid))
                 {
-                    o.OrderId,
-                    o.UserId,
-                    o.Email,
-                    o.TotalAmount,
-                    o.DiscountAmount,
-                    o.Status,
-                    o.CreatedAt,
-                    UserEmail = o.User != null ? o.User.Email : null,
+                    query = query.Where(o => o.OrderId == oid);
+                }
+                else
+                {
+                    var lower = term.ToLower();
+                    query = query.Where(o =>
+                        (!string.IsNullOrWhiteSpace(o.Email) && o.Email.ToLower().Contains(lower)) ||
+                        (o.User != null && !string.IsNullOrWhiteSpace(o.User.Email) && o.User.Email.ToLower().Contains(lower)));
+                }
+            }
+
+            // ✅ Filter created range
+            if (createdFrom.HasValue)
+                query = query.Where(o => o.CreatedAt >= createdFrom.Value);
+
+            if (createdTo.HasValue)
+                query = query.Where(o => o.CreatedAt <= createdTo.Value);
+
+            // ✅ Filter status
+            if (!string.IsNullOrWhiteSpace(orderStatus))
+                query = query.Where(o => o.Status == orderStatus);
+
+            // ✅ Filter price range theo FinalAmount
+            if (minTotal.HasValue)
+                query = query.Where(o => (o.TotalAmount - o.DiscountAmount) >= minTotal.Value);
+
+            if (maxTotal.HasValue)
+                query = query.Where(o => (o.TotalAmount - o.DiscountAmount) <= maxTotal.Value);
+
+            var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+
+            // ✅ Sort
+            query = (sortBy ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "orderid" => desc ? query.OrderByDescending(o => o.OrderId) : query.OrderBy(o => o.OrderId),
+                "amount" or "finalamount" or "total" or "price" =>
+                    desc ? query.OrderByDescending(o => (o.TotalAmount - o.DiscountAmount)) : query.OrderBy(o => (o.TotalAmount - o.DiscountAmount)),
+                "status" => desc ? query.OrderByDescending(o => o.Status) : query.OrderBy(o => o.Status),
+                _ => desc ? query.OrderByDescending(o => o.CreatedAt) : query.OrderBy(o => o.CreatedAt),
+            };
+
+            var totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip((pageIndex - 1) * pageSize)
+                .Take(pageSize)
+                .Select(o => new OrderListItemDTO
+                {
+                    OrderId = o.OrderId,
+                    UserId = o.UserId,
+                    Email = o.Email,
+
                     UserName = o.User != null
                         ? (o.User.FullName ?? $"{o.User.FirstName} {o.User.LastName}".Trim())
                         : null,
-                    ItemCount = db.OrderDetails.Count(od => od.OrderId == o.OrderId)
-                });
+                    UserEmail = o.User != null ? o.User.Email : null,
 
-            switch (sortByNorm.ToLowerInvariant())
-            {
-                case "orderid":
-                    baseQuery = asc ? baseQuery.OrderBy(o => o.OrderId) : baseQuery.OrderByDescending(o => o.OrderId);
-                    break;
-                case "customer":
-                case "username":
-                    baseQuery = asc
-                        ? baseQuery.OrderBy(o => o.UserName ?? o.UserEmail ?? o.Email)
-                        : baseQuery.OrderByDescending(o => o.UserName ?? o.UserEmail ?? o.Email);
-                    break;
-                case "email":
-                    baseQuery = asc ? baseQuery.OrderBy(o => o.Email) : baseQuery.OrderByDescending(o => o.Email);
-                    break;
-                case "totalamount":
-                    baseQuery = asc ? baseQuery.OrderBy(o => o.TotalAmount) : baseQuery.OrderByDescending(o => o.TotalAmount);
-                    break;
-                case "finalamount":
-                    baseQuery = asc
-                        ? baseQuery.OrderBy(o => (o.TotalAmount - o.DiscountAmount))
-                        : baseQuery.OrderByDescending(o => (o.TotalAmount - o.DiscountAmount));
-                    break;
-                case "itemcount":
-                    baseQuery = asc ? baseQuery.OrderBy(o => o.ItemCount) : baseQuery.OrderByDescending(o => o.ItemCount);
-                    break;
-                default:
-                    baseQuery = asc ? baseQuery.OrderBy(o => o.CreatedAt) : baseQuery.OrderByDescending(o => o.CreatedAt);
-                    break;
-            }
-
-            var orders = await baseQuery.ToListAsync();
-
-            // ✅ MẶC ĐỊNH: trả list gọn, không join Payment
-            if (!includePaymentSummary && !includePaymentAttemptCount)
-            {
-                var lean = orders.Select(o => new OrderListItemDTO
-                {
-                    OrderId = o.OrderId,
-                    UserId = o.UserId,
-                    Email = o.Email,
-                    UserName = o.UserName,
-                    UserEmail = o.UserEmail,
                     TotalAmount = o.TotalAmount,
                     FinalAmount = (o.TotalAmount - o.DiscountAmount),
-                    CreatedAt = o.CreatedAt,
-                    ItemCount = o.ItemCount,
-
                     Status = o.Status,
-                    OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
+                    CreatedAt = o.CreatedAt,
 
-                    // ✅ không nhét payment vào list
+                    ItemCount = db.OrderDetails.Count(od => od.OrderId == o.OrderId),
+
+                    // nếu bạn đang dùng orderNumber theo FormatOrderNumber
+                    OrderNumber = null,
+
+                    // giữ nguyên nếu bạn đang show payment summary ở list (không bắt buộc theo yêu cầu)
                     Payment = null,
                     PaymentAttemptCount = 0
-                }).ToList();
-
-                return Ok(lean);
-            }
-
-            // ================== OPTIONAL: nếu admin muốn kèm payment summary / attempt count ==================
-
-            var orderIdStrs = orders.Select(x => x.OrderId.ToString()).ToList();
-
-            var payments = await db.Payments
-                .AsNoTracking()
-                .Where(p => p.TargetType == "Order" && p.TargetId != null && orderIdStrs.Contains(p.TargetId))
-                .Select(p => new PaymentLite
-                {
-                    PaymentId = p.PaymentId,
-                    Amount = p.Amount,
-                    Status = p.Status,
-                    CreatedAt = p.CreatedAt,
-                    Provider = p.Provider,
-                    ProviderOrderCode = p.ProviderOrderCode,
-                    PaymentLinkId = p.PaymentLinkId,
-                    TargetId = p.TargetId
                 })
                 .ToListAsync();
 
-            var nowUtc = DateTime.UtcNow;
+            // (optional) gán OrderNumber (nếu bạn muốn)
+            foreach (var it in items)
+                it.OrderNumber = FormatOrderNumber(it.OrderId, it.CreatedAt);
 
-            var paymentGroups = payments
-                .Where(p => p.TargetId != null)
-                .GroupBy(p => p.TargetId!)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            var orderList = orders.Select(o =>
+            return Ok(new
             {
-                var tid = o.OrderId.ToString();
-
-                paymentGroups.TryGetValue(tid, out var group);
-                group ??= new List<PaymentLite>();
-
-                PaymentLite? best = null;
-                if (includePaymentSummary && group.Count > 0)
-                {
-                    // ✅ pick best: Paid-like > NeedReview > Pending > latest
-                    best = group.OrderByDescending(x => IsPaidLike(x.Status))
-                                .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
-                                .ThenByDescending(x => string.Equals(x.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase))
-                                .ThenByDescending(x => x.CreatedAt)
-                                .FirstOrDefault();
-                }
-
-                var displayStatus = includePaymentSummary
-                    ? ResolveOrderDisplayStatus(o.Status, best?.Status)
-                    : o.Status;
-
-                OrderPaymentSummaryDTO? paySummary = null;
-                if (includePaymentSummary && best != null)
-                {
-                    var expires = best.CreatedAt.Add(PaymentTimeout);
-                    var isExpired = string.Equals(best.Status, PayStatus_Pending, StringComparison.OrdinalIgnoreCase)
-                                    && nowUtc > expires;
-
-                    paySummary = new OrderPaymentSummaryDTO
-                    {
-                        PaymentId = best.PaymentId,
-                        Amount = best.Amount,
-                        Status = best.Status,
-                        Provider = best.Provider,
-                        ProviderOrderCode = best.ProviderOrderCode,
-                        PaymentLinkId = best.PaymentLinkId,
-                        CreatedAt = best.CreatedAt,
-                        ExpiresAtUtc = expires,
-                        IsExpired = isExpired
-                    };
-                }
-
-                return new OrderListItemDTO
-                {
-                    OrderId = o.OrderId,
-                    UserId = o.UserId,
-                    Email = o.Email,
-                    UserName = o.UserName,
-                    UserEmail = o.UserEmail,
-                    TotalAmount = o.TotalAmount,
-                    FinalAmount = (o.TotalAmount - o.DiscountAmount),
-                    CreatedAt = o.CreatedAt,
-                    ItemCount = o.ItemCount,
-
-                    Status = displayStatus,
-                    OrderNumber = FormatOrderNumber(o.OrderId, o.CreatedAt),
-
-                    Payment = paySummary,
-                    PaymentAttemptCount = includePaymentAttemptCount ? group.Count : 0
-                };
-            }).ToList();
-
-            return Ok(orderList);
+                items,
+                totalItems,
+                pageIndex,
+                pageSize
+            });
         }
+
 
         [HttpGet("history")]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
@@ -737,16 +668,29 @@ namespace Keytietkiem.Controllers
 
             return Ok(items);
         }
+
         [HttpGet("{id:guid}")]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
         public async Task<IActionResult> GetOrderById(
             Guid id,
             [FromQuery] bool includePaymentAttempts = true,
-            [FromQuery] bool includeCheckoutUrl = false)
+            [FromQuery] bool includeCheckoutUrl = false,
+
+            // ✅ apply cho OrderItems
+            [FromQuery] string? search = null,
+            [FromQuery] decimal? minPrice = null,
+            [FromQuery] decimal? maxPrice = null,
+            [FromQuery] string? sortBy = "orderdetailid",   // orderdetailid|varianttitle|quantity|unitprice
+            [FromQuery] string? sortDir = "asc",
+            [FromQuery] int pageIndex = 1,
+            [FromQuery] int pageSize = 20)
         {
             try
             {
                 await using var db = _dbFactory.CreateDbContext();
+
+                if (pageIndex <= 0) pageIndex = 1;
+                if (pageSize <= 0) pageSize = 20;
 
                 var order = await db.Orders
                     .Include(o => o.User)
@@ -760,7 +704,7 @@ namespace Keytietkiem.Controllers
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
 
-                // ✅ Bổ sung payment summary + attempts (multi-attempt)
+                // ✅ Bổ sung payment summary + attempts (giữ nguyên logic cũ của bạn)
                 var nowUtc = DateTime.UtcNow;
                 var targetId = id.ToString();
 
@@ -783,7 +727,6 @@ namespace Keytietkiem.Controllers
                     })
                     .ToListAsync();
 
-                // ✅ best: Paid-like > NeedReview > Pending > latest
                 var best = attempts
                     .OrderByDescending(x => IsPaidLike(x.Status))
                     .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
@@ -824,11 +767,65 @@ namespace Keytietkiem.Controllers
                 }
 
                 orderDto.OrderNumber = FormatOrderNumber(orderDto.OrderId, orderDto.CreatedAt);
-
                 if (includePaymentAttempts)
                     orderDto.PaymentAttempts = attempts;
 
-                return Ok(orderDto);
+                // ================== ✅ Filter/Search/Sort/Paging cho OrderItems ==================
+                var allItems = orderDto.OrderDetails ?? new List<OrderDetailDTO>();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var term = search.Trim();
+                    if (long.TryParse(term, out var odid))
+                    {
+                        allItems = allItems.Where(x => x.OrderDetailId == odid).ToList();
+                    }
+                    else
+                    {
+                        var lower = term.ToLowerInvariant();
+                        allItems = allItems.Where(x =>
+                                (!string.IsNullOrWhiteSpace(x.VariantTitle) && x.VariantTitle.ToLower().Contains(lower)) ||
+                                (!string.IsNullOrWhiteSpace(x.ProductName) && x.ProductName.ToLower().Contains(lower)) ||
+                                (!string.IsNullOrWhiteSpace(x.ProductCode) && x.ProductCode.ToLower().Contains(lower)) ||
+                                (!string.IsNullOrWhiteSpace(x.KeyString) && x.KeyString.ToLower().Contains(lower)) ||
+                                (!string.IsNullOrWhiteSpace(x.AccountEmail) && x.AccountEmail.ToLower().Contains(lower))
+                            )
+                            .ToList();
+                    }
+                }
+
+                if (minPrice.HasValue)
+                    allItems = allItems.Where(x => x.UnitPrice >= minPrice.Value).ToList();
+
+                if (maxPrice.HasValue)
+                    allItems = allItems.Where(x => x.UnitPrice <= maxPrice.Value).ToList();
+
+                var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+                allItems = (sortBy ?? string.Empty).Trim().ToLowerInvariant() switch
+                {
+                    "varianttitle" => desc ? allItems.OrderByDescending(x => x.VariantTitle).ToList() : allItems.OrderBy(x => x.VariantTitle).ToList(),
+                    "quantity" => desc ? allItems.OrderByDescending(x => x.Quantity).ToList() : allItems.OrderBy(x => x.Quantity).ToList(),
+                    "unitprice" => desc ? allItems.OrderByDescending(x => x.UnitPrice).ToList() : allItems.OrderBy(x => x.UnitPrice).ToList(),
+                    _ => desc ? allItems.OrderByDescending(x => x.OrderDetailId).ToList() : allItems.OrderBy(x => x.OrderDetailId).ToList(),
+                };
+
+                var totalItems = allItems.Count;
+                var pagedItems = allItems
+                    .Skip((pageIndex - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                // ✅ đảm bảo payload không “lộ” list full ngoài paging
+                orderDto.OrderDetails = pagedItems;
+
+                return Ok(new OrderDetailResponseDto
+                {
+                    Order = orderDto,
+                    OrderItems = pagedItems,
+                    PageIndex = pageIndex,
+                    PageSize = pageSize,
+                    TotalItems = totalItems
+                });
             }
             catch (Exception ex)
             {
@@ -837,9 +834,20 @@ namespace Keytietkiem.Controllers
         }
         [HttpGet("{id:guid}/details")]
         [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
-        public async Task<IActionResult> GetOrderDetails(Guid id)
+        public async Task<IActionResult> GetOrderDetails(
+            Guid id,
+            [FromQuery] string? search = null,
+            [FromQuery] decimal? minPrice = null,
+            [FromQuery] decimal? maxPrice = null,
+            [FromQuery] string? sortBy = "orderdetailid",
+            [FromQuery] string? sortDir = "asc",
+            [FromQuery] int pageIndex = 1,
+            [FromQuery] int pageSize = 20)
         {
             await using var db = _dbFactory.CreateDbContext();
+
+            if (pageIndex <= 0) pageIndex = 1;
+            if (pageSize <= 0) pageSize = 20;
 
             var order = await db.Orders
                 .Include(o => o.OrderDetails)
@@ -850,44 +858,61 @@ namespace Keytietkiem.Controllers
             if (order == null)
                 return NotFound(new { message = "Đơn hàng không được tìm thấy" });
 
-            // ✅ DB mới ưu tiên đọc Key theo OrderAllocation (KeyId) -> join ProductKey lấy KeyString
-            var keysByOrderDetail = await LoadAssignedKeysByOrderDetailAsync(db, id, HttpContext.RequestAborted);
+            var orderDto = await MapToOrderDTOAsync(db, order);
+            var allItems = orderDto.OrderDetails ?? new List<OrderDetailDTO>();
 
-            var orderDetails = order.OrderDetails?.Select(od =>
+            if (!string.IsNullOrWhiteSpace(search))
             {
-                var list = keysByOrderDetail.TryGetValue(od.OrderDetailId, out var klist)
-                    ? klist
-                    : new List<(Guid KeyId, string KeyString)>();
-
-                var take = Math.Min(od.Quantity, list.Count);
-
-                var keyIds = list.Take(take).Select(x => x.KeyId).ToList();
-                var keyStrings = list.Take(take).Select(x => x.KeyString).ToList();
-
-                return new OrderDetailDTO
+                var term = search.Trim();
+                if (long.TryParse(term, out var odid))
                 {
-                    OrderDetailId = od.OrderDetailId,
-                    VariantId = od.VariantId,
-                    VariantTitle = od.Variant?.Title ?? string.Empty,
-                    ProductId = od.Variant?.ProductId ?? Guid.Empty,
-                    ProductName = od.Variant?.Product?.ProductName ?? string.Empty,
-                    ProductCode = od.Variant?.Product?.ProductCode,
-                    ProductType = od.Variant?.Product?.ProductType,
-                    Quantity = od.Quantity,
-                    UnitPrice = od.UnitPrice,
+                    allItems = allItems.Where(x => x.OrderDetailId == odid).ToList();
+                }
+                else
+                {
+                    var lower = term.ToLowerInvariant();
+                    allItems = allItems.Where(x =>
+                            (!string.IsNullOrWhiteSpace(x.VariantTitle) && x.VariantTitle.ToLower().Contains(lower)) ||
+                            (!string.IsNullOrWhiteSpace(x.ProductName) && x.ProductName.ToLower().Contains(lower)) ||
+                            (!string.IsNullOrWhiteSpace(x.ProductCode) && x.ProductCode.ToLower().Contains(lower)) ||
+                            (!string.IsNullOrWhiteSpace(x.KeyString) && x.KeyString.ToLower().Contains(lower)) ||
+                            (!string.IsNullOrWhiteSpace(x.AccountEmail) && x.AccountEmail.ToLower().Contains(lower))
+                        )
+                        .ToList();
+                }
+            }
 
-                    KeyId = keyIds.FirstOrDefault(),
-                    KeyString = keyStrings.FirstOrDefault(),
+            if (minPrice.HasValue)
+                allItems = allItems.Where(x => x.UnitPrice >= minPrice.Value).ToList();
 
-                    KeyIds = keyIds,
-                    KeyStrings = keyStrings,
+            if (maxPrice.HasValue)
+                allItems = allItems.Where(x => x.UnitPrice <= maxPrice.Value).ToList();
 
-                    SubTotal = od.Quantity * od.UnitPrice
-                };
-            }).ToList() ?? new List<OrderDetailDTO>();
+            var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+            allItems = (sortBy ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "varianttitle" => desc ? allItems.OrderByDescending(x => x.VariantTitle).ToList() : allItems.OrderBy(x => x.VariantTitle).ToList(),
+                "quantity" => desc ? allItems.OrderByDescending(x => x.Quantity).ToList() : allItems.OrderBy(x => x.Quantity).ToList(),
+                "unitprice" => desc ? allItems.OrderByDescending(x => x.UnitPrice).ToList() : allItems.OrderBy(x => x.UnitPrice).ToList(),
+                _ => desc ? allItems.OrderByDescending(x => x.OrderDetailId).ToList() : allItems.OrderBy(x => x.OrderDetailId).ToList(),
+            };
 
-            return Ok(orderDetails);
+            var totalItems = allItems.Count;
+
+            var paged = allItems
+                .Skip((pageIndex - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return Ok(new
+            {
+                items = paged,
+                totalItems,
+                pageIndex,
+                pageSize
+            });
         }
+
 
         // ================== Helpers ==================
 
@@ -962,6 +987,7 @@ namespace Keytietkiem.Controllers
                 var displayStatus = ResolveOrderDisplayStatus(order.Status, relatedPayment?.Status);
 
                 var keysByOrderDetail = await LoadAssignedKeysByOrderDetailAsync(db, order.OrderId, HttpContext.RequestAborted);
+                var accountsByVariant = await LoadAssignedAccountsByVariantAsync(db, order.OrderId, HttpContext.RequestAborted);
 
                 return new OrderDTO
                 {
@@ -988,7 +1014,12 @@ namespace Keytietkiem.Controllers
 
                         var keyIds = list.Take(take).Select(x => x.KeyId).ToList();
                         var keyStrings = list.Take(take).Select(x => x.KeyString).ToList();
+                        var accList = accountsByVariant.TryGetValue(od.VariantId, out var alist)
+    ? alist
+    : new List<OrderAccountCredentialDTO>();
 
+                        var accTake = Math.Min(Math.Max(od.Quantity, 1), accList.Count);
+                        var accPicked = accList.Take(accTake).ToList();
                         return new OrderDetailDTO
                         {
                             OrderDetailId = od.OrderDetailId,
@@ -1005,7 +1036,9 @@ namespace Keytietkiem.Controllers
                             KeyString = keyStrings.FirstOrDefault(),
                             KeyIds = keyIds,
                             KeyStrings = keyStrings,
-
+                            Accounts = accPicked,
+                            AccountEmail = accPicked.FirstOrDefault()?.Email,
+                            AccountPassword = accPicked.FirstOrDefault()?.Password,
                             SubTotal = od.Quantity * od.UnitPrice
                         };
                     }).ToList() ?? new List<OrderDetailDTO>()
@@ -1034,9 +1067,9 @@ namespace Keytietkiem.Controllers
         }
 
         private async Task<Dictionary<long, List<(Guid KeyId, string KeyString)>>> LoadAssignedKeysByOrderDetailAsync(
-     KeytietkiemDbContext db,
-     Guid orderId,
-     CancellationToken ct)
+            KeytietkiemDbContext db,
+            Guid orderId,
+            CancellationToken ct)
         {
             // ✅ QUAN TRỌNG: dùng named tuple ở đây để không mất .KeyId/.KeyString khi truyền qua các chỗ khác
             var result = new Dictionary<long, List<(Guid KeyId, string KeyString)>>();
@@ -1117,8 +1150,68 @@ namespace Keytietkiem.Controllers
 
             return result;
         }
+        private async Task<Dictionary<Guid, List<OrderAccountCredentialDTO>>> LoadAssignedAccountsByVariantAsync(
+    KeytietkiemDbContext db,
+    Guid orderId,
+    CancellationToken ct)
+        {
+            var result = new Dictionary<Guid, List<OrderAccountCredentialDTO>>();
 
+            var rows = await db.Set<ProductAccountCustomer>()
+                .AsNoTracking()
+                .Where(pac => pac.OrderId == orderId && pac.IsActive)
+                .Join(db.Set<ProductAccount>().AsNoTracking(),
+                    pac => pac.ProductAccountId,
+                    pa => pa.ProductAccountId,
+                    (pac, pa) => new { pa.VariantId, pa.AccountEmail, pa.AccountPassword })
+                .ToListAsync(ct);
 
+            if (rows.Count == 0)
+                return result;
+
+            var encKey = _config["EncryptionConfig:Key"];
+
+            foreach (var r in rows)
+            {
+                if (r.VariantId == Guid.Empty) continue;
+                if (string.IsNullOrWhiteSpace(r.AccountEmail)) continue;
+
+                var password = r.AccountPassword ?? string.Empty;
+
+                if (!string.IsNullOrWhiteSpace(password) && !string.IsNullOrWhiteSpace(encKey))
+                {
+                    try
+                    {
+                        password = EncryptionHelper.Decrypt(password, encKey);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to decrypt account password for orderId={OrderId}", orderId);
+                        // fallback: trả rỗng để tránh lộ encrypted blob
+                        password = string.Empty;
+                    }
+                }
+                else if (string.IsNullOrWhiteSpace(encKey))
+                {
+                    // không có key thì không trả password
+                    password = string.Empty;
+                }
+
+                if (!result.TryGetValue(r.VariantId, out var list))
+                {
+                    list = new List<OrderAccountCredentialDTO>();
+                    result[r.VariantId] = list;
+                }
+
+                list.Add(new OrderAccountCredentialDTO
+                {
+                    Email = r.AccountEmail,
+                    Password = password
+                });
+            }
+
+            return result;
+        }
 
         private async Task<IActionResult> BuildCheckoutResponseFromExistingOrderAsync(
             KeytietkiemDbContext db,
@@ -1215,7 +1308,6 @@ namespace Keytietkiem.Controllers
                 }
                 pending.Status = PayStatus_Replaced;
                 await db.SaveChangesAsync();
-
             }
 
             var (newPay, payosNew) = await CreateNewOrderPaymentAttemptAsync(
@@ -1326,7 +1418,6 @@ namespace Keytietkiem.Controllers
 
                 return os;
             }
-
 
             if (!string.IsNullOrWhiteSpace(ps))
             {
@@ -1461,7 +1552,6 @@ namespace Keytietkiem.Controllers
                 await _inventoryReservation.ReserveForOrderAsync(db, orderId, list, nowUtc, until, ct);
                 await _inventoryReservation.ExtendReservationAsync(db, orderId, until, nowUtc, ct);
             }
-
         }
     }
 }

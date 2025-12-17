@@ -110,6 +110,11 @@ namespace Keytietkiem.DTOs.Payments
         public string? TargetType { get; set; }
         public string? TargetId { get; set; }
 
+        // ✅ NEW: id mục tiêu hiển thị theo rule:
+        // - TargetType=Order => OrderId
+        // - TargetType=SupportPlan => UserId
+        public string? TargetDisplayId { get; set; }
+
         // ✅ thêm để phù hợp flow mới
         public DateTime ExpiresAtUtc { get; set; }
         public bool IsExpired { get; set; }
@@ -172,6 +177,11 @@ namespace Keytietkiem.DTOs.Payments
         public string? Email { get; set; }
         public string? TargetType { get; set; }
         public string? TargetId { get; set; }
+
+        // ✅ NEW: id mục tiêu hiển thị theo rule:
+        // - TargetType=Order => OrderId
+        // - TargetType=SupportPlan => UserId
+        public string? TargetDisplayId { get; set; }
 
         // ✅ thêm để phù hợp flow mới
         public DateTime ExpiresAtUtc { get; set; }

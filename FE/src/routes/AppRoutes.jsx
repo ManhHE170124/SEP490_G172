@@ -35,7 +35,9 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
-import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
+import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
+import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
 
 // App.jsx (hoặc routes admin)
@@ -214,14 +216,18 @@ export default function AppRoutes() {
       {/* Categories */}
       <Route path="/admin/categories" element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <CategoryPage />)} />
 
-      {/* ✅ Admin Orders/Payments: nên yêu cầu VIEW_LIST để khớp BE RequirePermission */}
+       {/* ✅ Admin Orders/Payments (NEW pages) */}
       <Route
         path="/admin/orders"
-        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <OrderPaymentPage />, "VIEW_LIST")}
+        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <AdminOrderListPage />, "VIEW_LIST")}
+      />
+      <Route
+        path="/admin/orders/:id"
+        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <AdminOrderDetailPage />, "VIEW_DETAIL")}
       />
       <Route
         path="/admin/payments"
-        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <OrderPaymentPage />, "VIEW_LIST")}
+        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <AdminPaymentListPage />, "VIEW_LIST")}
       />
 
       {/* FAQs */}
