@@ -174,7 +174,7 @@
 
 /* Modal container */
 .bm-modal{
-  width: min(920px, 96vw);
+  width: min(520px, 96vw);
   max-height: 92vh;
   overflow:auto;
   background:#fff;
