@@ -1,507 +1,433 @@
 // File: src/pages/admin/AdminOrderListPage.jsx
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { orderApi } from "../../services/orderApi";
-import ToastContainer from "../../components/Toast/ToastContainer";
-import "./OrderPaymentPage.css";
+import "./AdminOrderListPage.css";
 
-/* ===== Helpers (giữ style cũ) ===== */
-const unwrap = (res) => res?.data ?? res;
+const formatMoneyVnd = (n) => {
+  const x = Number(n || 0);
+  return x.toLocaleString("vi-VN") + " đ";
+};
 
-const formatVnDateTime = (value) => {
-  if (!value) return "—";
-  const d = value instanceof Date ? value : new Date(value);
+const formatDateTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("vi-VN");
+  const pad = (v) => String(v).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(
+    d.getDate()
+  )}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
 
-const formatMoney = (n) => {
-  if (n === null || n === undefined) return "—";
-  const num = Number(n);
-  if (Number.isNaN(num)) return "—";
-  return `${num.toLocaleString("vi-VN")} đ`;
+const normalizeStatusKey = (s) => String(s || "").trim().toLowerCase();
+
+const getOrderStatusLabel = (status) => {
+  const s = normalizeStatusKey(status);
+  if (s === "paid" || s === "completed" || s === "success") return "Đã thanh toán";
+  if (s === "pending") return "Đang chờ";
+  if (s === "cancelledbytimeout") return "Hủy do quá hạn";
+  if (s === "cancelled" || s === "canceled") return "Đã hủy";
+  if (s === "failed") return "Thất bại";
+  if (s === "refunded") return "Đã hoàn tiền";
+  if (!s) return "Không rõ";
+  return status; // fallback
 };
 
-const shortId = (s, head = 6, tail = 4) => {
-  const v = String(s || "");
-  if (!v) return "—";
-  if (v.length <= head + tail + 3) return v;
-  return `${v.slice(0, head)}…${v.slice(-tail)}`;
+const statusPillClass = (status) => {
+  const s = normalizeStatusKey(status);
+  if (s === "paid" || s === "completed" || s === "success") return "payment-paid";
+  if (s === "pending") return "payment-pending";
+  if (s === "cancelled" || s === "canceled" || s === "cancelledbytimeout") return "payment-cancelled";
+  if (s === "failed") return "payment-failed";
+  if (s === "refunded") return "payment-refunded";
+  return "payment-unknown";
 };
 
-const copyText = async (text) => {
-  try {
-    if (!text) return false;
-    await navigator.clipboard.writeText(String(text));
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-function useDebouncedValue(value, delay = 350) {
-  const [debounced, setDebounced] = React.useState(value);
-  React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
-}
-
-const toggleSortState = (current, key) =>
-  current.sortBy === key
-    ? { sortBy: key, sortDir: current.sortDir === "asc" ? "desc" : "asc" }
-    : { sortBy: key, sortDir: "asc" };
-
-const renderSortIndicator = (current, key) => {
-  if (!current || current.sortBy !== key) return null;
-  return current.sortDir === "asc" ? " ▲" : " ▼";
-};
-
-/**
- * Convert date-only (yyyy-mm-dd) theo TZ +07:00 -> ISO UTC string để lọc CreatedAt (UTC) ổn định hơn.
- */
-const toUtcIsoFromDateOnly = (dateStr, endOfDay = false) => {
-  if (!dateStr) return "";
-  const time = endOfDay ? "23:59:59" : "00:00:00";
-  const d = new Date(`${dateStr}T${time}+07:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString();
-};
-
-const ORDER_STATUS_FILTER_OPTIONS = [
+const ORDER_STATUS_OPTIONS = [
   { value: "", label: "Tất cả trạng thái" },
-  { value: "PendingPayment", label: "Chờ thanh toán" },
   { value: "Paid", label: "Đã thanh toán" },
-  { value: "Completed", label: "Hoàn tất" },
+  { value: "Pending", label: "Đang chờ" },
   { value: "Cancelled", label: "Đã hủy" },
-  { value: "CancelledByTimeout", label: "Hủy do timeout" },
-  { value: "NeedsManualAction", label: "Cần xử lý thủ công" },
+  { value: "CancelledByTimeout", label: "Hủy do quá hạn" },
+  { value: "Failed", label: "Thất bại" },
+  { value: "Refunded", label: "Đã hoàn tiền" },
 ];
 
-function Icon({ name }) {
-  switch (name) {
-    case "eye":
-      return (
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M12 5c5.5 0 9.5 4.5 10.5 6-1 1.5-5 6-10.5 6S2.5 12.5 1.5 11C2.5 9.5 6.5 5 12 5zm0 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"
-          />
-        </svg>
-      );
-    case "copy":
-      return (
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M8 7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V7zm-3 10V4a2 2 0 0 1 2-2h10v2H7v13H5z"
-          />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
+const DEFAULT_FILTERS = {
+  search: "",
+  createdFrom: "",
+  createdTo: "",
+  orderStatus: "",
+  minTotal: "",
+  maxTotal: "",
+};
 
-function IconButton({ title, ariaLabel, onClick, disabled, variant = "default", children }) {
-  return (
-    <button
-      type="button"
-      className={`op-icon-btn ${variant}`}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={ariaLabel || title}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PrimaryCell({ title, sub, mono = false, onCopy, copyValue }) {
-  return (
-    <div className="op-cell-main">
-      <div className={`op-cell-title ${mono ? "mono" : ""}`} title={title}>
-        {title}
-        {onCopy && copyValue ? (
-          <span className="op-inline-actions">
-            <IconButton
-              title="Copy"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCopy(copyValue);
-              }}
-            >
-              <Icon name="copy" />
-            </IconButton>
-          </span>
-        ) : null}
-      </div>
-      {sub ? (
-        <div className="op-cell-sub" title={sub}>
-          {sub}
-        </div>
-      ) : null}
-    </div>
-  );
-}
+const DEFAULT_SORT = { sortBy: "createdat", sortDir: "desc" };
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function AdminOrderListPage() {
-  const nav = useNavigate();
+  const navigate = useNavigate();
 
-  // Toast
-  const [toasts, setToasts] = React.useState([]);
-  const addToast = React.useCallback((type, message, title) => {
-    const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    setToasts((prev) => [...prev, { id, type, message, title }]);
-    return id;
-  }, []);
-  const removeToast = React.useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  // ✅ tách draft (UI) và filters (đã áp dụng) để search hoạt động chắc chắn khi bấm Lọc/Enter
+  const [draft, setDraft] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
-  const [loading, setLoading] = React.useState(false);
-  const [paged, setPaged] = React.useState({
+  const [sort, setSort] = useState(DEFAULT_SORT);
+  const [paged, setPaged] = useState({
     pageIndex: 1,
-    pageSize: 10,
+    pageSize: DEFAULT_PAGE_SIZE,
     totalItems: 0,
     items: [],
   });
 
-  const [sort, setSort] = React.useState({ sortBy: "createdAt", sortDir: "desc" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [filter, setFilter] = React.useState({
-    search: "",
-    createdFrom: "",
-    createdTo: "",
-    orderStatus: "",
-    minTotal: "",
-    maxTotal: "",
-  });
+  const totalPages = useMemo(() => {
+    const t = Math.max(0, Number(paged.totalItems || 0));
+    const s = Math.max(1, Number(paged.pageSize || DEFAULT_PAGE_SIZE));
+    return Math.max(1, Math.ceil(t / s));
+  }, [paged.totalItems, paged.pageSize]);
 
-  const debouncedSearch = useDebouncedValue(filter.search, 350);
-
-  const goToPage = (pageIndex) => {
-    setPaged((p) => ({ ...p, pageIndex: Math.max(1, Number(pageIndex) || 1) }));
-  };
-
-  React.useEffect(() => {
+  const fetchOrders = async () => {
     setLoading(true);
+    setError("");
 
-    const params = {
-      search: (debouncedSearch || "").trim() || undefined,
-      createdFrom: toUtcIsoFromDateOnly(filter.createdFrom, false) || undefined,
-      createdTo: toUtcIsoFromDateOnly(filter.createdTo, true) || undefined,
-      orderStatus: filter.orderStatus || undefined,
-      minTotal: filter.minTotal !== "" ? Number(filter.minTotal) : undefined,
-      maxTotal: filter.maxTotal !== "" ? Number(filter.maxTotal) : undefined,
-      sortBy: sort.sortBy,
-      sortDir: sort.sortDir,
-      pageIndex: paged.pageIndex,
-      pageSize: paged.pageSize,
-    };
+    try {
+      const res = await orderApi.listPaged({
+        ...filters,
+        sortBy: sort.sortBy,
+        sortDir: sort.sortDir,
+        pageIndex: paged.pageIndex,
+        pageSize: paged.pageSize,
+      });
 
-    orderApi
-      .listPaged(params)
-      .then((x) => setPaged((p) => ({ ...p, ...x })))
-      .catch((err) => {
-        console.error(err);
-        addToast("error", err?.response?.data?.message || "Không tải được danh sách đơn hàng.", "Lỗi");
-      })
-      .finally(() => setLoading(false));
-  }, [
-    debouncedSearch,
-    filter.createdFrom,
-    filter.createdTo,
-    filter.orderStatus,
-    filter.minTotal,
-    filter.maxTotal,
-    sort.sortBy,
-    sort.sortDir,
-    paged.pageIndex,
-    paged.pageSize,
-    addToast,
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil((paged.totalItems || 0) / (paged.pageSize || 10)));
-
-  const onCopy = async (text) => {
-    const ok = await copyText(text);
-    addToast(ok ? "success" : "error", ok ? "Đã copy" : "Copy thất bại", ok ? "OK" : "Lỗi");
+      setPaged((p) => ({
+        ...p,
+        totalItems: res?.totalItems ?? 0,
+        items: Array.isArray(res?.items) ? res.items : [],
+      }));
+    } catch (e) {
+      setError(e?.message || "Không tải được danh sách đơn hàng");
+      setPaged((p) => ({ ...p, totalItems: 0, items: [] }));
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, sort.sortBy, sort.sortDir, paged.pageIndex, paged.pageSize]);
+
+  const onDraftChange = (key) => (e) => {
+    const v = e?.target?.value ?? "";
+    setDraft((d) => ({ ...d, [key]: v }));
+  };
+
+  const applyFilters = (e) => {
+    e?.preventDefault?.();
+    setPaged((p) => ({ ...p, pageIndex: 1 }));
+    setFilters({ ...draft });
+  };
+
+  const resetAll = () => {
+    setDraft(DEFAULT_FILTERS);
+    setFilters(DEFAULT_FILTERS);
+    setSort(DEFAULT_SORT);
+    setPaged((p) => ({ ...p, pageIndex: 1, pageSize: DEFAULT_PAGE_SIZE }));
+  };
+
+  const toggleSort = (field) => {
+    setPaged((p) => ({ ...p, pageIndex: 1 }));
+    setSort((s) => {
+      if (s.sortBy === field) {
+        return { ...s, sortDir: s.sortDir === "asc" ? "desc" : "asc" };
+      }
+      return { sortBy: field, sortDir: "asc" };
+    });
+  };
+
+  const renderSortCaret = (field) => {
+    if (sort.sortBy !== field) return null;
+    return sort.sortDir === "asc" ? "▲" : "▼";
+  };
+
+  const pageButtons = useMemo(() => {
+    const cur = Number(paged.pageIndex || 1);
+    const total = Number(totalPages || 1);
+
+    const btns = [];
+    const push = (n) =>
+      btns.push(
+        <button
+          key={n}
+          type="button"
+          className={`aol-pageBtn ${n === cur ? "active" : ""}`}
+          onClick={() => setPaged((p) => ({ ...p, pageIndex: n }))}
+        >
+          {n}
+        </button>
+      );
+
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) push(i);
+      return btns;
+    }
+
+    push(1);
+
+    const left = Math.max(2, cur - 1);
+    const right = Math.min(total - 1, cur + 1);
+
+    if (left > 2) btns.push(<span key="ld" className="aol-dots">…</span>);
+    for (let i = left; i <= right; i++) push(i);
+    if (right < total - 1) btns.push(<span key="rd" className="aol-dots">…</span>);
+
+    push(total);
+    return btns;
+  }, [paged.pageIndex, totalPages]);
 
   return (
-    <div className="op-page">
-      <ToastContainer toasts={toasts} onClose={removeToast} />
-
-      <div className="order-payment-header">
-        <h2>Đơn hàng (Admin)</h2>
-        <div className="op-inline-actions">
-          <button type="button" className="btn ghost" onClick={() => nav("/admin/payments")}>
-            Sang Payments
-          </button>
+    <div className="aol-page">
+      <div className="aol-card">
+        <div className="order-payment-header">
+          <h2>Danh sách đơn hàng</h2>
         </div>
-      </div>
 
-      <div className="op-toolbar">
-        <div className="op-filters">
-          <div className="op-group">
-            <span>Search (OrderId / Email)</span>
-            <input
-              value={filter.search}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, search: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="VD: 3fae... hoặc mail@example.com"
-            />
+        <div className="op-toolbar">
+          <form className="op-filters" onSubmit={applyFilters}>
+            <div className="op-group">
+              <span>Tìm kiếm (Mã đơn / Email)</span>
+              <input
+                value={draft.search}
+                onChange={onDraftChange("search")}
+                placeholder="VD: 1ffa... hoặc mail@example.com"
+              />
+            </div>
+
+            <div className="op-group">
+              <span>Từ ngày</span>
+              <input type="date" value={draft.createdFrom} onChange={onDraftChange("createdFrom")} />
+            </div>
+
+            <div className="op-group">
+              <span>Đến ngày</span>
+              <input type="date" value={draft.createdTo} onChange={onDraftChange("createdTo")} />
+            </div>
+
+            <div className="op-group">
+              <span>Trạng thái</span>
+              <select value={draft.orderStatus} onChange={onDraftChange("orderStatus")}>
+                {ORDER_STATUS_OPTIONS.map((x) => (
+                  <option key={x.value || "__all"} value={x.value}>
+                    {x.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="op-group">
+              <span>Tổng tiền</span>
+              <div className="aol-amountRange">
+                <input
+                  type="number"
+                  min="0"
+                  value={draft.minTotal}
+                  onChange={onDraftChange("minTotal")}
+                  placeholder="Từ"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  value={draft.maxTotal}
+                  onChange={onDraftChange("maxTotal")}
+                  placeholder="Đến"
+                />
+              </div>
+            </div>
+
+            <div className="aol-filterActions">
+              <button type="submit" className="aol-btn aol-btnPrimary">
+                Lọc
+              </button>
+              <button type="button" className="aol-btn aol-btnGhost" onClick={resetAll}>
+                Đặt lại
+              </button>
+            </div>
+          </form>
+
+          <div className="aol-topInfo">
+            Tổng: {paged.totalItems} • Trang {paged.pageIndex}/{totalPages}
           </div>
+        </div>
 
-          <div className="op-group">
-            <span>Từ ngày</span>
-            <input
-              type="date"
-              value={filter.createdFrom}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, createdFrom: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-            />
-          </div>
+        <div className="aol-tableWrap">
+          <table className="op-table table">
+            <thead>
+              <tr>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() => toggleSort("orderid")}
+                  >
+                    Mã đơn {renderSortCaret("orderid")}
+                  </button>
+                </th>
+                <th>Người mua</th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() => toggleSort("amount")}
+                  >
+                    Tổng tiền {renderSortCaret("amount")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() => toggleSort("status")}
+                  >
+                    Trạng thái {renderSortCaret("status")}
+                  </button>
+                </th>
+                <th>
+                  <button
+                    type="button"
+                    className="table-sort-header"
+                    onClick={() => toggleSort("createdat")}
+                  >
+                    Ngày tạo {renderSortCaret("createdat")}
+                  </button>
+                </th>
+                <th className="op-th-actions">Chi tiết</th>
+              </tr>
+            </thead>
 
-          <div className="op-group">
-            <span>Đến ngày</span>
-            <input
-              type="date"
-              value={filter.createdTo}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, createdTo: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-            />
-          </div>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="op-cell-sub">
+                    Đang tải...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="op-cell-sub">
+                    {error}
+                  </td>
+                </tr>
+              ) : (paged.items || []).length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="op-cell-sub">
+                    Không có dữ liệu
+                  </td>
+                </tr>
+              ) : (
+                paged.items.map((row) => {
+                  const orderIdStr = String(row?.orderId || "");
+                  const buyerName = row?.userName || "—";
+                  const buyerEmail = row?.userEmail || row?.email || "—";
 
-          <div className="op-group">
-            <span>Trạng thái</span>
-            <select
-              value={filter.orderStatus}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, orderStatus: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
+                  const total = Number(row?.totalAmount ?? 0);
+                  const final = Number(row?.finalAmount ?? total);
+                  const hasDiscount = Math.abs(total - final) > 0.0001;
+
+                  return (
+                    <tr key={orderIdStr || Math.random()}>
+                      <td>
+                        <div className="op-cell-main">
+                          <div className="op-cell-title">
+                            <span className="aol-orderId mono">{orderIdStr || "—"}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="op-cell-main">
+                          <div className="op-cell-title">{buyerName}</div>
+                          <div className="op-cell-sub">{buyerEmail}</div>
+                        </div>
+                      </td>
+
+                      <td>
+                        <div className="aol-price">
+                          <div className="aol-price-new">{formatMoneyVnd(final)}</div>
+                          {hasDiscount && <div className="aol-price-old">{formatMoneyVnd(total)}</div>}
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className={`status-pill ${statusPillClass(row?.status)}`}>
+                          {getOrderStatusLabel(row?.status)}
+                        </span>
+                      </td>
+
+                      <td className="mono">{formatDateTime(row?.createdAt)}</td>
+
+                      <td className="op-td-actions">
+                        <button
+                          type="button"
+                          className="op-icon-btn"
+                          title="Xem chi tiết"
+                          onClick={() => navigate(`/admin/orders/${orderIdStr}`)}
+                        >
+                          <i className="fa fa-eye" aria-hidden="true" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="aol-pager">
+          <div className="aol-pager-center">
+            <button
+              type="button"
+              className="aol-navBtn"
+              disabled={paged.pageIndex <= 1}
+              onClick={() => setPaged((p) => ({ ...p, pageIndex: Math.max(1, p.pageIndex - 1) }))}
             >
-              {ORDER_STATUS_FILTER_OPTIONS.map((o) => (
-                <option key={o.value || "_"} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              ← Trước
+            </button>
+
+            {pageButtons}
+
+            <button
+              type="button"
+              className="aol-navBtn"
+              disabled={paged.pageIndex >= totalPages}
+              onClick={() =>
+                setPaged((p) => ({ ...p, pageIndex: Math.min(totalPages, p.pageIndex + 1) }))
+              }
+            >
+              Sau →
+            </button>
           </div>
 
-          <div className="op-group">
-            <span>Tổng tiền từ</span>
-            <input
-              inputMode="numeric"
-              value={filter.minTotal}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, minTotal: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="op-group">
-            <span>Đến</span>
-            <input
-              inputMode="numeric"
-              value={filter.maxTotal}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, maxTotal: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="1000000"
-            />
-          </div>
-
-          <div className="op-group">
-            <span>Page size</span>
+          <div className="aol-pager-right">
             <select
+              className="aol-pageSizeSelect"
               value={paged.pageSize}
-              onChange={(e) => setPaged((p) => ({ ...p, pageSize: Number(e.target.value) || 10, pageIndex: 1 }))}
+              onChange={(e) => {
+                const v = Number(e.target.value || DEFAULT_PAGE_SIZE);
+                setPaged((p) => ({ ...p, pageIndex: 1, pageSize: v }));
+              }}
+              title="Kích thước trang"
             >
-              {[10, 20, 50].map((n) => (
+              {[5, 10, 20, 50].map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
               ))}
             </select>
           </div>
-        </div>
-      </div>
-
-      <div className="cat-card" style={{ marginTop: 12 }}>
-        <div className="cat-card-title" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-          <div>Danh sách đơn hàng</div>
-          <div className="badge gray">
-            {paged.totalItems || 0} items • page {paged.pageIndex}/{totalPages}
-          </div>
-        </div>
-
-        {loading ? <div className="op-empty">Đang tải…</div> : null}
-
-        {!loading && (
-          <div style={{ overflowX: "auto" }}>
-            <table className="op-table">
-              <thead>
-                <tr>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "orderId"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      OrderId{renderSortIndicator(sort, "orderId")}
-                    </button>
-                  </th>
-                  <th>Người mua</th>
-                  <th className="text-right">
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "amount"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Tổng/Final{renderSortIndicator(sort, "amount")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "status"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Trạng thái{renderSortIndicator(sort, "status")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "createdAt"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Ngày tạo{renderSortIndicator(sort, "createdAt")}
-                    </button>
-                  </th>
-                  <th className="op-th-actions">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((o) => {
-                  const orderId = o.orderId || o.OrderId;
-                  const orderNumber = o.orderNumber || o.OrderNumber;
-                  const email = o.email || o.Email || o.userEmail || o.UserEmail;
-                  const userName = o.userName || o.UserName;
-                  const createdAt = o.createdAt || o.CreatedAt;
-                  const status = o.status || o.Status;
-
-                  const totalAmount = o.totalAmount ?? o.TotalAmount;
-                  const finalAmount = o.finalAmount ?? o.FinalAmount;
-
-                  return (
-                    <tr key={orderId} className="op-row-click">
-                      <td>
-                        <PrimaryCell
-                          title={orderNumber || shortId(orderId, 10, 6)}
-                          sub={orderId}
-                          mono
-                          onCopy={onCopy}
-                          copyValue={orderId}
-                        />
-                      </td>
-                      <td>
-                        <div className="op-target-cell">
-                          <div className="op-target-sub">
-                            <span className="op-subtext">{userName || "—"}</span>
-                          </div>
-                          <div className="op-submono">{email || "—"}</div>
-                        </div>
-                      </td>
-                      <td className="text-right">
-                        <div className="op-cell-main">
-                          <div className="op-cell-title text-mono">{formatMoney(finalAmount ?? totalAmount)}</div>
-                          <div className="op-cell-sub">Total: {formatMoney(totalAmount)}</div>
-                        </div>
-                      </td>
-                      <td>{status ? <span className="badge gray">{status}</span> : "—"}</td>
-                      <td>{formatVnDateTime(createdAt)}</td>
-                      <td className="op-td-actions">
-                        <div className="op-actions">
-                          <IconButton title="Chi tiết" onClick={() => nav(`/admin/orders/${orderId}`)} variant="primary">
-                            <Icon name="eye" />
-                          </IconButton>
-                          <button
-                            type="button"
-                            className="btn ghost"
-                            onClick={() => nav(`/admin/payments?search=${encodeURIComponent(orderId)}`)}
-                          >
-                            Payments
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {paged.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={6}>
-                      <div className="op-empty">Không có dữ liệu.</div>
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={paged.pageIndex <= 1}
-            onClick={() => goToPage(paged.pageIndex - 1)}
-          >
-            Trang trước
-          </button>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="badge gray">Page</span>
-            <input
-              style={{ width: 90, height: 36 }}
-              value={paged.pageIndex}
-              onChange={(e) => goToPage(e.target.value)}
-            />
-            <span className="badge gray">/ {totalPages}</span>
-          </div>
-
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={paged.pageIndex >= totalPages}
-            onClick={() => goToPage(paged.pageIndex + 1)}
-          >
-            Trang sau
-          </button>
         </div>
       </div>
     </div>

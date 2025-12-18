@@ -1,4 +1,4 @@
-// services/paymentApi.js
+// File: src/services/paymentApi.js
 import axiosClient from "../api/axiosClient";
 
 const END = { PAYMENTS: "payments" };
@@ -15,43 +15,13 @@ const normalizePaged = (res) => {
   };
 };
 
-const listPaged = (params = {}) => {
-  const p = { ...(params || {}) };
-
-  // compat: FE cũ dùng q -> map sang search
-  if (!p.search && p.q) {
-    p.search = p.q;
-    delete p.q;
-  }
-
-  // compat: FE cũ dùng status -> map sang paymentStatus
-  if (!p.paymentStatus && p.status) {
-    p.paymentStatus = p.status;
-    delete p.status;
-  }
-
-  return axiosClient.get(END.PAYMENTS, { params: p }).then(normalizePaged);
-};
-
 export const paymentApi = {
-  /**
-   * ✅ Admin list (paged)
-   * params (BE): search, createdFrom, createdTo, paymentStatus, sortBy, sortDir, pageIndex, pageSize
-   * response: { pageIndex, pageSize, totalItems, items }
-   */
-  listPaged,
+  // params: search, createdFrom, createdTo, paymentStatus, transactionType, amountFrom, amountTo, sortBy, sortDir, pageIndex, pageSize
+  listPaged: (params = {}) => axiosClient.get(END.PAYMENTS, { params }).then(normalizePaged),
 
-  /**
-   * (compat) trả items[] thôi
-   */
-  list: (params = {}) => listPaged(params).then((x) => x.items),
-
-  /**
-   * ✅ Admin detail
-   * query (BE): { includeCheckoutUrl, includeAttempts }
-   */
-  get: (id, params) => {
+  // detail: full payment fields (không dùng attempts)
+  get: (paymentId, params) => {
     const cfg = params ? { params } : undefined;
-    return axiosClient.get(`${END.PAYMENTS}/${id}`, cfg);
+    return axiosClient.get(`${END.PAYMENTS}/${paymentId}`, cfg);
   },
 };
