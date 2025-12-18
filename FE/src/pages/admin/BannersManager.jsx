@@ -1,138 +1,169 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { bannersApi } from "../../services/banners";
-import { useToast } from "../../contexts/ToastContext";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../../styles/BannersManager.css";
+import { bannersApi } from "../../services/banners";
+import { postsApi } from "../../services/postsApi";
+import { useToast } from "../../contexts/ToastContext";
 
 const AREA = {
     MAIN: "HOME_MAIN",
     SIDE: "HOME_SIDE",
 };
 
-const emptyForm = (placement) => ({
-    placement,
+const emptyForm = () => ({
+    placement: AREA.MAIN,
+    sortOrder: 0,
     title: "",
     mediaUrl: "",
     linkUrl: "",
     linkTarget: "_self",
-    sortOrder: 0,
     isActive: true,
     startAt: "",
     endAt: "",
 });
 
-const mediaPreview = (url) => {
-    if (!url) return null;
-    return (
-        <div className="bm-preview">
-            <img src={url} alt="banner" />
-        </div>
-    );
+const toLocalInput = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+        d.getHours()
+    )}:${pad(d.getMinutes())}`;
 };
 
 export default function BannersManager() {
-    const { showToast, showConfirm } = useToast();
+    const { showToast } = useToast();
 
     const [loading, setLoading] = useState(false);
-    const [mainItems, setMainItems] = useState([]);
-    const [sideItems, setSideItems] = useState([]);
+    const [items, setItems] = useState([]);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState(null);
-    const [form, setForm] = useState(emptyForm(AREA.MAIN));
+    const [form, setForm] = useState(emptyForm());
     const [saving, setSaving] = useState(false);
 
-    const load = useCallback(async () => {
-        setLoading(true);
+    // Upload image
+    const fileRef = useRef(null);
+    const [uploading, setUploading] = useState(false);
+
+    const load = async () => {
         try {
-            const [main, side] = await Promise.all([
-                bannersApi.list({ placement: AREA.MAIN }),
-                bannersApi.list({ placement: AREA.SIDE }),
-            ]);
-
-            const mainList = Array.isArray(main) ? main : main?.items || [];
-            const sideList = Array.isArray(side) ? side : side?.items || [];
-
-            setMainItems(
-                [...mainList].sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0))
-            );
-            setSideItems(
-                [...sideList].sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0))
-            );
+            setLoading(true);
+            const res = await bannersApi.list();
+            // axiosClient thường unwrap res.data -> res có thể là data trực tiếp
+            const data = res?.data ?? res;
+            setItems(Array.isArray(data) ? data : data?.items ?? []);
         } catch (e) {
             console.error(e);
-            const msg =
-                e?.response?.data?.message ||
-                e?.message ||
-                "Không thể tải danh sách banner";
-            showToast({ type: "error", title: "Lỗi", message: msg });
+            showToast({
+                type: "error",
+                title: "Lỗi",
+                message: e?.response?.data?.message || e?.message || "Không thể tải banners",
+            });
         } finally {
             setLoading(false);
         }
-    }, [showToast]);
+    };
 
     useEffect(() => {
         load();
-    }, [load]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const openCreate = () => {
+    const grouped = useMemo(() => {
+        const main = items.filter((x) => x.placement === AREA.MAIN);
+        const side = items.filter((x) => x.placement === AREA.SIDE);
+        return { main, side };
+    }, [items]);
+
+    const openAdd = () => {
         setEditing(null);
-        setForm(emptyForm(AREA.MAIN)); // mặc định slider
+        setForm(emptyForm());
         setModalOpen(true);
     };
 
     const openEdit = (item) => {
         setEditing(item);
         setForm({
-            placement: item.placement,
+            placement: item.placement || AREA.MAIN,
+            sortOrder: item.sortOrder ?? 0,
             title: item.title || "",
             mediaUrl: item.mediaUrl || "",
             linkUrl: item.linkUrl || "",
             linkTarget: item.linkTarget || "_self",
-            sortOrder: item.sortOrder ?? 0,
-            isActive: item.isActive !== false,
-            startAt: item.startAt ? String(item.startAt).slice(0, 16) : "",
-            endAt: item.endAt ? String(item.endAt).slice(0, 16) : "",
+            isActive: !!item.isActive,
+            startAt: toLocalInput(item.startAt),
+            endAt: toLocalInput(item.endAt),
         });
-
-        // Nếu DB đang có record video cũ, báo nhẹ cho bạn biết
-        if (String(item?.mediaType || "").toLowerCase() === "video") {
-            showToast({
-                type: "warning",
-                title: "Lưu ý",
-                message:
-                    "Banner này đang là video trong DB. Màn này hiện chỉ hỗ trợ ảnh (image). Nếu bạn lưu lại, hệ thống sẽ set MediaType = image.",
-            });
-        }
-
         setModalOpen(true);
     };
 
     const closeModal = () => {
-        if (saving) return;
+        if (saving || uploading) return;
         setModalOpen(false);
+    };
+
+    const mediaPreview = (url) => {
+        if (!url) return <div className="bm-preview" />;
+        return (
+            <div className="bm-preview">
+                <img src={url} alt="preview" />
+            </div>
+        );
+    };
+
+    const pickFile = () => fileRef.current?.click();
+
+    const onFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // để chọn lại cùng file vẫn trigger
+        if (!file) return;
+
+        try {
+            setUploading(true);
+
+            const resp = await postsApi.uploadImage(file);
+            const data = resp?.data ?? resp;
+
+            // backend của bạn đang trả { path, publicId? } ở PostImages upload
+            const url = data?.path || data?.secure_url || data?.url;
+
+            if (!url) throw new Error("Upload không trả về URL ảnh.");
+
+            setForm((p) => ({ ...p, mediaUrl: url }));
+            showToast({
+                type: "success",
+                title: "Thành công",
+                message: "Đã upload ảnh và gán MediaUrl",
+            });
+        } catch (err) {
+            console.error(err);
+            showToast({
+                type: "error",
+                title: "Upload lỗi",
+                message: err?.response?.data?.message || err?.message || "Không thể upload ảnh",
+            });
+        } finally {
+            setUploading(false);
+        }
     };
 
     const onSave = async () => {
         if (!form.mediaUrl?.trim()) {
-            showToast({
-                type: "warning",
-                title: "Thiếu dữ liệu",
-                message: "Vui lòng nhập MediaUrl (link ảnh Cloudinary) hoặc đường dẫn ảnh",
-            });
+            showToast({ type: "error", title: "Thiếu dữ liệu", message: "MediaUrl là bắt buộc." });
             return;
         }
 
-        setSaving(true);
         try {
+            setSaving(true);
+
             const payload = {
                 placement: form.placement,
+                sortOrder: Number(form.sortOrder) || 0,
                 title: form.title?.trim() || null,
-                mediaUrl: form.mediaUrl.trim(),
-                // ✅ Image-only: luôn gửi image để không phải sửa DB
-                mediaType: "image",
+                mediaUrl: form.mediaUrl?.trim(),
                 linkUrl: form.linkUrl?.trim() || null,
                 linkTarget: form.linkTarget || "_self",
-                sortOrder: Number(form.sortOrder || 0),
                 isActive: !!form.isActive,
                 startAt: form.startAt ? new Date(form.startAt).toISOString() : null,
                 endAt: form.endAt ? new Date(form.endAt).toISOString() : null,
@@ -140,26 +171,17 @@ export default function BannersManager() {
 
             if (editing?.id) {
                 await bannersApi.update(editing.id, payload);
-                showToast({
-                    type: "success",
-                    title: "Thành công",
-                    message: "Đã cập nhật banner",
-                });
+                showToast({ type: "success", title: "Thành công", message: "Đã cập nhật banner" });
             } else {
                 await bannersApi.create(payload);
-                showToast({
-                    type: "success",
-                    title: "Thành công",
-                    message: "Đã thêm banner",
-                });
+                showToast({ type: "success", title: "Thành công", message: "Đã thêm banner" });
             }
 
             setModalOpen(false);
             await load();
         } catch (e) {
             console.error(e);
-            const msg =
-                e?.response?.data?.message || e?.message || "Không thể lưu banner";
+            const msg = e?.response?.data?.message || e?.message || "Không thể lưu banner";
             showToast({ type: "error", title: "Lỗi", message: msg });
         } finally {
             setSaving(false);
@@ -167,27 +189,18 @@ export default function BannersManager() {
     };
 
     const onDelete = async (item) => {
-        const ok = await showConfirm({
-            title: "Xóa banner?",
-            message: "Thao tác này không thể hoàn tác.",
-            confirmText: "Xóa",
-            cancelText: "Hủy",
-        });
-        if (!ok) return;
-
         try {
             await bannersApi.remove(item.id);
             showToast({ type: "success", title: "Đã xóa", message: "Đã xóa banner" });
             await load();
         } catch (e) {
             console.error(e);
-            const msg =
-                e?.response?.data?.message || e?.message || "Không thể xóa banner";
+            const msg = e?.response?.data?.message || e?.message || "Không thể xóa banner";
             showToast({ type: "error", title: "Lỗi", message: msg });
         }
     };
 
-    const renderTable = (items) => (
+    const renderTable = (list) => (
         <table className="bm-table">
             <thead>
                 <tr>
@@ -199,7 +212,7 @@ export default function BannersManager() {
                 </tr>
             </thead>
             <tbody>
-                {items.map((x) => (
+                {list.map((x) => (
                     <tr key={x.id}>
                         <td>{mediaPreview(x.mediaUrl)}</td>
                         <td className="bm-link-cell">
@@ -224,9 +237,9 @@ export default function BannersManager() {
                     </tr>
                 ))}
 
-                {items.length === 0 && (
+                {list.length === 0 && (
                     <tr>
-                        <td colSpan={6} className="bm-empty">
+                        <td colSpan={5} className="bm-empty">
                             Chưa có banner.
                         </td>
                     </tr>
@@ -237,53 +250,45 @@ export default function BannersManager() {
 
     return (
         <div className="bm-wrap">
-            {/* 1 khung duy nhất */}
             <div className="bm-section">
                 <div className="bm-header">
                     <div>
-                        <h3 className="bm-h3">Banner trang chủ</h3>
-                        <div className="bm-note">
-                            • Slider trái: nhiều banner. • Banner phải: hiển thị 2 banner có sortOrder
-                            nhỏ nhất (trên/dưới).
-                        </div>
+                        <div className="bm-note">Quản lý Slider (trái) và Banner (phải) trên trang chủ.</div>
                     </div>
 
                     <div className="bm-header-actions">
                         <button className="bm-btn" onClick={load} disabled={loading}>
-                            Tải lại
+                            {loading ? "Đang tải..." : "Tải lại"}
                         </button>
-                        <button className="bm-btn bm-primary" onClick={openCreate}>
+                        <button className="bm-btn bm-primary" onClick={openAdd}>
                             + Thêm banner
                         </button>
                     </div>
                 </div>
 
-                {/* 2 list song song */}
                 <div className="bm-cols">
                     <div className="bm-col">
-                        <div className="bm-col-title">Slider (trái) — HOME_MAIN</div>
-                        {renderTable(mainItems)}
+                        <div className="bm-col-title">Slider - HOME_MAIN</div>
+                        <div className="bm-table-wrap">{renderTable(grouped.main)}</div>
                     </div>
 
                     <div className="bm-col">
-                        <div className="bm-col-title">Banner (phải) — HOME_SIDE</div>
-                        {renderTable(sideItems)}
+                        <div className="bm-col-title">Banner - HOME_SIDE</div>
+                        <div className="bm-table-wrap">{renderTable(grouped.side)}</div>
                     </div>
                 </div>
             </div>
 
-            {/* Modal */}
             {modalOpen && (
                 <div className="bm-modal-overlay" onMouseDown={closeModal}>
                     <div className="bm-modal" onMouseDown={(e) => e.stopPropagation()}>
                         <div className="bm-modal-top">
-                            <div className="bm-modal-title">{editing ? "Sửa banner" : "Thêm banner"}</div>
-                            <button className="bm-x" onClick={closeModal} disabled={saving}>
+                            <div className="bm-modal-title">{editing?.id ? "Sửa banner" : "Thêm banner"}</div>
+                            <button className="bm-x" onClick={closeModal} disabled={saving || uploading}>
                                 ✕
                             </button>
                         </div>
 
-                        {/* ✅ Layout gọn hơn khi bỏ MediaType */}
                         <div className="bm-grid">
                             <div className="bm-field">
                                 <label>Vị trí</label>
@@ -329,11 +334,35 @@ export default function BannersManager() {
 
                             <div className="bm-field bm-span-2">
                                 <label>MediaUrl (ảnh) *</label>
-                                <input
-                                    value={form.mediaUrl}
-                                    onChange={(e) => setForm((p) => ({ ...p, mediaUrl: e.target.value }))}
-                                    placeholder="Dán link ảnh Cloudinary (secure_url) hoặc /uploads/..."
-                                />
+
+                                <div className="bm-media-row">
+                                    <input
+                                        className="bm-media-input"
+                                        value={form.mediaUrl}
+                                        onChange={(e) => setForm((p) => ({ ...p, mediaUrl: e.target.value }))}
+                                        placeholder="Dán link ảnh Cloudinary (secure_url) hoặc bấm 'Chọn ảnh' để upload"
+                                    />
+
+                                    <input
+                                        ref={fileRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={onFileChange}
+                                        style={{ display: "none" }}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        className="bm-btn"
+                                        onClick={pickFile}
+                                        disabled={saving || uploading}
+                                        title="Chọn ảnh từ máy để upload"
+                                    >
+                                        {uploading ? "Đang tải..." : "Chọn ảnh"}
+                                    </button>
+                                </div>
+
+                                {form.mediaUrl ? <div className="bm-thumbline">{mediaPreview(form.mediaUrl)}</div> : null}
                             </div>
 
                             <div className="bm-field bm-span-2">
@@ -347,7 +376,6 @@ export default function BannersManager() {
 
                             <div className="bm-field">
                                 <label className="bm-label">Trạng thái</label>
-
                                 <div className="bm-status-row">
                                     <label className="bm-switch">
                                         <input
@@ -363,7 +391,6 @@ export default function BannersManager() {
                                     </span>
                                 </div>
                             </div>
-
 
                             <div className="bm-field">
                                 <label>LinkTarget</label>
@@ -396,11 +423,11 @@ export default function BannersManager() {
                         </div>
 
                         <div className="bm-modal-actions">
-                            <button className="bm-btn" onClick={closeModal} disabled={saving}>
+                            <button className="bm-btn" onClick={closeModal} disabled={saving || uploading}>
                                 Hủy
                             </button>
-                            <button className="bm-btn bm-primary" onClick={onSave} disabled={saving}>
-                                {saving ? "Đang lưu..." : "Lưu"}
+                            <button className="bm-btn bm-primary" onClick={onSave} disabled={saving || uploading}>
+                                {saving ? "Đang lưu..." : uploading ? "Đang upload..." : "Lưu"}
                             </button>
                         </div>
                     </div>
