@@ -223,7 +223,7 @@ export default function BannersManager() {
                         <td>{x.sortOrder ?? 0}</td>
                         <td>
                             <span className={`bm-pill ${x.isActive ? "on" : "off"}`}>
-                                {x.isActive ? "On" : "Off"}
+                                {x.isActive ? "Hiển thị" : "Ẩn"}
                             </span>
                         </td>
                         <td>
@@ -387,7 +387,7 @@ export default function BannersManager() {
                                     </label>
 
                                     <span className={`bm-status-text ${form.isActive ? "on" : "off"}`}>
-                                        {form.isActive ? "Đang bật" : "Đang tắt"}
+                                        {form.isActive ? "Hiển thị" : "Ẩn"}
                                     </span>
                                 </div>
                             </div>
