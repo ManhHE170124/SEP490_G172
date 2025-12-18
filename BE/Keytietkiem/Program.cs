@@ -61,6 +61,9 @@ builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService
 builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
+builder.Services.AddScoped<IBannerService, BannerService>();
+
+
 
 // Clock (mockable for tests) – dùng luôn block này
 builder.Services.AddSingleton<IClock, SystemClock>();                                         // ✅ chỉ 1 lần
