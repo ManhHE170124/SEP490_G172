@@ -17,13 +17,13 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using static Keytietkiem.Constants.RoleCodes;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class OrdersController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
@@ -495,8 +495,10 @@ namespace Keytietkiem.Controllers
 
         // ================== READ-ONLY ==================
         [HttpGet]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
-        public async Task<IActionResult> GetOrders([FromQuery] string? sortBy, [FromQuery] string? sortDir)
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        public async Task<IActionResult> GetOrders(
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir)
         {
             await using var db = _dbFactory.CreateDbContext();
 
@@ -643,6 +645,7 @@ namespace Keytietkiem.Controllers
             return Ok(orderList);
         }
         [HttpGet("history")]
+        [Authorize]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {
             if (!userId.HasValue)
@@ -701,9 +704,8 @@ namespace Keytietkiem.Controllers
             return Ok(items);
         }
         [HttpGet("{id:guid}")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
-        public async Task<IActionResult> GetOrderById(
-            Guid id,
+        [Authorize]
+        public async Task<IActionResult> GetOrderById(Guid id,
             [FromQuery] bool includePaymentAttempts = true,
             [FromQuery] bool includeCheckoutUrl = false)
         {
@@ -720,6 +722,29 @@ namespace Keytietkiem.Controllers
 
                 if (order == null)
                     return NotFound(new { message = "Đơn hàng không được tìm thấy" });
+
+                // Check role: Admin/Storage Staff can view any order
+                // Customer can only view their own orders
+                var currentUserId = GetCurrentUserIdOrNull();
+                var roleCodes = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                
+                bool hasPermission = false;
+                
+                // Admin or Storage Staff have full access
+                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
+                {
+                    hasPermission = true;
+                }
+
+                // If user doesn't have permission, check if it's their own order
+                if (!hasPermission)
+                {
+                    if (!currentUserId.HasValue || order.UserId != currentUserId.Value)
+                    {
+                        // Return 404-like message for security (don't reveal resource existence)
+                        return NotFound(new { message = "Đơn hàng không tồn tại." });
+                    }
+                }
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
 
@@ -799,7 +824,7 @@ namespace Keytietkiem.Controllers
             }
         }
         [HttpGet("{id:guid}/details")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrderDetails(Guid id)
         {
             await using var db = _dbFactory.CreateDbContext();
@@ -851,7 +876,6 @@ namespace Keytietkiem.Controllers
 
             return Ok(orderDetails);
         }
-
         // ================== Helpers ==================
 
         private Guid? GetCurrentUserIdOrNull()

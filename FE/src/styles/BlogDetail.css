@@ -22,7 +22,7 @@
   text-decoration: underline;
 }
 
-/* Post Article (layout cũ) */
+/* Post Article */
 .post-article {
   background: #ffffff;
   border-radius: 16px;
@@ -52,7 +52,6 @@
 .post-thumbnail {
   margin: 0 -40px 32px -40px;
   overflow: hidden;
-  border-radius: 0;
 }
 
 .post-thumbnail img {
@@ -77,7 +76,7 @@
   color: #1e293b;
 }
 
-/* Content Styling */
+/* Content */
 .post-content {
   font-size: 16px;
   line-height: 1.8;
@@ -269,7 +268,7 @@
 }
 
 .comment-item--child {
-  margin-left: 32px;
+  margin-left: 16px;
   background: #ffffff;
 }
 
@@ -313,6 +312,9 @@
 
 .comment-actions {
   margin-top: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .comment-reply-btn {
@@ -330,6 +332,28 @@
 
 .comment-reply-btn:hover {
   background: #eff6ff;
+}
+
+/* Nút "X phản hồi" */
+
+.comment-replies-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.comment-replies-toggle:hover {
+  text-decoration: underline;
+}
+
+/* List replies (ẩn/hiện) */
+.comment-replies-list {
+  list-style: none;
+  margin-top: 8px;
+  padding-left: 8px;
 }
 
 /* Form bình luận */
@@ -366,17 +390,55 @@
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
 
-/* Reply form dưới comment */
+/* Preview comment đang rep (kiểu Zalo) */
 
-.comment-reply-form {
-  margin-top: 8px;
+.reply-preview {
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 8px 10px;
+  margin-bottom: 8px;
 }
 
-.comment-reply-textarea {
-  min-height: 60px;
+.reply-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
-/* Nút gửi chung (form chính + reply) */
+.reply-preview-label {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reply-preview-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.reply-preview-user {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.reply-preview-content {
+  font-size: 13px;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Nút gửi */
+
 .comment-submit-btn {
   align-self: flex-end;
   background: #2563eb;
@@ -424,13 +486,12 @@
   margin-top: 8px;
 }
 
-/* ===== Related Posts – slider 3 bài ===== */
+/* ===== Related Posts – slider ===== */
 
 .related-posts {
   margin-top: 60px;
 }
 
-/* Header: ô đen + line ngang */
 .related-header {
   display: flex;
   align-items: center;
@@ -453,14 +514,12 @@
   margin-left: 14px;
 }
 
-/* Hàng 3 bài liên quan */
 .related-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
 }
 
-/* Tablet & mobile */
 @media (max-width: 900px) {
   .related-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -473,14 +532,12 @@
   }
 }
 
-/* Card bài liên quan */
 .related-card {
   display: block;
   text-decoration: none;
   color: #111;
 }
 
-/* Thumbnail 16:9 + chip */
 .related-thumb-wrapper {
   position: relative;
   width: 100%;
@@ -515,7 +572,6 @@
   color: #fff;
 }
 
-/* Text */
 .related-title {
   font-size: 15px;
   font-weight: 700;
@@ -542,7 +598,6 @@
   margin-left: auto;
 }
 
-/* Controls: mũi tên trái / phải */
 .related-controls {
   margin-top: 18px;
   display: flex;
@@ -611,7 +666,7 @@
   background: #1e40af;
 }
 
-/* Loading Spinner */
+/* Loading spinner */
 @keyframes spin {
   0% {
     transform: rotate(0deg);
@@ -631,7 +686,7 @@
   margin: 0 auto;
 }
 
-/* Responsive chung */
+/* Responsive */
 @media (max-width: 768px) {
   .blog-detail-container {
     margin: 20px auto;

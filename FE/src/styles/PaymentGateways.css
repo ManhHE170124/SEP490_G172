@@ -207,3 +207,30 @@
     max-width: calc(100% - 2rem);
   }
 }
+
+.pg-config {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.pg-badge {
+  margin-left: 8px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e5e7eb);
+  background: var(--page, #f3f6fa);
+  color: var(--ink, #111827);
+}
+
+.pg-badge.ok {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.pg-badge.warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}

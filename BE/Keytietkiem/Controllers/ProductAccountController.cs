@@ -7,8 +7,6 @@ using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -35,7 +33,7 @@ public class ProductAccountController : ControllerBase
     /// Get paginated list of product accounts with filters
     /// </summary>
     [HttpGet]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_LIST)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetList([FromQuery] ProductAccountFilterDto filterDto)
     {
         var response = await _productAccountService.GetListAsync(filterDto);
@@ -46,7 +44,7 @@ public class ProductAccountController : ControllerBase
     /// Get a single product account by ID (password masked)
     /// </summary>
     [HttpGet("{id}")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var response = await _productAccountService.GetByIdAsync(id, includePassword: false);
@@ -57,7 +55,7 @@ public class ProductAccountController : ControllerBase
     /// Get decrypted password for a product account (requires authorization)
     /// </summary>
     [HttpGet("{id}/password")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetPassword(Guid id)
     {
         // Nếu có lỗi sẽ bubble lên 500 – không audit lỗi để tránh spam,
@@ -84,7 +82,7 @@ public class ProductAccountController : ControllerBase
     /// Create a new product account
     /// </summary>
     [HttpPost]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.CREATE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Create([FromBody] CreateProductAccountDto createDto)
     {
         try
@@ -127,7 +125,7 @@ public class ProductAccountController : ControllerBase
     /// Update an existing product account
     /// </summary>
     [HttpPut("{id}")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductAccountDto updateDto)
     {
         if (id != updateDto.ProductAccountId)
@@ -180,7 +178,7 @@ public class ProductAccountController : ControllerBase
     /// Delete a product account
     /// </summary>
     [HttpDelete("{id}")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.DELETE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Delete(Guid id)
     {
         // Nếu có lỗi khi DeleteAsync sẽ bubble lên (500/4xx tuỳ service),
@@ -207,7 +205,7 @@ public class ProductAccountController : ControllerBase
     /// Add a customer to a product account
     /// </summary>
     [HttpPost("{id}/customers")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> AddCustomer(Guid id, [FromBody] AddCustomerToAccountDto addDto)
     {
         if (id != addDto.ProductAccountId)
@@ -239,7 +237,7 @@ public class ProductAccountController : ControllerBase
     /// Remove a customer from a product account
     /// </summary>
     [HttpPost("{id}/customers/remove")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.EDIT)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> RemoveCustomer(Guid id, [FromBody] RemoveCustomerFromAccountDto removeDto)
     {
         if (id != removeDto.ProductAccountId)
@@ -276,7 +274,7 @@ public class ProductAccountController : ControllerBase
     /// Get history of a product account
     /// </summary>
     [HttpGet("{id}/history")]
-    [RequirePermission(ModuleCodes.WAREHOUSE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetHistory(Guid id)
     {
         var response = await _productAccountService.GetHistoryAsync(id);
@@ -287,6 +285,7 @@ public class ProductAccountController : ControllerBase
     /// Extend expiry date of a product account
     /// </summary>
     [HttpPost("{id}/extend-expiry")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> ExtendExpiryDate(Guid id, [FromBody] ExtendExpiryDateDto extendDto)
     {
         if (id != extendDto.ProductAccountId)
@@ -330,6 +329,7 @@ public class ProductAccountController : ControllerBase
     /// Get product accounts expiring within specified days (default 5)
     /// </summary>
     [HttpGet("expiring-soon")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAccountsExpiringSoon([FromQuery] int days = 5)
     {
         try

@@ -4,8 +4,6 @@ import "../../styles/SupportDashboardAdminPage.css";
 import { supportDashboardAdminApi } from "../../api/supportDashboardAdminApi";
 import useToast from "../../hooks/useToast";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 import {
     LineChart,
     Line,
@@ -104,8 +102,9 @@ function EmptyState({ message = "Không có dữ liệu." }) {
 export default function SupportDashboardAdminPage() {
     const { toasts, showError, removeToast } = useToast();
     
-    // Check permission to view list
-    const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.SUPPORT_MANAGER, "VIEW_LIST");
+    // Permission checks removed - now role-based on backend
+    const canViewList = true;
+    const permissionLoading = false;
     
     // Global network error handler
     const networkErrorShownRef = useRef(false);
@@ -444,8 +443,8 @@ export default function SupportDashboardAdminPage() {
 
     // Show loading while checking permission
     if (permissionLoading) {
-        return (
-            <div className="sd-page">
+    return (
+        <div className="sd-page">
                 <div className="sd-loading">Đang kiểm tra quyền truy cập...</div>
             </div>
         );

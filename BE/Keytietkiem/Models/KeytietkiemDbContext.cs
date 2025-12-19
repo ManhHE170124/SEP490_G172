@@ -31,8 +31,6 @@ public partial class KeytietkiemDbContext : DbContext
 
     public virtual DbSet<Faq> Faqs { get; set; }
 
-    public virtual DbSet<LayoutSection> LayoutSections { get; set; }
-
     public virtual DbSet<LicensePackage> LicensePackages { get; set; }
 
     public virtual DbSet<Module> Modules { get; set; }
@@ -333,22 +331,6 @@ public partial class KeytietkiemDbContext : DbContext
                     });
         });
 
-        modelBuilder.Entity<LayoutSection>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__LayoutSe__3214EC07F5C21941");
-
-            entity.ToTable("LayoutSection");
-
-            entity.HasIndex(e => e.SectionKey, "UQ_LayoutSections_SectionKey").IsUnique();
-
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
-            entity.Property(e => e.DisplayOrder).HasDefaultValue(1);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-            entity.Property(e => e.SectionKey).HasMaxLength(100);
-            entity.Property(e => e.SectionName).HasMaxLength(255);
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysdatetime())");
-        });
-
         modelBuilder.Entity<LicensePackage>(entity =>
         {
             entity.HasKey(e => e.PackageId).HasName("PK__LicenseP__322035CC303BA7EE");
@@ -562,7 +544,10 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.ToTable("PaymentGateway");
 
+            entity.Property(e => e.ApiKey).HasMaxLength(200);
             entity.Property(e => e.CallbackUrl).HasMaxLength(500);
+            entity.Property(e => e.ChecksumKey).HasMaxLength(200);
+            entity.Property(e => e.ClientId).HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Name).HasMaxLength(100);
@@ -740,9 +725,9 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.ToTable("ProductAccount");
 
-            entity.HasIndex(e => e.Status, "IX_ProductAccounts_Status");
-
             entity.HasIndex(e => e.SupplierId, "IX_ProductAccount_SupplierId");
+
+            entity.HasIndex(e => e.Status, "IX_ProductAccounts_Status");
 
             entity.HasIndex(e => e.VariantId, "IX_ProductAccounts_Variant");
 

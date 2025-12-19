@@ -1,6 +1,9 @@
 ﻿using Keytietkiem.DTOs.Cart;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -36,6 +39,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontCartDto>> GetCart()
         {
             await using var db = _dbFactory.CreateDbContext();
@@ -48,6 +52,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpPost("items")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontCartDto>> AddItem([FromBody] AddToCartRequestDto req)
         {
             if (req == null || req.VariantId == Guid.Empty)

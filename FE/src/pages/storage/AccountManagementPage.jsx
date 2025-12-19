@@ -6,8 +6,6 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import ChunkedText from "../../components/ChunkedText";
 import useToast from "../../hooks/useToast";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 import {
   getAccountStatusColor,
@@ -17,11 +15,12 @@ import {
 export default function AccountManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
 
-  // Permission checks
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_LIST");
-  const { hasPermission: hasCreatePermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "CREATE");
-  const { hasPermission: hasDeletePermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "DELETE");
-  const { hasPermission: hasViewDetailPermission } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const hasCreatePermission = true;
+  const hasDeletePermission = true;
+  const hasViewDetailPermission = true;
 
   // Global network error handler
   const networkErrorShownRef = React.useRef(false);

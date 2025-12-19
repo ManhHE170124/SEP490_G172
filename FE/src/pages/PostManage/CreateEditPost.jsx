@@ -22,8 +22,6 @@ import { postsApi, extractPublicId } from '../../services/postsApi';
 import useToast from '../../hooks/useToast';
 import ToastContainer from '../../components/Toast/ToastContainer';
 import TagsInput from '../../components/TagsInput/TagsInput';
-import { usePermission } from '../../hooks/usePermission';
-import { MODULE_CODES } from '../../constants/accessControl';
 
 const CreateEditPost = () => {
   const { postId } = useParams();
@@ -62,11 +60,6 @@ const CreateEditPost = () => {
   const [seoScore, setSeoScore] = useState(null); // null = chưa đánh giá, object = đã đánh giá
   const [isEvaluatingSeo, setIsEvaluatingSeo] = useState(false);
 
-  // Check permission to create tags
-  const { hasPermission: canCreateTag } = usePermission(MODULE_CODES.POST_MANAGER, "CREATE");
-  
-  // Check permission to view detail (for edit mode)
-  const { hasPermission: canViewDetail, loading: permissionLoading } = usePermission(MODULE_CODES.POST_MANAGER, "VIEW_DETAIL");
 
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -780,7 +773,18 @@ const CreateEditPost = () => {
       return newTag;
     } catch (err) {
       console.error('Failed to create tag:', err);
-      showError('Lỗi tạo tag mới', 'Không thể tạo tag mới. Vui lòng thử lại.');
+      
+      // Check if it's a permission error (403 Forbidden)
+      if (err?.response?.status === 403) {
+        const errorMessage = err?.response?.data?.message || 'Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.';
+        showError('Không có quyền', errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      // Other errors
+      const errorMessage = err?.response?.data?.message || err?.message || 'Không thể tạo tag mới. Vui lòng thử lại.';
+      showError('Lỗi tạo tag mới', errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -1076,13 +1080,6 @@ const handlePublish = () =>
   );
 
   const handlePreview = () => {
-    if (!canViewDetail) {
-      showError(
-        "Không có quyền",
-        "Bạn không có quyền xem chi tiết bài viết."
-      );
-      return;
-    }
     
     // In edit mode, use stored slug
     if (isEditMode && postSlug) {
@@ -1745,48 +1742,7 @@ const handlePublish = () =>
     }
   };
 
-  // Show loading while checking permission (only in edit mode)
-  if (isEditMode && permissionLoading) {
-    return (
-      <main className="cep-main">
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div className="cep-loading-spinner" />
-          <div>Đang kiểm tra quyền...</div>
-        </div>
-      </main>
-    );
-  }
-
-  // Show access denied message if no VIEW_DETAIL permission in edit mode
-  if (isEditMode && !canViewDetail) {
-    return (
-      <main className="cep-main">
-        <ToastContainer
-          toasts={toasts}
-          onRemove={removeToast}
-          confirmDialog={confirmDialog}
-        />
-        <div className="cep-page-header">
-          <h1 className="cep-page-title">Cập nhật bài viết</h1>
-        </div>
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-          <h2>Không có quyền chỉnh sửa bài viết</h2>
-          <p style={{ color: '#666', marginBottom: '24px' }}>
-            Bạn không có quyền xem chi tiết và chỉnh sửa bài viết. Vui lòng liên hệ quản trị viên để được cấp quyền.
-          </p>
-          <button 
-            className="btn primary" 
-            onClick={() => navigate('/admin-post-list')}
-            style={{ marginTop: '16px' }}
-          >
-            Quay lại danh sách
-          </button>
-        </div>
-      </main>
-    );
-  }
-
+  // Permission checks removed - BE handles authorization
   return (
     <main className="cep-main">
       {/* Page Header */}
@@ -2278,7 +2234,7 @@ const handlePublish = () =>
               tags={tags}
               setTags={setTags}
               availableTags={availableTags}
-              onCreateNewTag={canCreateTag ? handleCreateNewTag : null}
+              onCreateNewTag={handleCreateNewTag}
             />
           </div>
 

@@ -19,8 +19,6 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 
 namespace Keytietkiem.Controllers
 {
@@ -85,7 +83,8 @@ namespace Keytietkiem.Controllers
         // ================== ADMIN LIST/DETAIL ==================
 
         [HttpGet]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetPayments(
             [FromQuery] string? status,
             [FromQuery] string? provider,
@@ -224,8 +223,8 @@ namespace Keytietkiem.Controllers
                             o.CreatedAt,
                             o.TotalAmount,
                             o.DiscountAmount
-                        })
-                        .ToListAsync();
+                })
+                .ToListAsync();
 
                     orderMap = orders.ToDictionary(
                         o => o.OrderId,
@@ -352,12 +351,11 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{paymentId:guid}")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
-        public async Task<IActionResult> GetPaymentById(
-            Guid paymentId,
-            [FromQuery] bool includeCheckoutUrl = false,
-            [FromQuery] bool includeAttempts = true
-        )
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN)]
+        public async Task<IActionResult> GetPaymentById(Guid paymentId,
+        [FromQuery] bool includeCheckoutUrl = false,
+            [FromQuery] bool includeAttempts = true)
         {
             await using var db = _dbFactory.CreateDbContext();
 
@@ -520,15 +518,15 @@ namespace Keytietkiem.Controllers
                 // đánh dấu NeedReview + nếu Order thì NeedsManualAction
                 if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                     && Guid.TryParse(payment.TargetId, out var oid))
-                {
+            {
                     var o = await db.Orders.FirstOrDefaultAsync(x => x.OrderId == oid);
                     if (o != null) o.Status = "NeedsManualAction";
-                }
+            }
 
                 payment.Status = PaymentStatusNeedReview;
                 await db.SaveChangesAsync();
                 return Ok(new { message = "Webhook processed - paymentLinkId mismatch (NeedReview)." });
-            }
+        }
 
             var topCode = payload.Code ?? "";
             var dataCode = !string.IsNullOrWhiteSpace(payload.Data.Code) ? payload.Data.Code : topCode;
@@ -582,8 +580,8 @@ namespace Keytietkiem.Controllers
                         return Ok(new { message = "Already paid." });
                     }
 
-                    if (isSuccess)
-                    {
+            if (isSuccess)
+            {
                         // ===== 1) SUPPORT PLAN PAID => APPLY SUBSCRIPTION =====
                         if (string.Equals(payment.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase))
                         {
@@ -732,7 +730,7 @@ namespace Keytietkiem.Controllers
                         }
 
                         await db.SaveChangesAsync();
-                        await tx.CommitAsync();
+                await tx.CommitAsync();
                         return Ok(new { message = "Webhook processed - Cancelled." });
                     }
                 }

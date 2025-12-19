@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import '../../styles/WebsiteConfig.css';
 import { settingsApi } from '../../services/settings';
 import { useToast } from '../../contexts/ToastContext';
-import LayoutSectionsManager from './LayoutSectionsManager';
 import PaymentGatewaysManager from './PaymentGatewaysManager';
 
 const WebsiteConfig = () => {
@@ -303,7 +302,7 @@ const WebsiteConfig = () => {
     // Main render
     return (
         <main className="main">
-            {/* Thông tin chung */}
+            {/* Thông tin chung
             <details open className="card">
                 <summary>Thông tin chung</summary>
                 <div className="content">
@@ -370,9 +369,9 @@ const WebsiteConfig = () => {
                         </div>
                     </div>
                 </div>
-            </details>
+            </details> */}
 
-            {/* Màu sắc & Giao diện */}
+            {/* Màu sắc & Giao diện
             <details open className="card">
                 <summary>Màu sắc & Giao diện</summary>
                 <div className="content">
@@ -442,10 +441,9 @@ const WebsiteConfig = () => {
                         </button>
                     </div>
                 </div>
-            </details>
+            </details> */}
 
-            {/* Layout Sections - Component mới */}
-            <LayoutSectionsManager />
+
 
             {/* Thông tin liên hệ */}
             <details className="card">
@@ -497,7 +495,7 @@ const WebsiteConfig = () => {
                 </div>
             </details>
 
-            {/* SMTP */}
+            {/* SMTP
             <details className="card">
                 <summary>Cấu hình SMTP</summary>
                 <div className="content">
@@ -585,9 +583,9 @@ const WebsiteConfig = () => {
                         </button>
                     </div>
                 </div>
-            </details>
+            </details> */}
 
-            {/* Media */}
+            {/* Media
             <details className="card">
                 <summary>Cấu hình hình ảnh</summary>
                 <div className="content">
@@ -629,7 +627,7 @@ const WebsiteConfig = () => {
                     </div>
                     <div className="small">Khuyên dùng WebP cho ảnh sản phẩm; cân nhắc CDN nếu lưu lượng lớn.</div>
                 </div>
-            </details>
+            </details> */}
 
             {/* Social Media */}
             <details className="card">
