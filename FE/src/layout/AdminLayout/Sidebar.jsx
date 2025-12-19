@@ -164,7 +164,7 @@ const Sidebar = () => {
           id: "orders-admin",
           label: "Đơn hàng & thanh toán",
           to: "/admin/orders",
-          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
+          allowedRoles: [ROLE_ADMIN],
           // currentPage ở trên lấy bằng location.pathname.substring(1)
           // nên path "/admin/orders" => currentPage === "admin/orders"
           isActive:
@@ -257,44 +257,44 @@ const Sidebar = () => {
             </svg>
           ),
         },
-        {
-          id: "role-assign",
-          label: "Phân công vai trò",
-          to: "/role-assign",
-          allowedRoles: [ROLE_ADMIN],
-          isActive: currentPage === "role-assign",
-          icon: (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="200"
-              height="200"
-              viewBox="0 0 48 48"
-            >
-              <g
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="4"
-              >
-                <path
-                  strokeLinejoin="round"
-                  d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
-                />
-                <path d="M10 23h8m-8 8h24" />
-                <circle
-                  cx="34"
-                  cy="16"
-                  r="6"
-                  strokeLinejoin="round"
-                />
-                <path
-                  strokeLinejoin="round"
-                  d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
-                />
-              </g>
-            </svg>
-          ),
-        },
+        // {
+        //   id: "role-assign",
+        //   label: "Phân công vai trò",
+        //   to: "/role-assign",
+        //   allowedRoles: [ROLE_ADMIN],
+        //   isActive: currentPage === "role-assign",
+        //   icon: (
+        //     <svg
+        //       xmlns="http://www.w3.org/2000/svg"
+        //       width="200"
+        //       height="200"
+        //       viewBox="0 0 48 48"
+        //     >
+        //       <g
+        //         fill="none"
+        //         stroke="currentColor"
+        //         strokeLinecap="round"
+        //         strokeWidth="4"
+        //       >
+        //         <path
+        //           strokeLinejoin="round"
+        //           d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
+        //         />
+        //         <path d="M10 23h8m-8 8h24" />
+        //         <circle
+        //           cx="34"
+        //           cy="16"
+        //           r="6"
+        //           strokeLinejoin="round"
+        //         />
+        //         <path
+        //           strokeLinejoin="round"
+        //           d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
+        //         />
+        //       </g>
+        //     </svg>
+        //   ),
+        // },
       ],
     },
     {
