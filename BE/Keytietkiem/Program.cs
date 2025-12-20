@@ -195,8 +195,13 @@ builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 // ✅ Job thống kê support hằng ngày
 //builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
+
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
+
+// ✅ Job cập nhật trạng thái hết hạn cho ProductAccount và ProductKey (mỗi 6h)
+builder.Services.AddSingleton<IBackgroundJob, ExpiryStatusUpdateJob>();
+
 
 // Scheduler nhận IEnumerable<IBackgroundJob> và chạy từng job theo Interval
 builder.Services.AddHostedService<BackgroundJobScheduler>();
