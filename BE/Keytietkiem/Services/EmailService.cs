@@ -10,15 +10,18 @@ public class EmailService : IEmailService
 {
     private readonly MailConfig _mailConfig;
     private readonly ClientConfig _clientConfig;
+    private readonly ISendPulseService _sendPulseService;
     private readonly ILogger<EmailService> _logger;
 
     public EmailService(
         IOptions<MailConfig> mailOptions,
         IOptions<ClientConfig> clientOptions,
+        ISendPulseService sendPulseService,
         ILogger<EmailService> logger)
     {
         _mailConfig = mailOptions?.Value ?? throw new ArgumentNullException(nameof(mailOptions));
         _clientConfig = clientOptions?.Value ?? throw new ArgumentNullException(nameof(clientOptions));
+        _sendPulseService = sendPulseService ?? throw new ArgumentNullException(nameof(sendPulseService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -381,24 +384,12 @@ public class EmailService : IEmailService
     {
         try
         {
-            using var message = new MailMessage
+            var success = await _sendPulseService.SendEmailAsync(toEmail, subject, body);
+            if (!success)
             {
-                From = new MailAddress(_mailConfig.Mail, "Keytietkiem"),
-                Subject = subject,
-                Body = body,
-                IsBodyHtml = true
-            };
-
-            message.To.Add(toEmail);
-
-            using var smtpClient = new SmtpClient(_mailConfig.Smtp, _mailConfig.Port)
-            {
-                EnableSsl = true,
-                Credentials = new NetworkCredential(_mailConfig.Mail, _mailConfig.Password)
-            };
-
-            await smtpClient.SendMailAsync(message, cancellationToken);
-
+                throw new Exception("SendPulse service returned failure.");
+            }
+            
             _logger.LogInformation("Email sent successfully to {Email}", toEmail);
         }
         catch (Exception ex)

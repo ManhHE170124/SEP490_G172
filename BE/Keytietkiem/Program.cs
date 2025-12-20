@@ -35,6 +35,7 @@ builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
+builder.Services.Configure<SendPulseConfig>(builder.Configuration.GetSection("SendPulse"));
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
@@ -44,6 +45,7 @@ builder.Services.AddHttpClient<PayOSService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ===== Services =====
+builder.Services.AddHttpClient<ISendPulseService, SendPulseService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
