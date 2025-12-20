@@ -43,6 +43,7 @@ const CreateEditPost = () => {
   const [availableTags, setAvailableTags] = useState([]);
   const [featuredImage, setFeaturedImage] = useState(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState(null); // Cloudinary URL
+  const [postSlug, setPostSlug] = useState(''); // Store slug for preview
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentFilter, setCommentFilter] = useState('all'); // 'all', 'visible', 'hidden'
@@ -58,6 +59,7 @@ const CreateEditPost = () => {
   const [openDropdown, setOpenDropdown] = useState(null); // CommentId with open dropdown
   const [seoScore, setSeoScore] = useState(null); // null = chưa đánh giá, object = đã đánh giá
   const [isEvaluatingSeo, setIsEvaluatingSeo] = useState(false);
+
 
   const fileInputRef = useRef(null);
   const quillRef = useRef(null);
@@ -173,6 +175,7 @@ const CreateEditPost = () => {
         setPosttypeId(postData.posttypeId || postData.postTypeId || postData.PosttypeId || '');
         setFeaturedImageUrl(postData.thumbnail || null);
         setFeaturedImage(postData.thumbnail || null);
+        setPostSlug(postData.slug || postData.Slug || ''); // Store slug for preview
 
         if (postData.tags && Array.isArray(postData.tags)) {
           setTags(postData.tags);
@@ -770,7 +773,18 @@ const CreateEditPost = () => {
       return newTag;
     } catch (err) {
       console.error('Failed to create tag:', err);
-      showError('Lỗi tạo tag mới', 'Không thể tạo tag mới. Vui lòng thử lại.');
+      
+      // Check if it's a permission error (403 Forbidden)
+      if (err?.response?.status === 403) {
+        const errorMessage = err?.response?.data?.message || 'Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.';
+        showError('Không có quyền', errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      // Other errors
+      const errorMessage = err?.response?.data?.message || err?.message || 'Không thể tạo tag mới. Vui lòng thử lại.';
+      showError('Lỗi tạo tag mới', errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -992,7 +1006,11 @@ const CreateEditPost = () => {
       let result;
       if (isEditMode) {
         // Update existing post
-        await postsApi.updatePost(postId, postData);
+        const updatedPost = await postsApi.updatePost(postId, postData);
+        // Update slug if returned from API
+        if (updatedPost?.slug || updatedPost?.Slug) {
+          setPostSlug(updatedPost.slug || updatedPost.Slug);
+        }
         showSuccess(
           successTitle,
           successMessage
@@ -1000,6 +1018,10 @@ const CreateEditPost = () => {
       } else {
         // Create new post
         result = await postsApi.createPost(postData);
+        // Store slug if returned from API
+        if (result?.slug || result?.Slug) {
+          setPostSlug(result.slug || result.Slug);
+        }
         showSuccess(
           successTitle,
           successMessage
@@ -1058,9 +1080,26 @@ const handlePublish = () =>
   );
 
   const handlePreview = () => {
-    // TODO: Open preview in new tab
-    console.log('Previewing post...', { title, content, thumbnail: featuredImageUrl });
-    showInfo('Preview', 'Chức năng xem trước đang được phát triển.');
+    
+    // In edit mode, use stored slug
+    if (isEditMode && postSlug) {
+      window.open(`/blog/${postSlug}`, '_blank');
+      return;
+    }
+    
+    // In create mode, generate slug from title
+    if (!isEditMode && title.trim()) {
+      const slug = toSlug(title);
+      if (slug) {
+        // For new posts, we can't preview until saved, but we can show a message
+        showInfo('Xem trước', 'Vui lòng lưu bài viết trước để có thể xem trước. Sau khi lưu, bạn có thể xem trước bài viết.');
+      } else {
+        showError('Lỗi', 'Vui lòng nhập tiêu đề bài viết trước.');
+      }
+      return;
+    }
+    
+    showError('Lỗi', 'Không thể xem trước bài viết. Vui lòng kiểm tra lại thông tin.');
   };
 
   const handleDelete = () => {
@@ -1703,6 +1742,7 @@ const handlePublish = () =>
     }
   };
 
+  // Permission checks removed - BE handles authorization
   return (
     <main className="cep-main">
       {/* Page Header */}

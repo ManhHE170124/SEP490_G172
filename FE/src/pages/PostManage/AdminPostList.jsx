@@ -20,9 +20,12 @@ export default function AdminPostList() {
   
   // Global network error handler - only show one toast for network errors
   const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
   useEffect(() => {
-    // Reset the flag when component mounts
+    // Reset the flags when component mounts
     networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
   }, []);
 
   // Data state
@@ -70,7 +73,16 @@ export default function AdminPostList() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          showError("Lỗi tải dữ liệu", err.message || "Bạn không có quyền truy cập chức năng này.");
+        } else if (!isPermissionError) {
         showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
+        }
       }
     } finally {
       setLoading(false);
@@ -207,11 +219,16 @@ export default function AdminPostList() {
   };
 
   const handleEdit = (postId) => {
-      navigate(`/post-create-edit/${postId}`);
+    navigate(`/post-create-edit/${postId}`);
   };
 
   const handlePreview = (post) => {
-    showInfo("Preview", "Chức năng xem trước đang được phát triển.");
+    if (!post.slug) {
+      showError("Lỗi", "Bài viết chưa có slug. Vui lòng cập nhật bài viết trước.");
+      return;
+    }
+    // Open preview in new tab
+    window.open(`/blog/${post.slug}`, '_blank');
   };
 
   const handleDelete = (postId) => {

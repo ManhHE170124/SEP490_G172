@@ -12,7 +12,7 @@ const TABS = {
     TAGS: "tags",
     POSTTYPES: "postTypes"
 };
-function useFetchData(activeTab, showError, networkErrorShownRef) {
+function useFetchData(activeTab, showError, networkErrorShownRef, permissionErrorShownRef) {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -36,12 +36,21 @@ function useFetchData(activeTab, showError, networkErrorShownRef) {
                     }
                 }
             } else if (showError) {
-                showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+                // Check if error message contains permission denied - only show once
+                const isPermissionError = e.message?.includes('không có quyền') || 
+                                          e.message?.includes('quyền truy cập') ||
+                                          e.response?.status === 403;
+                if (isPermissionError && permissionErrorShownRef && !permissionErrorShownRef.current) {
+                    permissionErrorShownRef.current = true;
+                    showError('Lỗi tải dữ liệu', e.message || 'Bạn không có quyền truy cập chức năng này.');
+                } else if (!isPermissionError) {
+                    showError('Lỗi tải dữ liệu', e.message || 'Không thể tải dữ liệu');
+                }
             }
         } finally {
             setLoading(false);
         }
-    }, [activeTab, showError, networkErrorShownRef]);
+    }, [activeTab, showError, networkErrorShownRef, permissionErrorShownRef]);
 
     useEffect(() => {
         loadData();
@@ -56,12 +65,14 @@ export default function TagAndPosttypeManage() {
     
     // Global network error handler - only show one toast for network errors
     const networkErrorShownRef = useRef(false);
+    const permissionErrorShownRef = useRef(false);
     useEffect(() => {
-        // Reset the flag when component mounts
+        // Reset the flags when component mounts
         networkErrorShownRef.current = false;
+        permissionErrorShownRef.current = false;
     }, []);
     
-    const { data, loading, error, setData, reloadData } = useFetchData(activeTab, showError, networkErrorShownRef);
+    const { data, loading, error, setData, reloadData } = useFetchData(activeTab, showError, networkErrorShownRef, permissionErrorShownRef);
 
     const [search, setSearch] = useState("");
     const [sortKey, setSortKey] = useState("");
@@ -227,6 +238,7 @@ export default function TagAndPosttypeManage() {
     const [addPosttypeOpen, setAddPosttypeOpen] = useState(false);
 
     function onClickAdd() {
+        // Permission check removed - BE handles authorization
         if (activeTab === TABS.TAGS) {
             setAddTagOpen(true);
             return;
@@ -238,6 +250,7 @@ export default function TagAndPosttypeManage() {
     }
 
     async function handleCreateTag(form) {
+        // Permission check removed - BE handles authorization
         try {
             setSubmitting(true);
             const created = await postsApi.createTag({
@@ -268,6 +281,7 @@ export default function TagAndPosttypeManage() {
     }
 
     async function handleCreatePosttype(form) {
+        // Permission check removed - BE handles authorization
         try {
             setSubmitting(true);
             const created = await postsApi.createPosttype({

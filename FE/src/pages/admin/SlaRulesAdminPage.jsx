@@ -118,9 +118,9 @@ const formatMinutes = (value) => {
   const hoursStr = Number.isInteger(rounded)
     ? rounded.toLocaleString("vi-VN")
     : rounded.toLocaleString("vi-VN", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    });
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      });
 
   return `${n.toLocaleString("vi-VN")} phút (${hoursStr} giờ)`;
 };
@@ -294,9 +294,9 @@ function SlaRuleModal({
   if (!open) return null;
 
   return (
-    <div className="cat-modal-backdrop">
-      <div className="cat-modal-card">
-        <div className="cat-modal-header">
+    <div className="sla-modal-backdrop">
+      <div className="sla-modal-card">
+        <div className="sla-modal-header">
           <h3>{isEdit ? "Chỉnh sửa SLA rule" : "Thêm SLA rule"}</h3>
           <div className="group" style={{ marginTop: 8 }}>
             <div className="row" style={{ gap: 8, alignItems: "center" }}>
@@ -314,24 +314,12 @@ function SlaRuleModal({
               >
                 {form.isActive ? "Đang bật" : "Đang tắt"}
               </span>
-              {/* <div className="muted sla-modal-note">
-                <strong>Quy tắc khi bật SLA rule:</strong>
-                <div>- Mỗi cặp Severity + PriorityLevel chỉ có 1 rule đang bật.</div>
-                <div>
-                  - Cùng Severity: PriorityLevel cao hơn phải có thời gian phản hồi /
-                  xử lý <b>ngắn hơn</b> PriorityLevel thấp hơn.
-                </div>
-                <div>
-                  - Cùng PriorityLevel: Severity nghiêm trọng hơn (Low → Medium → High
-                  → Critical) phải có thời gian phản hồi / xử lý <b>ngắn hơn</b>.
-                </div>
-              </div> */}
             </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="cat-modal-body input-group">
+          <div className="sla-modal-body input-group">
             <div className="row" style={{ gap: 16 }}>
               <div className="group" style={{ flex: 1 }}>
                 <span>
@@ -420,7 +408,7 @@ function SlaRuleModal({
             </div>
           </div>
 
-          <div className="cat-modal-footer">
+          <div className="sla-modal-footer">
             <button
               type="button"
               className="btn"
@@ -439,8 +427,8 @@ function SlaRuleModal({
                   ? "Đang lưu..."
                   : "Đang tạo..."
                 : isEdit
-                  ? "Lưu thay đổi"
-                  : "Tạo SLA rule"}
+                ? "Lưu thay đổi"
+                : "Tạo SLA rule"}
             </button>
           </div>
         </form>
@@ -514,8 +502,8 @@ export default function SlaRulesAdminPage() {
         const items = Array.isArray(res?.items)
           ? res.items
           : Array.isArray(res)
-            ? res
-            : [];
+          ? res
+          : [];
         setRules(items);
         setPage(typeof res?.page === "number" ? res.page : page);
         setPageSize(
@@ -574,7 +562,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không tải được chi tiết SLA rule để chỉnh sửa.",
+          "Không tải được chi tiết SLA rule để chỉnh sửa.",
         "Lỗi"
       );
     }
@@ -598,7 +586,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không thể lưu SLA rule. Vui lòng thử lại.",
+          "Không thể lưu SLA rule. Vui lòng thử lại.",
         "Lỗi"
       );
     } finally {
@@ -616,7 +604,7 @@ export default function SlaRulesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-        "Không thể cập nhật trạng thái SLA rule.",
+          "Không thể cập nhật trạng thái SLA rule.",
         "Lỗi"
       );
     }
@@ -640,7 +628,7 @@ export default function SlaRulesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-            "Không thể xoá SLA rule. Có thể rule đang được tham chiếu bởi ticket.",
+              "Không thể xoá SLA rule. Có thể rule đang được tham chiếu bởi ticket.",
             "Lỗi"
           );
         }
@@ -650,14 +638,8 @@ export default function SlaRulesAdminPage() {
 
   return (
     <>
-      <div className="page">
-        <div
-          className="card"
-          style={{
-            margin: "0 auto",
-            maxWidth: 1120,
-          }}
-        >
+      <div className="page sla-rules-page">
+        <div className="card">
           <div className="card-header">
             <div className="left">
               <h2>Cấu hình SLA Rule</h2>
@@ -816,11 +798,10 @@ export default function SlaRulesAdminPage() {
                 <th style={{ width: 150 }}>Mức ưu tiên</th>
                 <th style={{ width: 180 }}>Phản hồi đầu tiên</th>
                 <th style={{ width: 180 }}>Xử lý / giải quyết</th>
-                <th style={{ width: 140 }}>Trạng thái</th>
+                <th style={{ width: 120 }}>Trạng thái</th>
                 <th
                   style={{
-                    width: 180,
-                    textAlign: "right",
+                    width: 160,
                     paddingRight: 10,
                   }}
                 >
@@ -874,36 +855,76 @@ export default function SlaRulesAdminPage() {
                       {formatMinutes(r.resolutionMinutes)}
                     </EllipsisCell>
                   </td>
+                  {/* Cột Trạng thái: chỉ hiển thị badge Hiển thị / Ẩn */}
                   <td>
-                    <button
-                      type="button"
-                      className="btn ghost status-btn"
-                      onClick={() => toggleRuleActive(r)}
+                    <span
+                      className={r.isActive ? "badge green" : "badge gray"}
+                      style={{ textTransform: "none" }}
                     >
-                      <span
-                        className={r.isActive ? "badge green" : "badge gray"}
-                        style={{ textTransform: "none" }}
-                      >
-                        {r.isActive ? "Đang bật" : "Đang tắt"}
-                      </span>
-                    </button>
+                      {r.isActive ? "Hiển thị" : "Ẩn"}
+                    </span>
                   </td>
+                  {/* Cột Thao tác: Switch + Edit + Delete */}
                   <td>
-                    <div
-                      className="row"
-                      style={{ gap: 8, justifyContent: "flex-end" }}
-                    >
+                    <div className="action-buttons">
+                      {/* Switch đổi trạng thái */}
+                      <label
+                        className="switch"
+                        title={r.isActive ? "Đang bật" : "Đang tắt"}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!r.isActive}
+                          onChange={() => toggleRuleActive(r)}
+                        />
+                        <span className="slider" />
+                      </label>
+
+                      {/* Nút Sửa */}
                       <button
-                        className="btn secondary"
+                        type="button"
+                        className="action-btn edit-btn"
                         onClick={() => openEditRule(r)}
+                        title="Chỉnh sửa SLA rule"
                       >
-                        Sửa
+                        {/* icon bút chì */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                        </svg>
                       </button>
+
+                      {/* Nút Xoá */}
                       <button
-                        className="btn danger"
+                        type="button"
+                        className="action-btn delete-btn"
                         onClick={() => deleteRule(r)}
+                        title="Xoá SLA rule"
                       >
-                        Xoá
+                        {/* icon thùng rác */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                        </svg>
                       </button>
                     </div>
                   </td>

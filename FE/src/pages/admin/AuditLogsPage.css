@@ -1,5 +1,5 @@
 /* src/pages/admin/AuditLogsPage.css */
-/* Tham khảo style từ CategoryPage / TicketSubjectTemplatesAdminPage */
+/* Style riêng cho AuditLogsPage, chỉ áp dụng trong .page.audit-page hoặc .audit-modal-backdrop */
 
 :root {
   --ink: #0b1220;
@@ -17,13 +17,15 @@
     "Liberation Mono", "Courier New", monospace;
 }
 
+/* ===== Layout chính ===== */
+
 .page.audit-page {
   padding: 18px;
   max-width: 1240px;
   margin: 0 auto;
 }
 
-.card {
+.page.audit-page .card {
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -32,17 +34,21 @@
   border: 1px solid #e5e7eb;
 }
 
-.row {
+.page.audit-page .row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.group {
+.page.audit-page .group,
+.audit-modal-backdrop .group {
   display: flex;
   flex-direction: column;
 }
 
-.group > span {
+.page.audit-page .group > span,
+.audit-modal-backdrop .group > span {
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -51,15 +57,21 @@
   letter-spacing: 0.04em;
 }
 
-.input-group {
+/* ===== Inputs / Filters ===== */
+
+.page.audit-page .input-group,
+.audit-modal-backdrop .input-group {
   margin-top: 12px;
   gap: 12px;
   align-items: flex-end;
 }
 
-.input-group input,
-.input-group select,
-.input-group textarea {
+.page.audit-page .input-group input,
+.page.audit-page .input-group select,
+.page.audit-page .input-group textarea,
+.audit-modal-backdrop .input-group input,
+.audit-modal-backdrop .input-group select,
+.audit-modal-backdrop .input-group textarea {
   border-radius: 10px;
   border: 1px solid var(--line);
   padding: 7px 10px;
@@ -70,34 +82,58 @@
     background 0.15s ease;
 }
 
-.input-group input:focus,
-.input-group select:focus,
-.input-group textarea:focus {
+.page.audit-page .input-group input:focus,
+.page.audit-page .input-group select:focus,
+.page.audit-page .input-group textarea:focus,
+.audit-modal-backdrop .input-group input:focus,
+.audit-modal-backdrop .input-group select:focus,
+.audit-modal-backdrop .input-group textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
   background: #ffffff;
 }
 
-.table {
+/* Column helpers cho filter để 2 hàng đều nhau */
+.page.audit-page .filter-col {
+  flex: 1 1 0;
+  min-width: 180px;
+}
+
+.page.audit-page .filter-col-wide {
+  flex: 2 1 0;
+  min-width: 260px;
+}
+
+/* Nút Đặt lại filter cùng chiều cao với select/input */
+.page.audit-page .filter-reset-btn {
+  height: 36px;
+  align-self: flex-end;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+/* ===== Table ===== */
+
+.page.audit-page .table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 12px;
   font-size: 13px;
 }
 
-.table thead tr {
+.page.audit-page .table thead tr {
   background: #f9fafb;
 }
 
-.table th,
-.table td {
+.page.audit-page .table th,
+.page.audit-page .table td {
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: middle;
 }
 
-.table th {
+.page.audit-page .table th {
   font-size: 12px;
   font-weight: 600;
   color: #4b5563;
@@ -105,8 +141,9 @@
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
+
 /* Sortable header */
-.sortable-header {
+.page.audit-page .sortable-header {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -119,26 +156,28 @@
   cursor: pointer;
 }
 
-.sortable-header .sort-arrow {
+.page.audit-page .sortable-header .sort-arrow {
   font-size: 11px;
   opacity: 0.7;
 }
 
-.audit-table tbody tr:last-child td {
+.page.audit-page .audit-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.audit-row {
+.page.audit-page .audit-row {
   transition: background 0.12s ease, box-shadow 0.12s ease,
     transform 0.08s ease, border-color 0.12s ease;
 }
 
-.audit-row:hover {
+.page.audit-page .audit-row:hover {
   background: #f3f4ff;
 }
 
-/* badges */
-.badge {
+/* ===== Badges ===== */
+
+.page.audit-page .badge,
+.audit-modal-backdrop .badge {
   display: inline-flex;
   padding: 2px 8px;
   border-radius: 999px;
@@ -148,22 +187,28 @@
   white-space: nowrap;
 }
 
-.badge.green {
+.page.audit-page .badge.green,
+.audit-modal-backdrop .badge.green {
   background: rgba(16, 185, 129, 0.08);
   color: #047857;
 }
 
-.badge.gray {
+.page.audit-page .badge.gray,
+.audit-modal-backdrop .badge.gray {
   background: rgba(107, 114, 128, 0.12);
   color: #4b5563;
 }
 
-.badge.red {
+.page.audit-page .badge.red,
+.audit-modal-backdrop .badge.red {
   background: rgba(248, 113, 113, 0.12);
   color: #b91c1c;
 }
 
-.btn {
+/* ===== Buttons ===== */
+
+.page.audit-page .btn,
+.audit-modal-backdrop .btn {
   border-radius: 999px;
   border: 1px solid transparent;
   padding: 6px 12px;
@@ -179,67 +224,83 @@
     box-shadow 0.15s ease, transform 0.05s ease;
 }
 
-.btn.primary {
+.page.audit-page .btn.primary,
+.audit-modal-backdrop .btn.primary {
   background: var(--primary);
   color: #ffffff;
 }
 
-.btn.ghost {
+.page.audit-page .btn.ghost,
+.audit-modal-backdrop .btn.ghost {
   background: #ffffff;
   border-color: #e5e7eb;
 }
 
-.btn.small {
+.page.audit-page .btn.small,
+.audit-modal-backdrop .btn.small {
   padding: 4px 10px;
   font-size: 13px;
 }
 
-.btn.icon-btn {
+.page.audit-page .btn.icon-btn,
+.audit-modal-backdrop .btn.icon-btn {
   padding: 5px 8px;
   border-radius: 999px;
   background: #eef2ff;
   border-color: transparent;
 }
 
-.btn.icon-btn svg {
+.page.audit-page .btn.icon-btn svg,
+.audit-modal-backdrop .btn.icon-btn svg {
   display: block;
 }
 
-.btn.icon-btn:hover {
+.page.audit-page .btn.icon-btn:hover,
+.audit-modal-backdrop .btn.icon-btn:hover {
   background: #2563eb;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-.btn:disabled {
+.page.audit-page .btn:disabled,
+.audit-modal-backdrop .btn:disabled {
   opacity: 0.6;
   cursor: default;
   box-shadow: none;
 }
 
-.muted {
+/* ===== Text helpers ===== */
+
+.page.audit-page .muted,
+.audit-modal-backdrop .muted {
   color: var(--muted);
   font-size: 13px;
 }
 
-.muted.small {
+.page.audit-page .muted.small,
+.audit-modal-backdrop .muted.small {
   font-size: 12px;
 }
 
-.mono {
+.page.audit-page .mono,
+.audit-modal-backdrop .mono {
   font-family: var(--mono);
 }
 
-.strong {
+.page.audit-page .strong,
+.audit-modal-backdrop .strong {
   font-weight: 600;
 }
 
-.wrap {
+.page.audit-page .wrap,
+.audit-modal-backdrop .wrap {
   white-space: normal;
   word-break: break-word;
 }
 
-.pager {
+/* ===== Pager ===== */
+
+.page.audit-page .pager {
   margin-top: 16px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
@@ -250,7 +311,7 @@
   font-size: 13px;
 }
 
-.pager button {
+.page.audit-page .pager button {
   border-radius: 999px;
   border: 1px solid #d1d5db;
   background: #f9fafb;
@@ -260,18 +321,19 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.pager button:hover:not(:disabled) {
+.page.audit-page .pager button:hover:not(:disabled) {
   background: #e5e7eb;
   border-color: #cbd5f5;
 }
 
-.pager button:disabled {
+.page.audit-page .pager button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-/* Header row */
-.audit-header-row {
+/* ===== Header row ===== */
+
+.page.audit-page .audit-header-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -279,27 +341,28 @@
   margin-bottom: 8px;
 }
 
-.audit-header-left h2 {
+.page.audit-page .audit-header-left h2 {
   margin: 0;
   font-size: 20px;
 }
 
-.audit-header-left p {
+.page.audit-page .audit-header-left p {
   margin: 2px 0 0;
 }
 
-/* Filters */
-.audit-filters {
+/* Filters wrap */
+.page.audit-page .audit-filters {
   overflow-x: auto;
 }
 
 /* Actions cell */
-.audit-actions-cell {
+.page.audit-page .audit-actions-cell {
   text-align: center;
 }
 
-/* Modal reuse from CategoryPage (cat-modal-*) */
-.cat-modal-backdrop {
+/* ===== Modal – audit-modal-* riêng cho AuditLogsPage ===== */
+
+.audit-modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.35);
@@ -309,7 +372,7 @@
   z-index: 40;
 }
 
-.cat-modal-card {
+.audit-modal-card {
   background: #ffffff;
   border-radius: 18px;
   box-shadow: var(--shadow);
@@ -324,7 +387,7 @@
   max-width: 1100px;
 }
 
-.cat-modal-header {
+.audit-modal-header {
   padding: 12px 16px 8px;
   border-bottom: 1px solid var(--line);
   display: flex;
@@ -333,7 +396,7 @@
   gap: 8px;
 }
 
-.cat-modal-header h3 {
+.audit-modal-header h3 {
   margin: 0;
   font-size: 18px;
 }
@@ -344,12 +407,16 @@
   gap: 2px;
 }
 
-.cat-modal-body {
+.audit-modal-body {
   padding: 12px 16px 16px;
   overflow-y: auto;
 }
 
-.cat-modal-footer {
+.audit-detail-body {
+  /* nếu cần custom thêm gì thì thêm ở đây, hiện để trống cũng OK */
+}
+
+.audit-modal-footer {
   padding: 10px 16px 14px;
   border-top: 1px solid var(--line);
   display: flex;
@@ -357,13 +424,16 @@
   gap: 8px;
 }
 
-/* Grid helpers */
-.grid {
+/* ===== Grid helpers ===== */
+
+.page.audit-page .grid,
+.audit-modal-backdrop .grid {
   display: grid;
   gap: 10px;
 }
 
-.grid.cols-2 {
+.page.audit-page .grid.cols-2,
+.audit-modal-backdrop .grid.cols-2 {
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
 }
 
@@ -372,7 +442,8 @@
   font-size: 11px;
 }
 
-/* JSON columns */
+/* JSON columns ===== */
+
 .audit-json-columns {
   margin-top: 12px;
   display: grid;
@@ -391,119 +462,7 @@
   overflow: auto;
 }
 
-/* Responsive adjustments */
-@media (max-width: 900px) {
-  .audit-json-columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .grid.cols-2 {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .audit-header-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-/* Nút Đặt lại filter cùng chiều cao với select/input */
-.filter-reset-btn {
-  height: 36px;
-  align-self: flex-end;
-  padding-top: 7px;
-  padding-bottom: 7px;
-}
-/* ... giữ nguyên toàn bộ CSS phía trên ... */
-
-.table th {
-  font-size: 12px;
-  font-weight: 600;
-  color: #4b5563;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-/* Sortable header */
-.sortable-header {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
-.sortable-header .sort-arrow {
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.audit-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.audit-row {
-  transition: background 0.12s ease, box-shadow 0.12s ease,
-    transform 0.08s ease, border-color 0.12s ease;
-}
-
-.audit-row:hover {
-  background: #f3f4ff;
-}
-
-/* badges */
-.badge {
-  display: inline-flex;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-}
-
-/* ... giữ nguyên các badge, btn, pager, modal, grid ... */
-
-/* Column helpers cho filter để 2 hàng đều nhau */
-.filter-col {
-  flex: 1 1 0;
-  min-width: 180px;
-}
-
-.filter-col-wide {
-  flex: 2 1 0;
-  min-width: 260px;
-}
-
-/* Nút Đặt lại filter cùng chiều cao với select/input */
-.filter-reset-btn {
-  height: 36px;
-  align-self: flex-end;
-  padding-top: 7px;
-  padding-bottom: 7px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 900px) {
-  .audit-json-columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .grid.cols-2 {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .audit-header-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-/* ========== PHẦN DIFF TRONG MODAL ========== */
+/* ===== PHẦN DIFF TRONG MODAL (nếu sau này dùng) ===== */
 
 .audit-changes-section {
   margin-top: 12px;
@@ -576,4 +535,27 @@
 .audit-json-toggle:hover {
   background: #e5e7eb;
   color: #111827;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 900px) {
+  .audit-json-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page.audit-page .grid.cols-2,
+  .audit-modal-backdrop .grid.cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page.audit-page .audit-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page.audit-page .pager {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

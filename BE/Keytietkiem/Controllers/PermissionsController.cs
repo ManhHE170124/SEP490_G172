@@ -18,6 +18,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Keytietkiem.Models;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Roles;
@@ -28,6 +31,7 @@ namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PermissionsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -48,6 +52,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of permissions
          */
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetPermissions()
         {
             var permissions = await _context.Permissions
@@ -71,6 +76,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with permission, 404 if not found
          */
         [HttpGet("{id}")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetPermissionById(long id)
         {
             var permission = await _context.Permissions
@@ -100,6 +106,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created permission, 400/409 on validation errors
          */
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreatePermission([FromBody] CreatePermissionDTO createPermissionDto)
         {
             if (createPermissionDto == null)
@@ -110,10 +117,8 @@ namespace Keytietkiem.Controllers
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-                var message = string.Join(" ", errors);
-                return BadRequest(new { message });
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
-
             var existing = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionName == createPermissionDto.PermissionName);
             if (existing != null)
@@ -204,6 +209,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404 on errors
          */
         [HttpPut("{id}")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdatePermission(long id, [FromBody] UpdatePermissionDTO updatePermissionDto)
         {
             if (updatePermissionDto == null)
@@ -214,10 +220,8 @@ namespace Keytietkiem.Controllers
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-                var message = string.Join(" ", errors);
-                return BadRequest(new { message });
+                return BadRequest(new { message = string.Join(" ", errors) });
             }
-
             var existing = await _context.Permissions
                 .FirstOrDefaultAsync(m => m.PermissionId == id);
             if (existing == null)
@@ -280,6 +284,7 @@ namespace Keytietkiem.Controllers
         * Returns: 204 No Content, 404 if not found
         */
         [HttpDelete("{id}")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeletePermission(long id)
         {
             var existingPermission = await _context.Permissions

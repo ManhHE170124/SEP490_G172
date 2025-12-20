@@ -426,6 +426,7 @@ textarea {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
+   white-space: nowrap;
 }
 
 /* Input & Select: cùng chiều cao, bo góc, padding
@@ -477,12 +478,14 @@ table .row select {
   min-width: 160px;
 }
 
-/* ==== Action buttons (match style RBAC) ==== */
 .action-buttons {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;   /* luôn 1 hàng */
+  white-space: nowrap; /* tránh xuống dòng */
 }
+
 .action-btn {
   width: 32px;
   height: 32px;

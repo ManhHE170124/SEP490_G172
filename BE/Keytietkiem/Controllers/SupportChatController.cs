@@ -1,10 +1,16 @@
 ﻿// File: Controllers/SupportChatController.cs
+using System;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Support;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -13,11 +19,13 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization; // ✅ NEW
 
 namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/support-chats")]
+[Authorize] // ✅ NEW: bắt buộc đăng nhập cho toàn bộ SupportChat APIs
 public class SupportChatController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
@@ -93,7 +101,7 @@ public class SupportChatController : ControllerBase
         var roles = u.Roles ?? Array.Empty<Role>();
         return roles.Any(r =>
         {
-            var code = (r.Code ?? string.Empty).ToLower();
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
             return code.Contains("care") || code.Contains("admin");
         });
     }
@@ -103,8 +111,10 @@ public class SupportChatController : ControllerBase
         var roles = u.Roles ?? Array.Empty<Role>();
         return roles.Any(r =>
         {
-            var code = (r.Code ?? string.Empty).ToLower();
-            return code.Contains("admin");
+            var name = (r.Name ?? string.Empty).Trim().ToLowerInvariant();
+            var rid = (r.RoleId ?? string.Empty).Trim().ToLowerInvariant();
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return name == "admin" || rid == "admin" || code.Contains("admin");
         });
     }
 
@@ -126,6 +136,12 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
 
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         var isStaff = IsStaffLike(user);
 
@@ -177,6 +193,13 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
 
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         if (!IsStaffLike(user))
         {
             return StatusCode(StatusCodes.Status403Forbidden,
@@ -223,8 +246,16 @@ public class SupportChatController : ControllerBase
 
         var now = DateTime.UtcNow;
 
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == me.Value);
+        var user = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         // Tìm phiên chat đã Closed gần nhất (nếu có) của user này
         var lastClosedSession = await _db.SupportChatSessions
@@ -342,6 +373,13 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
 
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         if (!IsStaffLike(user))
         {
             return StatusCode(StatusCodes.Status403Forbidden,
@@ -451,6 +489,12 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
 
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         var session = await _db.SupportChatSessions
             .Include(s => s.Customer)
             .Include(s => s.AssignedStaff)
@@ -538,6 +582,12 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
 
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         var session = await _db.SupportChatSessions
             .Include(s => s.Customer)
             .Include(s => s.AssignedStaff)
@@ -560,10 +610,13 @@ public class SupportChatController : ControllerBase
         if (isStaffLikeUser && !isCustomer && !isAssignedStaff && !isAdmin)
         {
             // Có ít nhất 1 phiên Active của cùng customer đang gán cho staff hiện tại
+            // hoặc customer đang ở queue (Waiting + unassigned) để staff xem lịch sử trước khi claim.
             canViewPreviousSessions = await _db.SupportChatSessions.AnyAsync(s =>
                 s.CustomerId == session.CustomerId &&
-                s.AssignedStaffId == me.Value &&
-                s.Status == StatusActive &&
+                (
+                    (s.AssignedStaffId == me.Value && s.Status == StatusActive) ||
+                    (s.Status == StatusWaiting && s.AssignedStaffId == null)
+                ) &&
                 s.ChatSessionId != session.ChatSessionId);
         }
 
@@ -615,6 +668,12 @@ public class SupportChatController : ControllerBase
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         if (!IsStaffLike(user))
         {
@@ -695,6 +754,12 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
 
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         var session = await _db.SupportChatSessions
             .Include(s => s.Customer)
             .Include(s => s.AssignedStaff)
@@ -754,6 +819,7 @@ public class SupportChatController : ControllerBase
     /// Chỉ dành cho Admin.
     /// </summary>
     [HttpGet("admin/assigned-sessions")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<List<SupportChatSessionItemDto>>> AdminGetAssignedSessions(
         [FromQuery] bool includeClosed = false)
     {
@@ -764,6 +830,12 @@ public class SupportChatController : ControllerBase
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         if (!IsAdminLike(user))
         {
@@ -806,10 +878,58 @@ public class SupportChatController : ControllerBase
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
 
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
         if (!IsStaffLike(user))
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Chỉ nhân viên hỗ trợ mới xem được các phiên chat của khách hàng." });
+        }
+
+        // ✅ FIX: chặn nhét customerId để xem lịch sử của khách khác (IDOR)
+        // - Admin: xem được tất cả
+        // - Staff: chỉ xem khi có "anchor" hợp lệ (đang xem 1 session của customer này)
+        //   hoặc đang có ít nhất 1 phiên Active của customer này được gán cho mình.
+        var isAdmin = IsAdminLike(user);
+
+        if (!isAdmin)
+        {
+            var allow = false;
+
+            if (excludeSessionId.HasValue)
+            {
+                var anchor = await _db.SupportChatSessions.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.ChatSessionId == excludeSessionId.Value);
+
+                if (anchor != null && anchor.CustomerId == customerId)
+                {
+                    // staff đang phụ trách anchor
+                    if (anchor.AssignedStaffId.HasValue && anchor.AssignedStaffId.Value == me.Value)
+                        allow = true;
+
+                    // hoặc anchor đang ở hàng chờ (queue)
+                    if (anchor.Status == StatusWaiting && anchor.AssignedStaffId == null)
+                        allow = true;
+                }
+            }
+
+            if (!allow)
+            {
+                allow = await _db.SupportChatSessions.AsNoTracking().AnyAsync(s =>
+                    s.CustomerId == customerId &&
+                    s.AssignedStaffId == me.Value &&
+                    s.Status == StatusActive);
+            }
+
+            if (!allow)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Bạn không có quyền truy cập chức năng này." });
+            }
         }
 
         var query = _db.SupportChatSessions
@@ -839,6 +959,7 @@ public class SupportChatController : ControllerBase
 
     // GET /api/support-chats/admin/sessions
     [HttpGet("admin/sessions")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<PagedResult<SupportChatAdminSessionListItemDto>>> AdminSearchSessions(
         [FromQuery] SupportChatAdminSessionFilterDto filter)
     {
@@ -849,6 +970,12 @@ public class SupportChatController : ControllerBase
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         // Chỉ admin (code role chứa "admin")
         if (!(user.Roles ?? Array.Empty<Role>())
@@ -952,6 +1079,7 @@ public class SupportChatController : ControllerBase
     /// mà không thay đổi AssignedStaffId, Status, v.v.
     /// </summary>
     [HttpPost("admin/{sessionId:guid}/messages")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<SupportChatMessageDto>> AdminPostMessage(
         Guid sessionId,
         [FromBody] CreateSupportChatMessageDto body)
@@ -967,6 +1095,12 @@ public class SupportChatController : ControllerBase
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (user is null) return Unauthorized();
+
+        if ((user.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         if (!IsAdminLike(user))
         {
@@ -1047,6 +1181,7 @@ public class SupportChatController : ControllerBase
     /// Body: { "assigneeId": "..." }
     /// </remarks>
     [HttpPost("admin/{sessionId:guid}/assign")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<SupportChatSessionItemDto>> AdminAssignStaff(
         Guid sessionId,
         [FromBody] SupportChatAssignStaffDto dtoBody)
@@ -1058,6 +1193,12 @@ public class SupportChatController : ControllerBase
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (currentUser is null) return Unauthorized();
+
+        if ((currentUser.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         if (!IsAdminLike(currentUser))
         {
@@ -1146,6 +1287,7 @@ public class SupportChatController : ControllerBase
     /// Body: { "assigneeId": "..." }
     /// </remarks>
     [HttpPost("admin/{sessionId:guid}/transfer-staff")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<SupportChatSessionItemDto>> AdminTransferStaff(
         Guid sessionId,
         [FromBody] SupportChatAssignStaffDto dtoBody)
@@ -1157,6 +1299,12 @@ public class SupportChatController : ControllerBase
             .Include(u => u.Roles)
             .FirstOrDefaultAsync(u => u.UserId == me.Value);
         if (currentUser is null) return Unauthorized();
+
+        if ((currentUser.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
 
         if (!IsAdminLike(currentUser))
         {

@@ -31,6 +31,7 @@ public class AccountController : ControllerBase
 
     [HttpPost]
     [Route("send-otp")]
+    [AllowAnonymous]
     public async Task<IActionResult> SendOtp(SendOtpDto dto)
     {
         try
@@ -61,6 +62,7 @@ public class AccountController : ControllerBase
 
     [HttpPost]
     [Route("verify-otp")]
+    [AllowAnonymous]
     public async Task<IActionResult> VerifyOtp(VerifyOtpDto dto)
     {
         try
@@ -85,6 +87,7 @@ public class AccountController : ControllerBase
     // ========= Register / Login =========
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
         if (!string.IsNullOrEmpty(dto.Phone) && !IsValidPhoneNumber(dto.Phone))
@@ -140,6 +143,7 @@ public class AccountController : ControllerBase
 
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         try
@@ -298,6 +302,7 @@ public class AccountController : ControllerBase
     // ========= Forgot / Reset password =========
 
     [HttpPost("forgot-password")]
+    [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
         try
@@ -320,6 +325,7 @@ public class AccountController : ControllerBase
     }
 
     [HttpPost("reset-password")]
+    [AllowAnonymous]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
     {
         try
@@ -366,6 +372,7 @@ public class AccountController : ControllerBase
     // ========= Token (refresh / revoke) =========
 
     [HttpPost("refresh-token")]
+    [AllowAnonymous]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
     {
         try

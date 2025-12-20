@@ -3,6 +3,9 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +13,7 @@ namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/faqs")]
+    [Authorize]
     public class FaqsController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
@@ -32,6 +36,7 @@ namespace Keytietkiem.Controllers
 
         // GET: /api/faqs
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> List(
             [FromQuery] string? keyword,
             [FromQuery] bool? active,
@@ -112,6 +117,7 @@ namespace Keytietkiem.Controllers
 
         // GET: /api/faqs/{faqId}
         [HttpGet("{faqId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<ActionResult<ProductFaqDetailDto>> GetById(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -141,6 +147,7 @@ namespace Keytietkiem.Controllers
 
         // POST: /api/faqs
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<ActionResult<ProductFaqDetailDto>> Create(ProductFaqCreateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -262,6 +269,7 @@ namespace Keytietkiem.Controllers
 
         // PUT: /api/faqs/{faqId}
         [HttpPut("{faqId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Update(int faqId, ProductFaqUpdateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -397,6 +405,7 @@ namespace Keytietkiem.Controllers
 
         // DELETE: /api/faqs/{faqId}
         [HttpDelete("{faqId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Delete(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -435,6 +444,7 @@ namespace Keytietkiem.Controllers
 
         // PATCH: /api/faqs/{faqId}/toggle
         [HttpPatch("{faqId:int}/toggle")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Toggle(int faqId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

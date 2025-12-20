@@ -2,6 +2,8 @@ using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -36,6 +38,7 @@ public class ProductReportController : ControllerBase
     /// <param name="userId">Optional user ID filter (for getting user's own reports)</param>
     /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAllProductReports(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -64,6 +67,7 @@ public class ProductReportController : ControllerBase
     /// </summary>
     /// <param name="id">Product report ID</param>
     [HttpGet("{id:guid}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> GetProductReportById(Guid id)
     {
         if (id == Guid.Empty)
@@ -108,7 +112,7 @@ public class ProductReportController : ControllerBase
     /// <param name="id">Product report ID</param>
     /// <param name="dto">Product report update data</param>
     [HttpPatch("{id:guid}/status")]
-    [Authorize(Roles = "Admin,Support Staff")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> UpdateProductReportStatus(Guid id, [FromBody] UpdateProductReportDto dto)
     {
         if (id != dto.Id)
@@ -181,7 +185,7 @@ public class ProductReportController : ControllerBase
     /// <param name="pageSize">Page size (default: 10)</param>
     /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet("key-errors")]
-    [Authorize(Roles = "Admin,Support Staff")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetKeyErrors(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -204,7 +208,7 @@ public class ProductReportController : ControllerBase
     /// <param name="pageSize">Page size (default: 10)</param>
     /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet("account-errors")]
-    [Authorize(Roles = "Admin,Support Staff")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAccountErrors(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -224,7 +228,7 @@ public class ProductReportController : ControllerBase
     /// Get total count of key error reports
     /// </summary>
     [HttpGet("key-errors/count")]
-    [Authorize(Roles = "Admin,Support Staff")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> CountKeyErrors()
     {
         var count = await _productReportService.CountKeyErrorsAsync();
@@ -235,7 +239,7 @@ public class ProductReportController : ControllerBase
     /// Get total count of account error reports
     /// </summary>
     [HttpGet("account-errors/count")]
-    [Authorize(Roles = "Admin,Support Staff")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> CountAccountErrors()
     {
         var count = await _productReportService.CountAccountErrorsAsync();

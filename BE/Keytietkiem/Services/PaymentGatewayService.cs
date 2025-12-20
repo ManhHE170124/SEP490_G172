@@ -24,114 +24,64 @@ namespace Keytietkiem.Services
             _context = context;
         }
 
-        public async Task<IEnumerable<PaymentGatewayDto>> GetAllAsync()
+        private async Task<PaymentGateway> EnsurePayOSEntityAsync()
         {
-            return await _context.PaymentGateways
-                .OrderBy(x => x.Name) // Sort by name
-                .Select(x => new PaymentGatewayDto
-                {
-                    Id = x.Id,
-                    Name = x.Name,
-                    CallbackUrl = x.CallbackUrl,
-                    IsActive = x.IsActive ?? false,
-                    CreatedAt = x.CreatedAt,
-                    UpdatedAt = x.UpdatedAt
-                })
-                .ToListAsync();
-        }
+            var gw = await _context.PaymentGateways.FirstOrDefaultAsync(x => x.Name == "PayOS");
+            if (gw != null) return gw;
 
-        public async Task<PaymentGatewayDto> GetByIdAsync(int id)
-        {
-            var entity = await _context.PaymentGateways.FindAsync(id);
-            if (entity == null) return null;
-
-            return new PaymentGatewayDto
+            gw = new PaymentGateway
             {
-                Id = entity.Id,
-                Name = entity.Name,
-                CallbackUrl = entity.CallbackUrl,
-                IsActive = entity.IsActive ?? false,
-                CreatedAt = entity.CreatedAt,
-                UpdatedAt = entity.UpdatedAt
-            };
-        }
-
-        public async Task<PaymentGatewayDto> CreateAsync(PaymentGatewayDto dto)
-        {
-            var entity = new PaymentGateway
-            {
-                Name = dto.Name.Trim(),
-                CallbackUrl = dto.CallbackUrl.Trim(),
-                IsActive = dto.IsActive ?? true,
+                Name = "PayOS",
+                CallbackUrl = "",    // DB NOT NULL -> luôn set ""
+                IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
-            _context.PaymentGateways.Add(entity);
+            _context.PaymentGateways.Add(gw);
             await _context.SaveChangesAsync();
+            return gw;
+        }
 
-            return new PaymentGatewayDto
+        public async Task<PayOSConfigViewDto> GetPayOSAsync()
+        {
+            var gw = await EnsurePayOSEntityAsync();
+
+            return new PayOSConfigViewDto
             {
-                Id = entity.Id,
-                Name = entity.Name,
-                CallbackUrl = entity.CallbackUrl,
-                IsActive = entity.IsActive,
-                CreatedAt = entity.CreatedAt,
-                UpdatedAt = entity.UpdatedAt
+                ClientId = gw.ClientId ?? "",
+                HasApiKey = !string.IsNullOrWhiteSpace(gw.ApiKey),
+                HasChecksumKey = !string.IsNullOrWhiteSpace(gw.ChecksumKey)
             };
         }
 
-        public async Task<PaymentGatewayDto> UpdateAsync(int id, PaymentGatewayDto dto)
+        public async Task<PayOSConfigViewDto> UpdatePayOSAsync(PayOSConfigUpdateDto dto)
         {
-            var entity = await _context.PaymentGateways.FindAsync(id);
-            if (entity == null) return null;
+            var gw = await EnsurePayOSEntityAsync();
 
-            entity.Name = dto.Name.Trim();
-            entity.CallbackUrl = dto.CallbackUrl.Trim();
-            entity.IsActive = dto.IsActive;
-            entity.UpdatedAt = DateTime.UtcNow;
+            gw.ClientId = (dto.ClientId ?? "").Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.ApiKey))
+                gw.ApiKey = dto.ApiKey.Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.ChecksumKey))
+                gw.ChecksumKey = dto.ChecksumKey.Trim();
+
+            if (dto.IsActive.HasValue)
+                gw.IsActive = dto.IsActive;
+
+            // vẫn giữ CallbackUrl cho hợp schema
+            if (gw.CallbackUrl == null) gw.CallbackUrl = "";
+
+            gw.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            return new PaymentGatewayDto
+            return new PayOSConfigViewDto
             {
-                Id = entity.Id,
-                Name = entity.Name,
-                CallbackUrl = entity.CallbackUrl,
-                IsActive = entity.IsActive,
-                CreatedAt = entity.CreatedAt,
-                UpdatedAt = entity.UpdatedAt
-            };
-        }
-
-        public async Task<bool> DeleteAsync(int id)
-        {
-            var entity = await _context.PaymentGateways.FindAsync(id);
-            if (entity == null) return false;
-
-            _context.PaymentGateways.Remove(entity);
-            await _context.SaveChangesAsync();
-            return true;
-        }
-
-        public async Task<PaymentGatewayDto> ToggleActiveAsync(int id)
-        {
-            var entity = await _context.PaymentGateways.FindAsync(id);
-            if (entity == null) return null;
-
-            entity.IsActive = !(entity.IsActive ?? false);
-            entity.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return new PaymentGatewayDto
-            {
-                Id = entity.Id,
-                Name = entity.Name,
-                CallbackUrl = entity.CallbackUrl,
-                IsActive = entity.IsActive,
-                CreatedAt = entity.CreatedAt,
-                UpdatedAt = entity.UpdatedAt
+                ClientId = gw.ClientId ?? "",
+                HasApiKey = !string.IsNullOrWhiteSpace(gw.ApiKey),
+                HasChecksumKey = !string.IsNullOrWhiteSpace(gw.ChecksumKey)
             };
         }
     }

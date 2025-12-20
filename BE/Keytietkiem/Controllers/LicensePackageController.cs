@@ -4,12 +4,14 @@ using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Storage Staff,Admin")]
+[Authorize]
 public class LicensePackageController : ControllerBase
 {
     private readonly ILicensePackageService _licensePackageService;
@@ -31,6 +33,7 @@ public class LicensePackageController : ControllerBase
     /// <param name="supplierId">Optional supplier ID filter</param>
     /// <param name="productId">Optional product ID filter</param>
     [HttpGet]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAllLicensePackages(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
@@ -57,6 +60,7 @@ public class LicensePackageController : ControllerBase
     /// </summary>
     /// <param name="id">License package ID</param>
     [HttpGet("{id}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetLicensePackageById(Guid id)
     {
         var package = await _licensePackageService.GetLicensePackageByIdAsync(id);
@@ -68,6 +72,7 @@ public class LicensePackageController : ControllerBase
     /// </summary>
     /// <param name="dto">License package creation data</param>
     [HttpPost]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> CreateLicensePackage([FromBody] CreateLicensePackageDto dto)
     {
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -96,6 +101,7 @@ public class LicensePackageController : ControllerBase
     /// <param name="id">License package ID</param>
     /// <param name="dto">License package update data</param>
     [HttpPut("{id}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> UpdateLicensePackage(int id, [FromBody] UpdateLicensePackageDto dto)
     {
         if (id != dto.PackageId)

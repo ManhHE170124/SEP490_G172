@@ -1,4 +1,7 @@
 ﻿// File: Controllers/SupportPlansAdminController.cs
+using System;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Support;
 using Keytietkiem.Infrastructure;
@@ -33,6 +36,7 @@ namespace Keytietkiem.Controllers
         /// Sort cố định: PriorityLevel tăng dần -> Price tăng dần.
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<SupportPlanAdminListItemDto>>> List(
             [FromQuery] int? priorityLevel,
             [FromQuery] bool? active,
@@ -102,6 +106,7 @@ namespace Keytietkiem.Controllers
         /// Lấy chi tiết 1 SupportPlan.
         /// </summary>
         [HttpGet("{supportPlanId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SupportPlanAdminDetailDto>> GetById(int supportPlanId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -131,6 +136,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới 1 SupportPlan.
         /// </summary>
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SupportPlanAdminDetailDto>> Create(
             SupportPlanAdminCreateDto dto)
         {
@@ -269,6 +275,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật 1 SupportPlan.
         /// </summary>
         [HttpPut("{supportPlanId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Update(
             int supportPlanId,
             SupportPlanAdminUpdateDto dto)
@@ -412,6 +419,7 @@ namespace Keytietkiem.Controllers
         /// Không cho xoá nếu đã có UserSupportPlanSubscription tham chiếu.
         /// </summary>
         [HttpDelete("{supportPlanId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Delete(int supportPlanId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -467,6 +475,7 @@ namespace Keytietkiem.Controllers
         /// - Khi tắt: chỉ tắt gói hiện tại.
         /// </summary>
         [HttpPatch("{supportPlanId:int}/toggle")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Toggle(int supportPlanId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

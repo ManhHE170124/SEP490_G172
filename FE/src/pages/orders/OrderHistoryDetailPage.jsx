@@ -88,11 +88,16 @@ export default function OrderHistoryDetailPage() {
       const data = response?.data ?? response;
       setOrder(data);
     } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Không thể tải thông tin đơn hàng.";
-      setError(message);
+      
+      if (err?.response?.status === 403 || err?.response?.status === 404) {
+        setError("Đơn hàng không tồn tại.");
+      } else {
+        const message =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Không thể tải thông tin đơn hàng.";
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }

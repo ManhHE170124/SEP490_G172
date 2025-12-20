@@ -26,14 +26,19 @@ using Keytietkiem.DTOs.Roles;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class RolesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -49,6 +54,7 @@ namespace Keytietkiem.Controllers
         /// Get a list of roles excluding any role whose name contains "admin" (case-insensitive).
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> Get()
         {
             var roles = await _context.Roles
@@ -67,6 +73,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of roles
          */
         [HttpGet("list")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoles()
         {
             var roles = await _context.Roles
@@ -91,6 +98,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with role, 404 if not found
          */
         [HttpGet("{id}")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoleById(string id)
         {
             var role = await _context.Roles
@@ -135,6 +143,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created role, 400/409 on validation errors
          */
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
             if (createRoleDto == null)
@@ -168,9 +177,22 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            // Use provided RoleId or use Code as RoleId
+            var roleId = !string.IsNullOrWhiteSpace(createRoleDto.RoleId) 
+                ? createRoleDto.RoleId 
+                : createRoleDto.Code;
+            
+            // Check if RoleId already exists
+            var existingRoleId = await _context.Roles
+                .FirstOrDefaultAsync(m => m.RoleId == roleId);
+            if (existingRoleId != null)
+            {
+                return Conflict(new { message = "ID vai trò đã tồn tại." });
+            }
+
             var newRole = new Role
             {
-                RoleId = Guid.NewGuid().ToString(),
+                RoleId = roleId,
                 Name = createRoleDto.Name,
                 Code = createRoleDto.Code,
                 IsSystem = createRoleDto.IsSystem,
@@ -235,6 +257,7 @@ namespace Keytietkiem.Controllers
         * Returns: 204 No Content, 400/404 on errors
         */
         [HttpPut("{id}")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDTO updateRoleDto)
         {
             if (updateRoleDto == null)
@@ -315,6 +338,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeleteRoleById(string id)
         {
             var existingRole = await _context.Roles.FindAsync(id);
@@ -384,6 +408,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with role permissions matrix, 404 if role not found
          */
         [HttpGet("{id}/permissions")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRolePermissions(string id)
         {
             var role = await _context.Roles
@@ -426,6 +451,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with updated role permissions, 400/404 on errors
          */
         [HttpPut("{id}/permissions")]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRolePermissions(string id, [FromBody] BulkRolePermissionUpdateDTO updateDto)
         {
             if (updateDto == null || updateDto.RolePermissions == null || !updateDto.RolePermissions.Any())
@@ -503,8 +529,8 @@ namespace Keytietkiem.Controllers
                         ModuleId = rp.ModuleId,
                         PermissionId = rp.PermissionId,
                         IsActive = rp.IsActive,
-                        ModuleName = rp.Module!.ModuleName,
-                        PermissionName = rp.Permission!.PermissionName
+                        ModuleName = rp.Module.ModuleName,
+                        PermissionName = rp.Permission.PermissionName
                     })
                     .ToListAsync();
 
@@ -529,22 +555,16 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                // Không ghi audit log cho lỗi để tránh spam log
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new
-                    {
-                        message = "An error occurred while updating role permissions.",
-                        error = ex.Message
-                    });
+                return StatusCode(500, new { message = "An error occurred while updating role permissions.", error = ex.Message });
             }
         }
 
         /**
          * Summary: Retrieve modules that the provided role codes can access for a specific permission.
          * Route: POST /api/roles/module-access
-         * Body: ModuleAccessRequestDTO - list of role codes and optional permission code (defaults to ACCESS)
+         * Body: ModuleAccessRequestDTO - list of role codes and permission code (required, no default)
          * Returns: 200 OK with list of modules the roles can access
+         * Note: PermissionCode is now required (ACCESS permission has been removed)
          */
         [HttpPost("module-access")]
         public async Task<IActionResult> GetModuleAccessForRoles([FromBody] ModuleAccessRequestDTO request)
@@ -565,9 +585,12 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Danh sách vai trò không được để trống." });
             }
 
-            var permissionCode = string.IsNullOrWhiteSpace(request.PermissionCode)
-                ? "ACCESS"
-                : request.PermissionCode.Trim().ToUpper();
+            if (string.IsNullOrWhiteSpace(request.PermissionCode))
+            {
+                return BadRequest(new { message = "PermissionCode là bắt buộc." });
+            }
+
+            var permissionCode = request.PermissionCode.Trim().ToUpper();
 
             var modules = await _context.RolePermissions
                 .Include(rp => rp.Module)
@@ -608,8 +631,7 @@ namespace Keytietkiem.Controllers
         [HttpPost("check-permission")]
         public async Task<IActionResult> CheckPermission([FromBody] CheckPermissionRequestDTO request)
         {
-            if (request == null ||
-                string.IsNullOrWhiteSpace(request.RoleCode) ||
+            if (request == null || string.IsNullOrWhiteSpace(request.RoleCode) ||
                 string.IsNullOrWhiteSpace(request.ModuleCode) ||
                 string.IsNullOrWhiteSpace(request.PermissionCode))
             {
@@ -664,7 +686,7 @@ namespace Keytietkiem.Controllers
                         rp.ModuleId == module.ModuleId &&
                         rp.PermissionId == permission.PermissionId);
 
-                var hasAccess = rolePermission != null && rolePermission.IsActive;
+                bool hasAccess = rolePermission != null && rolePermission.IsActive;
 
                 return Ok(new CheckPermissionResponseDTO
                 {
@@ -674,13 +696,7 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new
-                    {
-                        message = "An error occurred while checking permission.",
-                        error = ex.Message
-                    });
+                return StatusCode(500, new { message = "An error occurred while checking permission.", error = ex.Message });
             }
         }
 
@@ -778,14 +794,62 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new
-                    {
-                        message = "An error occurred while checking permissions.",
-                        error = ex.Message
-                    });
+                return StatusCode(500, new { message = "An error occurred while checking permissions.", error = ex.Message });
             }
+        }
+
+        /**
+         * Summary: Get all permissions for the provided role codes.
+         * Route: POST /api/roles/user-permissions
+         * Body: UserPermissionsRequestDTO - list of role codes
+         * Returns: 200 OK with list of all permissions (moduleCode, permissionCode pairs)
+         */
+        [HttpPost("user-permissions")]
+        public async Task<IActionResult> GetUserPermissions([FromBody] UserPermissionsRequestDTO request)
+        {
+            if (request == null || request.RoleCodes == null || !request.RoleCodes.Any())
+            {
+                return BadRequest(new { message = "Danh sách vai trò không được để trống." });
+            }
+
+            var normalizedRoleCodes = request.RoleCodes
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim().ToUpper())
+                .Distinct()
+                .ToList();
+
+            if (!normalizedRoleCodes.Any())
+            {
+                return BadRequest(new { message = "Danh sách vai trò không được để trống." });
+            }
+
+            var permissions = await _context.RolePermissions
+                .Include(rp => rp.Module)
+                .Include(rp => rp.Permission)
+                .Include(rp => rp.Role)
+                .Where(rp =>
+                    rp.IsActive &&
+                    rp.Module != null &&
+                    rp.Permission != null &&
+                    rp.Role != null &&
+                    !string.IsNullOrWhiteSpace(rp.Role.Code) &&
+                    normalizedRoleCodes.Contains(rp.Role.Code.ToUpper()) &&
+                    !string.IsNullOrWhiteSpace(rp.Module.Code) &&
+                    !string.IsNullOrWhiteSpace(rp.Permission.Code))
+                .Select(rp => new UserPermissionItemDTO
+                {
+                    ModuleCode = rp.Module!.Code!.Trim().ToUpper(),
+                    PermissionCode = rp.Permission!.Code!.Trim().ToUpper()
+                })
+                .Distinct()
+                .ToListAsync();
+
+            var response = new UserPermissionsResponseDTO
+            {
+                Permissions = permissions
+            };
+
+            return Ok(response);
         }
     }
 }

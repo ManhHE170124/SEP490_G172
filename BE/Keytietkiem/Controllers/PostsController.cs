@@ -28,6 +28,8 @@ using System.Text.RegularExpressions;
 using Keytietkiem.Services;
 using Keytietkiem.DTOs.Post;
 using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -50,6 +52,8 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of posts
          */
         [HttpGet]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosts()
         {
             var posts = await _context.Posts
@@ -91,6 +95,8 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post, 404 if not found
          */
         [HttpGet("{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPostById(Guid id)
         {
             var post = await _context.Posts
@@ -139,6 +145,8 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created post, 400/404 on validation errors
          */
         [HttpPost]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreatePost([FromBody] CreatePostDTO createPostDto)
         {
             if (createPostDto == null)
@@ -185,6 +193,13 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            // Check if Slug is unique
+            var existingSlug = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Slug == createPostDto.Slug);
+            if (existingSlug != null)
+            {
+                return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+            }
 
             var newPost = new Post
             {
@@ -285,6 +300,8 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404 on errors
          */
         [HttpPut("{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdatePost(Guid id, [FromBody] UpdatePostDTO updatePostDto)
         {
             if (updatePostDto == null)
@@ -326,6 +343,17 @@ namespace Keytietkiem.Controllers
                 if (tagCount != updatePostDto.TagIds.Count)
                 {
                     return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
+                }
+            }
+
+            // Check if Slug is unique (excluding current post)
+            if (existing.Slug != updatePostDto.Slug)
+            {
+                var existingSlug = await _context.Posts
+                    .FirstOrDefaultAsync(p => p.Slug == updatePostDto.Slug && p.PostId != id);
+                if (existingSlug != null)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
                 }
             }
 
@@ -375,6 +403,8 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePost(Guid id)
         {
             var existingPost = await _context.Posts
@@ -399,6 +429,8 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of post types
          */
         [HttpGet("posttypes")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosttypes()
         {
             var postTypes = await _context.PostTypes
@@ -415,6 +447,8 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpPost("posttypes")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
             if (createPostTypeDto == null)
@@ -447,6 +481,8 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpPut("posttypes/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
             if (updatePostTypeDto == null)
@@ -476,6 +512,8 @@ namespace Keytietkiem.Controllers
 
 
         [HttpDelete("posttypes/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePosttype(Guid id)
         {
             var existing = await _context.PostTypes
@@ -508,7 +546,7 @@ namespace Keytietkiem.Controllers
                 .Include(p => p.Author)
                 .Include(p => p.PostType)
                 .Include(p => p.Tags)
-                .Where(p => p.Slug == slug && p.Status == "Published") 
+                .Where(p => p.Slug == slug && p.Status == "Published")
                 .FirstOrDefaultAsync();
 
             if (post == null)

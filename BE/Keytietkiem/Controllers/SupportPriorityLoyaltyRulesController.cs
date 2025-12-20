@@ -1,4 +1,6 @@
-﻿using Keytietkiem.DTOs.Common;
+﻿using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Support;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -31,6 +33,7 @@ namespace Keytietkiem.Controllers
         /// Bỏ qua toàn bộ level 0 (default).
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<SupportPriorityLoyaltyRuleListItemDto>>> List(
             [FromQuery] int? priorityLevel,
             [FromQuery] bool? active,
@@ -99,6 +102,7 @@ namespace Keytietkiem.Controllers
         /// Lấy chi tiết 1 rule.
         /// </summary>
         [HttpGet("{ruleId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SupportPriorityLoyaltyRuleDetailDto>> GetById(int ruleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -122,8 +126,8 @@ namespace Keytietkiem.Controllers
 
         /// <summary>
         /// Rule business: kiểm tra thứ tự mức chi tiêu của các rule đang ACTIVE.
-        /// - Level thấp hơn phải có MinTotalSpend &lt; level cao hơn.
-        /// - Chỉ xét các rule đang IsActive = true, PriorityLevel &gt; 0.
+        /// - Level thấp hơn phải có MinTotalSpend < level cao hơn.
+        /// - Chỉ xét các rule đang IsActive = true, PriorityLevel > 0.
         /// </summary>
         private static IQueryable<SupportPriorityLoyaltyRule> BuildConflictQuery(
             IQueryable<SupportPriorityLoyaltyRule> source,
@@ -153,6 +157,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới rule.
         /// </summary>
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SupportPriorityLoyaltyRuleDetailDto>> Create(
             SupportPriorityLoyaltyRuleCreateDto dto)
         {
@@ -265,6 +270,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật rule.
         /// </summary>
         [HttpPut("{ruleId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Update(
             int ruleId,
             SupportPriorityLoyaltyRuleUpdateDto dto)
@@ -383,6 +389,7 @@ namespace Keytietkiem.Controllers
         /// Xoá hẳn 1 rule.
         /// </summary>
         [HttpDelete("{ruleId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Delete(int ruleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -419,12 +426,13 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// PATCH: /api/support-priority-loyalty-rules/{ruleId}/toggle
         /// Bật / tắt IsActive cho rule.
-        /// - Khi bật một rule: 
+        /// - Khi bật một rule:
         ///     + Kiểm tra thứ tự MinTotalSpend so với các rule ACTIVE khác.
         ///     + Nếu hợp lệ: tự động tắt các rule khác cùng PriorityLevel.
         /// - Khi tắt: chỉ tắt rule hiện tại.
         /// </summary>
         [HttpPatch("{ruleId:int}/toggle")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Toggle(int ruleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -520,7 +528,8 @@ namespace Keytietkiem.Controllers
         // =========================
 
         /// <summary>
-        /// Tính tổng tiền ORDER_PAYMENT (Paid) theo email.
+        /// Tính tổng tiền ORDER (Paid/Success/Completed) theo email.
+        /// DB mới không còn TransactionType, thay bằng TargetType.
         /// </summary>
         [NonAction]
         public static async Task<decimal> CalculateUserTotalPaidOrderAmountAsync(
@@ -532,11 +541,15 @@ namespace Keytietkiem.Controllers
 
             var normalizedEmail = email.Trim();
 
+            // Tuỳ hệ thống bạn đang set status nào là "thành công":
+            // Payment.Status CHECK: Pending, Paid, Success, Completed, Cancelled, Failed, Refunded
             var total = await db.Payments
+                .AsNoTracking()
                 .Where(p =>
-                    p.Status == "Paid" &&
-                    p.TransactionType == "ORDER_PAYMENT" &&
-                    p.Email == normalizedEmail)
+                    p.Email == normalizedEmail
+                    && (p.Status == "Paid" || p.Status == "Success" || p.Status == "Completed")
+                    // TargetType trong DB mới (default 'Order'). Mở rộng thêm để tương thích dữ liệu cũ nếu có.
+                    && (p.TargetType == "Order" || p.TargetType == "ORDER" || p.TargetType == "ORDER_PAYMENT"))
                 .SumAsync(p => (decimal?)p.Amount);
 
             return total ?? 0m;
@@ -545,9 +558,8 @@ namespace Keytietkiem.Controllers
         /// <summary>
         /// CHỈ tính loyalty base:
         /// - Cập nhật TotalProductSpend.
-        /// - Tính level dựa trên bảng SupportPriorityLoyaltyRules (IsActive, PriorityLevel &gt; 0).
+        /// - Tính level dựa trên bảng SupportPriorityLoyaltyRules (IsActive, PriorityLevel > 0).
         /// - KHÔNG quan tâm tới gói hỗ trợ đang active.
-        /// Dùng cho các rule kiểu "không cho gán gói thấp hơn mức loyalty".
         /// </summary>
         [NonAction]
         public static async Task<int> RecalculateUserLoyaltyPriorityLevelAsync(
@@ -565,7 +577,7 @@ namespace Keytietkiem.Controllers
             if (user == null)
                 return 0;
 
-            // 1. Tính tổng tiền user đã tiêu (ORDER_PAYMENT, Paid)
+            // 1. Tính tổng tiền user đã tiêu (ORDER, Paid/Success/Completed)
             var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
 
             var needSave = false;
@@ -608,7 +620,6 @@ namespace Keytietkiem.Controllers
         /// finalLevel = max(loyaltyLevel, activeSupportPlanLevel)
         /// - Vẫn cập nhật TotalProductSpend (giống loyalty).
         /// - Không bao giờ hạ level thấp hơn level của gói đang ACTIVE.
-        /// Dùng cho các chỗ hiển thị / refresh level trong UsersController.
         /// </summary>
         [NonAction]
         public static async Task<int> RecalculateUserSupportPriorityLevelAsync(
@@ -626,7 +637,7 @@ namespace Keytietkiem.Controllers
             if (user == null)
                 return 0;
 
-            // 1. Tính tổng tiền user đã tiêu (ORDER_PAYMENT, Paid)
+            // 1. Tính tổng tiền user đã tiêu (ORDER, Paid/Success/Completed)
             var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
 
             var needSave = false;
@@ -638,7 +649,7 @@ namespace Keytietkiem.Controllers
                 needSave = true;
             }
 
-            // 2. Loyalty level (như helper cũ)
+            // 2. Loyalty level
             var loyaltyLevel = await db.SupportPriorityLoyaltyRules
                 .Where(r =>
                     r.IsActive &&

@@ -1,17 +1,22 @@
-﻿using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using Keytietkiem.Authorization;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
 using Keytietkiem.Repositories;
 using Keytietkiem.Services;
+using Keytietkiem.Services.Background;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
@@ -53,6 +58,9 @@ builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();  // ✅ chỉ 1 lần
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();          // ✅ chỉ 1 lần
+builder.Services.AddHostedService<CartCleanupService>();
+builder.Services.AddHostedService<PaymentTimeoutService>();
+builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 
 // Clock (mockable for tests) – dùng luôn block này
 builder.Services.AddSingleton<IClock, SystemClock>();                                         // ✅ chỉ 1 lần
@@ -121,12 +129,71 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("CartPolicy", context =>
+    {
+        var http = context.Request.HttpContext;
+
+        var remoteIp = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        // logged-in => key theo UserId
+        var userId =
+            http.User?.FindFirstValue("uid") ??
+            http.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        string identityKey;
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            identityKey = "u_" + userId;
+        }
+        else
+        {
+            // guest => anonId từ cookie, fallback header
+            http.Request.Cookies.TryGetValue("ktk_anon_id", out var anonId);
+            if (string.IsNullOrWhiteSpace(anonId))
+            {
+                anonId = http.Request.Headers["X-Guest-Cart-Id"].FirstOrDefault();
+            }
+            identityKey = "g_" + (anonId ?? "unknown");
+        }
+
+        var key = $"{remoteIp}_{identityKey}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: key,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 2
+            });
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
+// ===== Authorization with Role-based system =====
+builder.Services.AddAuthorization(options =>
+{
+    // Configure default policy if needed
+    options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
+// Register RolePolicyProvider to handle RequireRole attribute
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, RolePolicyProvider>();
+
+// Register RoleAuthorizationHandler to check roles
+builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 
 // ===== Stats service + background job =====
 // (ISupportStatsUpdateService đã đăng ký phía trên => KHÔNG lặp lại)
 // ✅ Job thống kê support hằng ngày
-builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+//builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
@@ -147,6 +214,7 @@ using (var scope = app.Services.CreateScope())
     await roleService.SeedDefaultRolesAsync();
     var accountService = scope.ServiceProvider.GetRequiredService<IAccountService>();
     await accountService.SeedDataAsync();
+    // RolePermissionInitializer removed - permissions are now seeded via SQL script
 }
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====
@@ -165,6 +233,22 @@ app.UseExceptionHandler(exApp =>
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// ===== Status code pages for consistent JSON (401/403) =====
+app.UseStatusCodePages(async context =>
+{
+    var statusCode = context.HttpContext.Response.StatusCode;
+    if (statusCode == StatusCodes.Status401Unauthorized ||
+        statusCode == StatusCodes.Status403Forbidden)
+    {
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        var message = statusCode == StatusCodes.Status401Unauthorized
+            ? "Bạn chưa đăng nhập hoặc phiên đã hết hạn."
+            : "Bạn không có quyền truy cập chức năng này.";
+        var payload = JsonSerializer.Serialize(new { message });
+        await context.HttpContext.Response.WriteAsync(payload);
+    }
+});
+
 // Theo bản dưới: tắt redirect HTTPS trong môi trường dev để tránh CORS redirect
 // app.UseHttpsRedirection();
 
@@ -174,12 +258,13 @@ app.UseSwaggerUI();
 app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseRateLimiter();
 // ===== Endpoint mapping =====
 app.MapControllers();
 
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
 app.MapHub<SupportChatHub>("/hubs/support-chat");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

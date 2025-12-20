@@ -25,11 +25,15 @@ using Keytietkiem.DTOs.Post;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/comments")]
     [ApiController]
+    [Authorize]
     public class PostCommentsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -49,8 +53,9 @@ namespace Keytietkiem.Controllers
          * Params: postId, userId, isApproved, parentCommentId (all optional query params)
          * Returns: 200 OK with list of comments
          */
-        [HttpGet]
-        public async Task<IActionResult> GetComments(
+    [HttpGet]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+    public async Task<IActionResult> GetComments(
             [FromQuery] Guid? postId,
             [FromQuery] Guid? userId,
             [FromQuery] bool? isApproved,
@@ -113,8 +118,9 @@ namespace Keytietkiem.Controllers
          * Params: id (Guid) - comment identifier
          * Returns: 200 OK with comment, 404 if not found
          */
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetCommentById(Guid id)
+    [HttpGet("{id}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+    public async Task<IActionResult> GetCommentById(Guid id)
         {
             var comment = await _context.PostComments
                 .Include(c => c.User)
@@ -583,7 +589,7 @@ namespace Keytietkiem.Controllers
         {
             if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
-                var replies = comment.InverseParentComment.ToList();
+                var replies = comment.InverseParentComment.ToList(); // Create a copy to avoid modification during iteration
                 foreach (var reply in replies)
                 {
                     var replyWithChildren = await _context.PostComments
@@ -775,6 +781,7 @@ namespace Keytietkiem.Controllers
                 ReplyCount = comment.InverseParentComment?.Count ?? 0
             };
 
+            // Map nested replies recursively
             if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
             {
                 dto.Replies = comment.InverseParentComment
@@ -787,3 +794,4 @@ namespace Keytietkiem.Controllers
         }
     }
 }
+

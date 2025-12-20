@@ -1,4 +1,9 @@
 ﻿// File: Controllers/SlaRulesAdminController.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.SlaRules;
 using Keytietkiem.Infrastructure;
@@ -7,9 +12,6 @@ using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
@@ -82,6 +84,7 @@ namespace Keytietkiem.Controllers
         /// List SlaRule có filter + paging.
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<SlaRuleAdminListItemDto>>> List(
             [FromQuery] string? severity,
             [FromQuery] int? priorityLevel,
@@ -177,6 +180,7 @@ namespace Keytietkiem.Controllers
         /// GET: /api/sla-rules-admin/{slaRuleId}
         /// </summary>
         [HttpGet("{slaRuleId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SlaRuleAdminDetailDto>> GetById(int slaRuleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -207,6 +211,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới 1 SlaRule.
         /// </summary>
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SlaRuleAdminDetailDto>> Create(
             SlaRuleAdminCreateDto dto)
         {
@@ -334,6 +339,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật 1 SlaRule.
         /// </summary>
         [HttpPut("{slaRuleId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Update(
             int slaRuleId,
             SlaRuleAdminUpdateDto dto)
@@ -473,6 +479,7 @@ namespace Keytietkiem.Controllers
         /// Xoá hẳn 1 SlaRule.
         /// </summary>
         [HttpDelete("{slaRuleId:int}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Delete(int slaRuleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -526,6 +533,7 @@ namespace Keytietkiem.Controllers
         /// Bật / tắt IsActive cho SlaRule.
         /// </summary>
         [HttpPatch("{slaRuleId:int}/toggle")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Toggle(int slaRuleId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

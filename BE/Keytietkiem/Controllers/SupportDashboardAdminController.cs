@@ -6,6 +6,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Keytietkiem.DTOs.Support;
 using Keytietkiem.Infrastructure;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using Keytietkiem.DTOs.Common;
+using Keytietkiem.DTOs.Support;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +58,7 @@ namespace Keytietkiem.Controllers
         /// - Ticket vs Chat theo tuần trong tháng (dựa theo SupportDailyStats)
         /// </summary>
         [HttpGet("overview")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<SupportOverviewDto>> GetOverview(
             [FromQuery] int days = 7,
             [FromQuery] string? yearMonth = null,
@@ -166,6 +171,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("tickets/daily")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<TicketDailyKpiDto>>> GetTicketDailyKpi(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -204,6 +210,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("tickets/weekly-severity-priority")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<TicketSeverityPriorityWeeklyDto>>> GetTicketSeverityPriorityWeekly(
             [FromQuery] int weeks = 8,
             CancellationToken cancellationToken = default)
@@ -243,6 +250,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("tickets/priority-distribution")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<TicketPriorityDistributionDto>>> GetTicketPriorityDistribution(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -273,6 +281,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("chat/daily")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<ChatDailyKpiDto>>> GetChatDailyKpi(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -305,6 +314,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("chat/weekly-priority")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<ChatPriorityWeeklyDto>>> GetChatPriorityWeekly(
             [FromQuery] int weeks = 8,
             CancellationToken cancellationToken = default)
@@ -346,6 +356,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("staff/performance")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<StaffPerformanceSummaryDto>>> GetStaffPerformance(
             [FromQuery] int days = 30,
             CancellationToken cancellationToken = default)
@@ -482,6 +493,7 @@ namespace Keytietkiem.Controllers
         // ============================================================
 
         [HttpGet("plans/active-distribution")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<ActiveSupportPlanDistributionDto>>> GetActiveSupportPlanDistribution(
             CancellationToken cancellationToken = default)
         {
@@ -542,6 +554,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("plans/monthly-stats")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<SupportPlanMonthlyStatDto>>> GetSupportPlanMonthlyStats(
             [FromQuery] int months = 6,
             CancellationToken cancellationToken = default)
@@ -615,6 +628,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("segments/priority-distribution")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<PriorityDistributionDto>>> GetPriorityDistribution(
             CancellationToken cancellationToken = default)
         {
@@ -635,6 +649,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("segments/priority-support-volume")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<List<PrioritySupportVolumeDto>>> GetPrioritySupportVolume(
             [FromQuery] int weeks = 8,
             CancellationToken cancellationToken = default)

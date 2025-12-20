@@ -1,14 +1,15 @@
-using Keytietkiem.DTOs.ProductClient;
+Ôªøusing Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
     /// <summary>
-    /// API cho trang homepage phÌa ng??i d˘ng (storefront)
-    /// Hi?n t?i ch? t?p trung v‡o ph?n danh s·ch s?n ph?m.
+    /// API cho trang homepage ph√≠a ng??i d√πng (storefront)
+    /// Hi?n t?i ch? t?p trung v√†o ph?n danh s√°ch s?n ph?m.
     /// </summary>
     [ApiController]
     [Route("api/storefront/homepage")]
@@ -22,19 +23,20 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// L?y danh s·ch s?n ph?m cho homepage:
-        /// - ?u ?„i hÙm nay: 4 s?n ph?m cÛ % gi?m gi· cao nh?t
-        ///   (tie thÏ ViewCount nhi?u h?n, CreatedAt m?i h?n x?p tr??c)
-        /// - S?n ph?m b·n ch?y: sort gi?ng "sold/bestseller" ? trang list products
-        /// - Xu h??ng tu?n n‡y: nhi?u ViewCount nh?t (?u tiÍn trong 7 ng‡y g?n nh?t)
+        /// L?y danh s√°ch s?n ph?m cho homepage:
+        /// - ?u ?√£i h√¥m nay: 4 s?n ph?m c√≥ % gi?m gi√° cao nh?t
+        ///   (tie th√¨ ViewCount nhi?u h?n, CreatedAt m?i h?n x?p tr??c)
+        /// - S?n ph?m b√°n ch?y: sort gi?ng "sold/bestseller" ? trang list products
+        /// - Xu h??ng tu?n n√†y: nhi?u ViewCount nh?t (?u ti√™n trong 7 ng√†y g?n nh?t)
         /// - M?i c?p nh?t: sort theo UpdatedAt m?i nh?t
         /// </summary>
         [HttpGet("products")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontHomepageProductsDto>> GetHomepageProducts()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // ====== Base query: ch? l?y variant cÛ tr?ng th·i hi?n th? ======
+            // ====== Base query: ch? l?y variant c√≥ tr?ng th√°i hi?n th? ======
             var baseQuery = db.ProductVariants
                 .AsNoTracking()
                 .Include(v => v.Product)
@@ -59,8 +61,8 @@ namespace Keytietkiem.Controllers
                     v.CreatedAt,
                     v.UpdatedAt,
                     v.SellPrice,
-                    v.ListPrice,   // d˘ng ListPrice l‡m gi· niÍm y?t
-                    0m,            // s? tÌnh l?i bÍn d??i
+                    v.ListPrice,   // d√πng ListPrice l√†m gi√° ni√™m y?t
+                    0m,            // s? t√≠nh l?i b√™n d??i
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
                         .ToList(),
@@ -68,7 +70,7 @@ namespace Keytietkiem.Controllers
                 ))
                 .ToListAsync();
 
-            // N?u khÙng cÛ s?n ph?m n‡o thÏ tr? v? r?ng cho an to‡n
+            // N?u kh√¥ng c√≥ s?n ph?m n√†o th√¨ tr? v? r?ng cho an to√†n
             if (rawItems.Count == 0)
             {
                 var empty = new StorefrontHomepageProductsDto(
@@ -80,7 +82,7 @@ namespace Keytietkiem.Controllers
                 return Ok(empty);
             }
 
-            // ====== TÌnh % gi?m gi· d?a trÍn SellPrice / ListPrice ======
+            // ====== T√≠nh % gi?m gi√° d?a tr√™n SellPrice / ListPrice ======
             rawItems = rawItems
                 .Select(i =>
                 {
@@ -89,7 +91,7 @@ namespace Keytietkiem.Controllers
                 })
                 .ToList();
 
-            // ====== 1. ?U ?√I H‘M NAY: % gi?m gi· cao nh?t ======
+            // ====== 1. ?U ?√ÉI H√îM NAY: % gi?m gi√° cao nh?t ======
             var todayDealsRaw = rawItems
                 .OrderByDescending(i => i.DiscountPercent)
                 .ThenByDescending(i => i.ViewCount)
@@ -97,23 +99,23 @@ namespace Keytietkiem.Controllers
                 .Take(4)
                 .ToList();
 
-            // ====== 2. S?N PH?M B¡N CH?Y: sort gi?ng "sold/bestseller" ? ListVariants ======
+            // ====== 2. S?N PH?M B√ÅN CH?Y: sort gi?ng "sold/bestseller" ? ListVariants ======
             var bestSellerOrdered = OrderAsBestSeller(rawItems);
             var bestSellersRaw = bestSellerOrdered
                 .Take(4)
                 .ToList();
 
-            // ====== 3. XU H??NG TU?N N¿Y: ViewCount cao trong 7 ng‡y g?n nh?t ======
+            // ====== 3. XU H??NG TU?N N√ÄY: ViewCount cao trong 7 ng√†y g?n nh?t ======
             var nowUtc = DateTime.UtcNow;
             var sevenDaysAgo = nowUtc.AddDays(-7);
 
             var weeklyCandidates = rawItems
-                .Where(i => i.CreatedAt >= sevenDaysAgo) // ?u tiÍn s?n ph?m m?i 7 ng‡y
+                .Where(i => i.CreatedAt >= sevenDaysAgo) // ?u ti√™n s?n ph?m m?i 7 ng√†y
                 .ToList();
 
             if (weeklyCandidates.Count == 0)
             {
-                // n?u 7 ng‡y g?n ?‚y khÙng cÛ s?n ph?m n‡o, fallback d˘ng to‡n b?
+                // n?u 7 ng√†y g?n ?√¢y kh√¥ng c√≥ s?n ph?m n√†o, fallback d√πng to√†n b?
                 weeklyCandidates = rawItems;
             }
 
@@ -146,7 +148,7 @@ namespace Keytietkiem.Controllers
                     .Where(b => allBadgeCodes.Contains(b.BadgeCode))
                     .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
 
-            // Helper map raw -> StorefrontVariantListItemDto (C” GI¡ + Èp h?t h‡ng theo t?n kho)
+            // Helper map raw -> StorefrontVariantListItemDto (C√ì GI√Å + √©p h?t h√†ng theo t?n kho)
             StorefrontVariantListItemDto MapToDto(HomepageVariantRawItem i)
             {
                 var badges = i.BadgeCodes
@@ -163,7 +165,7 @@ namespace Keytietkiem.Controllers
                             );
                         }
 
-                        // Badge code cÚn trÍn product nh?ng badge ?„ xo·
+                        // Badge code c√≤n tr√™n product nh∆∞ng badge ƒë√£ xo√°
                         return new StorefrontBadgeMiniDto(
                             code,
                             code,
@@ -173,12 +175,9 @@ namespace Keytietkiem.Controllers
                     })
                     .ToList();
 
-                // …p tr?ng th·i OUT_OF_STOCK n?u t?n kho <= 0
-                var outOfStock =
-                    string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                    || i.StockQty <= 0;
-
-                var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+                // CH·ªà d√πng t·ªìn kho ƒë·ªÉ quy·∫øt ƒë·ªãnh h·∫øt h√†ng
+                var outOfStock = i.StockQty <= 0;
+                var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
                 return new StorefrontVariantListItemDto(
                     VariantId: i.VariantId,
@@ -206,9 +205,9 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Logic sort "b·n ch?y" gi?ng v?i ListVariants (default/sold/bestseller):
-        /// - G·n Rank = 1,2,3,... trong t?ng ProductId theo ViewCount DESC
-        /// - To‡n b? list: Rank ?, r?i ViewCount ?
+        /// Logic sort "b√°n ch?y" gi?ng v?i ListVariants (default/sold/bestseller):
+        /// - G√°n Rank = 1,2,3,... trong t?ng ProductId theo ViewCount DESC
+        /// - To√†n b? list: Rank ?, r?i ViewCount ?
         /// </summary>
         private static List<HomepageVariantRawItem> OrderAsBestSeller(
             List<HomepageVariantRawItem> rawItems)
@@ -237,7 +236,7 @@ namespace Keytietkiem.Controllers
 
         private static decimal ComputeDiscountPercent(decimal sellPrice, decimal listPrice)
         {
-            // listPrice = gi· niÍm y?t, sellPrice = gi· b·n th?c t?
+            // listPrice = gi√° ni√™m y?t, sellPrice = gi√° b√°n th?c t?
             if (sellPrice <= 0 || listPrice <= 0 || sellPrice >= listPrice)
             {
                 return 0m;
@@ -248,7 +247,7 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Raw item d˘ng n?i b? cho homepage.
+        /// Raw item d√πng n?i b? cho homepage.
         /// </summary>
         private sealed record HomepageVariantRawItem(
             Guid VariantId,

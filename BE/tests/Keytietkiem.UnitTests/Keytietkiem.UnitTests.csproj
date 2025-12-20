@@ -8,6 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controllers\FaqsController_UpdateTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Controllers\FaqsController_UpdateTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.10" />

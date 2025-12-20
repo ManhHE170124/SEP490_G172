@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ProductKeyApi } from "../../services/productKeys";
 import { ProductApi } from "../../services/products";
@@ -10,6 +10,21 @@ import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
 
 export default function KeyManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
+
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const canViewDetail = true;
+  const canDelete = true;
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [keys, setKeys] = useState([]);
@@ -62,7 +77,26 @@ export default function KeyManagementPage() {
         err.response?.data?.message ||
         err.message ||
         "Không thể tải danh sách key";
-      showError("Lỗi tải dữ liệu", errorMsg);
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          showError("Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          showError("Lỗi tải dữ liệu", errorMsg);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -93,6 +127,10 @@ export default function KeyManagementPage() {
   };
 
   const handleDeleteKey = (keyId) => {
+    if (!canDelete) {
+      showError("Không có quyền", "Bạn không có quyền xóa key.");
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
       title: "Xác nhận xóa key",
@@ -139,6 +177,35 @@ export default function KeyManagementPage() {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
   };
 
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Kho Product Key</h1>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Kho Product Key</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách key. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -162,7 +229,13 @@ export default function KeyManagementPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>Kho Key phần mềm</h1>
-          <Link className="btn primary" to="/keys/add">
+          <Link 
+            className="btn primary" 
+            to="/keys/add"
+            onClick={(e) => {
+              // Note: CREATE permission check will be done in KeyDetailPage
+            }}
+          >
             + Tạo key mới
           </Link>
         </div>
@@ -295,6 +368,12 @@ export default function KeyManagementPage() {
                             <Link
                               to={`/keys/${key.keyId}`}
                               style={{ fontFamily: "monospace" }}
+                              onClick={(e) => {
+                                if (!canViewDetail) {
+                                  e.preventDefault();
+                                  showError("Không có quyền", "Bạn không có quyền xem chi tiết key.");
+                                }
+                              }}
                             >
                               {key.keyString.substring(0, 20)}...
                             </Link>
@@ -341,6 +420,12 @@ export default function KeyManagementPage() {
                                 className="btn"
                                 to={`/keys/${key.keyId}`}
                                 style={{ padding: "4px 8px", fontSize: "13px" }}
+                                onClick={(e) => {
+                                  if (!canViewDetail) {
+                                    e.preventDefault();
+                                    showError("Không có quyền", "Bạn không có quyền xem chi tiết key.");
+                                  }
+                                }}
                               >
                                 Chi tiết
                               </Link>

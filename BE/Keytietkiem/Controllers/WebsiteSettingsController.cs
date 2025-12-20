@@ -12,15 +12,19 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using System.Text.Json;
 
 namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/admin/settings")]
+    [Authorize]
     public class WebsiteSettingsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -45,6 +49,7 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always get the first record
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Get()
         {
             // ✅ Use service to get settings
@@ -102,11 +107,12 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always update the FIRST record only
         /// </summary>
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN)]
         [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> Save()
-        {
-            WebsiteSettingsRequestDto? data = null;
-            string? logoUrl = null;
+            {
+                WebsiteSettingsRequestDto? data = null;
+                string? logoUrl = null;
 
             try
             {

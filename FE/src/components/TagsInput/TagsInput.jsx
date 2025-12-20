@@ -128,15 +128,29 @@ const TagsInput = ({
       if (onCreateNewTag) {
         const slug = toSlug(trimmedInput);
         const newTag = await onCreateNewTag(trimmedInput, slug);
+        
+        // Validate newTag before adding to tags
+        if (!newTag) {
+          setError('Không thể tạo tag mới. Vui lòng thử lại.');
+          return;
+        }
+        
+        // Ensure newTag has required properties
+        if (typeof newTag !== 'string' && (!newTag.tagName && !newTag.name)) {
+          setError('Dữ liệu tag không hợp lệ.');
+          return;
+        }
+        
         setTags(prev => [...prev, newTag]);
+        setTagInput('');
+        setError('');
       } else {
-        // If no create handler, just add as string
-        setTags(prev => [...prev, trimmedInput]);
+        // If no create handler, user doesn't have permission to create tags
+        setError('Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.');
       }
-      setTagInput('');
-      setError('');
     } catch (err) {
-      setError(err.message || 'Không thể tạo tag mới');
+      // Error message should already be shown by the parent component
+      setError(err.message || 'Không thể tạo tag mới. Vui lòng thử lại.');
     }
   };
 
@@ -147,9 +161,12 @@ const TagsInput = ({
       if (showDropdown && selectedIndex >= 0 && selectedIndex < filteredTags.length) {
         // Select highlighted tag from dropdown
         handleSelectTag(filteredTags[selectedIndex]);
-      } else {
-        // Create new tag
+      } else if (onCreateNewTag) {
+        // Create new tag only if user has permission
         handleCreateNewTag();
+      } else {
+        // If no permission, show error
+        setError('Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.');
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -183,7 +200,7 @@ const TagsInput = ({
         <input
           ref={inputRef}
           type="text"
-          placeholder="Nhập tag (có dấu được)... Ấn Enter để tạo"
+          placeholder={onCreateNewTag ? "Nhập tag (có dấu được)... Ấn Enter để tạo" : "Tìm và chọn tag từ danh sách có sẵn"}
           value={tagInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}

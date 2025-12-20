@@ -1,4 +1,8 @@
-﻿using Keytietkiem.DTOs.Common;
+﻿// File: Controllers/TicketSubjectTemplatesAdminController.cs
+using System.Collections.Generic;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
+using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -54,6 +58,7 @@ namespace Keytietkiem.Controllers
         /// Sort mặc định: Category -> Severity -> TemplateCode.
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<TicketSubjectTemplateAdminListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] string? severity,
@@ -241,6 +246,7 @@ namespace Keytietkiem.Controllers
         /// Lấy chi tiết 1 TicketSubjectTemplate.
         /// </summary>
         [HttpGet("{templateCode}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<TicketSubjectTemplateAdminDetailDto>> GetByCode(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -278,6 +284,7 @@ namespace Keytietkiem.Controllers
         /// Tạo mới 1 TicketSubjectTemplate.
         /// </summary>
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<TicketSubjectTemplateAdminDetailDto>> Create(
             TicketSubjectTemplateAdminCreateDto dto)
         {
@@ -457,6 +464,7 @@ namespace Keytietkiem.Controllers
         /// Cập nhật TicketSubjectTemplate (không cho đổi TemplateCode).
         /// </summary>
         [HttpPut("{templateCode}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Update(
             string templateCode,
             TicketSubjectTemplateAdminUpdateDto dto)
@@ -607,6 +615,7 @@ namespace Keytietkiem.Controllers
         /// Nếu sau này có FK từ Ticket -> TemplateCode thì nên bổ sung check trước khi xoá.
         /// </summary>
         [HttpDelete("{templateCode}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Delete(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))
@@ -656,6 +665,7 @@ namespace Keytietkiem.Controllers
         /// Bật / tắt IsActive cho TicketSubjectTemplate.
         /// </summary>
         [HttpPatch("{templateCode}/toggle")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Toggle(string templateCode)
         {
             if (string.IsNullOrWhiteSpace(templateCode))

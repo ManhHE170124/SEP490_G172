@@ -14,11 +14,15 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PostImagesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -34,12 +38,13 @@ namespace Keytietkiem.Controllers
 
         /**
          * Summary: Upload an image file.
-         * Route: POST /api/postimages/uploadImage
-         * Body: multipart/form-data with file
+         * Route: POST /api/uploadImage
+         * Body: IFormFile file {"path": "res.cloudinary.com/doifb7f6k/image/upload/v1762196927/posts/abc123xyz.png" }
          * Returns: 200 OK with image path, 400 on errors
          */
         [HttpPost("uploadImage")]
         [Consumes("multipart/form-data")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UploadImage([FromForm] ImageUploadRequest request)
         {
             try
@@ -60,14 +65,15 @@ namespace Keytietkiem.Controllers
 
         /**
          * Summary: Delete an image from Cloudinary.
-         * Route: DELETE /api/postimages/deleteImage
+         * Route: DELETE /api/deleteImage
          * Body: JSON { "publicId": "posts/abc123xyz" }
          * Returns: 200 OK on success, 400 or 500 on error.
          */
         [HttpDelete("deleteImage")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteImage([FromBody] ImageDeleteRequest request)
         {
-            if (string.IsNullOrEmpty(request.PublicId))
+            if (string.IsNullOrWhiteSpace(request.PublicId))
             {
                 return BadRequest(new { message = "PublicId is required." });
             }

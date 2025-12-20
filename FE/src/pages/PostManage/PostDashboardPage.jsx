@@ -20,8 +20,11 @@ export default function PostDashboardPage() {
   
   // Global network error handler
   const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
   useEffect(() => {
     networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
   }, []);
 
   // Data state
@@ -48,7 +51,16 @@ export default function PostDashboardPage() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
-        showError("Lỗi", err.message || "Không thể tải dữ liệu dashboard");
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          showError("Lỗi tải dữ liệu", err.message || "Bạn không có quyền truy cập chức năng này.");
+        } else if (!isPermissionError) {
+          showError("Lỗi", err.message || "Không thể tải dữ liệu dashboard");
+        }
       }
     } finally {
       setLoading(false);
