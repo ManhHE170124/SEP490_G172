@@ -5,17 +5,16 @@ import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import ToastContainer from "../../components/Toast/ToastContainer";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 import "./admin.css";
 
 export default function ProductsPage() {
-  // Check permissions
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "VIEW_LIST");
-  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "VIEW_DETAIL");
-  const { hasPermission: canCreate } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "CREATE");
-  const { hasPermission: canEdit } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "EDIT");
-  const { hasPermission: canDelete } = usePermission(MODULE_CODES.PRODUCT_MANAGER, "DELETE");
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const canViewDetail = true;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   // Global network error handler
   const networkErrorShownRef = useRef(false);

@@ -175,7 +175,7 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// ===== Authorization with Permission-based system =====
+// ===== Authorization with Role-based system =====
 builder.Services.AddAuthorization(options =>
 {
     // Configure default policy if needed
@@ -184,11 +184,11 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-// Register PermissionPolicyProvider to handle RequirePermission attribute
-builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+// Register RolePolicyProvider to handle RequireRole attribute
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, RolePolicyProvider>();
 
-// Register PermissionAuthorizationHandler to check permissions
-builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+// Register RoleAuthorizationHandler to check roles
+builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 
 // ===== Stats service + background job =====
 // (ISupportStatsUpdateService đã đăng ký phía trên => KHÔNG lặp lại)
@@ -214,6 +214,7 @@ using (var scope = app.Services.CreateScope())
     await roleService.SeedDefaultRolesAsync();
     var accountService = scope.ServiceProvider.GetRequiredService<IAccountService>();
     await accountService.SeedDataAsync();
+    // RolePermissionInitializer removed - permissions are now seeded via SQL script
 }
 
 // ===== Global exception -> { message: "..." } (giữ bản dưới) =====

@@ -137,8 +137,6 @@ export default function RoleManagement() {
   // Roles-only status filter
   const [roleStatus, setRoleStatus] = useState("all"); // all | active | inactive
 
-  // Modal for adding role (Modal)
-  const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [page, setPage] = useState(1);
@@ -178,10 +176,9 @@ export default function RoleManagement() {
    * based on the currently active tab (Modules, Permissions, or Roles).
    * @returns column definitions and button labels dynamically per active tab.
    */
-  const { columns, addButtonText } = useMemo(() => {
+  const { columns } = useMemo(() => {
     if (activeTab === TABS.MODULES) {
       return {
-        addButtonText: "Thêm Mô-đun",
         columns: [
           { key: "moduleName", label: "Tên Mô-đun" },
           { key: "code", label: "Mã" },
@@ -193,7 +190,6 @@ export default function RoleManagement() {
     }
     if (activeTab === TABS.PERMISSIONS) {
       return {
-        addButtonText: "Thêm Quyền",
         columns: [
           { key: "permissionName", label: "Tên quyền" },
           { key: "code", label: "Mã" },
@@ -204,7 +200,6 @@ export default function RoleManagement() {
       };
     }
     return {
-      addButtonText: "Thêm Vai trò",
       columns: [
         { key: "name", label: "Tên Vai trò" },
         { key: "code", label: "Mã" },
@@ -277,134 +272,6 @@ export default function RoleManagement() {
     return filteredSorted.slice(start, start + pageSize);
   }, [filteredSorted, currentPage, pageSize]);
 
-  const [addModuleOpen, setAddModuleOpen] = useState(false);
-  const [addPermissionOpen, setAddPermissionOpen] = useState(false);
-
-  /**
-   * @summary: Handle clicking the Add button based on active tab.
-   * @returns {void}
-   */
-  function onClickAdd() {
-    if (activeTab === TABS.ROLES) {
-      setAddRoleOpen(true);
-      return;
-    }
-    if (activeTab === TABS.MODULES) {
-      setAddModuleOpen(true);
-      return;
-    }
-    if (activeTab === TABS.PERMISSIONS) {
-      setAddPermissionOpen(true);
-      return;
-    }
-  }
-
-  /**
-   * @summary: Create a new Role entity.
-   * @param {{ name: string, isSystem?: boolean }} form - Role form payload
-   * @returns {Promise<void>}
-   */
-  async function handleCreateRole(form) {
-    try {
-      setSubmitting(true);
-      const created = await roleApi.createRole({
-        name: form.name,
-        code: form.code,
-        isSystem: form.isSystem || false
-      });
-      setData((prev) =>
-        filterOutCustomerRoles(Array.isArray(prev) ? [...prev, created] : [created])
-      );
-      setAddRoleOpen(false);
-      showSuccess(
-        "Tạo Vai trò thành công!",
-        `Vai trò "${form.name}" đã được tạo và tự động gán quyền cho tất cả Mô-đun và Quyền.`
-      );
-    } catch (e) {
-      // Handle network errors globally - only show one toast
-      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Vai trò";
-        showError("Tạo Vai trò thất bại!", errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  /**
-   * @summary: Create a new Module entity.
-   * @param {{ moduleName: string, description?: string }} form - Module form payload
-   * @returns {Promise<void>}
-   */
-  async function handleCreateModule(form) {
-    try {
-      setSubmitting(true);
-      const created = await roleApi.createModule({
-        moduleName: form.moduleName,
-        code: form.code,
-        description: form.description || ""
-      });
-      setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
-      setAddModuleOpen(false);
-      showSuccess(
-        "Tạo Mô-đun thành công!",
-        `Mô-đun "${form.moduleName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và quyền.`
-      );
-    } catch (e) {
-      // Handle network errors globally - only show one toast
-      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Mô-đun";
-        showError("Tạo Mô-đun thất bại!", errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  /**
-   * @summary: Create a new Permission entity.
-   * @param {{ permissionName: string, description?: string }} form - Permission form payload
-   * @returns {Promise<void>}
-   */
-  async function handleCreatePermission(form) {
-    try {
-      setSubmitting(true);
-      const created = await roleApi.createPermission({
-        permissionName: form.permissionName,
-        code: form.code,
-        description: form.description || ""
-      });
-      setData((prev) => Array.isArray(prev) ? [...prev, created] : [created]);
-      setAddPermissionOpen(false);
-      showSuccess(
-        "Tạo Quyền thành công!",
-        `Quyền "${form.permissionName}" đã được tạo và tự động gán quyền cho tất cả Vai trò và Mô-đun.`
-      );
-    } catch (e) {
-      // Handle network errors globally - only show one toast
-      if (e.isNetworkError || e.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        const errorMessage = e.response?.data?.message || e.message || "Không thể tạo Quyền";
-        showError("Tạo Quyền thất bại!", errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   const [editOpen, setEditOpen] = useState(false);
   const [editFields, setEditFields] = useState([]);
@@ -423,21 +290,21 @@ export default function RoleManagement() {
       setEditTitle("Sửa Mô-đun");
       setEditFields([
         { name: "moduleName", label: "Tên mô-đun", required: true, minLength: 2, maxLength: 80, defaultValue: row.moduleName },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", readonly: true },
         { name: "description", label: "Mô tả", type: "textarea", maxLength: 200, defaultValue: row.description || "" },
       ]);
     } else if (activeTab === TABS.PERMISSIONS) {
       setEditTitle("Sửa Quyền");
       setEditFields([
         { name: "permissionName", label: "Tên quyền", required: true, minLength: 2, maxLength: 100, defaultValue: row.permissionName },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", readonly: true },
         { name: "description", label: "Mô tả", type: "textarea", maxLength: 300, defaultValue: row.description || "" },
       ]);
     } else {
       setEditTitle("Sửa Role");
       setEditFields([
         { name: "name", label: "Tên vai trò", required: true, minLength: 2, maxLength: 60, defaultValue: row.name },
-        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "" },
+        { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code", defaultValue: row.code || "", readonly: true },
         { name: "isActive", label: "Active", type: "checkbox", defaultValue: row.isActive },
       ]);
     }
@@ -450,42 +317,54 @@ export default function RoleManagement() {
    * @returns {Promise<void>}
    */
   async function onDelete(row) {
-    const label = activeTab === TABS.MODULES ? row.moduleName : activeTab === TABS.PERMISSIONS ? row.permissionName : row.name;
-    const entityType = activeTab === TABS.MODULES ? "Module" : activeTab === TABS.PERMISSIONS ? "Permission" : "Role";
+    // Hiện tại chỉ cho phép bật/tắt Vai trò, không xoá Module/Permission
+    if (activeTab !== TABS.ROLES) {
+      return;
+    }
+
+    const label = row.name;
+    const entityType = "Role";
+    const isCurrentlyActive = Boolean(row.isActive);
+    const nextActive = !isCurrentlyActive;
+    const actionLabel = nextActive ? "kích hoạt lại" : "vô hiệu hóa";
 
     showWarning(
-      `Xác nhận xóa ${entityType}`,
-      `Bạn sắp xóa ${entityType.toLowerCase()} "${label}". Hành động này không thể hoàn tác!`
+      `Xác nhận ${actionLabel} ${entityType}`,
+      `Bạn sắp ${actionLabel} ${entityType.toLowerCase()} "${label}".`
     );
 
     // Show confirm dialog instead of alert
     showConfirm(
-      `Xác nhận xóa ${entityType}`,
-      `Bạn có chắc chắn muốn xóa "${label}"? Hành động này không thể hoàn tác.`,
+      `Xác nhận ${actionLabel} ${entityType}`,
+      `Bạn có chắc chắn muốn ${actionLabel} "${label}"?`,
       async () => {
         try {
-          if (activeTab === TABS.MODULES) await roleApi.deleteModule(row.moduleId || row.id);
-          else if (activeTab === TABS.PERMISSIONS) await roleApi.deletePermission(row.permissionId || row.id);
-          else await roleApi.deleteRole(row.roleId || row.id);
+          const roleId = row.roleId || row.id;
+          const payload = {
+            name: row.name,
+            code: row.code,
+            isActive: nextActive,
+          };
+
+          await roleApi.updateRole(roleId, payload);
+
           setData((prev) => {
-            const filtered = prev.filter((x) => {
-              const key =
-                activeTab === TABS.MODULES
-                  ? "moduleId"
-                  : activeTab === TABS.PERMISSIONS
-                  ? "permissionId"
-                  : "roleId";
-              const targetId = row[key] ?? row.id;
-              const currentId = x[key] ?? x.id;
-              return currentId !== targetId;
-            });
-            return activeTab === TABS.ROLES
-              ? filterOutCustomerRoles(filtered)
-              : filtered;
+            const list = Array.isArray(prev) ? [...prev] : [];
+            return filterOutCustomerRoles(
+              list.map((x) =>
+                (x.roleId || x.id) === roleId
+                  ? {
+                      ...x,
+                      ...payload,
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : x
+              )
+            );
           });
           showSuccess(
-            `Xóa ${entityType} thành công!`,
-            `${entityType} "${label}" đã được xóa và tất cả quyền liên quan cũng đã được xóa.`
+            `${nextActive ? "Kích hoạt" : "Vô hiệu hóa"} ${entityType} thành công!`,
+            `${entityType} "${label}" đã được ${nextActive ? "kích hoạt lại" : "vô hiệu hóa"}.`
           );
         } catch (e) {
           // Handle network errors globally - only show one toast
@@ -495,8 +374,8 @@ export default function RoleManagement() {
               showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
             }
           } else {
-            const errorMessage = e.response?.data?.message || e.message || "Xoá thất bại";
-            showError(`Xóa ${entityType} thất bại!`, errorMessage);
+            const errorMessage = e.response?.data?.message || e.message || "Cập nhật trạng thái thất bại";
+            showError(`Cập nhật trạng thái ${entityType} thất bại!`, errorMessage);
           }
         }
       },
@@ -652,52 +531,8 @@ export default function RoleManagement() {
               </select>
             </div>
           )}
-          <button className="role-add-button" onClick={onClickAdd}>{addButtonText}</button>
         </div>
       </div>
-      {activeTab === TABS.ROLES && (
-        <RoleModal
-          isOpen={addRoleOpen}
-          title="Thêm Vai trò"
-          fields={[
-            { name: "name", label: "Tên Vai trò", required: true, minLength: 2, maxLength: 60 },
-            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
-            { name: "isSystem", label: "System Role", type: "checkbox" },
-          ]}
-          onClose={() => setAddRoleOpen(false)}
-          onSubmit={handleCreateRole}
-          submitting={submitting}
-        />
-      )}
-      {activeTab === TABS.MODULES && (
-        <RoleModal
-          isOpen={addModuleOpen}
-          title="Thêm Mô-đun"
-          fields={[
-            { name: "moduleName", label: "Tên Mô-đun", required: true, minLength: 2, maxLength: 80 },
-            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
-            { name: "description", label: "Mô tả", type: "textarea", maxLength: 200 },
-          ]}
-          onClose={() => setAddModuleOpen(false)}
-          onSubmit={handleCreateModule}
-          submitting={submitting}
-        />
-      )}
-      {activeTab === TABS.PERMISSIONS && (
-        <RoleModal
-          isOpen={addPermissionOpen}
-          title="Thêm Quyền"
-          fields={[
-            { name: "permissionName", label: "Tên Quyền", required: true, minLength: 2, maxLength: 100 },
-            { name: "code", label: "Mã", required: true, minLength: 2, maxLength: 50, format: "code" },
-            { name: "description", label: "Mô tả", type: "textarea", maxLength: 300 },
-          ]}
-          onClose={() => setAddPermissionOpen(false)}
-          onSubmit={handleCreatePermission}
-          submitting={submitting}
-        />
-      )}
-
       <div className="role-table-container">
         {loading ? (
           <div className="role-loading-state">
@@ -746,9 +581,17 @@ export default function RoleManagement() {
                       <button className="role-action-btn role-update-btn" title="Sửa" onClick={() => onEdit(row)}>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" /></svg>
                       </button>
-                      <button className="role-action-btn role-delete-btn" title="Xoá" onClick={() => onDelete(row)}>
-                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" /></svg>
-                      </button>
+                      {activeTab === TABS.ROLES && (
+                        <button
+                          className="role-action-btn role-delete-btn"
+                          title={row.isActive ? "Vô hiệu hóa" : "Kích hoạt lại"}
+                          onClick={() => onDelete(row)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

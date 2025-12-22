@@ -215,7 +215,7 @@ export default function CustomerTicketDetailPage() {
       setLoading(true);
       setLoadError("");
       try {
-        const data = await ticketsApi.detail(id);
+        const data = await ticketsApi.customerDetail(id);
         if (!cancelled) {
           setTicket(data);
           // KHÔNG scroll ở đây nữa – để useEffect [ticket?.replies] xử lý
@@ -223,10 +223,14 @@ export default function CustomerTicketDetailPage() {
       } catch (err) {
         console.error("Failed to load ticket detail", err);
         if (!cancelled) {
-          setLoadError(
-            err?.response?.data?.message ||
-              "Không tải được thông tin ticket. Vui lòng thử lại."
-          );
+          if (err?.response?.status === 403 || err?.response?.status === 404) {
+            setLoadError("Ticket không tồn tại.");
+          } else {
+            setLoadError(
+              err?.response?.data?.message ||
+                "Không tải được thông tin ticket. Vui lòng thử lại."
+            );
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);

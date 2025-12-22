@@ -3,8 +3,6 @@ import React from "react";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import { SupportPlansAdminApi } from "../../services/supportPlansAdmin";
 import "../../styles/SupportPlansAdminPage.css";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 
 /* ============ Helpers: Label + Error + Ellipsis ============ */
 const RequiredMark = () => (
@@ -372,27 +370,13 @@ function SupportPlanModal({
 
 /* ============ Page: SupportPlansAdminPage ============ */
 export default function SupportPlansAdminPage() {
-  // Check permissions
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(
-    MODULE_CODES.SUPPORT_MANAGER,
-    "VIEW_LIST"
-  );
-  const { hasPermission: canViewDetail } = usePermission(
-    MODULE_CODES.SUPPORT_MANAGER,
-    "VIEW_DETAIL"
-  );
-  const { hasPermission: canCreate } = usePermission(
-    MODULE_CODES.SUPPORT_MANAGER,
-    "CREATE"
-  );
-  const { hasPermission: canEdit } = usePermission(
-    MODULE_CODES.SUPPORT_MANAGER,
-    "EDIT"
-  );
-  const { hasPermission: canDelete } = usePermission(
-    MODULE_CODES.SUPPORT_MANAGER,
-    "DELETE"
-  );
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const canViewDetail = true;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);

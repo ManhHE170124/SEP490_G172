@@ -4,8 +4,6 @@ import useToast from "../../hooks/useToast";
 import "./TagAndPostTypeManage.css"
 import { postsApi } from "../../services/postsApi";
 import RoleModal from "../../components/RoleModal/RoleModal";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 
 /** 
  * @summary Tab constants for switching between different management views 
@@ -64,9 +62,6 @@ function useFetchData(activeTab, showError, networkErrorShownRef, permissionErro
 export default function TagAndPosttypeManage() {
     const [activeTab, setActiveTab] = useState(TABS.TAGS);
     const { toasts, showSuccess, showError, showWarning, removeToast, showConfirm, confirmDialog } = useToast();
-    
-    // Check permission to create tags and post types
-    const { hasPermission: canCreate } = usePermission(MODULE_CODES.POST_MANAGER, "CREATE");
     
     // Global network error handler - only show one toast for network errors
     const networkErrorShownRef = useRef(false);
@@ -243,15 +238,7 @@ export default function TagAndPosttypeManage() {
     const [addPosttypeOpen, setAddPosttypeOpen] = useState(false);
 
     function onClickAdd() {
-        if (!canCreate) {
-            const entityType = activeTab === TABS.TAGS ? "Thẻ" : "Danh mục";
-            showError(
-                "Không có quyền",
-                `Bạn không có quyền tạo ${entityType.toLowerCase()} mới.`
-            );
-            return;
-        }
-        
+        // Permission check removed - BE handles authorization
         if (activeTab === TABS.TAGS) {
             setAddTagOpen(true);
             return;
@@ -263,15 +250,7 @@ export default function TagAndPosttypeManage() {
     }
 
     async function handleCreateTag(form) {
-        if (!canCreate) {
-            showError(
-                "Không có quyền",
-                "Bạn không có quyền tạo thẻ mới."
-            );
-            setAddTagOpen(false);
-            return;
-        }
-        
+        // Permission check removed - BE handles authorization
         try {
             setSubmitting(true);
             const created = await postsApi.createTag({
@@ -302,15 +281,7 @@ export default function TagAndPosttypeManage() {
     }
 
     async function handleCreatePosttype(form) {
-        if (!canCreate) {
-            showError(
-                "Không có quyền",
-                "Bạn không có quyền tạo danh mục mới."
-            );
-            setAddPosttypeOpen(false);
-            return;
-        }
-        
+        // Permission check removed - BE handles authorization
         try {
             setSubmitting(true);
             const created = await postsApi.createPosttype({

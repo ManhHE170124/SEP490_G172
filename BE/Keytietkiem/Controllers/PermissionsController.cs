@@ -20,8 +20,7 @@ using System.Threading.Tasks;
 using Keytietkiem.Models;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Roles;
@@ -32,6 +31,7 @@ namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PermissionsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -52,7 +52,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of permissions
          */
         [HttpGet]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetPermissions()
         {
             var permissions = await _context.Permissions
@@ -76,7 +76,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with permission, 404 if not found
          */
         [HttpGet("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetPermissionById(long id)
         {
             var permission = await _context.Permissions
@@ -106,7 +106,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created permission, 400/409 on validation errors
          */
         [HttpPost]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreatePermission([FromBody] CreatePermissionDTO createPermissionDto)
         {
             if (createPermissionDto == null)
@@ -209,7 +209,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404 on errors
          */
         [HttpPut("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdatePermission(long id, [FromBody] UpdatePermissionDTO updatePermissionDto)
         {
             if (updatePermissionDto == null)
@@ -284,7 +284,7 @@ namespace Keytietkiem.Controllers
         * Returns: 204 No Content, 404 if not found
         */
         [HttpDelete("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeletePermission(long id)
         {
             var existingPermission = await _context.Permissions

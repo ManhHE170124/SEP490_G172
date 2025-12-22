@@ -18,13 +18,13 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using static Keytietkiem.Constants.RoleCodes;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class OrdersController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
@@ -496,15 +496,16 @@ namespace Keytietkiem.Controllers
 
         // ================== READ-ONLY ==================
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrders(
-     [FromQuery] string? search = null,                 // ✅ search theo OrderId hoặc mail
+          [FromQuery] string? search = null,                
      [FromQuery] DateTime? createdFrom = null,
      [FromQuery] DateTime? createdTo = null,
      [FromQuery] string? orderStatus = null,
-     [FromQuery] decimal? minTotal = null,              // ✅ filter theo giá tiền tổng (FinalAmount)
+     [FromQuery] decimal? minTotal = null,            
      [FromQuery] decimal? maxTotal = null,
-     [FromQuery] string? sortBy = "createdat",           // orderid|amount|status|createdat
-     [FromQuery] string? sortDir = "desc",               // asc|desc
+     [FromQuery] string? sortBy = "createdat",         
+     [FromQuery] string? sortDir = "desc",              
      [FromQuery] int pageIndex = 1,
      [FromQuery] int pageSize = 20)
         {
@@ -610,6 +611,7 @@ namespace Keytietkiem.Controllers
 
 
         [HttpGet("history")]
+        [Authorize]
         public async Task<IActionResult> GetOrderHistory([FromQuery] Guid? userId)
         {
             if (!userId.HasValue)
@@ -669,8 +671,8 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetOrderById(
-            Guid id,
+        [Authorize]
+        public async Task<IActionResult> GetOrderById(Guid id,
             [FromQuery] bool includePaymentAttempts = true,
             [FromQuery] bool includeCheckoutUrl = false,
 
@@ -699,6 +701,29 @@ namespace Keytietkiem.Controllers
 
                 if (order == null)
                     return NotFound(new { message = "Đơn hàng không được tìm thấy" });
+
+                // Check role: Admin/Storage Staff can view any order
+                // Customer can only view their own orders
+                var currentUserId = GetCurrentUserIdOrNull();
+                var roleCodes = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                
+                bool hasPermission = false;
+                
+                // Admin or Storage Staff have full access
+                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
+                {
+                    hasPermission = true;
+                }
+
+                // If user doesn't have permission, check if it's their own order
+                if (!hasPermission)
+                {
+                    if (!currentUserId.HasValue || order.UserId != currentUserId.Value)
+                    {
+                        // Return 404-like message for security (don't reveal resource existence)
+                        return NotFound(new { message = "Đơn hàng không tồn tại." });
+                    }
+                }
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
 
@@ -831,6 +856,7 @@ namespace Keytietkiem.Controllers
             }
         }
         [HttpGet("{id:guid}/details")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrderDetails(
             Guid id,
             [FromQuery] string? search = null,
