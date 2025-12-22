@@ -257,8 +257,10 @@ const RoleModal = ({
                     value={fieldValue}
                     onChange={(e) => handleInputChange(field.name, e.target.value)}
                     placeholder={field.placeholder || `Nhập ${field.label.toLowerCase()}`}
-                    disabled={field.disabled}
+                    disabled={field.disabled || field.readonly}
+                    readOnly={field.readonly}
                     maxLength={maxLength}
+                    style={field.readonly ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
                   />
                 )}
               

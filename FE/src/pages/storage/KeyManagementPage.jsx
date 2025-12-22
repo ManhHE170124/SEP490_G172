@@ -5,18 +5,17 @@ import { ProductApi } from "../../services/products";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import useToast from "../../hooks/useToast";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 import "../admin/admin.css";
 import { getStatusColor, getStatusLabel } from "../../utils/productKeyHepler";
 
 export default function KeyManagementPage() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
 
-  // Check permissions
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_LIST");
-  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "VIEW_DETAIL");
-  const { hasPermission: canDelete } = usePermission(MODULE_CODES.WAREHOUSE_MANAGER, "DELETE");
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const canViewDetail = true;
+  const canDelete = true;
 
   // Global network error handler
   const networkErrorShownRef = useRef(false);

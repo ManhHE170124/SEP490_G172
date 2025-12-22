@@ -6,8 +6,7 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +16,7 @@ namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/products/{productId:guid}/variants")]
+    [Authorize]
     public class ProductVariantsController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
@@ -280,7 +280,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST =====
         [HttpGet]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<ActionResult<PagedResult<ProductVariantListItemDto>>> List(
             Guid productId,
             [FromQuery] ProductVariantListQuery query)
@@ -380,7 +380,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL =====
         [HttpGet("{variantId:guid}")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<ActionResult<ProductVariantDetailDto>> Get(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -416,7 +416,7 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE =====
         [HttpPost]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<ActionResult<ProductVariantDetailDto>> Create(Guid productId, ProductVariantCreateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -565,7 +565,7 @@ namespace Keytietkiem.Controllers
 
         // ===== UPDATE =====
         [HttpPut("{variantId:guid}")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Update(Guid productId, Guid variantId, ProductVariantUpdateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -709,7 +709,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DELETE =====
         [HttpDelete("{variantId:guid}")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Delete(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -768,7 +768,7 @@ namespace Keytietkiem.Controllers
 
         // ===== TOGGLE =====
         [HttpPatch("{variantId:guid}/toggle")]
-        [RequirePermission(ModuleCodes.PRODUCT_MANAGER, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Toggle(Guid productId, Guid variantId)
         {
             try
