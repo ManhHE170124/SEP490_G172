@@ -268,7 +268,10 @@ export default function AppRoutes() {
         path="/admin/payments"
         element={renderAdminPage(<AdminPaymentListPage />)}
       />
-
+<Route
+        path="/admin/orders/:id"
+        element={renderAdminPage(<AdminOrderDetailPage />)}
+      />
       {/* FAQs */}
       <Route
         path="/admin/faqs"
