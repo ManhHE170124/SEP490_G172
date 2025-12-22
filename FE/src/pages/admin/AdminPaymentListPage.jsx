@@ -1,299 +1,549 @@
 // File: src/pages/admin/AdminPaymentListPage.jsx
-import React from "react";
-import ToastContainer from "../../components/Toast/ToastContainer";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { paymentApi } from "../../services/paymentApi";
-import "./OrderPaymentPage.css";
+import "./AdminPaymentListPage.css";
 
-const unwrap = (res) => res?.data ?? res;
-
-const formatVnDateTime = (value) => {
-  if (!value) return "—";
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("vi-VN");
+/** ===== Icons (SVG inline) - tránh phụ thuộc react-icons ===== */
+const Ico = {
+  Filter: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 13.5V20a1 1 0 0 1-1.447.894l-3-1.5A1 1 0 0 1 9 18.5v-5L3.2 5.6A1 1 0 0 1 3 5z"
+      />
+    </svg>
+  ),
+  Refresh: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M20 12a8 8 0 0 1-14.314 4.906l-1.43 1.43A1 1 0 0 1 2.5 17.5V13a1 1 0 0 1 1-1H8a1 1 0 0 1 .707 1.707L7.19 15.224A6 6 0 1 0 6 12a1 1 0 1 1-2 0 8 8 0 1 1 16 0z"
+      />
+    </svg>
+  ),
+  Eye: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M12 5c5.5 0 9.5 4.5 10.8 6.2a1.5 1.5 0 0 1 0 1.6C21.5 14.5 17.5 19 12 19S2.5 14.5 1.2 12.8a1.5 1.5 0 0 1 0-1.6C2.5 9.5 6.5 5 12 5zm0 2c-4.2 0-7.6 3.4-8.7 5 1.1 1.6 4.5 5 8.7 5s7.6-3.4 8.7-5c-1.1-1.6-4.5-5-8.7-5zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"
+      />
+    </svg>
+  ),
+  X: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M18.3 5.7a1 1 0 0 1 0 1.4L13.4 12l4.9 4.9a1 1 0 1 1-1.4 1.4L12 13.4l-4.9 4.9a1 1 0 0 1-1.4-1.4l4.9-4.9-4.9-4.9a1 1 0 0 1 1.4-1.4l4.9 4.9 4.9-4.9a1 1 0 0 1 1.4 0z"
+      />
+    </svg>
+  ),
+  Up: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path fill="currentColor" d="M12 8l6 6H6l6-6z" />
+    </svg>
+  ),
+  Down: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path fill="currentColor" d="M12 16l-6-6h12l-6 6z" />
+    </svg>
+  ),
 };
 
-const formatMoney = (n) => {
-  if (n === null || n === undefined) return "—";
-  const num = Number(n);
-  if (Number.isNaN(num)) return "—";
-  return `${num.toLocaleString("vi-VN")} đ`;
+const formatVnd = (n) => {
+  const num = Number(n || 0);
+  return new Intl.NumberFormat("vi-VN").format(num) + " đ";
 };
 
-const toUtcIsoFromDateOnly = (dateStr, endOfDay = false) => {
-  if (!dateStr) return "";
-  const time = endOfDay ? "23:59:59" : "00:00:00";
-  const d = new Date(`${dateStr}T${time}+07:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString();
+const normalizeText = (v) => String(v ?? "").trim();
+
+const getPaymentId = (p) => p?.paymentId ?? p?.PaymentId ?? p?.id ?? p?.Id ?? "";
+const getCreatedAt = (p) =>
+  p?.createdAt ?? p?.CreatedAt ?? p?.createdTime ?? p?.createdDate ?? p?.createdOn ?? null;
+const getAmount = (p) => p?.amount ?? p?.Amount ?? p?.totalAmount ?? p?.paidAmount ?? 0;
+const getStatus = (p) => p?.status ?? p?.Status ?? p?.paymentStatus ?? p?.PaymentStatus ?? "Unknown";
+
+const getTargetType = (p) => {
+  const t =
+    p?.transactionType ??
+    p?.TransactionType ??
+    p?.targetType ??
+    p?.TargetType ??
+    p?.paymentTarget ??
+    p?.target ??
+    p?.purpose ??
+    p?.type ??
+    "";
+  const tt = normalizeText(t);
+  if (tt) return tt;
+
+  if (p?.orderId || p?.OrderId) return "Order";
+  if (p?.supportPlanId || p?.supportSubscriptionId || p?.subscriptionId) return "SupportPlan";
+  return "Unknown";
 };
 
-function useDebouncedValue(value, delay = 350) {
-  const [debounced, setDebounced] = React.useState(value);
-  React.useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
-}
-
-function Modal({ open, title, onClose, children, width = 980 }) {
-  if (!open) return null;
-  return (
-    <div className="cat-modal">
-      <div className="cat-modal-overlay" onMouseDown={onClose} />
-      <div className="cat-modal-card" style={{ maxWidth: width }}>
-        <div className="cat-modal-header">
-          <h3 style={{ margin: 0 }}>{title}</h3>
-        </div>
-        <div className="cat-modal-body">{children}</div>
-        <div className="cat-modal-footer">
-          <button type="button" className="btn ghost" onClick={onClose}>
-            Đóng
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const toggleSortState = (current, key) =>
-  current.sortBy === key
-    ? { sortBy: key, sortDir: current.sortDir === "asc" ? "desc" : "asc" }
-    : { sortBy: key, sortDir: "asc" };
-
-const renderSortIndicator = (current, key) => {
-  if (!current || current.sortBy !== key) return null;
-  return current.sortDir === "asc" ? " ▲" : " ▼";
-};
-
-const pick = (obj, ...keys) => {
-  for (const k of keys) {
-    const v = obj?.[k];
-    if (v !== undefined && v !== null) return v;
+const mapTargetToUi = (t) => {
+  const v = normalizeText(t).toLowerCase();
+  if (v === "order" || v === "donhang" || v === "đơn hàng") {
+    return { label: "Đơn hàng", cls: "type-order", value: "Order" };
   }
-  return undefined;
+  if (
+    v === "supportplan" ||
+    v === "plan" ||
+    v === "subscription" ||
+    v === "support" ||
+    v === "goiho tro" ||
+    v === "gói hỗ trợ"
+  ) {
+    return { label: "Gói hỗ trợ", cls: "type-support", value: "SupportPlan" };
+  }
+  return { label: "Không rõ", cls: "payment-unknown", value: "Unknown" };
 };
 
-function Icon({ name }) {
-  if (name === "eye") {
-    return (
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M12 5c5.5 0 9.5 4.5 10.5 6-1 1.5-5 6-10.5 6S2.5 12.5 1.5 11C2.5 9.5 6.5 5 12 5zm0 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-2.2a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"
-        />
-      </svg>
-    );
-  }
-  return null;
-}
+const mapStatusToUi = (s) => {
+  const v = normalizeText(s).toLowerCase();
 
-function IconButton({ title, ariaLabel, onClick, disabled, variant = "default", children }) {
-  return (
-    <button
-      type="button"
-      className={`op-icon-btn ${variant}`}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={ariaLabel || title}
-    >
-      {children}
-    </button>
-  );
-}
+  if (v === "pending") return { label: "Chờ thanh toán", cls: "payment-pending", value: "Pending" };
+  if (v === "paid" || v === "success" || v === "completed")
+    return { label: "Đã thanh toán", cls: "payment-paid", value: "Paid" };
+
+  if (v === "cancelledbytimeout" || v === "timeout")
+    return { label: "Hủy do quá hạn", cls: "payment-timeout", value: "CancelledByTimeout" };
+
+  if (v === "cancelled") return { label: "Đã hủy", cls: "payment-cancelled", value: "Cancelled" };
+  if (v === "failed") return { label: "Thất bại", cls: "payment-failed", value: "Failed" };
+  if (v === "refunded") return { label: "Đã hoàn tiền", cls: "payment-refunded", value: "Refunded" };
+
+  return { label: "Không rõ", cls: "payment-unknown", value: "Unknown" };
+};
+
+const fmtDateTime = (d) => {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(dt);
+};
 
 export default function AdminPaymentListPage() {
-  // Toast
-  const [toasts, setToasts] = React.useState([]);
-  const addToast = React.useCallback((type, message, title) => {
-    const tid = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    setToasts((prev) => [...prev, { id: tid, type, message, title }]);
-    return tid;
-  }, []);
-  const removeToast = React.useCallback((tid) => setToasts((prev) => prev.filter((t) => t.id !== tid)), []);
+  // ===== Draft filters (UI) =====
+  const [qDraft, setQDraft] = useState("");
+  const [fromDraft, setFromDraft] = useState("");
+  const [toDraft, setToDraft] = useState("");
+  const [statusDraft, setStatusDraft] = useState("");
+  const [typeDraft, setTypeDraft] = useState("");
+  const [minDraft, setMinDraft] = useState("");
+  const [maxDraft, setMaxDraft] = useState("");
 
-  const [loading, setLoading] = React.useState(false);
-  const [paged, setPaged] = React.useState({ pageIndex: 1, pageSize: 10, totalItems: 0, items: [] });
-  const [sort, setSort] = React.useState({ sortBy: "createdAt", sortDir: "desc" });
+  // ===== Applied filters (fetch) =====
+  const [q, setQ] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [status, setStatus] = useState("");
+  const [type, setType] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
 
-  const [filter, setFilter] = React.useState({
-    search: "",
-    createdFrom: "",
-    createdTo: "",
-    paymentStatus: "",
-    transactionType: "", // Order | SupportPlan
-    amountFrom: "",
-    amountTo: "",
-  });
+  // ===== Sort / paging =====
+  const [sortField, setSortField] = useState("createdAt"); // paymentId/amount/status/createdAt/transactionType
+  const [sortDir, setSortDir] = useState("desc"); // asc|desc
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const debouncedSearch = useDebouncedValue(filter.search, 350);
+  // ===== Data =====
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil((total || 0) / (pageSize || 10))),
+    [total, pageSize]
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [detailModal, setDetailModal] = React.useState({ open: false, id: null, loading: false, data: null });
+  // ===== Modal =====
+  const [open, setOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState(null);
 
-  const openDetail = async (paymentId) => {
-    if (!paymentId) return;
-    setDetailModal({ open: true, id: paymentId, loading: true, data: null });
+  const STATUS_OPTIONS = useMemo(
+    () => [
+      { value: "", label: "Tất cả trạng thái" },
+      { value: "Pending", label: "Chờ thanh toán" },
+      { value: "Paid", label: "Đã thanh toán" },
+      { value: "Failed", label: "Thất bại" },
+      { value: "Cancelled", label: "Đã hủy" },
+      { value: "Timeout", label: "Hủy do quá hạn" },
+      { value: "Refunded", label: "Đã hoàn tiền" },
+    ],
+    []
+  );
+
+  const TYPE_OPTIONS = useMemo(
+    () => [
+      { value: "", label: "Tất cả loại" },
+      { value: "Order", label: "Đơn hàng" },
+      { value: "SupportPlan", label: "Gói hỗ trợ" },
+    ],
+    []
+  );
+
+  const fetchPayments = useCallback(async () => {
+    setError("");
+    setLoading(true);
     try {
-      const res = await paymentApi.get(paymentId);
-      setDetailModal((m) => ({ ...m, loading: false, data: unwrap(res) }));
-    } catch (err) {
-      console.error(err);
-      addToast("error", err?.response?.data?.message || "Không tải được payment detail.", "Lỗi");
-      setDetailModal((m) => ({ ...m, loading: false }));
+      // map params theo paymentApi bạn đang dùng
+      const params = {
+        search: q || undefined,
+        createdFrom: from || undefined,
+        createdTo: to || undefined,
+        paymentStatus: status || undefined,
+        transactionType: type || undefined,
+        amountFrom: minAmount || undefined,
+        amountTo: maxAmount || undefined,
+        sortBy: sortField,
+        sortDir,
+        pageIndex: page,
+        pageSize,
+      };
+
+      const paged = await paymentApi.listPaged(params);
+      setItems(Array.isArray(paged.items) ? paged.items : []);
+      setTotal(Number(paged.totalItems || 0));
+    } catch (e) {
+      setItems([]);
+      setTotal(0);
+      setError(e?.message || "Không tải được danh sách giao dịch.");
+    } finally {
+      setLoading(false);
     }
+  }, [q, from, to, status, type, minAmount, maxAmount, sortField, sortDir, page, pageSize]);
+
+  useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
+
+  const applyFilters = useCallback(() => {
+    setQ(qDraft.trim());
+    setFrom(fromDraft);
+    setTo(toDraft);
+    setStatus(statusDraft);
+    setType(typeDraft);
+    setMinAmount(minDraft);
+    setMaxAmount(maxDraft);
+    setPage(1);
+  }, [qDraft, fromDraft, toDraft, statusDraft, typeDraft, minDraft, maxDraft]);
+
+  const resetFilters = useCallback(() => {
+    setQDraft("");
+    setFromDraft("");
+    setToDraft("");
+    setStatusDraft("");
+    setTypeDraft("");
+    setMinDraft("");
+    setMaxDraft("");
+
+    setQ("");
+    setFrom("");
+    setTo("");
+    setStatus("");
+    setType("");
+    setMinAmount("");
+    setMaxAmount("");
+
+    setSortField("createdAt");
+    setSortDir("desc");
+    setPage(1);
+    setPageSize(10);
+  }, []);
+
+  const toggleSort = useCallback((field) => {
+    setPage(1);
+    setSortField((prev) => {
+      if (prev !== field) {
+        setSortDir("asc");
+        return field;
+      }
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return prev;
+    });
+  }, []);
+
+  const sortIcon = (field) => {
+    if (sortField !== field) return null;
+    return sortDir === "asc" ? <Ico.Up /> : <Ico.Down />;
   };
 
-  const closeDetail = () => setDetailModal({ open: false, id: null, loading: false, data: null });
+  const openDetail = useCallback(async (payment) => {
+    const paymentId = getPaymentId(payment);
+    if (!paymentId) return;
 
-  const goToPage = (pageIndex) => setPaged((p) => ({ ...p, pageIndex: Math.max(1, Number(pageIndex) || 1) }));
-  const totalPages = Math.max(1, Math.ceil((paged.totalItems || 0) / (paged.pageSize || 10)));
+    setOpen(true);
+    setDetail(null);
+    setDetailLoading(true);
 
-  React.useEffect(() => {
-    setLoading(true);
+    try {
+      const res = await paymentApi.get(paymentId);
+      setDetail(res?.data ?? res ?? payment);
+    } catch {
+      setDetail(payment);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
 
-    const params = {
-      search: (debouncedSearch || "").trim() || undefined,
-      createdFrom: toUtcIsoFromDateOnly(filter.createdFrom, false) || undefined,
-      createdTo: toUtcIsoFromDateOnly(filter.createdTo, true) || undefined,
-      paymentStatus: filter.paymentStatus || undefined,
-      transactionType: filter.transactionType || undefined,
-      amountFrom: filter.amountFrom !== "" ? Number(filter.amountFrom) : undefined,
-      amountTo: filter.amountTo !== "" ? Number(filter.amountTo) : undefined,
-      sortBy: sort.sortBy,
-      sortDir: sort.sortDir,
-      pageIndex: paged.pageIndex,
-      pageSize: paged.pageSize,
+  const closeModal = useCallback(() => {
+    setOpen(false);
+    setDetail(null);
+    setDetailLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") closeModal();
     };
+    if (open) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, closeModal]);
 
-    paymentApi
-      .listPaged(params)
-      .then((x) => setPaged((p) => ({ ...p, ...x })))
-      .catch((err) => {
-        console.error(err);
-        addToast("error", err?.response?.data?.message || "Không tải được danh sách payments.", "Lỗi");
-      })
-      .finally(() => setLoading(false));
-  }, [
-    debouncedSearch,
-    filter.createdFrom,
-    filter.createdTo,
-    filter.paymentStatus,
-    filter.transactionType,
-    filter.amountFrom,
-    filter.amountTo,
-    sort.sortBy,
-    sort.sortDir,
-    paged.pageIndex,
-    paged.pageSize,
-    addToast,
-  ]);
+  const renderPages = () => {
+    const pages = [];
+    const maxButtons = 5;
+    let start = Math.max(1, page - 2);
+    let end = Math.min(totalPages, start + maxButtons - 1);
+    start = Math.max(1, end - maxButtons + 1);
+
+    if (start > 1) {
+      pages.push(
+        <button key="p1" className={`apl-pageBtn ${page === 1 ? "active" : ""}`} onClick={() => setPage(1)}>
+          1
+        </button>
+      );
+      if (start > 2) pages.push(<span key="d1" className="apl-dots">…</span>);
+    }
+
+    for (let i = start; i <= end; i++) {
+      pages.push(
+        <button key={i} className={`apl-pageBtn ${page === i ? "active" : ""}`} onClick={() => setPage(i)}>
+          {i}
+        </button>
+      );
+    }
+
+    if (end < totalPages) {
+      if (end < totalPages - 1) pages.push(<span key="d2" className="apl-dots">…</span>);
+      pages.push(
+        <button
+          key={`p${totalPages}`}
+          className={`apl-pageBtn ${page === totalPages ? "active" : ""}`}
+          onClick={() => setPage(totalPages)}
+        >
+          {totalPages}
+        </button>
+      );
+    }
+
+    return pages;
+  };
 
   return (
-    <div className="op-page">
-      <ToastContainer toasts={toasts} onClose={removeToast} />
-
+    <div className="apl-page">
       <div className="order-payment-header">
-        <h2>Giao dịch (Admin)</h2>
+        <h2>Danh sách giao dịch</h2>
       </div>
 
-      <div className="op-toolbar">
-        <div className="op-filters">
-          <div className="op-group">
-            <span>Search (PaymentId / OrderId / UserId)</span>
-            <input
-              value={filter.search}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, search: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="PaymentId / OrderId / UserId"
-            />
+      <div className="apl-card">
+        {/* ===== Toolbar (2 rows) ===== */}
+        <div className="apl-toolbar">
+          <div className="apl-toolbarRows">
+            <div className="apl-row1">
+              <div className="apl-group">
+                <span>Tìm kiếm</span>
+                <input
+                  value={qDraft}
+                  onChange={(e) => setQDraft(e.target.value)}
+                  placeholder="VD: mã thanh toán... hoặc email@example.com"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") applyFilters();
+                  }}
+                />
+              </div>
+
+              <div className="apl-group">
+                <span>Từ ngày</span>
+                <input type="date" value={fromDraft} onChange={(e) => setFromDraft(e.target.value)} />
+              </div>
+
+              <div className="apl-group">
+                <span>Đến ngày</span>
+                <input type="date" value={toDraft} onChange={(e) => setToDraft(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="apl-row2">
+              <div className="apl-group">
+                <span>Trạng thái</span>
+                <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value)}>
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value || "all"} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="apl-group">
+                <span>Loại thanh toán</span>
+                <select value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)}>
+                  {TYPE_OPTIONS.map((o) => (
+                    <option key={o.value || "all"} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="apl-group">
+                <span>Số tiền</span>
+                <div className="apl-amountRange">
+                  <input value={minDraft} onChange={(e) => setMinDraft(e.target.value)} placeholder="Từ" inputMode="numeric" />
+                  <input value={maxDraft} onChange={(e) => setMaxDraft(e.target.value)} placeholder="Đến" inputMode="numeric" />
+                </div>
+              </div>
+
+              <div className="apl-filterActions">
+                <button className="apl-iconActionBtn primary" onClick={applyFilters} title="Lọc">
+                  <Ico.Filter />
+                </button>
+                <button className="apl-iconActionBtn" onClick={resetFilters} title="Đặt lại">
+                  <Ico.Refresh />
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="op-group">
-            <span>Từ ngày</span>
-            <input
-              type="date"
-              value={filter.createdFrom}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, createdFrom: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-            />
+          <div className="apl-topInfo">
+            {loading ? "Đang tải..." : `Tổng: ${total} • Trang ${page}/${totalPages}`}
+          </div>
+        </div>
+
+        {/* ===== Table ===== */}
+        <div className="apl-tableWrap">
+          <table className="apl-table">
+            <thead>
+              <tr>
+                <th>
+                  <button className="apl-sortBtn" onClick={() => toggleSort("paymentId")}>
+                    Mã thanh toán {sortIcon("paymentId")}
+                  </button>
+                </th>
+                <th>
+                  <button className="apl-sortBtn" onClick={() => toggleSort("transactionType")}>
+                    Loại thanh toán {sortIcon("transactionType")}
+                  </button>
+                </th>
+                <th>
+                  <button className="apl-sortBtn" onClick={() => toggleSort("amount")}>
+                    Số tiền {sortIcon("amount")}
+                  </button>
+                </th>
+                <th>
+                  <button className="apl-sortBtn" onClick={() => toggleSort("status")}>
+                    Trạng thái {sortIcon("status")}
+                  </button>
+                </th>
+                <th>
+                  <button className="apl-sortBtn" onClick={() => toggleSort("createdAt")}>
+                    Ngày tạo {sortIcon("createdAt")}
+                  </button>
+                </th>
+                <th className="apl-th-actions">Chi tiết</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {!loading && error ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 14, color: "#b91c1c", fontWeight: 800 }}>
+                    {error}
+                  </td>
+                </tr>
+              ) : null}
+
+              {!loading && !error && items.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 14, color: "#6b7280", fontWeight: 800 }}>
+                    Không có giao dịch phù hợp.
+                  </td>
+                </tr>
+              ) : null}
+
+              {items.map((p) => {
+                const pid = getPaymentId(p);
+                const created = getCreatedAt(p);
+                const amount = getAmount(p);
+                const statusUi = mapStatusToUi(getStatus(p));
+                const typeUi = mapTargetToUi(getTargetType(p));
+
+                return (
+                  <tr key={pid || JSON.stringify(p)}>
+                    <td>
+                      <span className="apl-paymentId" title={pid}>
+                        {pid || "—"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span className={`apl-pill ${typeUi.cls}`}>{typeUi.label}</span>
+                    </td>
+
+                    <td style={{ fontWeight: 900 }}>{formatVnd(amount)}</td>
+
+                    <td>
+                      <span className={`apl-pill ${statusUi.cls}`}>{statusUi.label}</span>
+                    </td>
+
+                    <td style={{ fontWeight: 800 }}>{fmtDateTime(created)}</td>
+
+                    <td className="apl-td-actions">
+                      <button className="apl-icon-btn" title="Xem chi tiết" onClick={() => openDetail(p)}>
+                        <Ico.Eye />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ===== Pager ===== */}
+        <div className="apl-pager">
+          <div className="apl-pager-center">
+            <button className="apl-navBtn" onClick={() => setPage((x) => Math.max(1, x - 1))} disabled={page <= 1}>
+              ← Trước
+            </button>
+
+            {renderPages()}
+
+            <button className="apl-navBtn" onClick={() => setPage((x) => Math.min(totalPages, x + 1))} disabled={page >= totalPages}>
+              Sau →
+            </button>
           </div>
 
-          <div className="op-group">
-            <span>Đến ngày</span>
-            <input
-              type="date"
-              value={filter.createdTo}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, createdTo: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-            />
-          </div>
-
-          <div className="op-group">
-            <span>Trạng thái</span>
-            <input
-              value={filter.paymentStatus}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, paymentStatus: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="Pending / Paid / Cancelled / ..."
-            />
-          </div>
-
-          <div className="op-group">
-            <span>Loại giao dịch</span>
+          <div className="apl-pager-right">
             <select
-              value={filter.transactionType}
+              className="apl-pageSizeSelect"
+              value={pageSize}
               onChange={(e) => {
-                setFilter((f) => ({ ...f, transactionType: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
+                setPageSize(Number(e.target.value));
+                setPage(1);
               }}
-            >
-              <option value="">Tất cả</option>
-              <option value="Order">Order</option>
-              <option value="SupportPlan">SupportPlan</option>
-            </select>
-          </div>
-
-          <div className="op-group">
-            <span>Số tiền từ</span>
-            <input
-              inputMode="numeric"
-              value={filter.amountFrom}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, amountFrom: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="op-group">
-            <span>Đến</span>
-            <input
-              inputMode="numeric"
-              value={filter.amountTo}
-              onChange={(e) => {
-                setFilter((f) => ({ ...f, amountTo: e.target.value }));
-                setPaged((p) => ({ ...p, pageIndex: 1 }));
-              }}
-              placeholder="1000000"
-            />
-          </div>
-
-          <div className="op-group">
-            <span>Page size</span>
-            <select
-              value={paged.pageSize}
-              onChange={(e) => setPaged((p) => ({ ...p, pageSize: Number(e.target.value) || 10, pageIndex: 1 }))}
+              title="Kích thước trang"
             >
               {[10, 20, 50].map((n) => (
                 <option key={n} value={n}>
@@ -305,205 +555,72 @@ export default function AdminPaymentListPage() {
         </div>
       </div>
 
-      <div className="cat-card" style={{ marginTop: 12 }}>
-        <div className="cat-card-title" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-          <div>Danh sách giao dịch</div>
-          <div className="badge gray">
-            {paged.totalItems || 0} items • page {paged.pageIndex}/{totalPages}
-          </div>
-        </div>
+      {/* ===== Modal centered ===== */}
+      {open ? (
+        <div
+          className="apl-modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeModal();
+          }}
+        >
+          <div className="apl-modal">
+            <div className="apl-modal-header">
+              <h3 className="apl-modal-title">Chi tiết thanh toán</h3>
+              <button className="apl-modal-close" onClick={closeModal} title="Đóng">
+                <Ico.X />
+              </button>
+            </div>
 
-        {loading ? <div className="op-empty">Đang tải…</div> : null}
-
-        {!loading && (
-          <div style={{ overflowX: "auto" }}>
-            <table className="op-table">
-              <thead>
-                <tr>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "paymentId"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      PaymentId{renderSortIndicator(sort, "paymentId")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "transactionType"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Loại{renderSortIndicator(sort, "transactionType")}
-                    </button>
-                  </th>
-                  <th>Mục tiêu</th>
-                  <th className="text-right">
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "amount"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Số tiền{renderSortIndicator(sort, "amount")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "status"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Trạng thái{renderSortIndicator(sort, "status")}
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      className="table-sort-header"
-                      onClick={() => {
-                        setSort((s) => toggleSortState(s, "createdAt"));
-                        setPaged((p) => ({ ...p, pageIndex: 1 }));
-                      }}
-                    >
-                      Ngày tạo{renderSortIndicator(sort, "createdAt")}
-                    </button>
-                  </th>
-                  <th className="op-th-actions">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((p) => {
-                  const paymentId = pick(p, "paymentId", "PaymentId");
-                  const targetType = pick(p, "targetType", "TargetType");
-                  const targetDisplayId = pick(p, "targetDisplayId", "TargetDisplayId") || pick(p, "targetId", "TargetId");
-                  const amount = pick(p, "amount", "Amount");
-                  const status = pick(p, "status", "Status");
-                  const createdAt = pick(p, "createdAt", "CreatedAt");
+            <div className="apl-modal-body">
+              {detailLoading ? (
+                <div style={{ padding: 8, fontWeight: 800, color: "#6b7280" }}>Đang tải chi tiết...</div>
+              ) : (
+                (() => {
+                  const d = detail || {};
+                  const pid = getPaymentId(d);
+                  const created = getCreatedAt(d);
+                  const amount = getAmount(d);
+                  const statusUi = mapStatusToUi(getStatus(d));
+                  const typeUi = mapTargetToUi(getTargetType(d));
 
                   return (
-                    <tr key={paymentId}>
-                      <td className="mono">{paymentId}</td>
-                      <td>{targetType || "—"}</td>
-                      <td className="mono">{targetDisplayId || "—"}</td>
-                      <td className="text-right mono">{formatMoney(amount)}</td>
-                      <td>{status ? <span className="badge gray">{status}</span> : "—"}</td>
-                      <td>{formatVnDateTime(createdAt)}</td>
-                      <td className="op-td-actions">
-                        <div className="op-actions">
-                          <IconButton title="Chi tiết" onClick={() => openDetail(paymentId)} variant="primary">
-                            <Icon name="eye" />
-                          </IconButton>
+                    <div className="apl-modal-grid">
+                      <div className="apl-field">
+                        <div className="apl-field-label">Mã thanh toán</div>
+                        <div className="apl-field-value">{pid || "—"}</div>
+                      </div>
+
+                      <div className="apl-field">
+                        <div className="apl-field-label">Trạng thái</div>
+                        <div className="apl-field-value">
+                          <span className={`apl-pill ${statusUi.cls}`}>{statusUi.label}</span>
                         </div>
-                      </td>
-                    </tr>
+                      </div>
+
+                      <div className="apl-field">
+                        <div className="apl-field-label">Loại thanh toán</div>
+                        <div className="apl-field-value">
+                          <span className={`apl-pill ${typeUi.cls}`}>{typeUi.label}</span>
+                        </div>
+                      </div>
+
+                      <div className="apl-field">
+                        <div className="apl-field-label">Số tiền</div>
+                        <div className="apl-field-value">{formatVnd(amount)}</div>
+                      </div>
+
+                      <div className="apl-field">
+                        <div className="apl-field-label">Ngày tạo</div>
+                        <div className="apl-field-value">{fmtDateTime(created)}</div>
+                      </div>
+                    </div>
                   );
-                })}
-
-                {paged.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={7}>
-                      <div className="op-empty">Không có dữ liệu.</div>
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+                })()
+              )}
+            </div>
           </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-          <button type="button" className="btn ghost" disabled={paged.pageIndex <= 1} onClick={() => goToPage(paged.pageIndex - 1)}>
-            Trang trước
-          </button>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="badge gray">Page</span>
-            <input style={{ width: 90, height: 36 }} value={paged.pageIndex} onChange={(e) => goToPage(e.target.value)} />
-            <span className="badge gray">/ {totalPages}</span>
-          </div>
-
-          <button type="button" className="btn ghost" disabled={paged.pageIndex >= totalPages} onClick={() => goToPage(paged.pageIndex + 1)}>
-            Trang sau
-          </button>
         </div>
-      </div>
-
-      <Modal open={detailModal.open} title={`Payment detail: ${detailModal.id || "—"}`} onClose={closeDetail} width={1020}>
-        {detailModal.loading ? <div className="op-empty">Đang tải…</div> : null}
-
-        {!detailModal.loading && (
-          <div className="op-2col">
-            <div>
-              <div className="op-subtext">PaymentId</div>
-              <div className="mono">{pick(detailModal.data, "paymentId", "PaymentId") || "—"}</div>
-            </div>
-            <div>
-              <div className="op-subtext">Số tiền</div>
-              <div className="mono">{formatMoney(pick(detailModal.data, "amount", "Amount"))}</div>
-            </div>
-
-            <div>
-              <div className="op-subtext">Trạng thái</div>
-              <div>{pick(detailModal.data, "status", "Status") ? <span className="badge gray">{pick(detailModal.data, "status", "Status")}</span> : "—"}</div>
-            </div>
-            <div>
-              <div className="op-subtext">Ngày tạo</div>
-              <div>{formatVnDateTime(pick(detailModal.data, "createdAt", "CreatedAt"))}</div>
-            </div>
-
-            <div>
-              <div className="op-subtext">Provider</div>
-              <div className="mono">{pick(detailModal.data, "provider", "Provider") || "—"}</div>
-            </div>
-            <div>
-              <div className="op-subtext">ProviderOrderCode</div>
-              <div className="mono">{pick(detailModal.data, "providerOrderCode", "ProviderOrderCode") ?? "—"}</div>
-            </div>
-
-            <div>
-              <div className="op-subtext">PaymentLinkId</div>
-              <div className="mono">{pick(detailModal.data, "paymentLinkId", "PaymentLinkId") || "—"}</div>
-            </div>
-            <div>
-              <div className="op-subtext">Email</div>
-              <div className="mono">{pick(detailModal.data, "email", "Email") || "—"}</div>
-            </div>
-
-            <div>
-              <div className="op-subtext">TargetType</div>
-              <div className="mono">{pick(detailModal.data, "targetType", "TargetType") || "—"}</div>
-            </div>
-            <div>
-              <div className="op-subtext">TargetDisplayId</div>
-              <div className="mono">{pick(detailModal.data, "targetDisplayId", "TargetDisplayId") || pick(detailModal.data, "targetId", "TargetId") || "—"}</div>
-            </div>
-
-            <div>
-              <div className="op-subtext">ExpiresAtUtc</div>
-              <div className="mono">{String(pick(detailModal.data, "expiresAtUtc", "ExpiresAtUtc") || "—")}</div>
-            </div>
-            <div>
-              <div className="op-subtext">IsExpired</div>
-              <div className="mono">{String(pick(detailModal.data, "isExpired", "IsExpired") ?? "—")}</div>
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div className="op-subtext">CheckoutUrl</div>
-              <div className="mono" style={{ wordBreak: "break-all" }}>
-                {pick(detailModal.data, "checkoutUrl", "CheckoutUrl") || "—"}
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
+      ) : null}
     </div>
   );
 }

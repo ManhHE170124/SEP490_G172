@@ -54,9 +54,10 @@
   margin-top: 10px;
 }
 
+/* ✅ Thu nhỏ cột Tìm kiếm + kéo rộng Trạng thái */
 .aol-page .op-filters {
   display: grid;
-  grid-template-columns: 1.9fr 1fr 1fr 0.9fr 1.6fr 0.95fr; /* ✅ status nhỏ hơn + có cột nút */
+  grid-template-columns: 1.6fr 1fr 1fr 1.15fr 1.6fr 0.62fr; /* search nhỏ hơn, status rộng hơn, actions hẹp vì icon */
   gap: 12px;
   align-items: end;
 }
@@ -106,7 +107,7 @@
   gap: 8px;
 }
 
-/* ✅ Cụm nút Lọc/Đặt lại */
+/* ✅ Cụm icon Lọc / Đặt lại */
 .aol-filterActions {
   display: flex;
   gap: 8px;
@@ -114,39 +115,36 @@
   align-items: center;
 }
 
-.aol-btn {
+.aol-iconActionBtn {
+  width: 40px;
   height: 40px;
-  padding: 0 12px;
   border-radius: 12px;
   border: 1px solid var(--aol-line);
   background: #fff;
   cursor: pointer;
-  font-weight: 900;
-  transition: box-shadow 0.15s ease, background 0.15s ease, transform 0.05s ease;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.aol-btn:active {
+.aol-iconActionBtn:hover {
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  background: #f9fafb;
+}
+
+.aol-iconActionBtn:active {
   transform: translateY(1px);
 }
 
-.aol-btnPrimary {
-  border-color: rgba(37, 99, 235, 0.32);
-  background: rgba(37, 99, 235, 0.10);
+.aol-iconActionBtn.primary {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.08);
 }
 
-.aol-btnPrimary:hover {
+.aol-iconActionBtn.primary:hover {
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
-  background: rgba(37, 99, 235, 0.14);
-}
-
-.aol-btnGhost {
-  background: #fff;
-}
-
-.aol-btnGhost:hover {
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
-  background: #f9fafb;
+  background: rgba(37, 99, 235, 0.12);
 }
 
 /* ===== Top info line ===== */
@@ -282,7 +280,7 @@
   text-decoration-thickness: 1.5px;
 }
 
-/* Action button */
+/* Action button (Xem chi tiết) */
 .aol-page .op-icon-btn {
   width: 38px;
   height: 38px;
@@ -350,7 +348,7 @@
   border-color: rgba(107, 114, 128, 0.2);
 }
 
-/* ===== Pager: Trước/Sau nằm cạnh cụm số trang + page size ở góc ===== */
+/* ===== Pager: Trước/Sau cạnh cụm số trang + page size ở góc ===== */
 .aol-pager {
   margin-top: 14px;
   padding-top: 12px;
@@ -418,7 +416,7 @@
   font-weight: 900;
 }
 
-/* ✅ Page size: chỉ dropdown, không có label */
+/* ✅ Page size: chỉ dropdown */
 .aol-pageSizeSelect {
   height: 38px;
   border-radius: 12px;
