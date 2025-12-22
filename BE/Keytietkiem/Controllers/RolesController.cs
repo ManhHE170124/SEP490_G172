@@ -26,20 +26,19 @@ using Keytietkiem.DTOs.Roles;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
-using static Keytietkiem.Constants.ModuleCodes;
-using static Keytietkiem.Constants.PermissionCodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.DTOs.Roles;
 using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class RolesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
@@ -55,6 +54,7 @@ namespace Keytietkiem.Controllers
         /// Get a list of roles excluding any role whose name contains "admin" (case-insensitive).
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> Get()
         {
             var roles = await _context.Roles
@@ -73,7 +73,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of roles
          */
         [HttpGet("list")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_LIST)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoles()
         {
             var roles = await _context.Roles
@@ -98,7 +98,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with role, 404 if not found
          */
         [HttpGet("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoleById(string id)
         {
             var role = await _context.Roles
@@ -143,7 +143,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created role, 400/409 on validation errors
          */
         [HttpPost]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.CREATE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
         {
             if (createRoleDto == null)
@@ -257,7 +257,7 @@ namespace Keytietkiem.Controllers
         * Returns: 204 No Content, 400/404 on errors
         */
         [HttpPut("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDTO updateRoleDto)
         {
             if (updateRoleDto == null)
@@ -338,7 +338,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.DELETE)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeleteRoleById(string id)
         {
             var existingRole = await _context.Roles.FindAsync(id);
@@ -408,7 +408,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with role permissions matrix, 404 if role not found
          */
         [HttpGet("{id}/permissions")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.VIEW_DETAIL)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRolePermissions(string id)
         {
             var role = await _context.Roles
@@ -451,7 +451,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with updated role permissions, 400/404 on errors
          */
         [HttpPut("{id}/permissions")]
-        [RequirePermission(ModuleCodes.ROLE_MANAGER, PermissionCodes.EDIT)]
+        [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRolePermissions(string id, [FromBody] BulkRolePermissionUpdateDTO updateDto)
         {
             if (updateDto == null || updateDto.RolePermissions == null || !updateDto.RolePermissions.Any())
@@ -562,8 +562,9 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Retrieve modules that the provided role codes can access for a specific permission.
          * Route: POST /api/roles/module-access
-         * Body: ModuleAccessRequestDTO - list of role codes and optional permission code (defaults to ACCESS)
+         * Body: ModuleAccessRequestDTO - list of role codes and permission code (required, no default)
          * Returns: 200 OK with list of modules the roles can access
+         * Note: PermissionCode is now required (ACCESS permission has been removed)
          */
         [HttpPost("module-access")]
         public async Task<IActionResult> GetModuleAccessForRoles([FromBody] ModuleAccessRequestDTO request)
@@ -584,9 +585,12 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Danh sách vai trò không được để trống." });
             }
 
-            var permissionCode = string.IsNullOrWhiteSpace(request.PermissionCode)
-                ? "ACCESS"
-                : request.PermissionCode.Trim().ToUpper();
+            if (string.IsNullOrWhiteSpace(request.PermissionCode))
+            {
+                return BadRequest(new { message = "PermissionCode là bắt buộc." });
+            }
+
+            var permissionCode = request.PermissionCode.Trim().ToUpper();
 
             var modules = await _context.RolePermissions
                 .Include(rp => rp.Module)

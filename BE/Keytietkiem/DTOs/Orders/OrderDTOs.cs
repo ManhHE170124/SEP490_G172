@@ -19,15 +19,32 @@ namespace Keytietkiem.DTOs.Orders
         public int Quantity { get; set; }
         public decimal UnitPrice { get; set; }
 
-        // backward-compatible (single)
         public Guid? KeyId { get; set; }
         public string? KeyString { get; set; }
 
-        // ✅ DB mới + bán multiple keys: trả list (nếu FE dùng)
         public List<Guid> KeyIds { get; set; } = new();
         public List<string> KeyStrings { get; set; } = new();
 
-        public decimal SubTotal { get; set; } // Quantity * UnitPrice
+        public string? AccountEmail { get; set; }
+
+        // ✅ NEW
+        public string? AccountUsername { get; set; }
+
+        public string? AccountPassword { get; set; }
+
+        public List<OrderAccountCredentialDTO> Accounts { get; set; } = new();
+
+        public decimal SubTotal { get; set; }
+    }
+
+    public class OrderAccountCredentialDTO
+    {
+        public string Email { get; set; } = null!;
+
+        // ✅ NEW (optional)
+        public string? Username { get; set; }
+
+        public string Password { get; set; } = null!;
     }
 
     public class OrderDTO
@@ -49,11 +66,11 @@ namespace Keytietkiem.DTOs.Orders
 
         public List<OrderDetailDTO> OrderDetails { get; set; } = new();
 
-        // ✅ NEW
         public string? OrderNumber { get; set; }
         public OrderPaymentSummaryDTO? Payment { get; set; }
         public List<OrderPaymentAttemptDTO>? PaymentAttempts { get; set; }
     }
+
     public class OrderPaymentSummaryDTO
     {
         public Guid PaymentId { get; set; }
@@ -67,10 +84,10 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime CreatedAt { get; set; }
         public DateTime ExpiresAtUtc { get; set; }
         public bool IsExpired { get; set; }
-
-        // Admin muốn bấm mở lại link (optional, chỉ trả khi includeCheckoutUrl=true)
         public string? CheckoutUrl { get; set; }
     }
+
+
     public class OrderPaymentAttemptDTO
     {
         public Guid PaymentId { get; set; }
@@ -85,6 +102,8 @@ namespace Keytietkiem.DTOs.Orders
         public DateTime ExpiresAtUtc { get; set; }
         public bool IsExpired { get; set; }
     }
+
+
     public class OrderListItemDTO
     {
         public Guid OrderId { get; set; }
@@ -126,6 +145,7 @@ namespace Keytietkiem.DTOs.Orders
 
         public List<string> ProductNames { get; set; } = new();
     }
+
     public class CheckoutFromCartRequestDto
     {
         // Guest cart identify
@@ -155,5 +175,16 @@ namespace Keytietkiem.DTOs.Orders
         public string? PaymentLinkId { get; set; }
 
         public DateTime ExpiresAtUtc { get; set; }
+    }
+
+    // ✅ Admin Order Detail response: Order + OrderItems (đúng yêu cầu)
+    public class OrderDetailResponseDto
+    {
+        public OrderDTO Order { get; set; } = null!;
+        public List<OrderDetailDTO> OrderItems { get; set; } = new();
+
+        public int PageIndex { get; set; }
+        public int PageSize { get; set; }
+        public int TotalItems { get; set; }
     }
 }

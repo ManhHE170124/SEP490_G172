@@ -28,8 +28,6 @@ import { USER_STATUS, USER_STATUS_OPTIONS } from "../../constants/userStatus";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import axiosClient from "../../api/axiosClient";
-import { usePermission } from "../../hooks/usePermission";
-import { MODULE_CODES } from "../../constants/accessControl";
 
 function ErrorDialog({ message, onClose, showError }) {
   // Đẩy lỗi chung lên toast
@@ -77,15 +75,13 @@ const formatCurrency = (value) => {
 export default function AdminUserManagement() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
 
-  // Check permissions
-  const { hasPermission: canViewList, loading: permissionLoading } = usePermission(
-    MODULE_CODES.USER_MANAGER,
-    "VIEW_LIST"
-  );
-  const { hasPermission: canViewDetail } = usePermission(MODULE_CODES.USER_MANAGER, "VIEW_DETAIL");
-  const { hasPermission: canCreate } = usePermission(MODULE_CODES.USER_MANAGER, "CREATE");
-  const { hasPermission: canEdit } = usePermission(MODULE_CODES.USER_MANAGER, "EDIT");
-  const { hasPermission: canDelete } = usePermission(MODULE_CODES.USER_MANAGER, "DELETE");
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const canViewDetail = true;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   // Global network error handler
   const networkErrorShownRef = React.useRef(false);

@@ -12,12 +12,10 @@ import AdminLayout from "../layout/AdminLayout/AdminLayout";
 import ClientLayout from "../layout/ClientLayout/ClientLayout";
 import Page404 from "../pages/NotFound/Page404";
 import ProtectedRoute from "./ProtectedRoute";
-import { MODULE_CODES } from "../constants/accessControl";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
 //Role Management Pages
-import RoleAssign from "../pages/RoleManage/RoleAssign";
 import RoleManage from "../pages/RoleManage/RoleManage";
 // Post Management Pages
 import AdminPostList from "../pages/PostManage/AdminPostList";
@@ -35,7 +33,9 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
-import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
+import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
+import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
 
 // App.jsx (hoặc routes admin)
@@ -121,8 +121,11 @@ const StaffTicketDetail = lazy(() =>
 );
 
 export default function AppRoutes() {
-  const renderAdminPage = (moduleCode, component, permissionCode = "ACCESS") => (
-    <ProtectedRoute moduleCode={moduleCode} permissionCode={permissionCode}>
+  // Các role được phép truy cập trang admin
+  const ADMIN_ROLES = ["ADMIN", "STORAGE_STAFF", "CUSTOMER_CARE", "CONTENT_CREATOR"];
+
+  const renderAdminPage = (component) => (
+    <ProtectedRoute allowedRoles={ADMIN_ROLES}>
       <AdminLayout>{component}</AdminLayout>
     </ProtectedRoute>
   );
@@ -160,12 +163,12 @@ export default function AppRoutes() {
       {/* Admin Tickets */}
       <Route
         path="/admin/tickets"
-        element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <AdminTicketManagement />)}
+        element={renderAdminPage(<AdminTicketManagement />)}
       />
       <Route
         path="/admin/tickets/:id"
         element={
-          <ProtectedRoute moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+          <ProtectedRoute allowedRoles={ADMIN_ROLES}>
             <Suspense fallback={<div>Đang tải chi tiết...</div>}>
               <AdminLayout>
                 <AdminTicketDetail />
@@ -178,12 +181,12 @@ export default function AppRoutes() {
       {/* Staff Tickets */}
       <Route
         path="/staff/tickets"
-        element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <StaffTicketManagement />)}
+        element={renderAdminPage(<StaffTicketManagement />)}
       />
       <Route
         path="/staff/tickets/:id"
         element={
-          <ProtectedRoute moduleCode={MODULE_CODES.SUPPORT_MANAGER}>
+          <ProtectedRoute allowedRoles={ADMIN_ROLES}>
             <Suspense fallback={<div>Đang tải chi tiết...</div>}>
               <AdminLayout>
                 <StaffTicketDetail />
@@ -194,99 +197,243 @@ export default function AppRoutes() {
       />
 
       {/* Product Reports */}
-      <Route path="/reports" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <ProductReportManagementPage />)} />
-      <Route path="/reports/:id" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <ProductReportDetailPage />)} />
-
-      {/* Customer tickets */}
-      <Route path="/tickets/create" element={<ClientLayout><CustomerTicketCreatePage /></ClientLayout>} />
-      <Route path="/tickets/:id" element={<ClientLayout><CustomerTicketDetailPage /></ClientLayout>} />
-      <Route path="/tickets" element={<ClientLayout><CustomerTicketManagementPage /></ClientLayout>} />
-
-      {/* Admin Products */}
-      <Route path="/admin/products" element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <ProductsPage />)} />
-      <Route path="/admin/products/add" element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <ProductAdd />)} />
-      <Route path="/admin/products/:id" element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <ProductDetail />)} />
       <Route
-        path="/admin/products/:id/variants/:variantId"
-        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <VariantDetail />)}
+        path="/reports"
+        element={renderAdminPage(<ProductReportManagementPage />)}
+      />
+      <Route
+        path="/reports/:id"
+        element={renderAdminPage(<ProductReportDetailPage />)}
       />
 
-      {/* Categories */}
-      <Route path="/admin/categories" element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <CategoryPage />)} />
+      {/* Customer tickets */}
+      <Route
+        path="/tickets/create"
+        element={
+          <ProtectedRoute>
+            <ClientLayout>
+              <CustomerTicketCreatePage />
+            </ClientLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tickets/:id"
+        element={
+          <ProtectedRoute>
+            <ClientLayout>
+              <CustomerTicketDetailPage />
+            </ClientLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tickets"
+        element={
+          <ProtectedRoute>
+            <ClientLayout>
+              <CustomerTicketManagementPage />
+            </ClientLayout>
+          </ProtectedRoute>
+        }
+      />
 
-      {/* ✅ Admin Orders/Payments: nên yêu cầu VIEW_LIST để khớp BE RequirePermission */}
+      {/* Products */}
+      <Route
+        path="/admin/products"
+        element={renderAdminPage(<ProductsPage />)}
+      />
+      <Route
+        path="/admin/products/add"
+        element={renderAdminPage(<ProductAdd />)}
+      />
+      <Route
+        path="/admin/products/:id"
+        element={renderAdminPage(<ProductDetail />)}
+      />
+      <Route
+        path="/admin/products/:id/variants/:variantId"
+        element={renderAdminPage(<VariantDetail />)}
+      />
+
+      <Route
+        path="/admin/categories"
+        element={renderAdminPage(<CategoryPage />)}
+      />
       <Route
         path="/admin/orders"
-        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <OrderPaymentPage />, "VIEW_LIST")}
+        element={renderAdminPage(<AdminOrderListPage />)}
       />
       <Route
         path="/admin/payments"
-        element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <OrderPaymentPage />, "VIEW_LIST")}
+        element={renderAdminPage(<AdminPaymentListPage />)}
+      />
+<Route
+        path="/admin/orders/:id"
+        element={renderAdminPage(<AdminOrderDetailPage />)}
+      />
+      {/* FAQs */}
+      <Route
+        path="/admin/faqs"
+        element={renderAdminPage(<FaqsPage />)}
       />
 
-      {/* FAQs */}
-      <Route path="/admin/faqs" element={renderAdminPage(MODULE_CODES.PRODUCT_MANAGER, <FaqsPage />)} />
-
-      {/* Admin Users */}
-      <Route path="/admin/users" element={renderAdminPage(MODULE_CODES.USER_MANAGER, <AdminUserManagement />)} />
+      {/* Admin Routes */}
+      <Route
+        path="/admin-dashboard"
+        element={renderAdminPage(<Page404 />)}
+      />
+      <Route
+        path="/admin/users"
+        element={renderAdminPage(<AdminUserManagement />)}
+      />
+      <Route
+        path="/role-manage"
+        element={renderAdminPage(<RoleManage />)}
+      />
+      {/* Post Routes */}
+      <Route
+        path="/post-dashboard"
+        element={renderAdminPage(<PostDashboardPage />)}
+      />
+      <Route
+        path="/admin-post-list"
+        element={renderAdminPage(<AdminPostList />)}
+      />
+      <Route
+        path="/post-create-edit"
+        element={renderAdminPage(<PostCreateEdit />)}
+      />
+      <Route
+        path="/post-create-edit/:postId"
+        element={renderAdminPage(<PostCreateEdit />)}
+      />
+      <Route
+        path="/tag-post-type-manage"
+        element={renderAdminPage(<TagPostTypeManage />)}
+      />
 
       {/* Role */}
-      <Route path="/role-manage" element={renderAdminPage(MODULE_CODES.ROLE_MANAGER, <RoleManage />)} />
-      <Route path="/role-assign" element={renderAdminPage(MODULE_CODES.ROLE_MANAGER, <RoleAssign />)} />
+      <Route path="/role-manage" element={renderAdminPage( <RoleManage />)} />
+      {/* RoleAssign đã bị xóa - chức năng phân quyền chi tiết không còn sử dụng */}
 
       {/* Post */}
-      <Route path="/post-dashboard" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostDashboardPage />)} />
-      <Route path="/admin-post-list" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <AdminPostList />)} />
-      <Route path="/post-create-edit" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostCreateEdit />)} />
-      <Route path="/post-create-edit/:postId" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <PostCreateEdit />)} />
-      <Route path="/tag-post-type-manage" element={renderAdminPage(MODULE_CODES.POST_MANAGER, <TagPostTypeManage />)} />
-
+      <Route path="/post-dashboard" element={renderAdminPage(<PostDashboardPage />)} />
+      <Route path="/admin-post-list" element={renderAdminPage(<AdminPostList />)} />
+      <Route path="/post-create-edit" element={renderAdminPage(<PostCreateEdit />)} />
+      <Route path="/post-create-edit/:postId" element={renderAdminPage(<PostCreateEdit />)} />
+      <Route path="/tag-post-type-manage" element={renderAdminPage(<TagPostTypeManage />)} />
       {/* Suppliers */}
-      <Route path="/suppliers" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <SuppliersPage />)} />
-      <Route path="/suppliers/add" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <SupplierDetailPage />)} />
-      <Route path="/suppliers/:id" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <SupplierDetailPage />)} />
+      <Route
+        path="/suppliers"
+        element={renderAdminPage(<SuppliersPage />)}
+      />
+      <Route
+        path="/suppliers/add"
+        element={renderAdminPage(<SupplierDetailPage />)}
+      />
+      <Route
+        path="/suppliers/:id"
+        element={renderAdminPage(<SupplierDetailPage />)}
+      />
 
       {/* Product Keys */}
-      <Route path="/keys" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <KeyManagementPage />)} />
-      <Route path="/keys/add" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <KeyDetailPage />)} />
-      <Route path="/keys/:id" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <KeyDetailPage />)} />
+      <Route
+        path="/keys"
+        element={renderAdminPage(<KeyManagementPage />)}
+      />
+      <Route
+        path="/keys/add"
+        element={renderAdminPage(<KeyDetailPage />)}
+      />
+      <Route
+        path="/keys/:id"
+        element={renderAdminPage(<KeyDetailPage />)}
+      />
 
       {/* Key Monitor */}
-      <Route path="/key-monitor" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <KeyMonitorPage />)} />
+      <Route
+        path="/key-monitor"
+        element={renderAdminPage(<KeyMonitorPage />)}
+      />
 
       {/* Product Accounts */}
-      <Route path="/accounts" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountManagementPage />)} />
-      <Route path="/accounts/add" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountDetailPage />)} />
-      <Route path="/accounts/:id" element={renderAdminPage(MODULE_CODES.WAREHOUSE_MANAGER, <AccountDetailPage />)} />
+      <Route path="/accounts" element={renderAdminPage(<AccountManagementPage />)} />
+      <Route path="/accounts/add" element={renderAdminPage(<AccountDetailPage />)} />
+      <Route path="/accounts/:id" element={renderAdminPage(<AccountDetailPage />)} />
 
       {/* Settings */}
-      <Route path="/admin/website-config" element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <WebsiteConfig />)} />
+      <Route path="/admin/website-config" element={renderAdminPage(<WebsiteConfig />)} />
       <Route
-        path="/admin/notifications"
-        element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <AdminNotificationsPage />)}
+        path="/accounts"
+        element={renderAdminPage(<AccountManagementPage />)}
+      />
+      <Route
+        path="/accounts/add"
+        element={renderAdminPage(<AccountDetailPage />)}
+      />
+      <Route
+        path="/accounts/:id"
+        element={renderAdminPage(<AccountDetailPage />)}
       />
 
-      {/* Support dashboard / chats */}
+      <Route
+        path="/admin/website-config"
+        element={renderAdminPage(<WebsiteConfig />)}
+      />
+       <Route
+        path="/admin/notifications"
+        element={renderAdminPage(<AdminNotificationsPage />)}
+      />
       <Route
         path="/admin/support-dashboard"
-        element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SupportDashboardAdminPage />)}
+        element={renderAdminPage(<SupportDashboardAdminPage />)}
       />
-      <Route path="/admin/support-chats" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <AdminSupportChatPage />)} />
-      <Route path="/staff/support-chats" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <StaffSupportChatPage />)} />
+      <Route
+        path="/admin/support-chats"
+        element={renderAdminPage(<AdminSupportChatPage />)}
+      />
+      <Route
+        path="/staff/support-chats"
+        element={renderAdminPage(<StaffSupportChatPage />)}
+      />
+      {/* Support plan subscription (gói hỗ trợ) */}
+      <Route
+        path="/support/subscription"
+        element={
+          <ClientLayout>
+            <SupportPlanSubscriptionPage />
+          </ClientLayout>
+        }
+      />
+      <Route path="/admin/support-chats" element={renderAdminPage(<AdminSupportChatPage />)} />
+      <Route path="/staff/support-chats" element={renderAdminPage(<StaffSupportChatPage />)} />
 
       {/* Support plan subscription */}
       <Route path="/support/subscription" element={<ClientLayout><SupportPlanSubscriptionPage /></ClientLayout>} />
       <Route
         path="/admin/support-priority-loyalty-rules"
-        element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SupportPriorityLoyaltyRulesPage />)}
+        element={renderAdminPage(<SupportPriorityLoyaltyRulesPage />)}
       />
-      <Route path="/admin/support-plans" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SupportPlansAdminPage />)} />
-      <Route path="/admin/sla-rules" element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <SlaRulesAdminPage />)} />
+      <Route
+        path="/admin/support-plans"
+        element={renderAdminPage(<SupportPlansAdminPage />)}
+      />
+      <Route
+        path="/admin/sla-rules"
+        element={renderAdminPage(<SlaRulesAdminPage />)}
+      />
+      <Route path="/admin/support-plans" element={renderAdminPage(<SupportPlansAdminPage />)} />
+      <Route path="/admin/sla-rules" element={renderAdminPage(<SlaRulesAdminPage />)} />
       <Route
         path="/admin/ticket-subject-templates"
-        element={renderAdminPage(MODULE_CODES.SUPPORT_MANAGER, <TicketSubjectTemplatesAdminPage />)}
+        element={renderAdminPage(<TicketSubjectTemplatesAdminPage />)}
       />
-      <Route path="/admin/audit-logs" element={renderAdminPage(MODULE_CODES.SETTINGS_MANAGER, <AuditLogsPage />)} />
+      <Route
+        path="/admin/audit-logs"
+        element={renderAdminPage(<AuditLogsPage />)}
+      />
+      <Route path="/admin/audit-logs" element={renderAdminPage(<AuditLogsPage />)} />
 
       {/* Blogs / Products / Cart */}
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />

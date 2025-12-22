@@ -291,6 +291,20 @@ const BlogDetail = () => {
         }
     };
 
+    // ===== Detect admin user for preview banner =====
+    let isAdminUser = false;
+    try {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            const roles = Array.isArray(parsedUser?.roles) ? parsedUser.roles : [];
+            isAdminUser = roles.some((r) =>
+                String(r).toUpperCase().includes("ADMIN")
+            );
+        }
+    } catch {
+        isAdminUser = false;
+    }
     // ===== Related slider =====
     const totalRelated = relatedPosts.length;
     const relatedPageCount =

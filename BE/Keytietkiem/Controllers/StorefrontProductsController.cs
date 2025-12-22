@@ -3,6 +3,7 @@ using Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +21,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("filters")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontFiltersDto>> GetFilters()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -42,6 +44,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("variants")]
+        [AllowAnonymous]
         public async Task<ActionResult<PagedResult<StorefrontVariantListItemDto>>> ListVariants(
             [FromQuery] StorefrontVariantListQuery query)
         {
@@ -256,6 +259,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{productId:guid}/variants/{variantId:guid}/detail")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontVariantDetailDto>> GetVariantDetail(
             Guid productId,
             Guid variantId)
@@ -388,6 +392,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{productId:guid}/variants/{variantId:guid}/related")]
+        [AllowAnonymous]
         public async Task<ActionResult<IReadOnlyCollection<StorefrontVariantListItemDto>>> GetRelatedVariants(
             Guid productId,
             Guid variantId)
