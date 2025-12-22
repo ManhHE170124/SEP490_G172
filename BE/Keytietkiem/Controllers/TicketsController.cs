@@ -842,6 +842,10 @@ public class TicketsController : ControllerBase
         {
             return BadRequest(new { message = "Ticket đã khoá, không thể nhận thêm." });
         }
+        if (ticket.AssigneeId.HasValue)
+        {
+            return BadRequest(new { message = "Ticket đã có người xử lý, không thể nhận thêm." });
+        }
 
         // Validate staff: Active + Role.Code chứa "care"
         var me = await _db.Users

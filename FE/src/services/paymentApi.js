@@ -1,24 +1,27 @@
-// services/paymentApi.js
+// File: src/services/paymentApi.js
 import axiosClient from "../api/axiosClient";
 
 const END = { PAYMENTS: "payments" };
 
+const unwrap = (res) => res?.data ?? res;
+
+const normalizePaged = (res) => {
+  const data = unwrap(res) || {};
+  return {
+    pageIndex: data.pageIndex ?? data.PageIndex ?? 1,
+    pageSize: data.pageSize ?? data.PageSize ?? 20,
+    totalItems: data.totalItems ?? data.TotalItems ?? 0,
+    items: Array.isArray(data.items ?? data.Items) ? (data.items ?? data.Items) : [],
+  };
+};
+
 export const paymentApi = {
-  /**
-   * params (BE): status, provider, email, targetType, sortBy, sortDir, ...
-   * (compat) FE cũ: transactionType -> sẽ map sang targetType
-   */
-  list: (params = {}) => {
-    const p = { ...(params || {}) };
+  // params: search, createdFrom, createdTo, paymentStatus, transactionType, amountFrom, amountTo, sortBy, sortDir, pageIndex, pageSize
+  listPaged: (params = {}) => axiosClient.get(END.PAYMENTS, { params }).then(normalizePaged),
 
-    // compat: nếu còn nơi dùng transactionType
-    if (!p.targetType && p.transactionType) {
-      p.targetType = p.transactionType;
-      delete p.transactionType;
-    }
-
-    return axiosClient.get(END.PAYMENTS, { params: p });
+  // detail: full payment fields (không dùng attempts)
+  get: (paymentId, params) => {
+    const cfg = params ? { params } : undefined;
+    return axiosClient.get(`${END.PAYMENTS}/${paymentId}`, cfg);
   },
-
-  get: (id) => axiosClient.get(`${END.PAYMENTS}/${id}`),
 };
