@@ -158,16 +158,23 @@ const Sidebar = () => {
             </svg>
           ),
         },
-// === Đơn hàng ===
+
+// === Danh sách đơn hàng ===
 {
-  id: "orders-admin",
+  id: "orders-admin-list",
   label: "Danh sách đơn hàng",
   to: "/admin/orders",
+  allowedRoles: [ROLE_ADMIN],
   isActive:
     currentPage === "admin/orders" ||
     currentPage.startsWith("admin/orders/"),
   icon: (
-    <svg viewBox="0 0 24 24" fill="none">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="200"
+      height="200"
+      viewBox="0 0 32 32"
+    >
       <rect
         x="3"
         y="4"
@@ -177,6 +184,7 @@ const Sidebar = () => {
         ry="2"
         stroke="currentColor"
         strokeWidth="2"
+        fill="none"
       />
       <path
         d="M3 9h18"
@@ -190,28 +198,23 @@ const Sidebar = () => {
         strokeWidth="2"
         strokeLinecap="round"
       />
-      <circle
-        cx="17"
-        cy="15"
-        r="2"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
     </svg>
   ),
 },
 
-// === Giao dịch ===
+// === Danh sách giao dịch ===
 {
   id: "payments-admin",
   label: "Danh sách giao dịch",
   to: "/admin/payments",
+  allowedRoles: [ROLE_ADMIN],
   isActive: currentPage === "admin/payments",
   icon: (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
+      width="200"
+      height="200"
+      viewBox="0 0 32 32"
     >
       <rect
         x="2"
@@ -221,6 +224,7 @@ const Sidebar = () => {
         rx="2"
         stroke="currentColor"
         strokeWidth="2"
+        fill="none"
       />
       <path
         d="M2 10h20"
@@ -237,52 +241,6 @@ const Sidebar = () => {
     </svg>
   ),
 },
-
-        // === Đơn hàng & thanh toán ===
-        {
-          id: "orders-admin",
-          label: "Đơn hàng & thanh toán",
-          to: "/admin/orders",
-          allowedRoles: [ROLE_ADMIN],
-          // currentPage ở trên lấy bằng location.pathname.substring(1)
-          // nên path "/admin/orders" => currentPage === "admin/orders"
-          isActive:
-            currentPage === "admin/orders" ||
-            currentPage === "admin/payments",
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none">
-              <rect
-                x="3"
-                y="4"
-                width="18"
-                height="16"
-                rx="2"
-                ry="2"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <path
-                d="M3 9h18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <path
-                d="M8 13h4M8 17h3"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <circle
-                cx="17"
-                cy="15"
-                r="2"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-            </svg>
-          ),
-        },
 
         {
           id: "faqs",
