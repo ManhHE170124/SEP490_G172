@@ -212,7 +212,7 @@ export default function AppRoutes() {
       />
       <Route
         path="/reports/:id"
-        element={renderAdminPage(<ProductReportDetailPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<ProductReportDetailPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE, ROLES.STORAGE_STAFF))}
       />
 
       {/* Customer tickets */}
