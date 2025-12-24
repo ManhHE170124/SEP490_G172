@@ -33,7 +33,9 @@ import AdminTicketManagement from "../pages/admin/admin-ticket-management";
 import WebsiteConfig from "../pages/admin/WebsiteConfig";
 import FaqsPage from "../pages/admin/FaqsPage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage";
-import OrderPaymentPage from "../pages/admin/OrderPaymentPage.jsx";
+import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
+import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
+import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
 
 // App.jsx (hoặc routes admin)
@@ -254,20 +256,22 @@ export default function AppRoutes() {
         element={renderAdminPage(<VariantDetail />)}
       />
 
-      {/* Categories */}
       <Route
         path="/admin/categories"
         element={renderAdminPage(<CategoryPage />)}
       />
       <Route
         path="/admin/orders"
-        element={renderAdminPage(<OrderPaymentPage />)}
+        element={renderAdminPage(<AdminOrderListPage />)}
       />
       <Route
         path="/admin/payments"
-        element={renderAdminPage(<OrderPaymentPage />)}
+        element={renderAdminPage(<AdminPaymentListPage />)}
       />
-
+<Route
+        path="/admin/orders/:id"
+        element={renderAdminPage(<AdminOrderDetailPage />)}
+      />
       {/* FAQs */}
       <Route
         path="/admin/faqs"
