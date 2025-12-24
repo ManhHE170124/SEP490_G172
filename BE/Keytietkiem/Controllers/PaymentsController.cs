@@ -320,6 +320,262 @@ namespace Keytietkiem.Controllers
             });
         }
 
+        // ================== CUSTOMER LIST ==================
+
+        [HttpGet("customer")]
+        [Authorize]
+        public async Task<IActionResult> GetCustomerPayments(
+            [FromQuery] string? search,
+            [FromQuery] DateTime? createdFrom,
+            [FromQuery] DateTime? createdTo,
+            [FromQuery] string? paymentStatus,
+            [FromQuery] string? transactionType,
+            [FromQuery] decimal? amountFrom,
+            [FromQuery] decimal? amountTo,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir,
+            [FromQuery] int pageIndex = 1,
+            [FromQuery] int pageSize = 20
+        )
+        {
+            await using var db = _dbFactory.CreateDbContext();
+
+            // Get current user
+            var currentUserId = GetCurrentUserIdOrNull();
+            if (!currentUserId.HasValue)
+                return Unauthorized(new { message = "Không xác định được người dùng." });
+
+            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                // Fallback: get email from user table
+                var user = await db.Users.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
+                if (user == null)
+                    return Unauthorized(new { message = "Không tìm thấy thông tin người dùng." });
+                userEmail = user.Email;
+            }
+
+            // ===== sanitize paging =====
+            if (pageIndex <= 0) pageIndex = 1;
+            if (pageSize <= 0) pageSize = 20;
+            if (pageSize > 200) pageSize = 200;
+
+            // ✅ Join user theo Email để resolve UserId (phục vụ search/filter/sort/display cho SupportPlan)
+            var query =
+                from p in db.Payments.AsNoTracking()
+                join u in db.Users.AsNoTracking() on p.Email equals u.Email into uj
+                from u in uj.DefaultIfEmpty()
+                select new
+                {
+                    Payment = p,
+                    UserId = (Guid?)u.UserId
+                };
+
+            // ===== Filter by current user =====
+            // Filter by email (for SupportPlan payments) or by Order.UserId (for Order payments)
+            query = query.Where(x =>
+                // Payment email matches current user email
+                (x.Payment.Email != null && x.Payment.Email.ToLower() == userEmail.ToLower())
+                // OR Payment is for an Order that belongs to current user
+                || (x.Payment.TargetType == "Order"
+                    && x.Payment.TargetId != null
+                    && db.Orders.Any(o => o.OrderId.ToString() == x.Payment.TargetId && o.UserId == currentUserId.Value))
+            );
+
+            // ===== Filters =====
+            if (createdFrom.HasValue)
+                query = query.Where(x => x.Payment.CreatedAt >= createdFrom.Value);
+
+            if (createdTo.HasValue)
+                query = query.Where(x => x.Payment.CreatedAt <= createdTo.Value);
+
+            if (!string.IsNullOrWhiteSpace(paymentStatus))
+            {
+                var ps = paymentStatus.Trim();
+                query = query.Where(x => x.Payment.Status == ps);
+            }
+
+            if (!string.IsNullOrWhiteSpace(transactionType))
+            {
+                var tt = transactionType.Trim();
+                query = query.Where(x => x.Payment.TargetType == tt);
+            }
+
+            if (amountFrom.HasValue)
+                query = query.Where(x => x.Payment.Amount >= amountFrom.Value);
+
+            if (amountTo.HasValue)
+                query = query.Where(x => x.Payment.Amount <= amountTo.Value);
+
+            // ===== Search (paymentId | orderId) =====
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var kw = search.Trim();
+
+                if (Guid.TryParse(kw, out var gid))
+                {
+                    query = query.Where(x =>
+                        x.Payment.PaymentId == gid
+                        // OrderId nằm trong TargetId (TargetType=Order)
+                        || (x.Payment.TargetType == "Order" && x.Payment.TargetId != null && x.Payment.TargetId == kw)
+                    );
+                }
+                else
+                {
+                    // fallback: vẫn cho phép search string (best-effort)
+                    query = query.Where(x =>
+                        x.Payment.PaymentId.ToString().Contains(kw)
+                        || (x.Payment.TargetId != null && x.Payment.TargetId.Contains(kw))
+                        || (x.Payment.TargetType != null && x.Payment.TargetType.Contains(kw))
+                        || (x.Payment.Provider != null && x.Payment.Provider.Contains(kw))
+                        || (x.Payment.PaymentLinkId != null && x.Payment.PaymentLinkId.Contains(kw))
+                        || (x.Payment.ProviderOrderCode != null && x.Payment.ProviderOrderCode.ToString()!.Contains(kw))
+                    );
+                }
+            }
+
+            // ===== Sort =====
+            var sortByNorm = (sortBy ?? "CreatedAt").Trim();
+            var sortDirNorm = (sortDir ?? "desc").Trim().ToLowerInvariant();
+            var asc = sortDirNorm == "asc";
+
+            switch (sortByNorm.ToLowerInvariant())
+            {
+                case "paymentid":
+                    query = asc ? query.OrderBy(x => x.Payment.PaymentId) : query.OrderByDescending(x => x.Payment.PaymentId);
+                    break;
+
+                case "amount":
+                    query = asc ? query.OrderBy(x => x.Payment.Amount) : query.OrderByDescending(x => x.Payment.Amount);
+                    break;
+
+                case "status":
+                    query = asc ? query.OrderBy(x => x.Payment.Status) : query.OrderByDescending(x => x.Payment.Status);
+                    break;
+
+                case "type":
+                case "targettype":
+                case "transactiontype":
+                    query = asc ? query.OrderBy(x => x.Payment.TargetType) : query.OrderByDescending(x => x.Payment.TargetType);
+                    break;
+
+                case "targetid":
+                case "targetdisplayid":
+                    query = asc
+                        ? query.OrderBy(x => (x.Payment.TargetType == "Order"
+                                ? (x.Payment.TargetId ?? "")
+                                : (x.UserId.HasValue ? x.UserId.Value.ToString() : "")))
+                        : query.OrderByDescending(x => (x.Payment.TargetType == "Order"
+                                ? (x.Payment.TargetId ?? "")
+                                : (x.UserId.HasValue ? x.UserId.Value.ToString() : "")));
+                    break;
+
+                case "createdat":
+                default:
+                    query = asc ? query.OrderBy(x => x.Payment.CreatedAt) : query.OrderByDescending(x => x.Payment.CreatedAt);
+                    break;
+            }
+
+            // ===== Pagination =====
+            var totalItems = await query.CountAsync();
+
+            var raw = await query
+                .Skip((pageIndex - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.Payment.PaymentId,
+                    x.Payment.Amount,
+                    x.Payment.Status,
+                    x.Payment.CreatedAt,
+                    x.Payment.Provider,
+                    x.Payment.ProviderOrderCode,
+                    x.Payment.PaymentLinkId,
+                    x.Payment.Email,
+                    x.Payment.TargetType,
+                    x.Payment.TargetId,
+                    x.UserId
+                })
+                .ToListAsync();
+
+            var nowUtc = DateTime.UtcNow;
+            var timeout = TimeSpan.FromMinutes(5);
+
+            // ✅ IsLatestAttemptForTarget: tính trong page (best-effort)
+            var keys = raw
+                .Select(x => $"{x.TargetType ?? ""}|{x.TargetId ?? ""}")
+                .Distinct()
+                .ToList();
+
+            var maxCreatedAtByKey = new Dictionary<string, DateTime>();
+            if (keys.Count > 0)
+            {
+                var maxRows = await db.Payments.AsNoTracking()
+                    .Where(p => keys.Contains((p.TargetType ?? "") + "|" + (p.TargetId ?? "")))
+                    .GroupBy(p => (p.TargetType ?? "") + "|" + (p.TargetId ?? ""))
+                    .Select(g => new { Key = g.Key, MaxCreatedAt = g.Max(x => x.CreatedAt) })
+                    .ToListAsync();
+
+                maxCreatedAtByKey = maxRows.ToDictionary(x => x.Key, x => x.MaxCreatedAt);
+            }
+
+            var items = raw.Select(p =>
+            {
+                var expiresAt = p.CreatedAt.Add(timeout);
+                var isExpired = string.Equals(p.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase)
+                                && nowUtc > expiresAt;
+
+                var key = $"{p.TargetType ?? ""}|{p.TargetId ?? ""}";
+                var isLatest = maxCreatedAtByKey.TryGetValue(key, out var maxAt) && maxAt == p.CreatedAt;
+
+                // ✅ TargetDisplayId theo rule
+                var targetDisplayId =
+                    string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
+                        ? p.TargetId
+                        : (string.Equals(p.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase)
+                            ? (p.UserId?.ToString())
+                            : p.TargetId);
+
+                return new PaymentAdminListItemDTO
+                {
+                    PaymentId = p.PaymentId,
+                    Amount = p.Amount,
+                    Status = p.Status,
+                    CreatedAt = p.CreatedAt,
+                    Provider = p.Provider,
+                    ProviderOrderCode = p.ProviderOrderCode,
+                    PaymentLinkId = p.PaymentLinkId,
+                    Email = p.Email,
+                    TargetType = p.TargetType,
+                    TargetId = p.TargetId,
+                    TargetDisplayId = targetDisplayId,
+
+                    ExpiresAtUtc = expiresAt,
+                    IsExpired = isExpired,
+                    IsLatestAttemptForTarget = isLatest,
+
+                    // ✅ List API: không trả target snapshot để tránh "quick compare/reconcile"
+                    OrderId = null,
+                    OrderStatus = null,
+                    TargetUserId = null,
+                    TargetUserEmail = null,
+                    TargetUserName = null,
+                    SupportPlanId = null,
+                    SupportPlanName = null,
+                    SupportPlanPriority = null
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                PageIndex = pageIndex,
+                PageSize = pageSize,
+                TotalItems = totalItems,
+                Items = items
+            });
+        }
+
 
         [HttpGet("{paymentId:guid}")]
         [Authorize]
