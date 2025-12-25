@@ -382,15 +382,26 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.HasIndex(e => e.CreatedAtUtc, "IX_Notification_CreatedAtUtc").IsDescending();
 
+            entity.HasIndex(e => e.ExpiresAtUtc, "IX_Notification_ExpiresAtUtc").HasFilter("([ExpiresAtUtc] IS NOT NULL)");
+
+            entity.HasIndex(e => e.DedupKey, "UX_Notification_DedupKey")
+                .IsUnique()
+                .HasFilter("([DedupKey] IS NOT NULL)");
+
+            entity.Property(e => e.ArchivedAtUtc).HasPrecision(0);
+            entity.Property(e => e.CorrelationId).HasMaxLength(64);
             entity.Property(e => e.CreatedAtUtc)
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.DedupKey).HasMaxLength(200);
+            entity.Property(e => e.ExpiresAtUtc).HasPrecision(0);
             entity.Property(e => e.IsSystemGenerated).HasDefaultValue(true);
             entity.Property(e => e.Message).HasMaxLength(1000);
             entity.Property(e => e.RelatedEntityId).HasMaxLength(64);
             entity.Property(e => e.RelatedEntityType).HasMaxLength(100);
             entity.Property(e => e.RelatedUrl).HasMaxLength(512);
             entity.Property(e => e.Title).HasMaxLength(200);
+            entity.Property(e => e.Type).HasMaxLength(50);
 
             entity.HasOne(d => d.CreatedByUser).WithMany(p => p.Notifications).HasForeignKey(d => d.CreatedByUserId);
         });
@@ -400,6 +411,8 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasKey(e => e.Id).HasName("PK__Notifica__3214EC07029E1EDB");
 
             entity.ToTable("NotificationTargetRole");
+
+            entity.HasIndex(e => new { e.RoleId, e.NotificationId }, "IX_NotificationTargetRole_RoleId");
 
             entity.HasIndex(e => new { e.NotificationId, e.RoleId }, "UX_NotificationTargetRole_Notification_Role").IsUnique();
 
@@ -423,6 +436,7 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.CreatedAtUtc)
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.DismissedAtUtc).HasPrecision(0);
             entity.Property(e => e.ReadAtUtc).HasPrecision(0);
 
             entity.HasOne(d => d.Notification).WithMany(p => p.NotificationUsers).HasForeignKey(d => d.NotificationId);

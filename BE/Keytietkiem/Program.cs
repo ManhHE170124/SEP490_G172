@@ -127,6 +127,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
             ClockSkew = TimeSpan.Zero
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddRateLimiter(options =>
@@ -265,6 +280,5 @@ app.MapControllers();
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
 app.MapHub<SupportChatHub>("/hubs/support-chat");
-app.MapHub<NotificationHub>("/hubs/notifications");
-
+app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 app.Run();

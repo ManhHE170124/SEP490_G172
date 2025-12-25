@@ -42,6 +42,44 @@ function severityClass(sev) {
   }
 }
 
+function notificationTypeLabel(type) {
+  const v = String(type || "").trim();
+  if (!v) return "-";
+
+  const key = v.toLowerCase();
+  if (key === "manual") return "Thủ công";
+  if (key === "system") return "Hệ thống";
+
+  // fallback: giữ nguyên (dành cho các type tự động sau này)
+  return v;
+}
+
+const isLikelyAbsoluteUrl = (s) => /^https?:\/\//i.test(String(s || "").trim());
+const isLikelyRelativeUrl = (s) => /^\//.test(String(s || "").trim());
+
+const renderRelatedUrl = (url) => {
+  const v = String(url || "").trim();
+  if (!v) return "-";
+
+  if (isLikelyAbsoluteUrl(v)) {
+    return (
+      <a href={v} target="_blank" rel="noreferrer">
+        {v}
+      </a>
+    );
+  }
+
+  if (isLikelyRelativeUrl(v)) {
+    return (
+      <a href={v} target="_blank" rel="noreferrer">
+        {v}
+      </a>
+    );
+  }
+
+  return v;
+};
+
 const AdminNotificationsPage = () => {
   // Permission checks removed - now role-based on backend
   const hasCreatePermission = true;
@@ -71,6 +109,7 @@ const AdminNotificationsPage = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const [detailTab, setDetailTab] = useState("info");
 
   // Options dropdown user / role
   const [targetOptions, setTargetOptions] = useState({
@@ -177,6 +216,10 @@ const AdminNotificationsPage = () => {
 
   // Sort theo tiêu đề cột: click lần 1 ASC, lần 2 DESC
   const handleSortClick = (sortBy) => {
+    // Backend only supports these fields
+    const sortable = new Set(["CreatedAtUtc", "Title", "Severity"]);
+    if (!sortable.has(sortBy)) return;
+
     setFilters((prev) => {
       if (prev.sortBy === sortBy) {
         return { ...prev, sortDescending: !prev.sortDescending };
@@ -210,6 +253,7 @@ const AdminNotificationsPage = () => {
 
   const handleOpenDetail = async (id) => {
     setIsDetailModalOpen(true);
+    setDetailTab("info");
     setSelectedNotification(null);
     setDetailError("");
     setDetailLoading(true);
@@ -253,53 +297,33 @@ const AdminNotificationsPage = () => {
     });
   };
 
-  // Toggle chọn 1 role + sync với nút Gửi toàn hệ thống
+  // Toggle chọn 1 role
   const toggleRoleSelection = (roleId) => {
     setCreateForm((prev) => {
-      let selectedRoleIds;
-      if (prev.selectedRoleIds.includes(roleId)) {
-        selectedRoleIds = prev.selectedRoleIds.filter((id) => id !== roleId);
-      } else {
-        selectedRoleIds = [...prev.selectedRoleIds, roleId];
-      }
+      if (prev.isGlobal) return prev;
 
-      const allRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
-      const allSelected =
-        allRoleIds.length > 0 &&
-        allRoleIds.every((id) => selectedRoleIds.includes(id));
+      const exists = prev.selectedRoleIds.includes(roleId);
+      const selectedRoleIds = exists
+        ? prev.selectedRoleIds.filter((id) => id !== roleId)
+        : [...prev.selectedRoleIds, roleId];
 
-      return {
-        ...prev,
-        selectedRoleIds,
-        isGlobal: allSelected, // chọn đủ tất cả role thì auto bật Gửi toàn hệ thống
-      };
+      return { ...prev, selectedRoleIds };
     });
   };
+
 
   // Nút gạt Gửi toàn hệ thống
+  // Global đúng nghĩa: BE tự áp dụng cho tất cả user, FE KHÔNG gửi allUserIds/allRoleIds.
   const handleGlobalToggle = (checked) => {
-    setCreateForm((prev) => {
-      let selectedRoleIds = prev.selectedRoleIds;
-      let selectedUserIds = prev.selectedUserIds;
-
-      if (checked) {
-        // Bật: chọn tất cả user + tất cả role
-        selectedRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
-        selectedUserIds = (targetOptions.users || []).map((u) => u.userId);
-      } else {
-        // Tắt: bỏ hết cả user lẫn role
-        selectedRoleIds = [];
-        selectedUserIds = [];
-      }
-
-      return {
-        ...prev,
-        isGlobal: checked,
-        selectedRoleIds,
-        selectedUserIds,
-      };
-    });
+    setCreateForm((prev) => ({
+      ...prev,
+      isGlobal: checked,
+      // Khi bật global: clear selections (không dùng selections để tạo recipients)
+      selectedRoleIds: checked ? [] : prev.selectedRoleIds,
+      selectedUserIds: checked ? [] : prev.selectedUserIds,
+    }));
   };
+
 
   const validateCreateForm = () => {
     const errs = {};
@@ -316,23 +340,27 @@ const AdminNotificationsPage = () => {
       errs.message = "Nội dung tối đa 1000 ký tự.";
     }
 
-    // Nếu KHÔNG gửi toàn hệ thống thì bắt buộc phải chọn ít nhất 1 user
-    if (
-      !createForm.isGlobal &&
-      (!createForm.selectedUserIds ||
-        createForm.selectedUserIds.length === 0)
-    ) {
+    // Nếu KHÔNG gửi toàn hệ thống thì bắt buộc phải chọn ít nhất 1 user hoặc 1 role
+    const hasUsers =
+      Array.isArray(createForm.selectedUserIds) &&
+      createForm.selectedUserIds.length > 0;
+    const hasRoles =
+      Array.isArray(createForm.selectedRoleIds) &&
+      createForm.selectedRoleIds.length > 0;
+
+    if (!createForm.isGlobal && !hasUsers && !hasRoles) {
       errs.selectedUserIds =
-        "Vui lòng chọn ít nhất một người nhận (user) hoặc bật chế độ gửi toàn hệ thống.";
+        "Vui lòng chọn ít nhất một người nhận (user) hoặc một nhóm quyền (role), hoặc bật chế độ gửi toàn hệ thống.";
     }
+
 
     const sevNum = Number(createForm.severity);
     if (Number.isNaN(sevNum) || sevNum < 0 || sevNum > 3) {
       errs.severity = "Mức độ phải nằm trong khoảng từ 0 đến 3.";
     }
 
-    if (createForm.relatedUrl && createForm.relatedUrl.length > 500) {
-      errs.relatedUrl = "Đường dẫn liên quan quá dài (tối đa 500 ký tự).";
+    if (createForm.relatedUrl && createForm.relatedUrl.length > 1024) {
+      errs.relatedUrl = "Đường dẫn liên quan quá dài (tối đa 1024 ký tự).";
     }
 
     setCreateErrors(errs);
@@ -343,17 +371,21 @@ const AdminNotificationsPage = () => {
     e.preventDefault();
     if (!validateCreateForm()) return;
 
-    // Tập user nhận: nếu gửi toàn hệ thống -> toàn bộ user trong options
-    const allUserIds = (targetOptions.users || []).map((u) => u.userId);
+    // Recipients:
+    // - Global: BE tự áp dụng cho tất cả user => không gửi allUserIds/allRoleIds
+    // - Non-global: có thể gửi theo userIds và/hoặc roleIds (BE resolve union)
     const targetUserIds = createForm.isGlobal
-      ? allUserIds
-      : createForm.selectedUserIds;
+      ? null
+      : createForm.selectedUserIds && createForm.selectedUserIds.length > 0
+      ? createForm.selectedUserIds
+      : null;
 
-    // Tập role gửi: nếu gửi toàn hệ thống -> toàn bộ role trong options
-    const allRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
     const targetRoleIds = createForm.isGlobal
-      ? allRoleIds
-      : createForm.selectedRoleIds;
+      ? null
+      : createForm.selectedRoleIds && createForm.selectedRoleIds.length > 0
+      ? createForm.selectedRoleIds
+      : null;
+
 
     const payload = {
       title: createForm.title.trim(),
@@ -364,8 +396,7 @@ const AdminNotificationsPage = () => {
       relatedEntityId: null,
       relatedUrl: createForm.relatedUrl.trim() || null,
       targetUserIds: targetUserIds,
-      targetRoleIds:
-        targetRoleIds && targetRoleIds.length > 0 ? targetRoleIds : null,
+      targetRoleIds: targetRoleIds,
     };
 
     setCreateSubmitting(true);
@@ -549,28 +580,10 @@ const AdminNotificationsPage = () => {
                     Mức độ
                     {renderSortIndicator("Severity")}
                   </th>
-                  <th
-                    className="sortable"
-                    onClick={() => handleSortClick("IsSystemGenerated")}
-                  >
-                    Nguồn tạo
-                    {renderSortIndicator("IsSystemGenerated")}
-                  </th>
-                  <th
-                    className="sortable"
-                    onClick={() => handleSortClick("IsGlobal")}
-                  >
-                    Phạm vi
-                    {renderSortIndicator("IsGlobal")}
-                  </th>
-                  <th
-                    className="sortable"
-                    onClick={() => handleSortClick("TotalTargetUsers")}
-                  >
-                    Người nhận
-                    {renderSortIndicator("TotalTargetUsers")}
-                  </th>
-                  <th></th>
+                  <th>Nguồn tạo</th>
+                  <th>Phạm vi</th>
+                  <th>Người nhận</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -608,16 +621,57 @@ const AdminNotificationsPage = () => {
                     <td>{n.isGlobal ? "Toàn hệ thống" : "Người dùng cụ thể"}</td>
                     <td>
                       <span className="notif-targets">
-                        Người dùng: {n.totalTargetUsers} | Đã đọc: {n.readCount}
+                        {n.isGlobal ? (
+                          <>
+                            Tất cả người dùng | Đã đọc:{" "}
+                            {typeof n.readCount === "number" ? n.readCount : 0}
+                            {typeof n.totalTargetUsers === "number" &&
+                            n.totalTargetUsers > 0
+                              ? ` / ${n.totalTargetUsers}`
+                              : ""}
+                          </>
+                        ) : (
+                          <>
+                            Người dùng:{" "}
+                            {typeof n.totalTargetUsers === "number"
+                              ? n.totalTargetUsers
+                              : 0}
+                            {" "}| Đã đọc:{" "}
+                            {typeof n.readCount === "number" ? n.readCount : 0}
+                          </>
+                        )}
                       </span>
                     </td>
                     <td className="notif-actions-cell">
                       <button
                         type="button"
-                        className="btn btn-link"
+                        className="notif-icon-btn"
                         onClick={() => handleOpenDetail(n.id)}
+                        aria-label="Xem chi tiết"
+                        title="Xem chi tiết"
                       >
-                        Chi tiết
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </button>
                     </td>
                   </tr>
@@ -775,8 +829,9 @@ const AdminNotificationsPage = () => {
                           Áp dụng cho người dùng
                         </span>
                         <span className="notif-dropdown-count">
-                          ({createForm.selectedUserIds.length}/
-                          {targetOptions.users.length} đã chọn)
+                          {createForm.isGlobal
+                            ? "(Tất cả)"
+                            : `(${createForm.selectedUserIds.length}/${targetOptions.users.length} đã chọn)`}
                         </span>
                       </div>
                       <span
@@ -823,6 +878,7 @@ const AdminNotificationsPage = () => {
                                   <input
                                     type="checkbox"
                                     checked={selected}
+                                    disabled={createForm.isGlobal}
                                     onChange={() =>
                                       toggleUserSelection(u.userId)
                                     }
@@ -865,8 +921,9 @@ const AdminNotificationsPage = () => {
                           Áp dụng cho nhóm quyền
                         </span>
                         <span className="notif-dropdown-count">
-                          ({createForm.selectedRoleIds.length}/
-                          {targetOptions.roles.length} đã chọn)
+                          {createForm.isGlobal
+                            ? "(Tất cả)"
+                            : `(${createForm.selectedRoleIds.length}/${targetOptions.roles.length} đã chọn)`}
                         </span>
                       </div>
                       <span
@@ -901,6 +958,7 @@ const AdminNotificationsPage = () => {
                                   <input
                                     type="checkbox"
                                     checked={selected}
+                                    disabled={createForm.isGlobal}
                                     onChange={() =>
                                       toggleRoleSelection(r.roleId)
                                     }
@@ -922,6 +980,14 @@ const AdminNotificationsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {createForm.isGlobal && (
+                <div className="notif-help">
+                  Đang bật <b>Toàn hệ thống</b>: danh sách người dùng/nhóm quyền
+                  chỉ dùng để tham khảo và hệ thống sẽ tự áp dụng cho tất cả
+                  user.
+                </div>
+              )}
 
               {/* HÀNG 3: Đường dẫn liên quan – hàng cuối */}
               <div className="notif-form-group">
@@ -998,6 +1064,29 @@ const AdminNotificationsPage = () => {
               )}
               {!detailLoading && !detailError && selectedNotification && (
                 <>
+                  <div className="notif-detail-tabs">
+                    <button
+                      type="button"
+                      className={
+                        "notif-detail-tab" + (detailTab === "info" ? " active" : "")
+                      }
+                      onClick={() => setDetailTab("info")}
+                    >
+                      Thông tin
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        "notif-detail-tab" + (detailTab === "tech" ? " active" : "")
+                      }
+                      onClick={() => setDetailTab("tech")}
+                    >
+                      Kỹ thuật
+                    </button>
+                  </div>
+
+                  {detailTab === "info" ? (
+                    <>
                   {/* Lưới 2 cột cho thông tin meta */}
                   <div className="notif-detail-grid">
                     <div className="detail-row">
@@ -1048,7 +1137,7 @@ const AdminNotificationsPage = () => {
                         Đường dẫn liên quan:
                       </span>
                       <span className="detail-value">
-                        {selectedNotification.relatedUrl || "-"}
+                        {renderRelatedUrl(selectedNotification.relatedUrl)}
                       </span>
                     </div>
                   </div>
@@ -1097,10 +1186,10 @@ const AdminNotificationsPage = () => {
                           </thead>
                           <tbody>
                             {recipients.map((r, idx) => (
-                              <tr key={idx}>
+                              <tr key={r.userId || idx}>
                                 <td>{r.fullName || "(Chưa có tên)"}</td>
                                 <td>{r.email}</td>
-                                <td>{r.roleName || "-"}</td>
+                                <td>{r.roleNames || "-"}</td>
                                 <td>
                                   {r.isRead ? (
                                     <span className="recipient-status-read">
@@ -1144,6 +1233,80 @@ const AdminNotificationsPage = () => {
                       )}
                     </div>
                   </div>
+                    </>
+                  ) : (
+                    <>
+                      {(selectedNotification.type ||
+                        selectedNotification.correlationId ||
+                        selectedNotification.dedupKey ||
+                        selectedNotification.expiresAtUtc ||
+                        selectedNotification.archivedAtUtc ||
+                        selectedNotification.payloadJson) ? (
+                  <div className="notif-tech-panel">
+                    <div className="notif-tech-grid">
+                      <div className="tech-row">
+                        <span className="tech-label">Loại thông báo:</span>
+                        <span className="tech-value">
+                          {notificationTypeLabel(selectedNotification.type)}
+                        </span>
+                      </div>
+
+                      <div className="tech-row">
+                        <span className="tech-label">Mã truy vết:</span>
+                        <span className="tech-value tech-mono">
+                          {selectedNotification.correlationId || "-"}
+                        </span>
+                      </div>
+
+                      <div className="tech-row">
+                        <span className="tech-label">Khóa chống trùng:</span>
+                        <span className="tech-value tech-mono">
+                          {selectedNotification.dedupKey || "-"}
+                        </span>
+                      </div>
+
+                      <div className="tech-row">
+                        <span className="tech-label">Thời điểm hết hạn:</span>
+                        <span className="tech-value">
+                          {selectedNotification.expiresAtUtc
+                            ? new Date(
+                                selectedNotification.expiresAtUtc
+                              ).toLocaleString("vi-VN")
+                            : "-"}
+                        </span>
+                      </div>
+
+                      <div className="tech-row">
+                        <span className="tech-label">Thời điểm lưu trữ:</span>
+                        <span className="tech-value">
+                          {selectedNotification.archivedAtUtc
+                            ? new Date(
+                                selectedNotification.archivedAtUtc
+                              ).toLocaleString("vi-VN")
+                            : "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {selectedNotification.payloadJson ? (
+                      <details className="notif-tech-payload">
+                        <summary>Dữ liệu đính kèm</summary>
+                        <pre className="tech-json">
+                          {selectedNotification.payloadJson}
+                        </pre>
+                      </details>
+                    ) : (
+                      <div className="notif-empty-inline">
+                        Không có dữ liệu đính kèm.
+                      </div>
+                    )}
+                  </div>
+                      ) : (
+                        <div className="notif-empty-inline">Không có thông tin kỹ thuật.</div>
+                      )}
+                    </>
+                  )}
+
                 </>
               )}
             </div>
