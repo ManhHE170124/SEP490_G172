@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
@@ -45,7 +46,6 @@ builder.Services.AddHttpClient<PayOSService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ===== Services =====
-builder.Services.AddHttpClient<ISendPulseService, SendPulseService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
@@ -64,7 +64,16 @@ builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
+{
+    var opt = sp.GetRequiredService<IOptions<SendPulseConfig>>().Value;
 
+    if (string.IsNullOrWhiteSpace(opt.BaseUrl))
+        throw new InvalidOperationException("SendPulse:BaseUrl is missing");
+
+    http.BaseAddress = new Uri(opt.BaseUrl.TrimEnd('/') + "/");
+    http.Timeout = TimeSpan.FromSeconds(20); // tránh treo lâu khi SendPulse chậm
+});
 
 
 // Clock (mockable for tests) – dùng luôn block này
