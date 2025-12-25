@@ -6,10 +6,14 @@
 import axios from "axios";
 import qs from "qs";
 
+const isBrowser = typeof window !== "undefined";
+
 const baseURL =
   process.env.REACT_APP_API_URL // CRA
   || import.meta.env?.VITE_API_BASE_URL // Vite
-  || "https://localhost:7292/api";
+  || (isBrowser
+      ? `${window.location.origin}/api`   // ✅ production: same-origin
+      : "https://localhost:7292/api");   // fallback khi build/SSR (hiếm)
 
 console.log("[axiosClient] baseURL =", baseURL);
 
