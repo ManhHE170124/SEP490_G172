@@ -8,12 +8,20 @@ import qs from "qs";
 
 const isBrowser = typeof window !== "undefined";
 
-const baseURL =
+const envBase =
   process.env.REACT_APP_API_URL // CRA
-  || import.meta.env?.VITE_API_BASE_URL // Vite
-  || (isBrowser
-      ? `${window.location.origin}/api`   // ✅ production: same-origin
-      : "https://localhost:7292/api");   // fallback khi build/SSR (hiếm)
+  || import.meta.env?.VITE_API_BASE_URL; // Vite
+
+// Auto detect when env is not set:
+// - Local FE (localhost:3000) => use local BE https://localhost:7292/api
+// - Production (keytietkiem.com or IP) => use same-origin /api
+const autoBase = isBrowser
+  ? ((window.location.hostname === "localhost")
+      ? "https://localhost:7292/api"
+      : `${window.location.origin}/api`)
+  : "https://localhost:7292/api";
+
+const baseURL = envBase || autoBase;
 
 console.log("[axiosClient] baseURL =", baseURL);
 
