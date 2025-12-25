@@ -35,6 +35,7 @@ builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
+builder.Services.Configure<SendPulseConfig>(builder.Configuration.GetSection("SendPulse"));
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
@@ -44,6 +45,7 @@ builder.Services.AddHttpClient<PayOSService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ===== Services =====
+builder.Services.AddHttpClient<ISendPulseService, SendPulseService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
@@ -61,6 +63,9 @@ builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService
 builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
+builder.Services.AddScoped<IBannerService, BannerService>();
+
+
 
 // Clock (mockable for tests) – dùng luôn block này
 builder.Services.AddSingleton<IClock, SystemClock>();                                         // ✅ chỉ 1 lần
@@ -195,8 +200,13 @@ builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 // ✅ Job thống kê support hằng ngày
 //builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
+
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
+
+// ✅ Job cập nhật trạng thái hết hạn cho ProductAccount và ProductKey (mỗi 6h)
+builder.Services.AddSingleton<IBackgroundJob, ExpiryStatusUpdateJob>();
+
 
 // Scheduler nhận IEnumerable<IBackgroundJob> và chạy từng job theo Interval
 builder.Services.AddHostedService<BackgroundJobScheduler>();

@@ -159,51 +159,88 @@ const Sidebar = () => {
           ),
         },
 
-        // === Đơn hàng & thanh toán ===
-        {
-          id: "orders-admin",
-          label: "Đơn hàng & thanh toán",
-          to: "/admin/orders",
-          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
-          // currentPage ở trên lấy bằng location.pathname.substring(1)
-          // nên path "/admin/orders" => currentPage === "admin/orders"
-          isActive:
-            currentPage === "admin/orders" ||
-            currentPage === "admin/payments",
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none">
-              <rect
-                x="3"
-                y="4"
-                width="18"
-                height="16"
-                rx="2"
-                ry="2"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <path
-                d="M3 9h18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <path
-                d="M8 13h4M8 17h3"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <circle
-                cx="17"
-                cy="15"
-                r="2"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-            </svg>
-          ),
-        },
+// === Danh sách đơn hàng ===
+{
+  id: "orders-admin-list",
+  label: "Danh sách đơn hàng",
+  to: "/admin/orders",
+  allowedRoles: [ROLE_ADMIN],
+  isActive:
+    currentPage === "admin/orders" ||
+    currentPage.startsWith("admin/orders/"),
+  icon: (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="200"
+      height="200"
+      viewBox="0 0 32 32"
+    >
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="2"
+        ry="2"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+      />
+      <path
+        d="M3 9h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 13h4M8 17h3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
+},
+
+// === Danh sách giao dịch ===
+{
+  id: "payments-admin",
+  label: "Danh sách giao dịch",
+  to: "/admin/payments",
+  allowedRoles: [ROLE_ADMIN],
+  isActive: currentPage === "admin/payments",
+  icon: (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="200"
+      height="200"
+      viewBox="0 0 32 32"
+    >
+      <rect
+        x="2"
+        y="5"
+        width="20"
+        height="14"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+      />
+      <path
+        d="M2 10h20"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 15h4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
+},
 
         {
           id: "faqs",
@@ -257,44 +294,44 @@ const Sidebar = () => {
             </svg>
           ),
         },
-        {
-          id: "role-assign",
-          label: "Phân công vai trò",
-          to: "/role-assign",
-          allowedRoles: [ROLE_ADMIN],
-          isActive: currentPage === "role-assign",
-          icon: (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="200"
-              height="200"
-              viewBox="0 0 48 48"
-            >
-              <g
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="4"
-              >
-                <path
-                  strokeLinejoin="round"
-                  d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
-                />
-                <path d="M10 23h8m-8 8h24" />
-                <circle
-                  cx="34"
-                  cy="16"
-                  r="6"
-                  strokeLinejoin="round"
-                />
-                <path
-                  strokeLinejoin="round"
-                  d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
-                />
-              </g>
-            </svg>
-          ),
-        },
+        // {
+        //   id: "role-assign",
+        //   label: "Phân công vai trò",
+        //   to: "/role-assign",
+        //   allowedRoles: [ROLE_ADMIN],
+        //   isActive: currentPage === "role-assign",
+        //   icon: (
+        //     <svg
+        //       xmlns="http://www.w3.org/2000/svg"
+        //       width="200"
+        //       height="200"
+        //       viewBox="0 0 48 48"
+        //     >
+        //       <g
+        //         fill="none"
+        //         stroke="currentColor"
+        //         strokeLinecap="round"
+        //         strokeWidth="4"
+        //       >
+        //         <path
+        //           strokeLinejoin="round"
+        //           d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
+        //         />
+        //         <path d="M10 23h8m-8 8h24" />
+        //         <circle
+        //           cx="34"
+        //           cy="16"
+        //           r="6"
+        //           strokeLinejoin="round"
+        //         />
+        //         <path
+        //           strokeLinejoin="round"
+        //           d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
+        //         />
+        //       </g>
+        //     </svg>
+        //   ),
+        // },
       ],
     },
     {

@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import ImageUploader from "../../components/ImageUploader/ImageUploader";
 import profileService from "../../services/profile";
 import { orderApi } from "../../services/orderApi";
+import { paymentApi } from "../../services/paymentApi";
 import "./UserProfilePage.css";
 
 const SECTION_ITEMS = [
   { id: "profile-overview", label: "Tổng quan" },
   { id: "profile-orders", label: "Lịch sử đơn hàng" },
-  // { id: "profile-transactions", label: "Lịch sử giao dịch" },
+  { id: "profile-transactions", label: "Lịch sử giao dịch" },
   { id: "profile-security", label: "Mật khẩu & Bảo mật" },
   { id: "profile-details", label: "Cập nhật thông tin" },
 ];
@@ -21,7 +22,15 @@ const INITIAL_ORDER_FILTERS = {
   maxAmount: "",
   status: "all",
 };
-const INITIAL_TRANSACTION_FILTERS = { keyword: "", fromDate: "", toDate: "" };
+const INITIAL_TRANSACTION_FILTERS = {
+  keyword: "",
+  fromDate: "",
+  toDate: "",
+  status: "",
+  type: "",
+  minAmount: "",
+  maxAmount: "",
+};
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -102,6 +111,134 @@ const getStatusLabel = (status = "") => {
   return "Đã hủy";
 };
 
+// Helper functions for transaction/payment history
+const formatVnd = (n) => {
+  const num = Number(n || 0);
+  return new Intl.NumberFormat("vi-VN").format(num) + " đ";
+};
+
+const normalizeText = (v) => String(v ?? "").trim();
+
+const getPaymentId = (p) => p?.paymentId ?? p?.PaymentId ?? p?.id ?? p?.Id ?? "";
+const getPaymentCreatedAt = (p) =>
+  p?.createdAt ?? p?.CreatedAt ?? p?.createdTime ?? p?.createdDate ?? p?.createdOn ?? null;
+const getPaymentAmount = (p) => p?.amount ?? p?.Amount ?? p?.totalAmount ?? p?.paidAmount ?? 0;
+const getPaymentStatus = (p) => p?.status ?? p?.Status ?? p?.paymentStatus ?? p?.PaymentStatus ?? "Unknown";
+
+const getTargetType = (p) => {
+  const t =
+    p?.transactionType ??
+    p?.TransactionType ??
+    p?.targetType ??
+    p?.TargetType ??
+    p?.paymentTarget ??
+    p?.target ??
+    p?.purpose ??
+    p?.type ??
+    "";
+  const tt = normalizeText(t);
+  if (tt) return tt;
+
+  if (p?.orderId || p?.OrderId) return "Order";
+  if (p?.supportPlanId || p?.supportSubscriptionId || p?.subscriptionId) return "SupportPlan";
+  return "Unknown";
+};
+
+const mapTargetToUi = (t) => {
+  const v = normalizeText(t).toLowerCase();
+  if (v === "order" || v === "donhang" || v === "đơn hàng") {
+    return { label: "Đơn hàng", cls: "type-order", value: "Order" };
+  }
+  if (
+    v === "supportplan" ||
+    v === "plan" ||
+    v === "subscription" ||
+    v === "support" ||
+    v === "goiho tro" ||
+    v === "gói hỗ trợ"
+  ) {
+    return { label: "Gói hỗ trợ", cls: "type-support", value: "SupportPlan" };
+  }
+  return { label: "Không rõ", cls: "payment-unknown", value: "Unknown" };
+};
+
+const mapPaymentStatusToUi = (s) => {
+  const v = normalizeText(s).toLowerCase();
+
+  if (v === "pending") return { label: "Chờ thanh toán", cls: "payment-pending", value: "Pending" };
+  if (v === "paid" || v === "success" || v === "completed")
+    return { label: "Đã thanh toán", cls: "payment-paid", value: "Paid" };
+
+  if (v === "cancelledbytimeout" || v === "timeout")
+    return { label: "Hủy do quá hạn", cls: "payment-timeout", value: "CancelledByTimeout" };
+
+  if (v === "cancelled") return { label: "Đã hủy", cls: "payment-cancelled", value: "Cancelled" };
+  if (v === "failed") return { label: "Thất bại", cls: "payment-failed", value: "Failed" };
+  if (v === "refunded") return { label: "Đã hoàn tiền", cls: "payment-refunded", value: "Refunded" };
+
+  return { label: "Không rõ", cls: "payment-unknown", value: "Unknown" };
+};
+
+const fmtDateTime = (d) => {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(dt);
+};
+
+// Icon components for transaction history
+const Ico = {
+  Filter: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 13.5V20a1 1 0 0 1-1.447.894l-3-1.5A1 1 0 0 1 9 18.5v-5L3.2 5.6A1 1 0 0 1 3 5z"
+      />
+    </svg>
+  ),
+  Refresh: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M20 12a8 8 0 0 1-14.314 4.906l-1.43 1.43A1 1 0 0 1 2.5 17.5V13a1 1 0 0 1 1-1H8a1 1 0 0 1 .707 1.707L7.19 15.224A6 6 0 1 0 6 12a1 1 0 1 1-2 0 8 8 0 1 1 16 0z"
+      />
+    </svg>
+  ),
+  Eye: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M12 5c5.5 0 9.5 4.5 10.8 6.2a1.5 1.5 0 0 1 0 1.6C21.5 14.5 17.5 19 12 19S2.5 14.5 1.2 12.8a1.5 1.5 0 0 1 0-1.6C2.5 9.5 6.5 5 12 5zm0 2c-4.2 0-7.6 3.4-8.7 5 1.1 1.6 4.5 5 8.7 5s7.6-3.4 8.7-5c-1.1-1.6-4.5-5-8.7-5zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"
+      />
+    </svg>
+  ),
+  X: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M18.3 5.7a1 1 0 0 1 0 1.4L13.4 12l4.9 4.9a1 1 0 1 1-1.4 1.4L12 13.4l-4.9 4.9a1 1 0 0 1-1.4-1.4l4.9-4.9-4.9-4.9a1 1 0 0 1 1.4-1.4l4.9 4.9 4.9-4.9a1 1 0 0 1 1.4 0z"
+      />
+    </svg>
+  ),
+  Up: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path fill="currentColor" d="M12 8l6 6H6l6-6z" />
+    </svg>
+  ),
+  Down: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path fill="currentColor" d="M12 16l-6-6h12l-6 6z" />
+    </svg>
+  ),
+};
+
 const InlineNotice = ({ notice }) => {
   if (!notice?.message) return null;
   return (
@@ -166,13 +303,19 @@ const UserProfilePage = () => {
 
   const [orderFilters, setOrderFilters] = useState(INITIAL_ORDER_FILTERS);
   const [orderKeywordInput, setOrderKeywordInput] = useState(""); // Input value (chưa debounce)
-  const [transactionFilters, setTransactionFilters] = useState(
-    INITIAL_TRANSACTION_FILTERS
-  );
   const [orderPage, setOrderPage] = useState(1);
   const [orderTotalPages, setOrderTotalPages] = useState(1);
-  const [orderSortBy, setOrderSortBy] = useState(null); // null = không sort (TH1)
-  const [orderSortDir, setOrderSortDir] = useState(null);
+  const [orderSortBy, setOrderSortBy] = useState("createdAt"); // Mặc định sort theo ngày tạo
+  const [orderSortDir, setOrderSortDir] = useState("desc"); // Mặc định giảm dần (mới nhất trước)
+
+  // Transaction history state
+  const [transactionFilters, setTransactionFilters] = useState(INITIAL_TRANSACTION_FILTERS);
+  const [transactionKeywordInput, setTransactionKeywordInput] = useState(""); // Input value (chưa debounce)
+  const [transactionSortBy, setTransactionSortBy] = useState("createdAt"); // null = không sort (TH1)
+  const [transactionSortDir, setTransactionSortDir] = useState("desc");
+  const [transactionPage, setTransactionPage] = useState(1);
+  const [transactionItems, setTransactionItems] = useState([]);
+  const [transactionTotal, setTransactionTotal] = useState(0);
 
   const [activeSection, setActiveSection] = useState(SECTION_ITEMS[0].id);
 
@@ -385,29 +528,35 @@ const UserProfilePage = () => {
     orderPage,
   ]);
 
-  const fetchTransactions = useCallback(
-    async (filters = INITIAL_TRANSACTION_FILTERS) => {
-      setTransactionLoading(true);
+  const fetchTransactions = useCallback(async () => {
       setTransactionError("");
-      try {
-        const response = await profileService.getTransactions({
-          ...sanitizeFilters(filters),
-          page: 1,
-          pageSize: 5,
-        });
-        setTransactions(extractList(response));
-      } catch (error) {
-        const message =
-          error?.response?.data?.message ||
-          error?.message ||
-          "Không thể tải lịch sử giao dịch.";
-        setTransactionError(message);
+    setTransactionLoading(true);
+    try {
+      const params = {
+        search: transactionFilters.keyword || undefined,
+        createdFrom: transactionFilters.fromDate || undefined,
+        createdTo: transactionFilters.toDate || undefined,
+        paymentStatus: transactionFilters.status || undefined,
+        transactionType: transactionFilters.type || undefined,
+        amountFrom: transactionFilters.minAmount || undefined,
+        amountTo: transactionFilters.maxAmount || undefined,
+        sortBy: transactionSortBy || "createdAt",
+        sortDir: transactionSortDir || "desc",
+        pageIndex: transactionPage,
+        pageSize: 10,
+      };
+
+      const paged = await paymentApi.listCustomerPaged(params);
+      setTransactionItems(Array.isArray(paged.items) ? paged.items : []);
+      setTransactionTotal(Number(paged.totalItems || 0));
+    } catch (e) {
+      setTransactionItems([]);
+      setTransactionTotal(0);
+      setTransactionError(e?.message || "Không tải được danh sách giao dịch.");
       } finally {
         setTransactionLoading(false);
       }
-    },
-    []
-  );
+  }, [transactionFilters, transactionSortBy, transactionSortDir, transactionPage]);
 
   useEffect(() => {
     loadProfile();
@@ -435,9 +584,10 @@ const UserProfilePage = () => {
     return () => clearTimeout(timer);
   }, [orderKeywordInput]);
 
-  // useEffect(() => {
-  //   fetchTransactions(INITIAL_TRANSACTION_FILTERS);
-  // }, [fetchTransactions]);
+  // Load transactions when filters/sort/page change
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -503,10 +653,6 @@ const UserProfilePage = () => {
     }
   };
 
-  const handleTransactionFilterChange = (event) => {
-    const { name, value } = event.target;
-    setTransactionFilters((prev) => ({ ...prev, [name]: value }));
-  };
 
   const handleProfileSubmit = async (event) => {
     event.preventDefault();
@@ -648,8 +794,74 @@ const UserProfilePage = () => {
   };
 
   // Không cần handleApplyOrderFilters vì useEffect đã tự động xử lý
-  const handleApplyTransactionFilters = () =>
-    fetchTransactions(transactionFilters);
+  // Transaction filter handlers
+  const handleTransactionFilterChange = (event) => {
+    const { name, value } = event.target;
+    if (name === "keyword") {
+      // Keyword được xử lý riêng với debounce
+      setTransactionKeywordInput(value);
+    } else {
+      setTransactionFilters((prev) => ({ ...prev, [name]: value }));
+      // Reset về trang 1 khi thay đổi filter
+      setTransactionPage(1);
+    }
+  };
+
+  const handleTransactionSort = (columnKey) => {
+    if (transactionSortBy !== columnKey) {
+      // Click vào cột khác: bắt đầu với DESC (TH2)
+      setTransactionSortBy(columnKey);
+      setTransactionSortDir("desc");
+    } else {
+      // Click vào cột đang sort: chuyển trạng thái
+      if (transactionSortDir === "desc") {
+        // TH2 -> TH3 (ASC)
+        setTransactionSortDir("asc");
+      } else if (transactionSortDir === "asc") {
+        // TH3 -> TH1 (không sort)
+        setTransactionSortBy(null);
+        setTransactionSortDir(null);
+      } else {
+        // TH1 -> TH2 (DESC) - trường hợp này không nên xảy ra nhưng để an toàn
+        setTransactionSortBy(columnKey);
+        setTransactionSortDir("desc");
+      }
+    }
+    // Reset về trang 1 khi thay đổi sort
+    setTransactionPage(1);
+  };
+
+  const handleTransactionPageChange = useCallback((nextPage) => {
+    const totalPages = Math.max(1, Math.ceil((transactionTotal || 0) / 10));
+    if (nextPage < 1 || nextPage > totalPages) return;
+    setTransactionPage(nextPage);
+  }, [transactionTotal]);
+
+  const transactionTotalPages = useMemo(
+    () => Math.max(1, Math.ceil((transactionTotal || 0) / 10)),
+    [transactionTotal]
+  );
+
+  const TRANSACTION_STATUS_OPTIONS = useMemo(
+    () => [
+      { value: "", label: "Tất cả trạng thái" },
+      { value: "Paid", label: "Đã thanh toán" },
+      { value: "Cancelled", label: "Đã hủy" },
+      { value: "Timeout", label: "Hủy do quá hạn" },
+      { value: "Refunded", label: "Đã hoàn tiền" },
+      { value: "Failed", label: "Thất bại" },
+    ],
+    []
+  );
+
+  const TRANSACTION_TYPE_OPTIONS = useMemo(
+    () => [
+      { value: "", label: "Tất cả loại" },
+      { value: "Order", label: "Đơn hàng" },
+      { value: "SupportPlan", label: "Gói hỗ trợ" },
+    ],
+    []
+  );
 
   const orderCount =
     profile?.stats?.orderCount ?? profile?.ordersCount ?? (orders?.length || 0);
@@ -1215,87 +1427,305 @@ const UserProfilePage = () => {
               </div>
             </section>
 
-            {/* <section id="profile-transactions" className="profile-card">
+            <section id="profile-transactions" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Lịch sử giao dịch</h3>
               <div className="profile-hint" style={{ marginBottom: 12 }}>
-                Hiển thị tất cả giao dịch bạn đã thực hiện.
+                Hiển thị tất cả giao dịch thanh toán bạn đã thực hiện.
               </div>
 
-              <div className="profile-transactions-filter">
-                <input
-                  className="profile-input"
-                  name="keyword"
-                  placeholder="Mô tả"
-                  value={transactionFilters.keyword}
-                  onChange={handleTransactionFilterChange}
-                />
-                <input
-                  className="profile-input"
-                  type="date"
-                  name="fromDate"
-                  placeholder="Từ ngày"
-                  value={transactionFilters.fromDate}
-                  onChange={handleTransactionFilterChange}
-                />
-                <input
-                  className="profile-input"
-                  type="date"
-                  name="toDate"
-                  placeholder="Đến ngày"
-                  value={transactionFilters.toDate}
-                  onChange={handleTransactionFilterChange}
-                />
-                <button
-                  type="button"
-                  className="profile-btn"
-                  onClick={handleApplyTransactionFilters}
-                >
-                  Lọc
-                </button>
-              </div> */}
+              {/* Transaction Filters */}
+              <div className="profile-orders-filter-container">
+                {/* Hàng 1: Tìm kiếm theo mã thanh toán, Từ ngày, Đến ngày */}
+                <div className="profile-orders-filter-row">
+                  <div className="profile-filter-group profile-filter-group--wide">
+                    <label className="profile-label" htmlFor="transactionKeyword">
+                      Tìm kiếm theo mã thanh toán
+                    </label>
+                    <input
+                      id="transactionKeyword"
+                      className="profile-input"
+                      name="keyword"
+                      placeholder="VD: mã thanh toán..."
+                      value={transactionKeywordInput}
+                      onChange={handleTransactionFilterChange}
+                    />
+                  </div>
 
-              {/* <div className="profile-table-wrapper">
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="transactionFromDate">
+                      Từ ngày
+                    </label>
+                    <input
+                      id="transactionFromDate"
+                      className="profile-input"
+                      type="date"
+                      name="fromDate"
+                      value={transactionFilters.fromDate}
+                      onChange={handleTransactionFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group">
+                    <label className="profile-label" htmlFor="transactionToDate">
+                      Đến ngày
+                    </label>
+                    <input
+                      id="transactionToDate"
+                      className="profile-input"
+                      type="date"
+                      name="toDate"
+                      value={transactionFilters.toDate}
+                      onChange={handleTransactionFilterChange}
+                    />
+                  </div>
+                </div>
+
+                {/* Hàng 2: Số tiền từ, Số tiền đến, Trạng thái, Loại thanh toán, nút Đặt lại */}
+                <div className="profile-orders-filter-row">
+                  <div className="profile-filter-group" style={{ flex: "0 0 140px" }}>
+                    <label className="profile-label" htmlFor="transactionMinAmount">
+                      Số tiền từ
+                    </label>
+                    <input
+                      id="transactionMinAmount"
+                      className="profile-input"
+                      type="number"
+                      name="minAmount"
+                      placeholder="Tối thiểu"
+                      value={transactionFilters.minAmount}
+                      onChange={handleTransactionFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group" style={{ flex: "0 0 140px" }}>
+                    <label className="profile-label" htmlFor="transactionMaxAmount">
+                      Số tiền đến
+                    </label>
+                    <input
+                      id="transactionMaxAmount"
+                      className="profile-input"
+                      type="number"
+                      name="maxAmount"
+                      placeholder="Tối đa"
+                      value={transactionFilters.maxAmount}
+                      onChange={handleTransactionFilterChange}
+                    />
+                  </div>
+
+                  <div className="profile-filter-group" style={{ flex: "0 0 160px" }}>
+                    <label className="profile-label" htmlFor="transactionStatus">
+                      Trạng thái
+                    </label>
+                    <select
+                      id="transactionStatus"
+                      className="profile-input"
+                      name="status"
+                      value={transactionFilters.status}
+                      onChange={handleTransactionFilterChange}
+                    >
+                      {TRANSACTION_STATUS_OPTIONS.map((o) => (
+                        <option key={o.value || "all"} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="profile-filter-group" style={{ flex: "0 0 160px" }}>
+                    <label className="profile-label" htmlFor="transactionType">
+                      Loại thanh toán
+                    </label>
+                    <select
+                      id="transactionType"
+                      className="profile-input"
+                      name="type"
+                      value={transactionFilters.type}
+                      onChange={handleTransactionFilterChange}
+                    >
+                      {TRANSACTION_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value || "all"} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="profile-filter-actions">
+                    <button
+                      type="button"
+                      className="profile-btn"
+                      disabled={transactionLoading}
+                      onClick={() => {
+                        setTransactionFilters(INITIAL_TRANSACTION_FILTERS);
+                        setTransactionKeywordInput("");
+                        setTransactionPage(1);
+                        setTransactionSortBy(null); // TH1: không sort
+                        setTransactionSortDir(null);
+                      }}
+                    >
+                      Đặt lại
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transaction Table */}
+              <div className="profile-table-wrapper">
                 <table className="profile-table" aria-label="Lịch sử giao dịch">
                   <thead>
                     <tr>
-                      <th>Thời gian</th>
-                      <th>Mô tả</th>
-                      <th>Số tiền</th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleTransactionSort("createdAt")}
+                          onKeyDown={(e) => e.key === "Enter" && handleTransactionSort("createdAt")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Ngày tạo
+                          {transactionSortBy === "createdAt" && transactionSortDir &&
+                            (transactionSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleTransactionSort("paymentId")}
+                          onKeyDown={(e) => e.key === "Enter" && handleTransactionSort("paymentId")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Mã thanh toán
+                          {transactionSortBy === "paymentId" && transactionSortDir &&
+                            (transactionSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleTransactionSort("transactionType")}
+                          onKeyDown={(e) => e.key === "Enter" && handleTransactionSort("transactionType")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Loại thanh toán
+                          {transactionSortBy === "transactionType" && transactionSortDir &&
+                            (transactionSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleTransactionSort("amount")}
+                          onKeyDown={(e) => e.key === "Enter" && handleTransactionSort("amount")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Số tiền
+                          {transactionSortBy === "amount" && transactionSortDir &&
+                            (transactionSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
+                      <th>
+                        <div
+                          className="profile-table-sorter"
+                          onClick={() => handleTransactionSort("status")}
+                          onKeyDown={(e) => e.key === "Enter" && handleTransactionSort("status")}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          Trạng thái
+                          {transactionSortBy === "status" && transactionSortDir &&
+                            (transactionSortDir === "asc" ? " ↑" : " ↓")}
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {transactionLoading ? (
                       <tr>
-                        <td colSpan={3} className="profile-empty">
+                        <td colSpan={5} className="profile-empty">
                           Đang tải giao dịch...
                         </td>
                       </tr>
                     ) : transactionError ? (
                       <tr>
-                        <td colSpan={3} className="profile-empty">
+                        <td colSpan={5} className="profile-empty">
                           {transactionError}{" "}
                           <button
                             type="button"
                             className="profile-btn"
-                            onClick={handleApplyTransactionFilters}
+                            onClick={() => fetchTransactions()}
                           >
                             Thử lại
                           </button>
                         </td>
                       </tr>
-                    ) : transactions?.length ? (
-                      transactionRows
+                    ) : transactionItems?.length ? (
+                      transactionItems.map((p) => {
+                        const pid = getPaymentId(p);
+                        const created = getPaymentCreatedAt(p);
+                        const amount = getPaymentAmount(p);
+                        const statusUi = mapPaymentStatusToUi(getPaymentStatus(p));
+                        const typeUi = mapTargetToUi(getTargetType(p));
+
+                        return (
+                          <tr key={pid || JSON.stringify(p)}>
+                            <td style={{ fontWeight: 600 }}>{fmtDateTime(created)}</td>
+                            <td>
+                              <span title={pid}>{pid || "—"}</span>
+                            </td>
+                            <td>
+                              <span className={`profile-pill ${typeUi.cls}`}>{typeUi.label}</span>
+                            </td>
+                            <td style={{ fontWeight: 700 }}>{formatVnd(amount)}</td>
+                            <td>
+                              <span className={`profile-pill ${statusUi.cls}`}>{statusUi.label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan={3} className="profile-empty">
+                        <td colSpan={5} className="profile-empty">
                           Bạn chưa có giao dịch nào.
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
-              </div> */}
-            {/* </section> */}
+              </div>
+
+              {/* Pagination */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px" }}>
+                <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                  {transactionLoading
+                    ? "Đang tải..."
+                    : `Tổng: ${transactionTotal} • Trang ${transactionPage}/${transactionTotalPages}`}
+                </div>
+                <div className="profile-pagination" style={{ margin: 0 }}>
+                  <button
+                    type="button"
+                    className="profile-btn"
+                    disabled={transactionPage <= 1 || transactionLoading}
+                    onClick={() => handleTransactionPageChange(transactionPage - 1)}
+                  >
+                    Trang trước
+                  </button>
+                  <span className="profile-hint">
+                    Trang {transactionPage} / {transactionTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="profile-btn"
+                    disabled={transactionPage >= transactionTotalPages || transactionLoading}
+                    onClick={() => handleTransactionPageChange(transactionPage + 1)}
+                  >
+                    Trang sau
+                  </button>
+                </div>
+              </div>
+            </section>
 
             <section id="profile-security" className="profile-card">
               <h3 style={{ margin: "0 0 8px 0" }}>Mật khẩu & Bảo mật</h3>

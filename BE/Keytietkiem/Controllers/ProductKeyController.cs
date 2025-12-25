@@ -37,7 +37,7 @@ namespace Keytietkiem.Controllers
         /// Get a paginated and filtered list of product keys
         /// </summary>
         [HttpGet]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetProductKeys(
             [FromQuery] ProductKeyFilterDto filter,
             CancellationToken cancellationToken = default)

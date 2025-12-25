@@ -7,6 +7,7 @@ import Toast from "../../components/Toast/Toast";
 import ConfirmDialog from "../../components/Toast/ConfirmDialog";
 import "./StorefrontCartPage.css";
 import GuestCartService from "../../services/guestCartService";
+import CheckoutConfirmDialog from "./components/CheckoutConfirmDialog";
 
 const formatCurrency = (value) => {
   if (value == null) return "0₫";
@@ -91,11 +92,22 @@ const StorefrontCartPage = () => {
     return () => window.removeEventListener("storage", syncCustomer);
   }, []);
 
+  // ✅ ConfirmDialog chung (dùng cho xoá item / clear cart)
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: "",
     message: "",
     action: null,
+  });
+
+  // ✅ Dialog riêng cho checkout màn Cart (không ảnh hưởng màn khác)
+  const [checkoutConfirm, setCheckoutConfirm] = useState({
+    open: false,
+    email: "",
+    accountName: "",
+    accountEmail: "",
+    qty: 0,
+    totalText: "",
   });
 
   const navigate = useNavigate();
@@ -304,6 +316,29 @@ const StorefrontCartPage = () => {
     }
   };
 
+  // ✅ Mở dialog checkout riêng
+  const handleCheckoutWithConfirm = () => {
+    if (checkingOut) return;
+    if (!cart?.items?.length) return;
+
+    const effectiveEmail = ((customer ? cart.accountEmail : null) || localEmail || "").trim();
+    if (!effectiveEmail) {
+      addToast("warning", "Thiếu email nhận hàng", "Vui lòng nhập email nhận hàng trước khi thanh toán.");
+      return;
+    }
+
+    const totalQty = (cart.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+
+    setCheckoutConfirm({
+      open: true,
+      email: effectiveEmail,
+      accountName: cart?.accountUserName || "",
+      accountEmail: customer ? cart?.accountEmail || "" : "",
+      qty: totalQty,
+      totalText: formatCurrency(cart.totalAmount),
+    });
+  };
+
   const handleProceedCheckout = async () => {
     if (checkingOut) return;
     if (!cart?.items?.length) return;
@@ -391,6 +426,7 @@ const StorefrontCartPage = () => {
         ))}
       </div>
 
+      {/* ✅ ConfirmDialog chung (xóa item / clear cart) */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
@@ -399,6 +435,22 @@ const StorefrontCartPage = () => {
         onCancel={closeConfirmDialog}
         confirmText="Đồng ý"
         cancelText="Hủy"
+      />
+
+      {/* ✅ Dialog riêng cho checkout màn Cart */}
+      <CheckoutConfirmDialog
+        open={checkoutConfirm.open}
+        email={checkoutConfirm.email}
+        accountName={checkoutConfirm.accountName}
+        accountEmail={checkoutConfirm.accountEmail}
+        qty={checkoutConfirm.qty}
+        totalText={checkoutConfirm.totalText}
+        confirmDisabled={checkingOut}
+        onCancel={() => setCheckoutConfirm((s) => ({ ...s, open: false }))}
+        onConfirm={() => {
+          setCheckoutConfirm((s) => ({ ...s, open: false }));
+          handleProceedCheckout();
+        }}
       />
 
       <div className="sf-cart-container">
@@ -595,7 +647,7 @@ const StorefrontCartPage = () => {
                     <button
                       type="button"
                       className="sf-btn sf-btn-primary sf-btn-lg"
-                      onClick={handleProceedCheckout}
+                      onClick={handleCheckoutWithConfirm}
                       disabled={checkingOut || isCartLocked}
                     >
                       {checkingOut ? "Đang chuyển đến cổng thanh toán..." : "Tiến hành thanh toán"}

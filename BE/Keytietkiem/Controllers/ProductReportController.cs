@@ -67,7 +67,7 @@ public class ProductReportController : ControllerBase
     /// </summary>
     /// <param name="id">Product report ID</param>
     [HttpGet("{id:guid}")]
-    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE,RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetProductReportById(Guid id)
     {
         if (id == Guid.Empty)

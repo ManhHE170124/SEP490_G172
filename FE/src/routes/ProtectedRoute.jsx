@@ -41,8 +41,24 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       if (allowedRoles && allowedRoles.length > 0) {
         try {
           const user = JSON.parse(userStr);
-          const userRoles = user.roles || [];
-          const hasRole = userRoles.some((role) => allowedRoles.includes(role));
+          // Parse user roles - handle both array and single role formats
+          const roles = Array.isArray(user?.roles) 
+            ? user.roles 
+            : user?.role 
+              ? [user.role] 
+              : [];
+          // Normalize roles to uppercase for comparison
+          const userRoles = roles.map(r => {
+            if (typeof r === "string") return r.toUpperCase();
+            if (typeof r === "object") return (r.code || r.roleCode || r.name || "").toUpperCase();
+            return "";
+          }).filter(Boolean);
+          
+          // Normalize allowedRoles to uppercase
+          const normalizedAllowedRoles = allowedRoles.map(r => r.toUpperCase());
+          
+          // Check if user has any of the allowed roles
+          const hasRole = userRoles.some((role) => normalizedAllowedRoles.includes(role));
           setHasRequiredRole(hasRole);
         } catch {
           setHasRequiredRole(false);
