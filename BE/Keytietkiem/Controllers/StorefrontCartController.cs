@@ -307,9 +307,9 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(c =>
                         c.UserId == userId.Value &&
                         (c.Status == "Active" || c.Status == "Converting"));
-            }
-            else
-            {
+                    }
+                    else
+                    {
                 cart = await db.Carts
                     .Include(c => c.CartItems)
                     .FirstOrDefaultAsync(c =>

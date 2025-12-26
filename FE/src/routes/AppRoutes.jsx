@@ -37,6 +37,7 @@ import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
 import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
+import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -168,6 +169,12 @@ export default function AppRoutes() {
       {/* Admin Profile */}
       <Route path="/admin/profile" element={renderAdminPage(<AdminProfilePage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF, ROLES.CUSTOMER_CARE, ROLES.CONTENT_CREATOR))} />
       <Route path="/staff/profile" element={renderAdminPage(<AdminProfilePage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF, ROLES.CUSTOMER_CARE, ROLES.CONTENT_CREATOR))} />
+
+      {/* Admin Home Dashboard */}
+      <Route
+        path="/admin/home"
+        element={renderAdminPage(<AdminHomePage />, role(ROLES.ADMIN))}
+      />
 
       {/* Admin Tickets */}
       <Route

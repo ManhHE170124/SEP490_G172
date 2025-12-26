@@ -184,6 +184,51 @@ const formatNotificationTime = (value) => {
   }
 };
 
+// Helper function to get user roles from localStorage
+const getUserRoles = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      const roles = Array.isArray(parsedUser?.roles) 
+        ? parsedUser.roles 
+        : parsedUser?.role 
+          ? [parsedUser.role] 
+          : [];
+      return roles.map(r => {
+        if (typeof r === "string") return r.toUpperCase();
+        if (typeof r === "object") return (r.code || r.roleCode || r.name || "").toUpperCase();
+        return "";
+      }).filter(Boolean);
+    }
+  } catch (error) {
+    console.warn("Không thể đọc roles từ localStorage", error);
+  }
+  return [];
+};
+
+// Helper function to get dashboard route based on user roles
+const getDashboardRoute = (userRoles) => {
+  if (!userRoles || userRoles.length === 0) return null;
+  
+  // Check roles in priority order
+  if (userRoles.includes("ADMIN")) {
+    return "/admin/home";
+  }
+  if (userRoles.includes("CONTENT_CREATOR")) {
+    return "/post-dashboard";
+  }
+  if (userRoles.includes("STORAGE_STAFF")) {
+    return "/key-monitor";
+  }
+  if (userRoles.includes("CUSTOMER_CARE")) {
+    return "/admin/support-dashboard";
+  }
+  
+  // Customer or no matching role - return null (don't show button)
+  return null;
+};
+
 const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
@@ -225,6 +270,10 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const avatarUrl =
     customer?.avatarUrl || customer?.avatar || customer?.avatarURL || "";
   const customerInitials = getInitials(displayName);
+
+  // Get user roles and dashboard route
+  const userRoles = useMemo(() => getUserRoles(), [customer]);
+  const dashboardRoute = useMemo(() => getDashboardRoute(userRoles), [userRoles]);
 
   // ===== Fetch categories =====
   useEffect(() => {
@@ -874,6 +923,17 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                   >
                     Hồ sơ của tôi
                   </button>
+                  {dashboardRoute && (
+                    <button
+                      className="account-dropdown-item"
+                      onClick={() => {
+                        setIsAccountMenuOpen(false);
+                        navigate(dashboardRoute);
+                      }}
+                    >
+                      Dashboard
+                    </button>
+                  )}
                   <button
                     className="account-dropdown-item"
                     onClick={() => handleAccountAction("support")}

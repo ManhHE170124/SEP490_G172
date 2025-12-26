@@ -358,6 +358,9 @@ useEffect(() => {
       case "profile":
         navigate("/admin/profile");
         break;
+      case "home":
+        navigate("/");
+        break;
       case "logout":
         handleLogout();
         break;
@@ -577,6 +580,27 @@ useEffect(() => {
                       />
                     </svg>
                     Xem Profile
+                  </button>
+
+                  <button
+                    className="alh-dropdown-item"
+                    onClick={() => handleMenuAction("home")}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M3 11L12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Về trang chủ
                   </button>
 
                   <div className="alh-dropdown-divider"></div>

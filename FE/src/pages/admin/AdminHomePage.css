@@ -1,0 +1,79 @@
+/* File: src/pages/admin/AdminHomePage.css */
+.admin-home-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.admin-home-header {
+  margin-bottom: 2rem;
+}
+
+.admin-home-header h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin: 0 0 0.5rem 0;
+}
+
+.admin-home-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+}
+
+.admin-home-content {
+  width: 100%;
+}
+
+.admin-home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.admin-home-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.admin-home-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.admin-home-card-header {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.admin-home-card-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin: 0;
+}
+
+.admin-home-card-body {
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.6;
+}
+
+.admin-home-card-body p {
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .admin-home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-home-header h1 {
+    font-size: 1.5rem;
+  }
+}
+

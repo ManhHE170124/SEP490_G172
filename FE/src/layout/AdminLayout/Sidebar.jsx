@@ -89,8 +89,8 @@ const Sidebar = () => {
           id: "home",
           label: "Dashboard",
           allowedRoles: [ROLE_ADMIN],
-          to: "/home",
-          isActive: currentPage === "home",
+          to: "/admin/home",
+          isActive: currentPage === "admin/home",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
