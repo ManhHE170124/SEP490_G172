@@ -1,15 +1,15 @@
 // src/pages/storefront/StorefrontHomepagePage.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import StorefrontHomepageApi from "../../services/storefrontHomepageService";
 import StorefrontProductApi from "../../services/storefrontProductService";
 import { CART_UPDATED_EVENT } from "../../services/storefrontCartService";
+import storefrontBannerService from "../../services/storefrontBannerService";
 
-import "./StorefrontProductListPage.css"; // dùng lại css card/grid/nút
+import "./StorefrontProductListPage.css";
 import "./StorefrontHomepagePage.css";
 
-// Slider lớn tự trượt
-const MAIN_SLIDES = [
+const DEFAULT_MAIN_SLIDES = [
   {
     id: "main-1",
     title: "Key chính hãng — Kích hoạt trong 1 phút",
@@ -35,8 +35,7 @@ const MAIN_SLIDES = [
   },
 ];
 
-// 2 slider nhỏ bên cạnh
-const SIDE_SLIDES = [
+const DEFAULT_SIDE_SLIDES = [
   {
     id: "side-1",
     title: "Dùng thử AI, ChatGPT, Copilot",
@@ -51,7 +50,6 @@ const SIDE_SLIDES = [
   },
 ];
 
-// 6 từ khoá tìm kiếm cố định
 const TOP_KEYWORDS = [
   "Windows 11 Pro",
   "Office 365",
@@ -61,7 +59,6 @@ const TOP_KEYWORDS = [
   "Canva Pro",
 ];
 
-// Giá phù hợp – giá từ (minPrice) cố định
 const PRICE_FILTERS = [
   { label: "20.000đ", minPrice: 20000 },
   { label: "50.000đ", minPrice: 50000 },
@@ -71,24 +68,41 @@ const PRICE_FILTERS = [
   { label: "1.000.000đ", minPrice: 1000000 },
 ];
 
-// Format tiền VND
 const formatCurrency = (value) => {
   if (value == null) return "Đang cập nhật";
+  return value.toLocaleString("vi-VN") + "đ";
+};
+
+const isExternalUrl = (url) => /^https?:\/\//i.test(url || "");
+const hasText = (b) => !!(b?.title?.trim() || b?.subtitle?.trim());
+
+const normalizeInternalUrl = (url) => {
+  if (!url) return url;
+  // Nếu admin lỡ nhập full URL của chính site (http://localhost:3000/...) thì convert về path
   try {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-      maximumFractionDigits: 0,
-    }).format(value);
+    if (isExternalUrl(url)) {
+      const u = new URL(url);
+      // Nếu cùng origin frontend thì lấy pathname + search + hash
+      if (typeof window !== "undefined" && u.origin === window.location.origin) {
+        return `${u.pathname}${u.search}${u.hash}`;
+      }
+    }
   } catch {
-    return `${value}₫`;
+    // ignore
   }
+  return url;
 };
 
 const StorefrontHomepagePage = () => {
   const navigate = useNavigate();
 
+  // ✅ banners
+  const [mainSlides, setMainSlides] = useState(DEFAULT_MAIN_SLIDES);
+  const [sideSlides, setSideSlides] = useState(DEFAULT_SIDE_SLIDES);
+  const [loadingBanners, setLoadingBanners] = useState(false);
+
   const [mainSlideIndex, setMainSlideIndex] = useState(0);
+  const [isHoverMain, setIsHoverMain] = useState(false);
 
   const [products, setProducts] = useState({
     todayBestDeals: [],
@@ -100,14 +114,86 @@ const StorefrontHomepagePage = () => {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [errorProducts, setErrorProducts] = useState("");
 
-  // Auto slide
+  // ✅ Auto slide (pause khi hover để UX tốt hơn)
   useEffect(() => {
-    if (MAIN_SLIDES.length <= 1) return;
+    if ((mainSlides?.length || 0) <= 1) return;
+    if (isHoverMain) return;
+
     const timer = setInterval(() => {
-      setMainSlideIndex((prev) => (prev + 1) % MAIN_SLIDES.length);
+      setMainSlideIndex((prev) => (prev + 1) % mainSlides.length);
     }, 6000);
+
     return () => clearInterval(timer);
+  }, [mainSlides, isHoverMain]);
+
+  // ✅ nếu data load về ít hơn index hiện tại -> reset
+  useEffect(() => {
+    if (mainSlideIndex >= (mainSlides?.length || 0)) setMainSlideIndex(0);
+  }, [mainSlides, mainSlideIndex]);
+
+  // ✅ load banners (gộp side: HOME_SIDE -> lấy 2 banner theo sortOrder)
+  const loadHomepageBanners = useCallback(async () => {
+    setLoadingBanners(true);
+    try {
+      const [main, side] = await Promise.all([
+        storefrontBannerService.getPublicByPlacement("HOME_MAIN"),
+        storefrontBannerService.getPublicByPlacement("HOME_SIDE"),
+      ]);
+
+      // main: list
+      const mainList = Array.isArray(main) ? main : main?.items || [];
+      const mappedMain = mainList
+        .filter((x) => x?.isActive !== false)
+        .sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0))
+        .map((x) => ({
+          id: `main-${x.id}`,
+          title: x.title ?? "",
+          subtitle: x.subtitle ?? "",
+          badge: x.badge ?? "",
+          mediaUrl: x.mediaUrl,
+          mediaType: x.mediaType,
+          linkUrl: x.linkUrl,
+          linkTarget: x.linkTarget,
+        }));
+
+      // side: list -> lấy 2 item đầu
+      const sideList = Array.isArray(side) ? side : side?.items || [];
+      const actives = sideList
+        .filter((x) => x?.isActive !== false)
+        .sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0));
+
+      const pickSide = (idx, fallback) => {
+        const one = actives[idx];
+        if (!one) return fallback;
+        return {
+          id: fallback.id,
+          title: one.title ?? "",
+          subtitle: one.subtitle ?? "",
+          mediaUrl: one.mediaUrl,
+          mediaType: one.mediaType,
+          linkUrl: one.linkUrl,
+          linkTarget: one.linkTarget,
+        };
+      };
+
+      const mappedSide = [
+        pickSide(0, DEFAULT_SIDE_SLIDES[0]),
+        pickSide(1, DEFAULT_SIDE_SLIDES[1]),
+      ];
+
+      if (mappedMain.length > 0) setMainSlides(mappedMain);
+      setSideSlides(mappedSide);
+    } catch (err) {
+      console.error("Load homepage banners failed:", err);
+      // fallback: giữ DEFAULT_*
+    } finally {
+      setLoadingBanners(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadHomepageBanners();
+  }, [loadHomepageBanners]);
 
   // GỌI API homepage/products
   const loadHomepageProducts = useCallback(async () => {
@@ -118,9 +204,7 @@ const StorefrontHomepagePage = () => {
       setProducts(res);
     } catch (err) {
       console.error("Load homepage products failed:", err);
-      setErrorProducts(
-        "Không tải được danh sách sản phẩm. Vui lòng thử lại sau."
-      );
+      setErrorProducts("Không tải được danh sách sản phẩm. Vui lòng thử lại sau.");
     } finally {
       setLoadingProducts(false);
     }
@@ -130,96 +214,92 @@ const StorefrontHomepagePage = () => {
     loadHomepageProducts();
   }, [loadHomepageProducts]);
 
-  // Khi cart thay đổi (Add/Update/Remove/Clear) -> reload block sản phẩm
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const handleCartUpdated = () => {
-      loadHomepageProducts();
-    };
-
+    const handleCartUpdated = () => loadHomepageProducts();
     window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
-    return () => {
-      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
-    };
+    return () => window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
   }, [loadHomepageProducts]);
 
-  // Helper: chuyển sang trang danh sách sản phẩm
   const goToProductList = (params = {}) => {
     const sp = new URLSearchParams();
-
     if (params.q) sp.set("q", params.q);
     if (params.categoryId) sp.set("categoryId", String(params.categoryId));
     if (params.productType) sp.set("productType", params.productType);
     if (params.minPrice != null) sp.set("minPrice", String(params.minPrice));
     if (params.maxPrice != null) sp.set("maxPrice", String(params.maxPrice));
-    if (params.sort && params.sort !== "default") {
-      sp.set("sort", params.sort);
-    }
-
+    if (params.sort && params.sort !== "default") sp.set("sort", params.sort);
     const search = sp.toString();
     navigate(`/products${search ? `?${search}` : ""}`);
   };
 
-  const handleKeywordClick = (keyword) => {
-    goToProductList({ q: keyword });
-  };
-
-  const handlePriceFilterClick = (minPrice) => {
+  const handleKeywordClick = (keyword) => goToProductList({ q: keyword });
+  const handlePriceFilterClick = (minPrice) =>
     goToProductList({ minPrice, sort: "price-asc" });
+
+  const openBannerLink = (banner) => {
+    let url = banner?.linkUrl;
+    const target = banner?.linkTarget || "_self";
+    if (!url) return;
+
+    url = normalizeInternalUrl(url);
+
+    if (target === "_blank") {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (isExternalUrl(url)) {
+      window.location.href = url;
+      return;
+    }
+
+    navigate(url);
   };
 
-  // Click cả banner slider chính
-  const handleClickMainSlider = () => {
-    const current = MAIN_SLIDES[mainSlideIndex];
-    if (current?.linkTo) {
-      navigate(current.linkTo);
-      return;
-    }
-    if (current?.params) {
-      goToProductList(current.params);
-      return;
-    }
+  const handleClickMainSlide = (slide) => {
+    if (slide?.linkUrl) return openBannerLink(slide);
+    if (slide?.params) return goToProductList(slide.params);
     goToProductList({});
   };
 
   const handleClickSideSlide = (slide) => {
-    if (slide?.linkTo) {
-      navigate(slide.linkTo);
-      return;
-    }
-    if (slide?.params) {
-      goToProductList(slide.params);
-      return;
-    }
+    if (slide?.linkUrl) return openBannerLink(slide);
+    if (slide?.params) return goToProductList(slide.params);
     goToProductList({});
   };
 
+  const activeMainSlide = useMemo(
+    () => mainSlides?.[mainSlideIndex] || {},
+    [mainSlides, mainSlideIndex]
+  );
+
+  // ✅ slider controls
+  const canSlide = (mainSlides?.length || 0) > 1;
+
+  const goPrev = (e) => {
+    e?.stopPropagation?.();
+    if (!canSlide) return;
+    setMainSlideIndex((prev) => (prev - 1 + mainSlides.length) % mainSlides.length);
+  };
+
+  const goNext = (e) => {
+    e?.stopPropagation?.();
+    if (!canSlide) return;
+    setMainSlideIndex((prev) => (prev + 1) % mainSlides.length);
+  };
+
   // “Xem tất cả” cho từng block
-  const handleViewAllTodayDeals = () => {
-    goToProductList({ sort: "default" });
-  };
+  const handleViewAllTodayDeals = () => goToProductList({ sort: "default" });
+  const handleViewAllBestSellers = () => goToProductList({ sort: "sold" });
+  const handleViewAllWeeklyTrends = () => goToProductList({ sort: "default" });
+  const handleViewAllNewlyUpdated = () => goToProductList({ sort: "updated" });
 
-  const handleViewAllBestSellers = () => {
-    goToProductList({ sort: "sold" });
-  };
-
-  const handleViewAllWeeklyTrends = () => {
-    goToProductList({ sort: "default" });
-  };
-
-  const handleViewAllNewlyUpdated = () => {
-    goToProductList({ sort: "updated" });
-  };
-
-  // Render 1 card sản phẩm (dùng chung cho mọi block)
+  // Render 1 card sản phẩm
   const renderProductCard = (item) => {
-    const variantTitle =
-      item.variantTitle || item.title || item.productName;
+    const variantTitle = item.variantTitle || item.title || item.productName;
     const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
-    const displayTitle = typeLabel
-      ? `${variantTitle} - ${typeLabel}`
-      : variantTitle;
+    const displayTitle = typeLabel ? `${variantTitle} - ${typeLabel}` : variantTitle;
 
     const sellPrice = item.sellPrice ?? item.SellPrice ?? null;
     const listPrice = item.listPrice ?? item.ListPrice ?? null;
@@ -235,20 +315,13 @@ const StorefrontHomepagePage = () => {
       sellPrice < listPrice
     ) {
       hasDiscount = true;
-      discountPercent = Math.round(
-        100 - (sellPrice / listPrice) * 100
-      );
+      discountPercent = Math.round(100 - (sellPrice / listPrice) * 100);
     }
 
-    // Nếu chưa có sellPrice (trường hợp hiếm) thì hiển thị listPrice
     const priceNowText = formatCurrency(sellPrice ?? listPrice);
-    const priceOldText = hasDiscount
-      ? formatCurrency(listPrice)
-      : null;
+    const priceOldText = hasDiscount ? formatCurrency(listPrice) : null;
 
-    const isOutOfStock =
-      item.isOutOfStock ??
-      item.status === "OUT_OF_STOCK";
+    const isOutOfStock = item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
 
     return (
       <article
@@ -263,9 +336,7 @@ const StorefrontHomepagePage = () => {
             {item.thumbnail ? (
               <img src={item.thumbnail} alt={displayTitle} />
             ) : (
-              <div className="sf-media-placeholder">
-                {displayTitle?.[0] || "K"}
-              </div>
+              <div className="sf-media-placeholder">{displayTitle?.[0] || "K"}</div>
             )}
 
             {item.badges && item.badges.length > 0 && (
@@ -275,9 +346,7 @@ const StorefrontHomepagePage = () => {
                     key={b.badgeCode}
                     className="sf-tag"
                     style={
-                      b.colorHex
-                        ? { backgroundColor: b.colorHex, color: "#fff" }
-                        : undefined
+                      b.colorHex ? { backgroundColor: b.colorHex, color: "#fff" } : undefined
                     }
                   >
                     {b.displayName || b.badgeCode}
@@ -286,9 +355,7 @@ const StorefrontHomepagePage = () => {
               </div>
             )}
 
-            {isOutOfStock && (
-              <div className="sf-out-of-stock">Hết hàng</div>
-            )}
+            {isOutOfStock && <div className="sf-out-of-stock">Hết hàng</div>}
           </div>
 
           <div className="sf-body">
@@ -299,9 +366,7 @@ const StorefrontHomepagePage = () => {
               {hasDiscount && (
                 <>
                   <div className="sf-price-old">{priceOldText}</div>
-                  <div className="sf-price-off">
-                    -{discountPercent}%
-                  </div>
+                  <div className="sf-price-off">-{discountPercent}%</div>
                 </>
               )}
             </div>
@@ -311,7 +376,6 @@ const StorefrontHomepagePage = () => {
     );
   };
 
-  // Render block sản phẩm
   const renderProductBlock = (title, subtitle, items, onViewAll) => (
     <section className="sf-home-section" key={title}>
       <div className="sf-section-header">
@@ -339,9 +403,7 @@ const StorefrontHomepagePage = () => {
       )}
 
       {!loadingProducts && !errorProducts && items.length > 0 && (
-        <div className="sf-grid sf-grid-responsive">
-          {items.map(renderProductCard)}
-        </div>
+        <div className="sf-grid sf-grid-responsive">{items.map(renderProductCard)}</div>
       )}
 
       {!loadingProducts && !errorProducts && items.length === 0 && (
@@ -350,75 +412,140 @@ const StorefrontHomepagePage = () => {
     </section>
   );
 
-  const activeMainSlide = MAIN_SLIDES[mainSlideIndex];
-
   return (
     <main className="sf-home sf-product-page">
       <div className="sf-container">
-        {/* HERO: slider + 2 slider nhỏ bên cạnh */}
+        {/* HERO */}
         <section className="sf-home-hero">
           <div className="sf-home-hero-inner">
-            {/* Slider chính – cả khối là link */}
+            {/* Slider chính (smooth slide + arrow hover) */}
             <div
-              className="sf-home-main-slider"
-              role="button"
-              tabIndex={0}
-              onClick={handleClickMainSlider}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleClickMainSlider();
-                }
-              }}
+              className={`sf-home-main-slider ${canSlide ? "sf-can-slide" : ""}`}
+              onMouseEnter={() => setIsHoverMain(true)}
+              onMouseLeave={() => setIsHoverMain(false)}
+              aria-label="Homepage main banner"
             >
-              <div className="sf-home-main-slide">
-                <div className="sf-home-main-badge">
-                  {activeMainSlide.badge}
-                </div>
-                <h1 className="sf-home-main-title">
-                  {activeMainSlide.title}
-                </h1>
-                <p className="sf-home-main-subtitle">
-                  {activeMainSlide.subtitle}
-                </p>
+              <div
+                className="sf-home-main-track"
+                style={{
+                  transform: `translateX(-${mainSlideIndex * 100}%)`,
+                }}
+              >
+                {(mainSlides || []).map((slide, idx) => {
+                  const showText = hasText(slide) || !!slide?.badge || loadingBanners;
+                  // ✅ nếu chỉ có ảnh và không có text => KHÔNG phủ lớp đen mờ
+                  const bg = slide?.mediaUrl
+                    ? showText
+                      ? `linear-gradient(135deg, rgba(15,23,42,.45), rgba(15,23,42,.15)), url("${slide.mediaUrl}")`
+                      : `url("${slide.mediaUrl}")`
+                    : undefined;
+
+                  return (
+                    <div
+                      key={slide.id || `main-${idx}`}
+                      className="sf-home-main-slide-item"
+                      style={bg ? { backgroundImage: bg } : undefined}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleClickMainSlide(slide)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleClickMainSlide(slide);
+                        }
+                      }}
+                    >
+                      {(showText || !slide?.mediaUrl) && (
+                        <div className="sf-home-main-slide">
+                          {!!slide?.badge && (
+                            <div className="sf-home-main-badge">{slide.badge}</div>
+                          )}
+
+                          {!!slide?.title && (
+                            <h1 className="sf-home-main-title">{slide.title}</h1>
+                          )}
+
+                          {!!slide?.subtitle && (
+                            <p className="sf-home-main-subtitle">{slide.subtitle}</p>
+                          )}
+
+                          {loadingBanners && idx === mainSlideIndex && (
+                            <div className="sf-home-banner-loading">Đang tải banner…</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
+              {canSlide && (
+                <>
+                  <button
+                    type="button"
+                    className="sf-home-main-arrow sf-home-main-arrow-left"
+                    onClick={goPrev}
+                    aria-label="Previous slide"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="sf-home-main-arrow sf-home-main-arrow-right"
+                    onClick={goNext}
+                    aria-label="Next slide"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* 2 slider nhỏ bên phải */}
+            {/* 2 banner nhỏ cố định (HOME_SIDE lấy 2 item theo sortOrder) */}
             <div className="sf-home-side-sliders">
-              {SIDE_SLIDES.map((s) => (
-                <div
-                  key={s.id}
-                  className="sf-home-side-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleClickSideSlide(s)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleClickSideSlide(s);
-                    }
-                  }}
-                >
-                  <div className="sf-home-side-content">
-                    <h3>{s.title}</h3>
-                    <p>{s.subtitle}</p>
+              {sideSlides.map((s) => {
+                const showText = hasText(s);
+                const bg = s?.mediaUrl
+                  ? showText
+                    ? `linear-gradient(135deg, rgba(15,23,42,.35), rgba(15,23,42,.10)), url("${s.mediaUrl}")`
+                    : `url("${s.mediaUrl}")`
+                  : undefined;
+
+                return (
+                  <div
+                    key={s.id}
+                    className={`sf-home-side-card ${showText ? "sf-banner-has-text" : "sf-banner-no-text"}`}
+                    style={bg ? { backgroundImage: bg } : undefined}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleClickSideSlide(s)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleClickSideSlide(s);
+                      }
+                    }}
+                    aria-label={`Homepage side banner ${s.id}`}
+                  >
+                    {showText && (
+                      <div className="sf-home-side-content">
+                        <h3>{s.title}</h3>
+                        {!!s.subtitle && <p>{s.subtitle}</p>}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
 
-        {/* Thanh tìm kiếm hàng đầu – layout giống “Giá phù hợp” */}
+        {/* Thanh tìm kiếm hàng đầu */}
         <section className="sf-home-top-search">
           <div className="sf-home-top-search-inner">
             <div className="sf-home-top-search-header">
               <h3>Tìm kiếm hàng đầu</h3>
-              <p>
-                Một số từ khóa được khách chọn nhiều. Click để lọc
-                nhanh danh sách sản phẩm.
-              </p>
+              <p>Một số từ khóa được khách chọn nhiều. Click để lọc nhanh danh sách sản phẩm.</p>
             </div>
             <div className="sf-home-top-search-keywords">
               {TOP_KEYWORDS.map((kw) => (
@@ -487,7 +614,7 @@ const StorefrontHomepagePage = () => {
           handleViewAllNewlyUpdated
         )}
 
-        {/* Dịch vụ hỗ trợ – click cả card để qua trang chi tiết */}
+        {/* Dịch vụ hỗ trợ */}
         <section className="sf-home-services">
           <div className="sf-section-header">
             <div>
@@ -511,30 +638,34 @@ const StorefrontHomepagePage = () => {
             >
               <div className="sf-home-service-icon">🖥️</div>
               <h3>Cài đặt từ xa</h3>
-              <p>
-                Hỗ trợ cài Windows / Office, phần mềm qua TeamViewer /
-                AnyDesk.
-              </p>
+              <p>Hỗ trợ cài Windows / Office, phần mềm qua TeamViewer / AnyDesk.</p>
             </div>
 
             <div
               className="sf-home-service-card"
               role="button"
               tabIndex={0}
-              onClick={() => window.open('https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view', '_blank', 'noopener,noreferrer')}
+              onClick={() =>
+                window.open(
+                  "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
+                  "_blank",
+                  "noopener,noreferrer"
+                )
+              }
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  window.open('https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view', '_blank', 'noopener,noreferrer');
+                  window.open(
+                    "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
                 }
               }}
             >
               <div className="sf-home-service-icon">📘</div>
               <h3>Hướng dẫn sử dụng</h3>
-              <p>
-                Video + bài viết hướng dẫn, giải đáp thắc mắc trong quá
-                trình sử dụng.
-              </p>
+              <p>Video + bài viết hướng dẫn, giải đáp thắc mắc trong quá trình sử dụng.</p>
             </div>
 
             <div
@@ -551,10 +682,7 @@ const StorefrontHomepagePage = () => {
             >
               <div className="sf-home-service-icon">🛠️</div>
               <h3>Fix lỗi phần mềm đã mua</h3>
-              <p>
-                Xử lý lỗi kích hoạt, lỗi bản quyền, tư vấn nâng cấp cấu
-                hình phù hợp.
-              </p>
+              <p>Xử lý lỗi kích hoạt, lỗi bản quyền, tư vấn nâng cấp cấu hình phù hợp.</p>
             </div>
           </div>
         </section>

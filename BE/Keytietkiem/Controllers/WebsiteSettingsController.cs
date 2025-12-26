@@ -49,7 +49,7 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always get the first record
         /// </summary>
         [HttpGet]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF,RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Get()
         {
             // ✅ Use service to get settings

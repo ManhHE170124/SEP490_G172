@@ -6,10 +6,22 @@
 import axios from "axios";
 import qs from "qs";
 
-const baseURL =
+const isBrowser = typeof window !== "undefined";
+
+const envBase =
   process.env.REACT_APP_API_URL // CRA
-  || import.meta.env?.VITE_API_BASE_URL // Vite
-  || "https://localhost:7292/api";
+  || import.meta.env?.VITE_API_BASE_URL; // Vite
+
+// Auto detect when env is not set:
+// - Local FE (localhost:3000) => use local BE https://localhost:7292/api
+// - Production (keytietkiem.com or IP) => use same-origin /api
+const autoBase = isBrowser
+  ? ((window.location.hostname === "localhost")
+      ? "https://localhost:7292/api"
+      : `${window.location.origin}/api`)
+  : "https://localhost:7292/api";
+
+const baseURL = envBase || autoBase;
 
 console.log("[axiosClient] baseURL =", baseURL);
 

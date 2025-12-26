@@ -239,7 +239,7 @@ namespace Keytietkiem.Controllers
 
         // GET /api/users
         [HttpGet]
-        [RequireRole(RoleCodes.ADMIN)]
+        [RequireRole(RoleCodes.ADMIN,RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<UserListItemDto>>> GetUsers(
             string? q,
             string? roleId,

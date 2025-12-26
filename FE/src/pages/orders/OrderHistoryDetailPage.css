@@ -437,6 +437,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--profile-muted, #6b7280);
+}
+
+.order-detail-modal-eye-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
 }
 
 .order-detail-modal-eye-btn:hover,

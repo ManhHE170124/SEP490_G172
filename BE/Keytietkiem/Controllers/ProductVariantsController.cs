@@ -280,7 +280,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST =====
         [HttpGet]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<ProductVariantListItemDto>>> List(
             Guid productId,
             [FromQuery] ProductVariantListQuery query)
@@ -380,7 +380,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL =====
         [HttpGet("{variantId:guid}")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<ProductVariantDetailDto>> Get(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
