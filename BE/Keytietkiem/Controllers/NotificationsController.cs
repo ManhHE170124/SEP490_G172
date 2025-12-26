@@ -1,422 +1,871 @@
 ﻿// File: Controllers/NotificationsController.cs
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
 using Keytietkiem.Hubs;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services.Background;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
+    [ApiController]
+    [Authorize]
     public class NotificationsController : ControllerBase
     {
-        private readonly KeytietkiemDbContext _db;
-        private readonly ILogger<NotificationsController> _logger;
+        private const string SystemCreatorFilterValue = "__SYSTEM__";
+        private const int RealtimeFanoutThreshold = 200;
+
+        private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IHubContext<NotificationHub> _notificationHub;
+        private readonly INotificationDispatchQueue _dispatchQueue;
+        private readonly ILogger<NotificationsController> _logger;
 
         public NotificationsController(
-            KeytietkiemDbContext db,
-            ILogger<NotificationsController> logger,
-            IHubContext<NotificationHub> notificationHub)
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IHubContext<NotificationHub> notificationHub,
+            INotificationDispatchQueue dispatchQueue,
+            ILogger<NotificationsController> logger)
         {
-            _db = db;
-            _logger = logger;
+            _dbFactory = dbFactory;
             _notificationHub = notificationHub;
+            _dispatchQueue = dispatchQueue;
+            _logger = logger;
         }
 
-        #region Helpers
-
+        // =========================
+        // Helpers
+        // =========================
         private Guid GetCurrentUserId()
         {
-            var id = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                     ?? User.FindFirstValue("sub");
+            var raw =
+                User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                User.FindFirstValue("UserId") ??
+                User.FindFirstValue("sub");
 
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                throw new InvalidOperationException("Cannot determine current user id from claims.");
-            }
+            if (!Guid.TryParse(raw, out var userId))
+                throw new UnauthorizedAccessException("Invalid user id claim.");
 
-            return Guid.Parse(id);
+            return userId;
         }
 
-        private static string SafeTrim(string? s)
-            => string.IsNullOrWhiteSpace(s) ? string.Empty : s.Trim();
-
-        /// <summary>
-        /// Đếm user Active (dùng cho global đúng nghĩa).
-        /// </summary>
-        private Task<int> CountActiveUsersAsync()
+        private static string NormalizeSortKey(string? sortBy)
         {
-            return _db.Users
-                .AsNoTracking()
-                .CountAsync(u => u.Status == "Active");
+            var s = (sortBy ?? "CreatedAtUtc").Trim();
+            if (s.Length == 0) return "createdatutc";
+            return s.Replace(" ", "").ToLowerInvariant();
         }
 
-        /// <summary>
-        /// Resolve userIds theo roleIds bằng query trực tiếp bảng dbo.UserRole (ADO),
-        /// không phụ thuộc DbSet<UserRole> trong DbContext scaffold.
-        /// </summary>
-        private async Task<List<Guid>> ResolveUserIdsByRoleIdsAsync(List<string> roleIds)
+        private static bool HasValue(string? s) => !string.IsNullOrWhiteSpace(s);
+
+        private static bool IsAdminRoleValue(string? v)
         {
-            if (roleIds == null || roleIds.Count == 0)
+            if (!HasValue(v)) return false;
+            var s = v!.Trim();
+            return s.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+                   s.Equals("ADMIN", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool HasAdminClaim()
+        {
+            // Prefer claims if present
+            var roleClaims = User.FindAll(ClaimTypes.Role)
+                .Select(c => c.Value)
+                .Concat(User.FindAll("role").Select(c => c.Value))
+                .Concat(User.FindAll("roles").Select(c => c.Value));
+
+            foreach (var v in roleClaims)
             {
-                return new List<Guid>();
+                if (IsAdminRoleValue(v)) return true;
             }
 
-            var normalized = roleIds
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            return false;
+        }
 
-            if (normalized.Count == 0)
+        private async Task<bool> CurrentUserIsAdminAsync(KeytietkiemDbContext db, Guid userId, CancellationToken ct)
+        {
+            if (HasAdminClaim()) return true;
+
+            // Fallback to DB (RoleId/Code/Name can vary between environments)
+            return await db.Users.AsNoTracking()
+                .Where(u => u.UserId == userId)
+                .SelectMany(u => u.Roles)
+                .AnyAsync(r =>
+                    IsAdminRoleValue(r.RoleId) ||
+                    IsAdminRoleValue(r.Code) ||
+                    IsAdminRoleValue(r.Name), ct);
+        }
+
+        // =========================
+        // ADMIN: LIST
+        // GET /api/notifications
+        // =========================
+        [HttpGet]
+        public async Task<ActionResult<NotificationListResponseDto>> GetAdminList(
+            [FromQuery] NotificationAdminFilterDto filter,
+            CancellationToken ct)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var currentUserId = GetCurrentUserId();
+            if (!await CurrentUserIsAdminAsync(db, currentUserId, ct))
+                return Forbid();
+
+            var pageNumber = filter.PageNumber <= 0 ? 1 : filter.PageNumber;
+            var pageSize = filter.PageSize <= 0 ? 20 : filter.PageSize;
+            if (pageSize > 100) pageSize = 100;
+
+            // total users count used for TotalTargetUsers when IsGlobal = true
+            var totalActiveUsers = await db.Users.AsNoTracking()
+                .CountAsync(u => u.Status == "Active", ct);
+
+            var q =
+                from n in db.Notifications.AsNoTracking()
+                join u in db.Users.AsNoTracking() on n.CreatedByUserId equals u.UserId into uj
+                from creator in uj.DefaultIfEmpty()
+                select new
+                {
+                    N = n,
+                    CreatedByEmail = creator != null ? creator.Email : null,
+                    CreatedByFullName = creator != null ? creator.FullName : null
+                };
+
+            // filters
+            if (filter.Severity.HasValue)
             {
-                return new List<Guid>();
+                var sev = filter.Severity.Value;
+                q = q.Where(x => x.N.Severity == sev);
             }
 
-            var conn = _db.Database.GetDbConnection();
-            var shouldClose = false;
-
-            try
+            if (filter.IsSystemGenerated.HasValue)
             {
-                if (conn.State != ConnectionState.Open)
+                var isSys = filter.IsSystemGenerated.Value;
+                q = q.Where(x => x.N.IsSystemGenerated == isSys);
+            }
+
+            if (filter.IsGlobal.HasValue)
+            {
+                var isGlobal = filter.IsGlobal.Value;
+                q = q.Where(x => x.N.IsGlobal == isGlobal);
+            }
+
+            if (filter.CreatedFromUtc.HasValue)
+            {
+                var from = filter.CreatedFromUtc.Value;
+                q = q.Where(x => x.N.CreatedAtUtc >= from);
+            }
+
+            if (filter.CreatedToUtc.HasValue)
+            {
+                var to = filter.CreatedToUtc.Value;
+                q = q.Where(x => x.N.CreatedAtUtc <= to);
+            }
+
+            if (HasValue(filter.Type))
+            {
+                var type = filter.Type!.Trim();
+                q = q.Where(x => x.N.Type != null && x.N.Type == type);
+            }
+
+            if (HasValue(filter.CreatedByEmail))
+            {
+                var email = filter.CreatedByEmail!.Trim();
+
+                // FE dropdown can pass a special value to filter "system" creator
+                if (email.Equals(SystemCreatorFilterValue, StringComparison.OrdinalIgnoreCase))
                 {
-                    await conn.OpenAsync();
-                    shouldClose = true;
+                    q = q.Where(x => x.N.CreatedByUserId == null || x.CreatedByEmail == null);
+                }
+                else
+                {
+                    // Dropdown expects exact match (search box still covers partial search)
+                    q = q.Where(x => x.CreatedByEmail != null && x.CreatedByEmail == email);
+                }
+            }
+
+
+            if (HasValue(filter.Status))
+            {
+                var nowStatus = DateTime.UtcNow;
+                var status = filter.Status!.Trim();
+                var key = status.Replace(" ", "").ToLowerInvariant();
+
+                // Active = not archived, not expired
+                if (key == "active" || key == "danghieuluc" || key == "conhieuluc" || key == "valid")
+                {
+                    q = q.Where(x => x.N.ArchivedAtUtc == null
+                                     && (x.N.ExpiresAtUtc == null || x.N.ExpiresAtUtc > nowStatus));
+                }
+                // Expired = not archived, expires <= now
+                else if (key == "expired" || key == "hethanh" || key == "hethan" || key == "expiredat")
+                {
+                    q = q.Where(x => x.N.ArchivedAtUtc == null
+                                     && x.N.ExpiresAtUtc != null
+                                     && x.N.ExpiresAtUtc <= nowStatus);
+                }
+                // Archived
+                else if (key == "archived" || key == "daluutru" || key == "luutru")
+                {
+                    q = q.Where(x => x.N.ArchivedAtUtc != null);
+                }
+            }
+
+            // search: Title/Message/CreatedByEmail/Type/CorrelationId
+            if (HasValue(filter.Search))
+            {
+                var s = filter.Search!.Trim();
+                q = q.Where(x =>
+                    x.N.Title.Contains(s) ||
+                    x.N.Message.Contains(s) ||
+                    (x.CreatedByEmail != null && x.CreatedByEmail.Contains(s)) ||
+                    (x.CreatedByFullName != null && x.CreatedByFullName.Contains(s)) ||
+                    (x.N.Type != null && x.N.Type.Contains(s)) ||
+                    (x.N.CorrelationId != null && x.N.CorrelationId.Contains(s))
+                );
+            }
+
+            // sort
+            var sortKey = NormalizeSortKey(filter.SortBy);
+            var desc = filter.SortDescending;
+
+            // IMPORTANT: do not use dynamic/EF.Property<dynamic> => avoids CS1963
+            q = sortKey switch
+            {
+                "title" => desc ? q.OrderByDescending(x => x.N.Title).ThenByDescending(x => x.N.Id)
+                                : q.OrderBy(x => x.N.Title).ThenBy(x => x.N.Id),
+
+                "severity" => desc ? q.OrderByDescending(x => x.N.Severity).ThenByDescending(x => x.N.Id)
+                                   : q.OrderBy(x => x.N.Severity).ThenBy(x => x.N.Id),
+
+                "type" => desc ? q.OrderByDescending(x => x.N.Type).ThenByDescending(x => x.N.Id)
+                               : q.OrderBy(x => x.N.Type).ThenBy(x => x.N.Id),
+
+                "createdbyemail" or "createdbyuseremail" => desc
+                    ? q.OrderByDescending(x => x.CreatedByEmail).ThenByDescending(x => x.N.Id)
+                    : q.OrderBy(x => x.CreatedByEmail).ThenBy(x => x.N.Id),
+
+                "readcount" => desc
+                    ? q.OrderByDescending(x => db.NotificationUsers.Count(nu => nu.NotificationId == x.N.Id && nu.IsRead))
+                       .ThenByDescending(x => x.N.Id)
+                    : q.OrderBy(x => db.NotificationUsers.Count(nu => nu.NotificationId == x.N.Id && nu.IsRead))
+                       .ThenBy(x => x.N.Id),
+
+                "totaltargetusers" => desc
+                    ? q.OrderByDescending(x => x.N.IsGlobal ? totalActiveUsers : db.NotificationUsers.Count(nu => nu.NotificationId == x.N.Id))
+                       .ThenByDescending(x => x.N.Id)
+                    : q.OrderBy(x => x.N.IsGlobal ? totalActiveUsers : db.NotificationUsers.Count(nu => nu.NotificationId == x.N.Id))
+                       .ThenBy(x => x.N.Id),
+
+                "targetuserscount" => desc
+                    ? q.OrderByDescending(x => db.NotificationUsers.Count(nu => nu.NotificationId == x.N.Id))
+                       .ThenByDescending(x => x.N.Id)
+                    : q.OrderBy(x => db.NotificationUsers.Count(nu => nu.NotificationId == x.N.Id))
+                       .ThenBy(x => x.N.Id),
+
+                "targetrolescount" => desc
+                    ? q.OrderByDescending(x => db.NotificationTargetRoles.Count(ntr => ntr.NotificationId == x.N.Id))
+                       .ThenByDescending(x => x.N.Id)
+                    : q.OrderBy(x => db.NotificationTargetRoles.Count(ntr => ntr.NotificationId == x.N.Id))
+                       .ThenBy(x => x.N.Id),
+
+                "expiresatutc" => desc ? q.OrderByDescending(x => x.N.ExpiresAtUtc).ThenByDescending(x => x.N.Id)
+                                       : q.OrderBy(x => x.N.ExpiresAtUtc).ThenBy(x => x.N.Id),
+
+                "archivedatutc" => desc ? q.OrderByDescending(x => x.N.ArchivedAtUtc).ThenByDescending(x => x.N.Id)
+                                        : q.OrderBy(x => x.N.ArchivedAtUtc).ThenBy(x => x.N.Id),
+
+                // default createdAtUtc
+                _ => desc ? q.OrderByDescending(x => x.N.CreatedAtUtc).ThenByDescending(x => x.N.Id)
+                          : q.OrderBy(x => x.N.CreatedAtUtc).ThenBy(x => x.N.Id)
+            };
+
+            var totalCount = await q.CountAsync(ct);
+
+            var rows = await q
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.N.Id,
+                    x.N.Title,
+                    x.N.Message,
+                    x.N.Severity,
+                    x.N.IsSystemGenerated,
+                    x.N.IsGlobal,
+                    x.N.CreatedAtUtc,
+                    x.N.CreatedByUserId,
+                    x.CreatedByEmail,
+                    x.CreatedByFullName,
+                    x.N.RelatedEntityType,
+                    x.N.RelatedEntityId,
+                    x.N.RelatedUrl,
+                    x.N.Type,
+                    x.N.CorrelationId,
+                    x.N.ExpiresAtUtc,
+                    x.N.ArchivedAtUtc
+                })
+                .ToListAsync(ct);
+
+            var ids = rows.Select(r => r.Id).ToList();
+
+            var agg = await db.NotificationUsers.AsNoTracking()
+                .Where(nu => ids.Contains(nu.NotificationId))
+                .GroupBy(nu => nu.NotificationId)
+                .Select(g => new
+                {
+                    NotificationId = g.Key,
+                    Total = g.Count(),
+                    Read = g.Count(x => x.IsRead)
+                })
+                .ToListAsync(ct);
+
+            var aggMap = agg.ToDictionary(x => x.NotificationId, x => x);
+
+            var roleAgg = await db.NotificationTargetRoles.AsNoTracking()
+                .Where(ntr => ids.Contains(ntr.NotificationId))
+                .GroupBy(ntr => ntr.NotificationId)
+                .Select(g => new
+                {
+                    NotificationId = g.Key,
+                    Count = g.Count()
+                })
+                .ToListAsync(ct);
+
+            var roleAggMap = roleAgg.ToDictionary(x => x.NotificationId, x => x.Count);
+
+            var items = rows.Select(r =>
+            {
+                aggMap.TryGetValue(r.Id, out var a);
+
+                var totalTargets = r.IsGlobal ? totalActiveUsers : (a?.Total ?? 0);
+                var readCount = a?.Read ?? 0;
+                var targetUsersCount = r.IsGlobal ? 0 : (a?.Total ?? 0);
+
+                roleAggMap.TryGetValue(r.Id, out var targetRolesCount);
+
+                return new NotificationListItemDto
+                {
+                    Id = r.Id,
+                    Title = r.Title,
+                    Message = r.Message,
+                    Severity = r.Severity,
+                    IsSystemGenerated = r.IsSystemGenerated,
+                    IsGlobal = r.IsGlobal,
+                    CreatedAtUtc = r.CreatedAtUtc,
+                    CreatedByUserId = r.CreatedByUserId,
+
+                    // backward compatible + alias
+                    CreatedByFullName = r.CreatedByFullName,
+                    CreatedByUserEmail = r.CreatedByEmail,
+                    CreatedByEmail = r.CreatedByEmail,
+
+                    RelatedEntityType = r.RelatedEntityType,
+                    RelatedEntityId = r.RelatedEntityId,
+                    RelatedUrl = r.RelatedUrl,
+
+                    TotalTargetUsers = totalTargets,
+                    ReadCount = readCount,
+
+                    TargetRolesCount = targetRolesCount,
+                    TargetUsersCount = targetUsersCount,
+
+                    Type = r.Type,
+                    CorrelationId = r.CorrelationId,
+                    ExpiresAtUtc = r.ExpiresAtUtc,
+                    ArchivedAtUtc = r.ArchivedAtUtc
+                };
+            }).ToList();
+
+            return Ok(new NotificationListResponseDto
+            {
+                TotalCount = totalCount,
+                Items = items
+            });
+        }
+        // =========================
+        // ADMIN: DETAIL
+        // GET /api/notifications/{id}
+        // =========================
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<NotificationDetailDto>> GetAdminDetail([FromRoute] int id, CancellationToken ct)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var currentUserId = GetCurrentUserId();
+            if (!await CurrentUserIsAdminAsync(db, currentUserId, ct))
+                return Forbid();
+
+            var totalActiveUsers = await db.Users.AsNoTracking()
+                .CountAsync(u => u.Status == "Active", ct);
+
+            var row = await (
+                from n in db.Notifications.AsNoTracking()
+                join u in db.Users.AsNoTracking() on n.CreatedByUserId equals u.UserId into uj
+                from creator in uj.DefaultIfEmpty()
+                where n.Id == id
+                select new
+                {
+                    N = n,
+                    CreatedByEmail = creator != null ? creator.Email : null,
+                    CreatedByFullName = creator != null ? creator.FullName : null
+                }
+            ).FirstOrDefaultAsync(ct);
+
+            if (row == null) return NotFound();
+
+            var readCount = await db.NotificationUsers.AsNoTracking()
+                .CountAsync(nu => nu.NotificationId == id && nu.IsRead, ct);
+
+            var totalTargets = row.N.IsGlobal
+                ? totalActiveUsers
+                : await db.NotificationUsers.AsNoTracking().CountAsync(nu => nu.NotificationId == id, ct);
+
+            var unreadCount = Math.Max(0, totalTargets - readCount);
+
+            // Target roles (RoleId is string in v16 schema)
+            var targetRoles = await LoadTargetRolesAsync(db, id, ct);
+
+            var dto = new NotificationDetailDto
+            {
+                Id = row.N.Id,
+                Title = row.N.Title,
+                Message = row.N.Message,
+                Severity = row.N.Severity,
+                IsSystemGenerated = row.N.IsSystemGenerated,
+                IsGlobal = row.N.IsGlobal,
+                CreatedAtUtc = row.N.CreatedAtUtc,
+                CreatedByUserId = row.N.CreatedByUserId,
+
+                CreatedByFullName = row.CreatedByFullName,
+                CreatedByUserEmail = row.CreatedByEmail,
+                CreatedByEmail = row.CreatedByEmail,
+
+                RelatedEntityType = row.N.RelatedEntityType,
+                RelatedEntityId = row.N.RelatedEntityId,
+                RelatedUrl = row.N.RelatedUrl,
+
+                TotalTargetUsers = totalTargets,
+                ReadCount = readCount,
+                UnreadCount = unreadCount,
+
+                TargetRoles = targetRoles,
+                // Recipients can be very large (especially Global).
+                // FE should load recipients via the dedicated paging endpoint.
+                Recipients = new List<NotificationRecipientDto>(),
+
+                Type = row.N.Type,
+                DedupKey = row.N.DedupKey,
+                CorrelationId = row.N.CorrelationId,
+                PayloadJson = row.N.PayloadJson,
+                ExpiresAtUtc = row.N.ExpiresAtUtc,
+                ArchivedAtUtc = row.N.ArchivedAtUtc
+            };
+
+            return Ok(dto);
+        }
+
+        // =========================
+        // ADMIN: RECIPIENTS (PAGED)
+        // GET /api/notifications/{id}/recipients?pageNumber=1&pageSize=20
+        // =========================
+        [HttpGet("{id:int}/recipients")]
+        public async Task<ActionResult<NotificationRecipientsPagedResponseDto>> GetAdminRecipients(
+            [FromRoute] int id,
+            [FromQuery] NotificationRecipientsFilterDto filter,
+            CancellationToken ct)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var currentUserId = GetCurrentUserId();
+            if (!await CurrentUserIsAdminAsync(db, currentUserId, ct))
+                return Forbid();
+
+            var n = await db.Notifications.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (n == null) return NotFound();
+
+            var pageNumber = Math.Max(1, filter.PageNumber);
+            var pageSize = Math.Clamp(filter.PageSize, 1, 200);
+            var search = (filter.Search ?? string.Empty).Trim();
+            var hasSearch = search.Length > 0;
+
+            if (n.IsGlobal)
+            {
+                var q = db.Users.AsNoTracking()
+                    .Where(u => u.Status == "Active");
+
+                if (hasSearch)
+                {
+                    q = q.Where(u =>
+                        (u.FullName != null && u.FullName.Contains(search)) ||
+                        (u.Email != null && u.Email.Contains(search)));
                 }
 
-                using var cmd = conn.CreateCommand();
-
-                var paramNames = new List<string>();
-                for (var i = 0; i < normalized.Count; i++)
-                {
-                    var p = cmd.CreateParameter();
-                    p.ParameterName = "@r" + i;
-                    p.Value = normalized[i];
-                    cmd.Parameters.Add(p);
-                    paramNames.Add(p.ParameterName);
-                }
-
-                // Join thêm [User] để filter Status == 'Active'
-                cmd.CommandText = $@"
-SELECT DISTINCT ur.UserId
-FROM dbo.UserRole ur
-JOIN dbo.[User] u ON u.UserId = ur.UserId
-WHERE u.Status = 'Active'
-  AND ur.RoleId IN ({string.Join(",", paramNames)})
-";
-
-                var result = new List<Guid>();
-                using var reader = await cmd.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    if (!reader.IsDBNull(0))
+                // Left join NotificationUser to know read state (missing row => unread)
+                var baseQuery =
+                    from u in q
+                    join nu in db.NotificationUsers.AsNoTracking().Where(x => x.NotificationId == id)
+                        on u.UserId equals nu.UserId into nuj
+                    from nu in nuj.DefaultIfEmpty()
+                    select new
                     {
-                        result.Add(reader.GetGuid(0));
-                    }
+                        u.UserId,
+                        u.FullName,
+                        u.Email,
+                        IsRead = (nu != null && nu.IsRead)
+                    };
+
+                if (filter.IsRead.HasValue)
+                {
+                    var wantRead = filter.IsRead.Value;
+                    baseQuery = baseQuery.Where(x => x.IsRead == wantRead);
                 }
 
-                return result;
-            }
-            finally
-            {
-                if (shouldClose && conn.State == ConnectionState.Open)
+                var totalCount = await baseQuery.CountAsync(ct);
+
+                var pageRows = await baseQuery
+                    .OrderBy(x => x.FullName)
+                    .ThenBy(x => x.Email)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync(ct);
+
+                var pageUserIds = pageRows.Select(x => x.UserId).ToList();
+                var roleNamesMap = await GetRoleNamesByUserIdsAsync(db, pageUserIds, ct);
+
+                var items = pageRows.Select(x => new NotificationRecipientDto
                 {
-                    await conn.CloseAsync();
-                }
-            }
-        }
+                    UserId = x.UserId,
+                    FullName = x.FullName,
+                    Email = x.Email ?? string.Empty,
+                    RoleNames = roleNamesMap.TryGetValue(x.UserId, out var rn) ? rn : string.Empty,
+                    IsRead = x.IsRead
+                }).ToList();
 
-        /// <summary>
-        /// Query role names cho 1 list userId bằng JOIN dbo.UserRole + dbo.Role (ADO).
-        /// Output: userId -> "Admin, Customer Care Staff"
-        /// </summary>
-        private async Task<Dictionary<Guid, string>> GetRoleNamesByUserIdsAsync(List<Guid> userIds)
-        {
-            var ids = userIds?
-                .Where(x => x != Guid.Empty)
-                .Distinct()
-                .ToList() ?? new List<Guid>();
-
-            if (ids.Count == 0)
-            {
-                return new Dictionary<Guid, string>();
-            }
-
-            var conn = _db.Database.GetDbConnection();
-            var shouldClose = false;
-
-            try
-            {
-                if (conn.State != ConnectionState.Open)
+                return Ok(new NotificationRecipientsPagedResponseDto
                 {
-                    await conn.OpenAsync();
-                    shouldClose = true;
-                }
-
-                using var cmd = conn.CreateCommand();
-
-                var paramNames = new List<string>();
-                for (var i = 0; i < ids.Count; i++)
-                {
-                    var p = cmd.CreateParameter();
-                    p.ParameterName = "@u" + i;
-                    p.Value = ids[i];
-                    cmd.Parameters.Add(p);
-                    paramNames.Add(p.ParameterName);
-                }
-
-                cmd.CommandText = $@"
-SELECT ur.UserId, r.[Name]
-FROM dbo.UserRole ur
-JOIN dbo.[Role] r ON r.RoleId = ur.RoleId
-WHERE ur.UserId IN ({string.Join(",", paramNames)})
-";
-
-                var pairs = new List<(Guid UserId, string RoleName)>();
-                using var reader = await cmd.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    if (reader.IsDBNull(0)) continue;
-
-                    var uid = reader.GetGuid(0);
-                    var roleName = reader.IsDBNull(1) ? "" : reader.GetString(1);
-
-                    if (!string.IsNullOrWhiteSpace(roleName))
-                    {
-                        pairs.Add((uid, roleName));
-                    }
-                }
-
-                return pairs
-                    .GroupBy(x => x.UserId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => string.Join(", ", g.Select(x => x.RoleName).Distinct().OrderBy(x => x))
-                    );
-            }
-            finally
-            {
-                if (shouldClose && conn.State == ConnectionState.Open)
-                {
-                    await conn.CloseAsync();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Resolve recipients = union(TargetUserIds + users theo TargetRoleIds).
-        /// </summary>
-        private async Task<List<Guid>> ResolveTargetUserIdsAsync(
-            List<Guid>? targetUserIds,
-            List<string>? targetRoleIds)
-        {
-            var result = new HashSet<Guid>();
-
-            if (targetUserIds != null && targetUserIds.Count > 0)
-            {
-                foreach (var id in targetUserIds.Distinct())
-                {
-                    if (id != Guid.Empty) result.Add(id);
-                }
-            }
-
-            if (targetRoleIds != null && targetRoleIds.Count > 0)
-            {
-                var roleUserIds = await ResolveUserIdsByRoleIdsAsync(targetRoleIds);
-                foreach (var id in roleUserIds)
-                {
-                    if (id != Guid.Empty) result.Add(id);
-                }
-            }
-
-            return result.ToList();
-        }
-
-        /// <summary>
-        /// Lazy materialize global notifications cho user hiện tại:
-        /// user tạo sau vẫn thấy thông báo IsGlobal=true.
-        /// </summary>
-        private async Task EnsureGlobalNotificationsMaterializedAsync(Guid userId)
-        {
-            var utcNow = DateTime.UtcNow;
-            var fromUtc = utcNow.AddDays(-180);
-
-            var missingGlobalIds = await _db.Notifications
-                .AsNoTracking()
-                .Where(n => n.IsGlobal && n.CreatedAtUtc >= fromUtc)
-                .Where(n => n.ArchivedAtUtc == null)
-                .Where(n => n.ExpiresAtUtc == null || n.ExpiresAtUtc > utcNow)
-                .Where(n => !_db.NotificationUsers.Any(nu => nu.UserId == userId && nu.NotificationId == n.Id))
-                .OrderByDescending(n => n.CreatedAtUtc)
-                .Select(n => n.Id)
-                .Take(500)
-                .ToListAsync();
-
-            if (missingGlobalIds.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var notifId in missingGlobalIds)
-            {
-                _db.NotificationUsers.Add(new NotificationUser
-                {
-                    NotificationId = notifId,
-                    UserId = userId,
-                    IsRead = false,
-                    ReadAtUtc = null,
-                    DismissedAtUtc = null,
-                    CreatedAtUtc = utcNow
+                    TotalCount = totalCount,
+                    Items = items
                 });
             }
 
-            await _db.SaveChangesAsync();
-        }
+            // Non-global: recipients are rows in NotificationUser.
+            var q2 =
+                from nu in db.NotificationUsers.AsNoTracking()
+                join u in db.Users.AsNoTracking() on nu.UserId equals u.UserId
+                where nu.NotificationId == id
+                select new
+                {
+                    nu.UserId,
+                    u.FullName,
+                    u.Email,
+                    nu.IsRead
+                };
 
-        /// <summary>
-        /// Áp dụng sort cho danh sách Notification (Admin).
-        /// Có xử lý global đúng nghĩa (TotalTargetUsers của global = activeUserCount).
-        /// </summary>
-        private static IQueryable<Notification> ApplyAdminSort(
-            IQueryable<Notification> query,
-            NotificationAdminFilterDto filter,
-            int activeUserCountForGlobal)
-        {
-            var desc = filter.SortDescending;
-            var raw = filter.SortBy;
-
-            if (string.IsNullOrWhiteSpace(raw))
+            if (hasSearch)
             {
-                return desc
-                    ? query.OrderByDescending(n => n.CreatedAtUtc)
-                    : query.OrderBy(n => n.CreatedAtUtc);
+                q2 = q2.Where(x =>
+                    (x.FullName != null && x.FullName.Contains(search)) ||
+                    (x.Email != null && x.Email.Contains(search)));
             }
 
-            var sortBy = raw.Trim().ToLowerInvariant();
-
-            switch (sortBy)
+            if (filter.IsRead.HasValue)
             {
-                case "title":
-                    return desc ? query.OrderByDescending(n => n.Title) : query.OrderBy(n => n.Title);
-
-                case "severity":
-                    return desc ? query.OrderByDescending(n => n.Severity) : query.OrderBy(n => n.Severity);
-
-                case "system":
-                case "issystemgenerated":
-                    return desc ? query.OrderByDescending(n => n.IsSystemGenerated) : query.OrderBy(n => n.IsSystemGenerated);
-
-                case "global":
-                case "isglobal":
-                    return desc ? query.OrderByDescending(n => n.IsGlobal) : query.OrderBy(n => n.IsGlobal);
-
-                case "targets":
-                case "totaltargetusers":
-                    return desc
-                        ? query.OrderByDescending(n => n.IsGlobal ? activeUserCountForGlobal : n.NotificationUsers.Count)
-                        : query.OrderBy(n => n.IsGlobal ? activeUserCountForGlobal : n.NotificationUsers.Count);
-
-                case "read":
-                case "readcount":
-                    return desc
-                        ? query.OrderByDescending(n => n.NotificationUsers.Count(x => x.IsRead))
-                        : query.OrderBy(n => n.NotificationUsers.Count(x => x.IsRead));
-
-                case "createdat":
-                case "createdatutc":
-                default:
-                    return desc ? query.OrderByDescending(n => n.CreatedAtUtc) : query.OrderBy(n => n.CreatedAtUtc);
+                var wantRead = filter.IsRead.Value;
+                q2 = q2.Where(x => x.IsRead == wantRead);
             }
+
+            var total2 = await q2.CountAsync(ct);
+            var page2 = await q2
+                .OrderBy(x => x.FullName)
+                .ThenBy(x => x.Email)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+
+            var ids2 = page2.Select(x => x.UserId).ToList();
+            var roleMap2 = await GetRoleNamesByUserIdsAsync(db, ids2, ct);
+
+            var items2 = page2.Select(x => new NotificationRecipientDto
+            {
+                UserId = x.UserId,
+                FullName = x.FullName,
+                Email = x.Email ?? string.Empty,
+                RoleNames = roleMap2.TryGetValue(x.UserId, out var rn) ? rn : string.Empty,
+                IsRead = x.IsRead
+            }).ToList();
+
+            return Ok(new NotificationRecipientsPagedResponseDto
+            {
+                TotalCount = total2,
+                Items = items2
+            });
         }
 
-        private static IQueryable<NotificationUser> ApplyUserSort(
-            IQueryable<NotificationUser> query,
-            NotificationUserFilterDto filter)
+        // =========================
+        // ADMIN: CREATE MANUAL
+        // POST /api/notifications
+        // =========================
+        [HttpPost]
+        public async Task<ActionResult<NotificationDetailDto>> CreateManual([FromBody] CreateNotificationDto dto, CancellationToken ct)
         {
-            var desc = filter.SortDescending;
-            var sortBy = (filter.SortBy ?? "CreatedAtUtc").ToLowerInvariant();
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            // IMPORTANT: sort theo Notification.CreatedAtUtc để global không bị “nhảy” theo thời điểm materialize
-            return sortBy switch
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var userId = GetCurrentUserId();
+            if (!await CurrentUserIsAdminAsync(db, userId, ct))
+                return Forbid();
+
+            // basic validation for manual non-global notifications
+            if (!dto.IsGlobal)
             {
-                "severity" => desc
-                    ? query.OrderByDescending(nu => nu.Notification.Severity).ThenByDescending(nu => nu.Notification.CreatedAtUtc)
-                    : query.OrderBy(nu => nu.Notification.Severity).ThenByDescending(nu => nu.Notification.CreatedAtUtc),
+                var hasAnyRole = dto.TargetRoleIds != null && dto.TargetRoleIds.Any(x => HasValue(x));
+                var hasAnyUser = dto.TargetUserIds != null && dto.TargetUserIds.Any();
+                if (!hasAnyRole && !hasAnyUser)
+                    return BadRequest(new { message = "Bạn phải chọn ít nhất 1 role hoặc 1 user (hoặc bật Global)." });
+            }
 
-                "isread" => desc
-                    ? query.OrderByDescending(nu => nu.IsRead).ThenByDescending(nu => nu.Notification.CreatedAtUtc)
-                    : query.OrderBy(nu => nu.IsRead).ThenByDescending(nu => nu.Notification.CreatedAtUtc),
+            // Idempotency by DedupKey (optional)
+            if (HasValue(dto.DedupKey))
+            {
+                var existed = await db.Notifications.AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.DedupKey == dto.DedupKey, ct);
 
-                _ => desc
-                    ? query.OrderByDescending(nu => nu.Notification.CreatedAtUtc)
-                    : query.OrderBy(nu => nu.Notification.CreatedAtUtc),
+                if (existed != null)
+                {
+                    // return detail of existed (safe)
+                    return await GetAdminDetail(existed.Id, ct);
+                }
+            }
+
+            var type = HasValue(dto.Type) ? dto.Type!.Trim() : "Manual";
+            var correlationId = HasValue(dto.CorrelationId) ? dto.CorrelationId!.Trim() : Guid.NewGuid().ToString("N");
+
+            var now = DateTime.UtcNow;
+
+            var n = new Notification
+            {
+                Title = dto.Title.Trim(),
+                Message = dto.Message.Trim(),
+                Severity = dto.Severity,
+
+                IsSystemGenerated = false,
+                IsGlobal = dto.IsGlobal,
+
+                CreatedAtUtc = now,
+                CreatedByUserId = userId,
+
+                RelatedEntityType = dto.RelatedEntityType,
+                RelatedEntityId = dto.RelatedEntityId,
+                RelatedUrl = dto.RelatedUrl,
+
+                Type = type,
+                CorrelationId = correlationId,
+                DedupKey = dto.DedupKey,
+                PayloadJson = dto.PayloadJson,
+                ExpiresAtUtc = dto.ExpiresAtUtc,
+                ArchivedAtUtc = null
             };
+
+            // Targets (precompute first to avoid creating notifications without recipients)
+            var targetUserIds = new HashSet<Guid>();
+            var explicitUserIds = new HashSet<Guid>();
+            var roleIds = new List<string>();
+
+            // If global => do NOT bind users/roles (scope = all)
+            if (!n.IsGlobal)
+            {
+                // 1) explicit users
+                if (dto.TargetUserIds != null)
+                {
+                    foreach (var tu in dto.TargetUserIds)
+                    {
+                        targetUserIds.Add(tu);
+                        explicitUserIds.Add(tu);
+                    }
+                }
+
+                // 2) roles => expand to active users
+                roleIds = dto.TargetRoleIds
+                    ?.Where(r => HasValue(r))
+                    .Select(r => r.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? new List<string>();
+
+                if (roleIds.Count > 0)
+                {
+                    var userIdsFromRoles = await GetUserIdsByRoleIdsAsync(db, roleIds, ct);
+                    foreach (var uid in userIdsFromRoles)
+                        targetUserIds.Add(uid);
+                }
+
+                if (targetUserIds.Count == 0)
+                    return BadRequest(new { message = "Không có user nào khớp role/user đã chọn." });
+            }
+
+            db.Notifications.Add(n);
+            await db.SaveChangesAsync(ct);
+
+            if (!n.IsGlobal)
+            {
+                // store target roles for admin detail UI (NotificationTargetRole PK: (NotificationId, RoleId))
+                if (roleIds.Count > 0)
+                {
+                    var ntrs = roleIds.Select(rid => new NotificationTargetRole
+                    {
+                        NotificationId = n.Id,
+                        RoleId = rid
+                    }).ToList();
+                    db.NotificationTargetRoles.AddRange(ntrs);
+                }
+
+                // create NotificationUser rows (so FE always has NotificationUserId)
+                var nus = targetUserIds.Select(uid => new NotificationUser
+                {
+                    NotificationId = n.Id,
+                    UserId = uid,
+                    IsRead = false,
+                    ReadAtUtc = null,
+                    DismissedAtUtc = null
+                }).ToList();
+
+                db.NotificationUsers.AddRange(nus);
+                await db.SaveChangesAsync(ct);
+
+                // send realtime to each user group
+                var totalRecipients = nus.Count;
+
+                // If the fanout is small => send per-user directly (fast path).
+                if (totalRecipients <= RealtimeFanoutThreshold)
+                {
+                    foreach (var nu in nus)
+                    {
+                        await _notificationHub.Clients.Group(NotificationHub.UserGroup(nu.UserId))
+                            .SendAsync("ReceiveNotification", new
+                            {
+                                notificationUserId = nu.Id,
+                                notificationId = n.Id,
+                                title = n.Title,
+                                message = n.Message,
+                                severity = n.Severity,
+                                createdAtUtc = n.CreatedAtUtc,
+                                relatedUrl = n.RelatedUrl
+                            }, ct);
+                    }
+                }
+                else
+                {
+                    // P0: avoid looping SendAsync per-user when target is large.
+                    // 1) Broadcast a lightweight hint to role groups (role claim = Role.Code).
+                    if (roleIds.Count > 0)
+                    {
+                        var roleCodes = await db.Roles.AsNoTracking()
+                            .Where(r => roleIds.Contains(r.RoleId))
+                            .Select(r => (r.Code != null && r.Code.Trim() != "") ? r.Code : r.RoleId)
+                            .Distinct()
+                            .ToListAsync(ct);
+
+                        foreach (var roleCode in roleCodes.Where(HasValue).Select(x => x.Trim()).Distinct())
+                        {
+                            await _dispatchQueue.QueueToGroupAsync(NotificationHub.RoleGroup(roleCode), new
+                            {
+                                notificationId = n.Id,
+                                title = n.Title,
+                                message = n.Message,
+                                severity = n.Severity,
+                                createdAtUtc = n.CreatedAtUtc,
+                                relatedUrl = n.RelatedUrl,
+                                isHint = true
+                            }, "ReceiveNotification");
+                        }
+                    }
+
+                    // 2) Explicit users: deliver to user groups.
+                    // If explicit list is small => send full payload (includes NotificationUserId).
+                    // If explicit list is large => send hint only (FE will refresh/pull data).
+                    var explicitIds = explicitUserIds.ToList();
+                    if (explicitIds.Count > 0)
+                    {
+                        if (explicitIds.Count <= RealtimeFanoutThreshold)
+                        {
+                            var nuIdByUserId = nus.ToDictionary(x => x.UserId, x => x.Id);
+                            foreach (var uid in explicitIds)
+                            {
+                                if (!nuIdByUserId.TryGetValue(uid, out var nuId)) continue;
+                                await _dispatchQueue.QueueToUserAsync(uid, new
+                                {
+                                    notificationUserId = nuId,
+                                    notificationId = n.Id,
+                                    title = n.Title,
+                                    message = n.Message,
+                                    severity = n.Severity,
+                                    createdAtUtc = n.CreatedAtUtc,
+                                    relatedUrl = n.RelatedUrl
+                                }, "ReceiveNotification");
+                            }
+                        }
+                        else
+                        {
+                            foreach (var uid in explicitIds)
+                            {
+                                await _dispatchQueue.QueueToUserAsync(uid, new
+                                {
+                                    notificationId = n.Id,
+                                    title = n.Title,
+                                    message = n.Message,
+                                    severity = n.Severity,
+                                    createdAtUtc = n.CreatedAtUtc,
+                                    relatedUrl = n.RelatedUrl,
+                                    isHint = true
+                                }, "ReceiveNotification");
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // global broadcast (FE listens ReceiveGlobalNotification)
+                await _notificationHub.Clients.Group(NotificationHub.GlobalGroup).SendAsync("ReceiveGlobalNotification", new
+                {
+                    notificationId = n.Id,
+                    title = n.Title,
+                    message = n.Message,
+                    severity = n.Severity,
+                    createdAtUtc = n.CreatedAtUtc,
+                    relatedUrl = n.RelatedUrl
+                }, ct);
+            }
+
+            return await GetAdminDetail(n.Id, ct);
         }
 
-        private ObjectResult CreateValidationProblemResult()
-        {
-            var problemDetails = new ValidationProblemDetails(ModelState)
-            {
-                Status = StatusCodes.Status400BadRequest
-            };
-
-            return new ObjectResult(problemDetails)
-            {
-                StatusCode = StatusCodes.Status400BadRequest
-            };
-        }
-
-        #endregion
-
-        /// <summary>
-        /// Dữ liệu dropdown phục vụ tạo thông báo thủ công:
-        ///  - Roles: danh sách role (RoleId + RoleName).
-        ///  - Users: danh sách user (UserId + FullName + Email).
-        /// </summary>
+        // =========================
+        // ADMIN: manual target options
+        // GET /api/notifications/manual-target-options
+        // =========================
         [HttpGet("manual-target-options")]
-        [RequireRole(RoleCodes.ADMIN)]
-        [ProducesResponseType(typeof(NotificationManualTargetOptionsDto), 200)]
-        public async Task<ActionResult<NotificationManualTargetOptionsDto>> GetManualTargetOptions()
+        public async Task<ActionResult<NotificationManualTargetOptionsDto>> GetManualTargetOptions(CancellationToken ct)
         {
-            var roles = await _db.Roles
-                .AsNoTracking()
-                .OrderBy(r => r.RoleId)
-                .Select(r => new NotificationTargetRoleOptionDto
-                {
-                    RoleId = r.RoleId,
-                    RoleName = r.Name
-                })
-                .ToListAsync();
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
 
-            // NOTE: hiện trả full list. Về lâu dài nên search/paging.
-            var users = await _db.Users
-                .AsNoTracking()
-                .Where(u => u.Status == "Active")
-                .OrderBy(u => u.FullName)
-                .ThenBy(u => u.Email)
-                .Select(u => new NotificationTargetUserOptionDto
-                {
-                    UserId = u.UserId,
-                    FullName = u.FullName,
-                    Email = u.Email
-                })
-                .ToListAsync();
+            var currentUserId = GetCurrentUserId();
+            if (!await CurrentUserIsAdminAsync(db, currentUserId, ct))
+                return Forbid();
+
+            var roles = await LoadRoleOptionsAsync(db, ct);
+            var users = await LoadUserOptionsAsync(db, ct);
 
             return Ok(new NotificationManualTargetOptionsDto
             {
@@ -425,308 +874,294 @@ WHERE ur.UserId IN ({string.Join(",", paramNames)})
             });
         }
 
-        /// <summary>
-        /// Danh sách thông báo (Admin) với filter + phân trang + sort + search.
-        /// Global đúng nghĩa: TotalTargetUsers = tổng user Active, không phụ thuộc NotificationUser.
-        /// </summary>
-        [HttpGet]
-        [RequireRole(RoleCodes.ADMIN)]
-        [ProducesResponseType(typeof(NotificationListResponseDto), 200)]
-        public async Task<ActionResult<NotificationListResponseDto>> GetNotifications([FromQuery] NotificationAdminFilterDto filter)
+        // =========================
+        // ADMIN: filter options for list
+        // GET /api/notifications/admin-filter-options
+        // =========================
+        [HttpGet("admin-filter-options")]
+        public async Task<ActionResult<NotificationAdminFilterOptionsDto>> GetAdminFilterOptions(CancellationToken ct)
         {
-            var query = _db.Notifications
-                .AsNoTracking()
-                .Include(n => n.CreatedByUser)
-                .AsQueryable();
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
 
-            if (filter.Severity.HasValue)
-                query = query.Where(n => n.Severity == filter.Severity.Value);
+            var currentUserId = GetCurrentUserId();
+            if (!await CurrentUserIsAdminAsync(db, currentUserId, ct))
+                return Forbid();
 
-            if (filter.IsSystemGenerated.HasValue)
-                query = query.Where(n => n.IsSystemGenerated == filter.IsSystemGenerated.Value);
+            var types = await db.Notifications.AsNoTracking()
+                .Where(n => n.Type != null && n.Type.Trim() != "")
+                .Select(n => n.Type!)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToListAsync(ct);
 
-            if (filter.IsGlobal.HasValue)
-                query = query.Where(n => n.IsGlobal == filter.IsGlobal.Value);
-
-            if (filter.CreatedFromUtc.HasValue)
-                query = query.Where(n => n.CreatedAtUtc >= filter.CreatedFromUtc.Value);
-
-            if (filter.CreatedToUtc.HasValue)
-                query = query.Where(n => n.CreatedAtUtc <= filter.CreatedToUtc.Value);
-
-            if (!string.IsNullOrWhiteSpace(filter.Search))
+            var typeOptions = types.Select(t => new NotificationFilterOptionDto
             {
-                var search = filter.Search.Trim();
-                query = query.Where(n => n.Title.Contains(search) || n.Message.Contains(search));
+                Value = t,
+                Label = t
+            }).ToList();
+
+            var hasSystemCreator = await db.Notifications.AsNoTracking()
+                .AnyAsync(n => n.CreatedByUserId == null, ct);
+
+            var creators = await (
+                from n in db.Notifications.AsNoTracking()
+                join u in db.Users.AsNoTracking() on n.CreatedByUserId equals u.UserId
+                where n.CreatedByUserId != null
+                select new { u.Email, u.FullName }
+            )
+            .Distinct()
+            .OrderBy(x => x.FullName)
+            .ThenBy(x => x.Email)
+            .ToListAsync(ct);
+
+            var creatorOptions = new List<NotificationFilterOptionDto>();
+            if (hasSystemCreator)
+            {
+                creatorOptions.Add(new NotificationFilterOptionDto
+                {
+                    Value = SystemCreatorFilterValue,
+                    Label = "Hệ thống"
+                });
             }
 
-            var totalCount = await query.CountAsync();
-
-            // Chỉ cần tính active user count khi có khả năng trả global
-            var activeUserCount = 0;
-            if (!filter.IsGlobal.HasValue || filter.IsGlobal.Value)
+            foreach (var c in creators)
             {
-                activeUserCount = await CountActiveUsersAsync();
+                if (!HasValue(c.Email)) continue;
+
+                var label = HasValue(c.FullName)
+                    ? c.FullName!.Trim()
+                    : c.Email!;
+
+                creatorOptions.Add(new NotificationFilterOptionDto
+                {
+                    Value = c.Email!,
+                    Label = label
+                });
             }
 
-            query = ApplyAdminSort(query, filter, activeUserCount);
+            return Ok(new NotificationAdminFilterOptionsDto
+            {
+                Types = typeOptions,
+                Creators = creatorOptions
+            });
+        }
+
+        // =========================
+        // USER: unread count
+        // GET /api/notifications/my/unread-count
+        // =========================
+        [HttpGet("my/unread-count")]
+        public async Task<ActionResult<NotificationUnreadCountDto>> GetMyUnreadCount(CancellationToken ct)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var userId = GetCurrentUserId();
+            var now = DateTime.UtcNow;
+
+            // unread targeted
+            var unreadTargeted = await (
+                from nu in db.NotificationUsers.AsNoTracking()
+                join n in db.Notifications.AsNoTracking() on nu.NotificationId equals n.Id
+                where nu.UserId == userId
+                      && !nu.IsRead
+                      && n.ArchivedAtUtc == null
+                      && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now)
+                select nu.Id
+            ).CountAsync(ct);
+
+            // unread global (no row or IsRead=false => unread; IsRead=true => read)
+            var unreadGlobal = await db.Notifications.AsNoTracking()
+                .Where(n => n.IsGlobal
+                            && n.ArchivedAtUtc == null
+                            && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now))
+                .Where(n => !db.NotificationUsers.Any(nu => nu.UserId == userId && nu.NotificationId == n.Id && nu.IsRead))
+                .CountAsync(ct);
+
+            return Ok(new NotificationUnreadCountDto
+            {
+                UnreadCount = unreadTargeted + unreadGlobal
+            });
+        }
+
+        // =========================
+        // USER: list my notifications
+        // GET /api/notifications/my
+        // =========================
+        [HttpGet("my")]
+        public async Task<ActionResult<NotificationUserListResponseDto>> GetMyList(
+            [FromQuery] NotificationUserFilterDto filter,
+            CancellationToken ct)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var userId = GetCurrentUserId();
+            var now = DateTime.UtcNow;
 
             var pageNumber = filter.PageNumber <= 0 ? 1 : filter.PageNumber;
-            var pageSize = filter.PageSize <= 0 ? 1 : filter.PageSize;
-            if (pageSize > 200) pageSize = 200;
+            var pageSize = filter.PageSize <= 0 ? 20 : filter.PageSize;
+            if (pageSize > 100) pageSize = 100;
 
-            var skip = (pageNumber - 1) * pageSize;
-
-            var items = await query
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(n => new NotificationListItemDto
-                {
-                    Id = n.Id,
-                    Title = n.Title,
-                    Message = n.Message,
-                    Severity = n.Severity,
-                    IsSystemGenerated = n.IsSystemGenerated,
-                    IsGlobal = n.IsGlobal,
-                    CreatedAtUtc = n.CreatedAtUtc,
-                    CreatedByUserId = n.CreatedByUserId,
-                    CreatedByUserEmail = n.CreatedByUser != null ? n.CreatedByUser.Email : null,
-                    RelatedEntityType = n.RelatedEntityType,
-                    RelatedEntityId = n.RelatedEntityId,
-                    RelatedUrl = n.RelatedUrl,
-
-                    // ✅ Global đúng nghĩa:
-                    TotalTargetUsers = n.IsGlobal ? activeUserCount : n.NotificationUsers.Count,
-                    ReadCount = n.NotificationUsers.Count(x => x.IsRead),
-
-                    // Option A
-                    Type = n.Type,
-                    CorrelationId = n.CorrelationId,
-                    ExpiresAtUtc = n.ExpiresAtUtc,
-                    ArchivedAtUtc = n.ArchivedAtUtc
-                })
-                .ToListAsync();
-
-            return Ok(new NotificationListResponseDto
-            {
-                TotalCount = totalCount,
-                Items = items
-            });
-        }
-
-        /// <summary>
-        /// Chi tiết thông báo (Admin).
-        /// Global đúng nghĩa: TotalTargetUsers = tổng user Active.
-        /// Recipients: chỉ liệt kê những user đã có NotificationUser row (đã materialize).
-        /// </summary>
-        [HttpGet("{id:int}")]
-        [RequireRole(RoleCodes.ADMIN)]
-        [ProducesResponseType(typeof(NotificationDetailDto), 200)]
-        [ProducesResponseType(404)]
-        public async Task<ActionResult<NotificationDetailDto>> GetNotificationDetail(int id)
-        {
-            var notification = await _db.Notifications
-                .AsNoTracking()
-                .Include(n => n.CreatedByUser)
-                .Include(n => n.NotificationTargetRoles)
-                    .ThenInclude(tr => tr.Role)
-                .FirstOrDefaultAsync(n => n.Id == id);
-
-            if (notification == null)
-            {
-                return NotFound();
-            }
-
-            var activeUserCount = notification.IsGlobal ? await CountActiveUsersAsync() : 0;
-
-            var readCount = await _db.NotificationUsers
-                .AsNoTracking()
-                .CountAsync(nu => nu.NotificationId == id && nu.IsRead);
-
-            var totalTargetUsers = notification.IsGlobal
-                ? activeUserCount
-                : await _db.NotificationUsers.AsNoTracking().CountAsync(nu => nu.NotificationId == id);
-
-            // Recipients: với global thì chỉ show top 200 người đã phát sinh row (đỡ nặng UI)
-            var recipientRowsQuery = _db.NotificationUsers
-                .AsNoTracking()
-                .Where(nu => nu.NotificationId == id);
-
-            if (notification.IsGlobal)
-            {
-                recipientRowsQuery = recipientRowsQuery
-                    .OrderByDescending(nu => nu.IsRead)
-                    .ThenByDescending(nu => nu.ReadAtUtc)
-                    .ThenByDescending(nu => nu.CreatedAtUtc)
-                    .Take(200);
-            }
-
-            var recipientRows = await recipientRowsQuery.ToListAsync();
-
-            var userIds = recipientRows
-                .Select(nu => nu.UserId)
-                .Distinct()
-                .ToList();
-
-            var users = await _db.Users
-                .AsNoTracking()
-                .Where(u => userIds.Contains(u.UserId))
-                .Select(u => new { u.UserId, u.FullName, u.Email })
-                .ToListAsync();
-
-            var usersDict = users.ToDictionary(x => x.UserId, x => x);
-            var roleNamesDict = await GetRoleNamesByUserIdsAsync(userIds);
-
-            var recipients = recipientRows
-                .Select(nu =>
-                {
-                    usersDict.TryGetValue(nu.UserId, out var userInfo);
-                    roleNamesDict.TryGetValue(nu.UserId, out var roleNames);
-
-                    return new NotificationRecipientDto
-                    {
-                        UserId = nu.UserId,
-                        FullName = userInfo?.FullName,
-                        Email = userInfo?.Email ?? string.Empty,
-                        RoleNames = roleNames ?? string.Empty,
-                        IsRead = nu.IsRead
-                    };
-                })
-                .OrderBy(r => r.FullName ?? r.Email)
-                .ToList();
-
-            return Ok(new NotificationDetailDto
-            {
-                Id = notification.Id,
-                Title = notification.Title,
-                Message = notification.Message,
-                Severity = notification.Severity,
-                IsSystemGenerated = notification.IsSystemGenerated,
-                IsGlobal = notification.IsGlobal,
-                CreatedAtUtc = notification.CreatedAtUtc,
-                CreatedByUserId = notification.CreatedByUserId,
-                CreatedByUserEmail = notification.CreatedByUser?.Email,
-                RelatedEntityType = notification.RelatedEntityType,
-                RelatedEntityId = notification.RelatedEntityId,
-                RelatedUrl = notification.RelatedUrl,
-
-                TotalTargetUsers = totalTargetUsers,
-                ReadCount = readCount,
-                UnreadCount = Math.Max(0, totalTargetUsers - readCount),
-
-                TargetRoles = notification.NotificationTargetRoles
-                    .Select(tr => new NotificationTargetRoleDto
-                    {
-                        RoleId = tr.RoleId,
-                        RoleName = tr.Role?.Name
-                    })
-                    .ToList(),
-
-                Recipients = recipients,
-
-                // Option A
-                Type = notification.Type,
-                DedupKey = notification.DedupKey,
-                CorrelationId = notification.CorrelationId,
-                PayloadJson = notification.PayloadJson,
-                ExpiresAtUtc = notification.ExpiresAtUtc,
-                ArchivedAtUtc = notification.ArchivedAtUtc
-            });
-        }
-
-        /// <summary>
-        /// Lịch sử thông báo của user hiện tại (dựa vào NotificationUser).
-        /// IMPORTANT: CreatedAtUtc trả về = Notification.CreatedAtUtc để global không bị sai thời gian.
-        /// </summary>
-        [HttpGet("my")]
-        [Authorize]
-        [ProducesResponseType(typeof(NotificationUserListResponseDto), 200)]
-        public async Task<ActionResult<NotificationUserListResponseDto>> GetMyNotifications([FromQuery] NotificationUserFilterDto filter)
-        {
-            Guid userId;
-            try
-            {
-                userId = GetCurrentUserId();
-            }
-            catch
-            {
-                return Unauthorized();
-            }
-
-            try
-            {
-                await EnsureGlobalNotificationsMaterializedAsync(userId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to materialize global notifications for user {UserId}", userId);
-            }
-
-            var utcNow = DateTime.UtcNow;
-
-            var query = _db.NotificationUsers
-                .AsNoTracking()
-                .Where(nu => nu.UserId == userId)
-                .Include(nu => nu.Notification)
-                .Where(nu => nu.Notification.ArchivedAtUtc == null)
-                .Where(nu => nu.Notification.ExpiresAtUtc == null || nu.Notification.ExpiresAtUtc > utcNow)
-                .AsQueryable();
-
-            if (filter.OnlyUnread)
-                query = query.Where(nu => !nu.IsRead);
+            // 1) base notifications (global OR targeted to user)
+            var q =
+                from n in db.Notifications
+                where n.ArchivedAtUtc == null
+                      && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now)
+                select n;
 
             if (filter.Severity.HasValue)
-                query = query.Where(nu => nu.Notification.Severity == filter.Severity.Value);
+            {
+                var sev = filter.Severity.Value;
+                q = q.Where(n => n.Severity == sev);
+            }
 
             if (filter.FromUtc.HasValue)
-                query = query.Where(nu => nu.Notification.CreatedAtUtc >= filter.FromUtc.Value);
-
-            if (filter.ToUtc.HasValue)
-                query = query.Where(nu => nu.Notification.CreatedAtUtc <= filter.ToUtc.Value);
-
-            if (!string.IsNullOrWhiteSpace(filter.Search))
             {
-                var search = filter.Search.Trim();
-                query = query.Where(nu => nu.Notification.Title.Contains(search) || nu.Notification.Message.Contains(search));
+                var from = filter.FromUtc.Value;
+                q = q.Where(n => n.CreatedAtUtc >= from);
             }
 
-            var totalCount = await query.CountAsync();
-            query = ApplyUserSort(query, filter);
+            if (filter.ToUtc.HasValue)
+            {
+                var to = filter.ToUtc.Value;
+                q = q.Where(n => n.CreatedAtUtc <= to);
+            }
 
-            var pageNumber = filter.PageNumber <= 0 ? 1 : filter.PageNumber;
-            var pageSize = filter.PageSize <= 0 ? 1 : filter.PageSize;
-            if (pageSize > 200) pageSize = 200;
+            if (HasValue(filter.Search))
+            {
+                var s = filter.Search!.Trim();
+                q = q.Where(n => n.Title.Contains(s) || n.Message.Contains(s));
+            }
 
-            var skip = (pageNumber - 1) * pageSize;
+            // restrict to visible to current user
+            q = q.Where(n =>
+                n.IsGlobal ||
+                db.NotificationUsers.Any(nu => nu.UserId == userId && nu.NotificationId == n.Id)
+            );
 
-            var items = await query
-                .Skip(skip)
+            // only unread
+            if (filter.OnlyUnread)
+            {
+                q = q.Where(n =>
+                    n.IsGlobal
+                        ? !db.NotificationUsers.Any(nu => nu.UserId == userId && nu.NotificationId == n.Id && nu.IsRead)
+                        : db.NotificationUsers.Any(nu => nu.UserId == userId && nu.NotificationId == n.Id && !nu.IsRead)
+                );
+            }
+
+            // sort (simple for user list)
+            var sortKey = NormalizeSortKey(filter.SortBy);
+            var desc = filter.SortDescending;
+
+            q = sortKey switch
+            {
+                "title" => desc ? q.OrderByDescending(n => n.Title).ThenByDescending(n => n.Id)
+                                : q.OrderBy(n => n.Title).ThenBy(n => n.Id),
+
+                "severity" => desc ? q.OrderByDescending(n => n.Severity).ThenByDescending(n => n.Id)
+                                   : q.OrderBy(n => n.Severity).ThenBy(n => n.Id),
+
+                _ => desc ? q.OrderByDescending(n => n.CreatedAtUtc).ThenByDescending(n => n.Id)
+                          : q.OrderBy(n => n.CreatedAtUtc).ThenBy(n => n.Id)
+            };
+
+            var totalCount = await q.CountAsync(ct);
+
+            // 2) take page of notifications
+            var page = await q.AsNoTracking()
+                .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
-                .Select(nu => new NotificationUserListItemDto
+                .Select(n => new
                 {
-                    NotificationUserId = nu.Id,
-                    NotificationId = nu.NotificationId,
-                    Title = nu.Notification.Title,
-                    Message = nu.Notification.Message,
-                    Severity = nu.Notification.Severity,
-                    IsRead = nu.IsRead,
-
-                    // ✅ dùng Notification.CreatedAtUtc
-                    CreatedAtUtc = nu.Notification.CreatedAtUtc,
-                    ReadAtUtc = nu.ReadAtUtc,
-
-                    IsSystemGenerated = nu.Notification.IsSystemGenerated,
-                    IsGlobal = nu.Notification.IsGlobal,
-
-                    RelatedEntityType = nu.Notification.RelatedEntityType,
-                    RelatedEntityId = nu.Notification.RelatedEntityId,
-                    RelatedUrl = nu.Notification.RelatedUrl,
-
-                    // Option A
-                    Type = nu.Notification.Type,
-                    ExpiresAtUtc = nu.Notification.ExpiresAtUtc
+                    n.Id,
+                    n.Title,
+                    n.Message,
+                    n.Severity,
+                    n.IsSystemGenerated,
+                    n.IsGlobal,
+                    n.CreatedAtUtc,
+                    n.RelatedEntityType,
+                    n.RelatedEntityId,
+                    n.RelatedUrl,
+                    n.Type,
+                    n.ExpiresAtUtc
                 })
-                .ToListAsync();
+                .ToListAsync(ct);
+
+            var notifIds = page.Select(x => x.Id).ToList();
+
+            // 3) ensure NotificationUser exists for global notifications in page (so FE always has NotificationUserId)
+            var existingNu = await db.NotificationUsers
+                .Where(nu => nu.UserId == userId && notifIds.Contains(nu.NotificationId))
+                .ToListAsync(ct);
+
+            var existingMap = existingNu.ToDictionary(x => x.NotificationId, x => x);
+
+            var missingGlobalIds = page
+                .Where(x => x.IsGlobal && !existingMap.ContainsKey(x.Id))
+                .Select(x => x.Id)
+                .ToList();
+
+            if (missingGlobalIds.Count > 0)
+            {
+                foreach (var nid in missingGlobalIds)
+                {
+                    db.NotificationUsers.Add(new NotificationUser
+                    {
+                        NotificationId = nid,
+                        UserId = userId,
+                        IsRead = false,
+                        ReadAtUtc = null,
+                        DismissedAtUtc = null
+                    });
+                }
+
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException ex)
+                {
+                    // race: ignore duplicates
+                    _logger.LogWarning(ex, "Upsert NotificationUser (global) raced. Safe to ignore.");
+                }
+
+                // reload to get ids
+                existingNu = await db.NotificationUsers
+                    .Where(nu => nu.UserId == userId && notifIds.Contains(nu.NotificationId))
+                    .ToListAsync(ct);
+
+                existingMap = existingNu.ToDictionary(x => x.NotificationId, x => x);
+            }
+
+            // 4) build response items
+            var items = page.Select(x =>
+            {
+                existingMap.TryGetValue(x.Id, out var nu);
+
+                return new NotificationUserListItemDto
+                {
+                    NotificationUserId = nu != null ? nu.Id : 0,
+                    NotificationId = x.Id,
+
+                    Title = x.Title,
+                    Message = x.Message,
+                    Severity = x.Severity,
+
+                    IsRead = nu?.IsRead ?? false,
+                    ReadAtUtc = nu?.ReadAtUtc,
+                    CreatedAtUtc = x.CreatedAtUtc,
+
+                    IsSystemGenerated = x.IsSystemGenerated,
+                    IsGlobal = x.IsGlobal,
+
+                    RelatedEntityType = x.RelatedEntityType,
+                    RelatedEntityId = x.RelatedEntityId,
+                    RelatedUrl = x.RelatedUrl,
+
+                    Type = x.Type,
+                    ExpiresAtUtc = x.ExpiresAtUtc
+                };
+            }).ToList();
 
             return Ok(new NotificationUserListResponseDto
             {
@@ -735,262 +1170,222 @@ WHERE ur.UserId IN ({string.Join(",", paramNames)})
             });
         }
 
-        /// <summary>
-        /// Unread count (user hiện tại).
-        /// </summary>
-        [HttpGet("my/unread-count")]
-        [Authorize]
-        [ProducesResponseType(typeof(NotificationUnreadCountDto), 200)]
-        public async Task<ActionResult<NotificationUnreadCountDto>> GetMyUnreadCount()
-        {
-            Guid userId;
-            try
-            {
-                userId = GetCurrentUserId();
-            }
-            catch
-            {
-                return Unauthorized();
-            }
-
-            try
-            {
-                await EnsureGlobalNotificationsMaterializedAsync(userId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to materialize global notifications for unread-count user {UserId}", userId);
-            }
-
-            var utcNow = DateTime.UtcNow;
-
-            var unreadCount = await _db.NotificationUsers
-                .AsNoTracking()
-                .Where(nu => nu.UserId == userId && !nu.IsRead)
-                .Where(nu => nu.Notification.ArchivedAtUtc == null)
-                .Where(nu => nu.Notification.ExpiresAtUtc == null || nu.Notification.ExpiresAtUtc > utcNow)
-                .CountAsync();
-
-            return Ok(new NotificationUnreadCountDto { UnreadCount = unreadCount });
-        }
-
-        /// <summary>
-        /// Đánh dấu 1 thông báo của user hiện tại là đã đọc.
-        /// </summary>
+        // =========================
+        // USER: mark read
+        // POST /api/notifications/my/{notificationUserId}/read
+        // =========================
         [HttpPost("my/{notificationUserId:long}/read")]
-        [Authorize]
-        [ProducesResponseType(204)]
-        [ProducesResponseType(404)]
-        public async Task<ActionResult> MarkMyNotificationAsRead(long notificationUserId)
+        public async Task<ActionResult<NotificationUpsertResultDto>> MarkMyRead(
+            [FromRoute] long notificationUserId,
+            CancellationToken ct)
         {
-            Guid userId;
-            try
-            {
-                userId = GetCurrentUserId();
-            }
-            catch
-            {
-                return Unauthorized();
-            }
+            using var db = await _dbFactory.CreateDbContextAsync(ct);
 
-            var notifUser = await _db.NotificationUsers
-                .FirstOrDefaultAsync(nu => nu.Id == notificationUserId && nu.UserId == userId);
+            var userId = GetCurrentUserId();
+            var now = DateTime.UtcNow;
 
-            if (notifUser == null)
-            {
-                return NotFound();
-            }
+            var nu = await db.NotificationUsers
+                .FirstOrDefaultAsync(x => x.Id == notificationUserId && x.UserId == userId, ct);
 
-            if (!notifUser.IsRead)
+            if (nu == null) return NotFound();
+
+            if (!nu.IsRead)
             {
-                notifUser.IsRead = true;
-                notifUser.ReadAtUtc = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
+                nu.IsRead = true;
+                nu.ReadAtUtc = now;
+                await db.SaveChangesAsync(ct);
             }
 
-            return NoContent();
+            return Ok(new NotificationUpsertResultDto
+            {
+                NotificationUserId = nu.Id,
+                NotificationId = nu.NotificationId,
+                IsRead = nu.IsRead,
+                ReadAtUtc = nu.ReadAtUtc,
+                DismissedAtUtc = nu.DismissedAtUtc
+            });
         }
 
-        /// <summary>
-        /// Tạo thông báo thủ công.
-        /// - IsGlobal=true: không bắt buộc TargetUserIds/TargetRoleIds (global đúng nghĩa)
-        /// - IsGlobal=false: recipients = union(TargetUserIds + users theo TargetRoleIds)
-        /// </summary>
-        [HttpPost]
-        [RequireRole(RoleCodes.ADMIN)]
-        [ProducesResponseType(typeof(object), 201)]
-        [ProducesResponseType(400)]
-        public async Task<ActionResult> CreateManualNotification([FromBody] CreateNotificationDto dto)
+        // ============================================================
+        // Raw SQL helpers (avoid depending on Role/UserRole EF models)
+        // ============================================================
+
+        private static async Task<List<NotificationTargetRoleDto>> LoadTargetRolesAsync(
+            KeytietkiemDbContext db,
+            int notificationId,
+            CancellationToken ct)
         {
-            if (!ModelState.IsValid)
-            {
-                return CreateValidationProblemResult();
-            }
-
-            if (!dto.IsGlobal)
-            {
-                var hasUsers = dto.TargetUserIds != null && dto.TargetUserIds.Count > 0;
-                var hasRoles = dto.TargetRoleIds != null && dto.TargetRoleIds.Count > 0;
-
-                if (!hasUsers && !hasRoles)
+            // Use EF navigation (NotificationTargetRole -> Role) to avoid manual connection handling
+            var rows = await db.NotificationTargetRoles.AsNoTracking()
+                .Where(x => x.NotificationId == notificationId)
+                .Select(x => new
                 {
-                    ModelState.AddModelError(nameof(dto.TargetUserIds),
-                        "At least one target user or target role is required.");
-                    return CreateValidationProblemResult();
-                }
-            }
+                    x.RoleId,
+                    RoleName = x.Role != null ? x.Role.Name : null
+                })
+                .OrderBy(x => x.RoleName)
+                .ThenBy(x => x.RoleId)
+                .ToListAsync(ct);
 
-            Guid creatorId;
-            try
+            return rows.Select(x => new NotificationTargetRoleDto
             {
-                creatorId = GetCurrentUserId();
-            }
-            catch
-            {
-                return Unauthorized();
-            }
+                RoleId = x.RoleId,
+                RoleName = x.RoleName
+            }).ToList();
+        }
 
-            var recipients = new List<Guid>();
-
-            if (!dto.IsGlobal)
-            {
-                recipients = await ResolveTargetUserIdsAsync(dto.TargetUserIds, dto.TargetRoleIds);
-
-                recipients = await _db.Users
-                    .AsNoTracking()
-                    .Where(u => recipients.Contains(u.UserId) && u.Status == "Active")
-                    .Select(u => u.UserId)
-                    .Distinct()
-                    .ToListAsync();
-
-                if (recipients.Count == 0)
+        private static async Task<List<NotificationRecipientDto>> LoadRecipientsForNonGlobalAsync(
+            KeytietkiemDbContext db,
+            int notificationId,
+            CancellationToken ct)
+        {
+            // get notification users
+            var rows = await (
+                from nu in db.NotificationUsers.AsNoTracking()
+                join u in db.Users.AsNoTracking() on nu.UserId equals u.UserId
+                where nu.NotificationId == notificationId
+                select new
                 {
-                    ModelState.AddModelError(nameof(dto.TargetUserIds),
-                        "No valid users found for the given TargetUserIds/TargetRoleIds.");
-                    return CreateValidationProblemResult();
+                    u.UserId,
+                    u.FullName,
+                    u.Email,
+                    nu.IsRead
                 }
-            }
+            ).ToListAsync(ct);
 
-            var utcNow = DateTime.UtcNow;
+            var userIds = rows.Select(x => x.UserId).Distinct().ToList();
+            var roleMap = await GetRoleNamesByUserIdsAsync(db, userIds, ct);
 
-            var notification = new Notification
+            return rows.Select(x => new NotificationRecipientDto
             {
-                Title = SafeTrim(dto.Title),
-                Message = SafeTrim(dto.Message),
-                Severity = dto.Severity,
-                IsSystemGenerated = false,
-                IsGlobal = dto.IsGlobal,
-                CreatedAtUtc = utcNow,
-                CreatedByUserId = creatorId,
-                RelatedEntityType = string.IsNullOrWhiteSpace(dto.RelatedEntityType) ? null : dto.RelatedEntityType.Trim(),
-                RelatedEntityId = string.IsNullOrWhiteSpace(dto.RelatedEntityId) ? null : dto.RelatedEntityId.Trim(),
-                RelatedUrl = string.IsNullOrWhiteSpace(dto.RelatedUrl) ? null : dto.RelatedUrl.Trim(),
+                UserId = x.UserId,
+                FullName = x.FullName,
+                Email = x.Email,
+                RoleNames = roleMap.TryGetValue(x.UserId, out var rn) ? rn : "",
+                IsRead = x.IsRead
+            }).ToList();
+        }
 
-                // ✅ Option A: set tối thiểu để trace (không bắt FE phải truyền)
-                Type = "Manual",
-                CorrelationId = Guid.NewGuid().ToString("N"),
-            };
+        private static async Task<List<NotificationRecipientDto>> LoadRecipientsForGlobalAsync(
+            KeytietkiemDbContext db,
+            int notificationId,
+            CancellationToken ct)
+        {
+            // all active users
+            var users = await db.Users.AsNoTracking()
+                .Where(u => u.Status == "Active")
+                .Select(u => new { u.UserId, u.FullName, u.Email })
+                .OrderBy(u => u.Email)
+                .ToListAsync(ct);
 
-            if (dto.TargetRoleIds != null && dto.TargetRoleIds.Count > 0)
+            // read status map
+            var nuRows = await db.NotificationUsers.AsNoTracking()
+                .Where(nu => nu.NotificationId == notificationId)
+                .Select(nu => new { nu.UserId, nu.IsRead })
+                .ToListAsync(ct);
+
+            var readMap = nuRows.ToDictionary(x => x.UserId, x => x.IsRead);
+
+            var userIds = users.Select(x => x.UserId).ToList();
+            var roleMap = await GetRoleNamesByUserIdsAsync(db, userIds, ct);
+
+            return users.Select(u => new NotificationRecipientDto
             {
-                var roleIds = dto.TargetRoleIds
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(x => x.Trim())
-                    .Distinct()
-                    .ToList();
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                RoleNames = roleMap.TryGetValue(u.UserId, out var rn) ? rn : "",
+                IsRead = readMap.TryGetValue(u.UserId, out var isRead) && isRead
+            }).ToList();
+        }
 
-                var existingRoles = await _db.Roles
-                    .AsNoTracking()
-                    .Where(r => roleIds.Contains(r.RoleId))
-                    .Select(r => r.RoleId)
-                    .ToListAsync();
-
-                foreach (var roleId in existingRoles)
+        private static async Task<List<NotificationTargetRoleOptionDto>> LoadRoleOptionsAsync(
+            KeytietkiemDbContext db,
+            CancellationToken ct)
+        {
+            // Use EF to avoid manual connection open/dispose
+            return await db.Roles.AsNoTracking()
+                .OrderBy(r => r.Name)
+                .ThenBy(r => r.RoleId)
+                .Select(r => new NotificationTargetRoleOptionDto
                 {
-                    notification.NotificationTargetRoles.Add(new NotificationTargetRole
-                    {
-                        RoleId = roleId
-                    });
-                }
-            }
+                    RoleId = r.RoleId,
+                    RoleName = r.Name
+                })
+                .ToListAsync(ct);
+        }
 
-            if (!notification.IsGlobal)
-            {
-                foreach (var userId in recipients)
+        private static async Task<List<NotificationTargetUserOptionDto>> LoadUserOptionsAsync(
+            KeytietkiemDbContext db,
+            CancellationToken ct)
+        {
+            // small cap to keep UI light
+            var users = await db.Users.AsNoTracking()
+                .Where(u => u.Status == "Active")
+                .OrderBy(u => u.Email)
+                .Take(500)
+                .Select(u => new NotificationTargetUserOptionDto
                 {
-                    notification.NotificationUsers.Add(new NotificationUser
-                    {
-                        UserId = userId,
-                        IsRead = false,
-                        CreatedAtUtc = utcNow,
-                        ReadAtUtc = null,
-                        DismissedAtUtc = null
-                    });
-                }
-            }
+                    UserId = u.UserId,
+                    FullName = u.FullName,
+                    Email = u.Email
+                })
+                .ToListAsync(ct);
 
-            _db.Notifications.Add(notification);
-            await _db.SaveChangesAsync();
+            return users;
+        }
 
-            // Push realtime (best-effort)
-            try
+        private static async Task<HashSet<Guid>> GetUserIdsByRoleIdsAsync(
+            KeytietkiemDbContext db,
+            IEnumerable<string> roleIds,
+            CancellationToken ct)
+        {
+            var ids = roleIds
+                .Where(r => HasValue(r))
+                .Select(r => r.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (ids.Count == 0) return new HashSet<Guid>();
+
+            // Use many-to-many navigation User.Roles
+            var userIds = await db.Users.AsNoTracking()
+                .Where(u => u.Status == "Active" && u.Roles.Any(r => ids.Contains(r.RoleId)))
+                .Select(u => u.UserId)
+                .ToListAsync(ct);
+
+            return userIds.ToHashSet();
+        }
+
+        private static async Task<Dictionary<Guid, string>> GetRoleNamesByUserIdsAsync(
+            KeytietkiemDbContext db,
+            List<Guid> userIds,
+            CancellationToken ct)
+        {
+            var map = new Dictionary<Guid, string>();
+            if (userIds == null || userIds.Count == 0) return map;
+
+            // avoid SQL param limit blowups
+            if (userIds.Count > 1800)
+                userIds = userIds.Take(1800).ToList();
+
+            // Flatten users -> roles using many-to-many navigation (avoids raw SQL)
+            var pairs = await db.Users.AsNoTracking()
+                .Where(u => userIds.Contains(u.UserId))
+                .SelectMany(u => u.Roles.Select(r => new { u.UserId, RoleName = r.Name }))
+                .ToListAsync(ct);
+
+            foreach (var g in pairs
+                .Where(x => !string.IsNullOrWhiteSpace(x.RoleName))
+                .GroupBy(x => x.UserId))
             {
-                if (notification.IsGlobal)
-                {
-                    var dtoGlobal = new
-                    {
-                        notificationId = notification.Id,
-                        title = notification.Title,
-                        message = notification.Message,
-                        severity = notification.Severity,
-                        createdAtUtc = notification.CreatedAtUtc,
-                        isGlobal = true,
-                        type = notification.Type,
-                        correlationId = notification.CorrelationId,
-                        relatedUrl = notification.RelatedUrl
-                    };
-
-                    await _notificationHub.Clients.All.SendAsync("ReceiveGlobalNotification", dtoGlobal);
-                }
-                else
-                {
-                    foreach (var nu in notification.NotificationUsers)
-                    {
-                        var dtoUser = new NotificationUserListItemDto
-                        {
-                            NotificationUserId = nu.Id,
-                            NotificationId = nu.NotificationId,
-                            Title = notification.Title,
-                            Message = notification.Message,
-                            Severity = notification.Severity,
-                            IsRead = nu.IsRead,
-                            CreatedAtUtc = notification.CreatedAtUtc,
-                            ReadAtUtc = nu.ReadAtUtc,
-                            IsSystemGenerated = notification.IsSystemGenerated,
-                            IsGlobal = notification.IsGlobal,
-                            RelatedEntityType = notification.RelatedEntityType,
-                            RelatedEntityId = notification.RelatedEntityId,
-                            RelatedUrl = notification.RelatedUrl,
-                            Type = notification.Type,
-                            ExpiresAtUtc = notification.ExpiresAtUtc
-                        };
-
-                        await _notificationHub
-                            .Clients
-                            .Group(NotificationHub.UserGroup(nu.UserId))
-                            .SendAsync("ReceiveNotification", dtoUser);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to push realtime notifications");
+                map[g.Key] = string.Join(", ", g
+                    .Select(x => x.RoleName!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x));
             }
 
-            return CreatedAtAction(
-                nameof(GetNotificationDetail),
-                new { id = notification.Id },
-                new { notification.Id });
+            return map;
         }
     }
 }

@@ -78,6 +78,10 @@ builder.Services.AddControllers()
 // ===== SignalR cho realtime Ticket chat =====
 builder.Services.AddSignalR();
 
+// ✅ NotificationHub dispatch queue (avoid request-time fanout)
+builder.Services.AddSingleton<INotificationDispatchQueue, NotificationDispatchQueue>();
+builder.Services.AddHostedService<NotificationDispatchBackgroundService>();
+
 // ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {

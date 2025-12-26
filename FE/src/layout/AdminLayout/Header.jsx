@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthService } from "../../services/authService";
 import { NotificationsApi } from "../../services/notifications";
 import axiosClient from "../../api/axiosClient"; 
-import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr"; // ✅ thêm
+import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr"; // ✅ thêm
 import "./Header.css";
 
 const Header = ({ profile }) => {
@@ -137,6 +137,7 @@ const notifConnectionRef = useRef(null);
   // ===== POLL UNREAD COUNT ĐỊNH KỲ (CHỈ ĐỂ ĐỒNG BỘ SỐ LƯỢNG) =====
   useEffect(() => {
     let isMounted = true;
+    let timerId = null;
 
     const fetchUnreadNotifications = async () => {
       const token = localStorage.getItem("access_token");
@@ -157,15 +158,27 @@ const notifConnectionRef = useRef(null);
       }
     };
 
+    const scheduleNext = () => {
+      if (!isMounted) return;
+
+      // Nếu SignalR đang Connected thì giảm polling (vì realtime sẽ push)
+      const conn = notifConnectionRef.current;
+      const isConnected = conn && conn.state === HubConnectionState.Connected;
+      const intervalMs = isConnected ? 120000 : 60000;
+
+      timerId = setTimeout(async () => {
+        await fetchUnreadNotifications();
+        scheduleNext();
+      }, intervalMs);
+    };
+
     // Lần đầu
     fetchUnreadNotifications();
-
-    // 15s/lần để đồng bộ số lượng (không show toast)
-    const intervalId = setInterval(fetchUnreadNotifications, 60000);
+    scheduleNext();
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      if (timerId) clearTimeout(timerId);
     };
   }, []);
 
@@ -442,6 +455,15 @@ useEffect(() => {
       default:
         return "Thông tin";
     }
+  };
+
+  const getNotificationTypeLabel = (type) => {
+    const v = String(type || "").trim();
+    if (!v) return "";
+    const key = v.toLowerCase();
+    if (key === "manual") return "Thủ công";
+    if (key === "system") return "Hệ thống";
+    return v;
   };
 
   const formatTime = (value) => {
@@ -722,6 +744,7 @@ useEffect(() => {
                     n.title || n.Title || "(Không có tiêu đề)";
                   const message = n.message || n.Message || "";
                   const severity = n.severity ?? n.Severity ?? 0;
+                  const type = n.type || n.Type || "";
                   const createdAt = n.createdAtUtc || n.CreatedAtUtc;
                   const isRead = n.isRead ?? n.IsRead ?? false;
 
@@ -754,6 +777,14 @@ useEffect(() => {
                           <span className="alh-notif-severity">
                             {getSeverityLabel(severity)}
                           </span>
+                          {type ? (
+                            <>
+                              <span className="alh-notif-dot-sep">•</span>
+                              <span className="alh-notif-type">
+                                {getNotificationTypeLabel(type)}
+                              </span>
+                            </>
+                          ) : null}
                           <span className="alh-notif-dot-sep">•</span>
                           <span className="alh-notif-time">
                             {formatTime(createdAt)}

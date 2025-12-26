@@ -1,6 +1,6 @@
 // File: AdminNotificationsPage.jsx
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
 
@@ -50,8 +50,54 @@ function notificationTypeLabel(type) {
   if (key === "manual") return "Thủ công";
   if (key === "system") return "Hệ thống";
 
-  // fallback: giữ nguyên (dành cho các type tự động sau này)
+  // Một số type tự động hay dùng (mở rộng dần khi bạn bổ sung auto-notify)
+  const map = {
+    ordercreated: "Đơn hàng mới",
+    ticketcreated: "Ticket mới",
+    ticketassigned: "Gán ticket",
+    tickettransferred: "Chuyển ticket",
+    ticketcompleted: "Hoàn thành ticket",
+    producterrorreportcreated: "Báo lỗi sản phẩm",
+    productkeyimported: "Nhập key (import)",
+    productkeybulkupdatestatus: "Cập nhật trạng thái key hàng loạt",
+  };
+
+  if (map[key]) return map[key];
+
+  // fallback: giữ nguyên (dành cho các type tự động mới)
   return v;
+}
+
+function notificationTypeLabelForList(item) {
+  // Ưu tiên field Type; nếu null thì dựa vào IsSystemGenerated
+  const t = String(item?.type || "").trim();
+  if (t) return notificationTypeLabel(t);
+  return item?.isSystemGenerated ? "Hệ thống" : "Thủ công";
+}
+
+function scopeLabelForList(item) {
+  if (item?.isGlobal) return "Toàn hệ thống";
+  // Nếu sau này BE trả thêm targetRoleCount / targetRolesCount thì FE tự nhận
+  const roleCount =
+    typeof item?.targetRoleCount === "number"
+      ? item.targetRoleCount
+      : typeof item?.targetRolesCount === "number"
+      ? item.targetRolesCount
+      : 0;
+  if (roleCount > 0) return "Nhóm quyền";
+  return "Người dùng cụ thể";
+}
+
+
+function creatorLabelOnlyName(label) {
+  const s = String(label || "").trim();
+  if (!s) return s;
+
+  // Nếu BE trả dạng "FullName (email)" thì chỉ lấy FullName
+  const idx = s.indexOf(" (");
+  if (idx > 0 && s.endsWith(")")) return s.slice(0, idx).trim();
+
+  return s;
 }
 
 const isLikelyAbsoluteUrl = (s) => /^https?:\/\//i.test(String(s || "").trim());
@@ -90,6 +136,9 @@ const AdminNotificationsPage = () => {
     severity: "",
     isSystemGenerated: "",
     isGlobal: "",
+    status: "",
+    type: "",
+    createdByEmail: "",
     sortBy: "CreatedAtUtc",
     sortDescending: true,
     createdFromUtc: "",
@@ -104,12 +153,32 @@ const AdminNotificationsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Abort previous list requests (debounce + cancel old)
+  const listAbortRef = useRef(null);
+
+  // Options dropdown cho bộ lọc danh sách (type + creator)
+  const [filterOptions, setFilterOptions] = useState({
+    types: [],
+    creators: [],
+  });
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+  const [filterOptionsError, setFilterOptionsError] = useState("");
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [detailTab, setDetailTab] = useState("info");
+
+  // ✅ Recipients (paged) - loaded from separate endpoint to avoid heavy admin detail payload
+  const recipientsPageSize = 20;
+  const [recipientsItems, setRecipientsItems] = useState([]);
+  const [recipientsTotal, setRecipientsTotal] = useState(0);
+  const [recipientsPageNumber, setRecipientsPageNumber] = useState(1);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
+  const [recipientsError, setRecipientsError] = useState("");
+  const recipientsAbortRef = useRef(null);
 
   // Options dropdown user / role
   const [targetOptions, setTargetOptions] = useState({
@@ -159,9 +228,37 @@ const AdminNotificationsPage = () => {
     loadOptions();
   }, []);
 
+  // ====== Load options cho bộ lọc danh sách (type + creator) ======
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      setFilterOptionsLoading(true);
+      setFilterOptionsError("");
+      try {
+        const data = await NotificationsApi.getAdminFilterOptions();
+
+        setFilterOptions({
+          types: Array.isArray(data?.types) ? data.types : Array.isArray(data?.Types) ? data.Types : [],
+          creators: Array.isArray(data?.creators)
+            ? data.creators
+            : Array.isArray(data?.Creators)
+            ? data.Creators
+            : [],
+        });
+      } catch (err) {
+        console.error("Không thể tải option bộ lọc thông báo", err);
+        setFilterOptionsError("Không tải được loại thông báo / người tạo.");
+        setFilterOptions({ types: [], creators: [] });
+      } finally {
+        setFilterOptionsLoading(false);
+      }
+    };
+
+    loadFilterOptions();
+  }, []);
+
   // ====== Load list ======
   const refreshList = useCallback(
-    async () => {
+    async (signal) => {
       setLoading(true);
       setError("");
 
@@ -180,17 +277,27 @@ const AdminNotificationsPage = () => {
             filters.isGlobal === ""
               ? undefined
               : filters.isGlobal === "true",
+          status: (filters.status || "").trim() || undefined,
+          type: (filters.type || "").trim() || undefined,
+          createdByEmail: (filters.createdByEmail || "").trim() || undefined,
           sortBy: filters.sortBy || "CreatedAtUtc",
           sortDescending: filters.sortDescending,
           createdFromUtc: filters.createdFromUtc || undefined,
           createdToUtc: filters.createdToUtc || undefined,
         };
 
-        const result = await NotificationsApi.listAdminPaged(params);
+        const result = await NotificationsApi.listAdminPaged(params, { signal });
 
         setItems(result.items || []);
         setTotal(result.total || 0);
       } catch (err) {
+        if (
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError" ||
+          err?.name === "AbortError"
+        ) {
+          return;
+        }
         console.error("Không thể tải danh sách thông báo", err);
         setError("Không tải được danh sách thông báo. Vui lòng thử lại.");
       } finally {
@@ -200,8 +307,26 @@ const AdminNotificationsPage = () => {
     [filters, pageNumber, pageSize]
   );
 
+  // ✅ Debounce & cancel old list requests to avoid spamming API while typing search/filter
   useEffect(() => {
-    refreshList();
+    if (listAbortRef.current) {
+      try {
+        listAbortRef.current.abort();
+      } catch {}
+    }
+    const controller = new AbortController();
+    listAbortRef.current = controller;
+
+    const t = setTimeout(() => {
+      refreshList(controller.signal);
+    }, 400);
+
+    return () => {
+      clearTimeout(t);
+      try {
+        controller.abort();
+      } catch {}
+    };
   }, [refreshList]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -216,8 +341,14 @@ const AdminNotificationsPage = () => {
 
   // Sort theo tiêu đề cột: click lần 1 ASC, lần 2 DESC
   const handleSortClick = (sortBy) => {
-    // Backend only supports these fields
-    const sortable = new Set(["CreatedAtUtc", "Title", "Severity"]);
+    // ⚠️ BE cần support sortBy các field này (xem ghi chú cuối file)
+    const sortable = new Set([
+      "CreatedAtUtc",
+      "Title",
+      "Severity",
+      "Type",
+      "CreatedByUserEmail",
+    ]);
     if (!sortable.has(sortBy)) return;
 
     setFilters((prev) => {
@@ -235,6 +366,9 @@ const AdminNotificationsPage = () => {
       severity: "",
       isSystemGenerated: "",
       isGlobal: "",
+      status: "",
+      type: "",
+      createdByEmail: "",
       sortBy: "CreatedAtUtc",
       sortDescending: true,
       createdFromUtc: "",
@@ -258,6 +392,12 @@ const AdminNotificationsPage = () => {
     setDetailError("");
     setDetailLoading(true);
 
+    // reset recipients paging state (loaded lazily when switching to tab)
+    setRecipientsItems([]);
+    setRecipientsTotal(0);
+    setRecipientsPageNumber(1);
+    setRecipientsError("");
+
     try {
       const data = await NotificationsApi.getDetail(id);
       setSelectedNotification(data);
@@ -268,6 +408,69 @@ const AdminNotificationsPage = () => {
       setDetailLoading(false);
     }
   };
+
+  const loadRecipientsPage = useCallback(
+    async (page) => {
+      const notificationId = selectedNotification?.id;
+      if (!notificationId) return;
+
+      if (recipientsAbortRef.current) {
+        try {
+          recipientsAbortRef.current.abort();
+        } catch {}
+      }
+
+      const controller = new AbortController();
+      recipientsAbortRef.current = controller;
+
+      setRecipientsLoading(true);
+      setRecipientsError("");
+      try {
+        const res = await NotificationsApi.getAdminRecipientsPaged(
+          notificationId,
+          { pageNumber: page, pageSize: recipientsPageSize },
+          { signal: controller.signal }
+        );
+        setRecipientsItems(res.items || []);
+        setRecipientsTotal(res.total || 0);
+        setRecipientsPageNumber(page);
+      } catch (err) {
+        if (
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError" ||
+          err?.name === "AbortError"
+        ) {
+          return;
+        }
+        console.error("Không thể tải danh sách người nhận", err);
+        setRecipientsError("Không tải được danh sách người nhận.");
+      } finally {
+        setRecipientsLoading(false);
+      }
+    },
+    [selectedNotification?.id, recipientsPageSize]
+  );
+
+  // lazy load recipients when user opens the tab
+  useEffect(() => {
+    if (!isDetailModalOpen) return;
+    // Recipients are shown inside "info" tab in current UI
+    if (detailTab !== "info") return;
+    if (!selectedNotification?.id) return;
+
+    // If current page isn't loaded yet (fresh open), load page 1
+    if (recipientsItems.length === 0 && !recipientsLoading && !recipientsError) {
+      loadRecipientsPage(1);
+    }
+  }, [
+    isDetailModalOpen,
+    detailTab,
+    selectedNotification?.id,
+    recipientsItems.length,
+    recipientsLoading,
+    recipientsError,
+    loadRecipientsPage,
+  ]);
 
   const handleOpenCreate = () => {
     setCreateErrors({});
@@ -414,10 +617,12 @@ const AdminNotificationsPage = () => {
     }
   };
 
-  const recipients =
-    selectedNotification && Array.isArray(selectedNotification.recipients)
-      ? selectedNotification.recipients
-      : [];
+  const recipients = recipientsItems;
+  const recipientsTotalPages = recipientsTotal
+    ? Math.ceil(recipientsTotal / recipientsPageSize)
+    : 1;
+  const canPrevRecipients = recipientsPageNumber > 1;
+  const canNextRecipients = recipientsPageNumber < recipientsTotalPages;
 
   return (
     <div className="admin-notifications-page">
@@ -494,6 +699,37 @@ const AdminNotificationsPage = () => {
               <option value="false">Thông báo cho người dùng cụ thể</option>
             </select>
           </div>
+
+
+          <div className="notif-filter-item">
+            <label className="notif-filter-label">Trạng thái</label>
+            <select
+              className="notif-select"
+              value={filters.status}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+            >
+              <option value="">Tất cả</option>
+              <option value="Active">Đang hiệu lực</option>
+              <option value="Expired">Hết hạn</option>
+              <option value="Archived">Đã lưu trữ</option>
+            </select>
+          </div>
+
+          <div className="notif-filter-item notif-filter-pagesize">
+            <label className="notif-filter-label">Số dòng / trang</label>
+            <select
+              className="notif-select"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value) || 20);
+                setPageNumber(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
         </div>
 
         <div className="notif-filters-row">
@@ -520,19 +756,82 @@ const AdminNotificationsPage = () => {
             />
           </div>
 
-          <div className="notif-filter-item notif-filter-pagesize">
-            <label className="notif-filter-label">Số dòng / trang</label>
+          <div className="notif-filter-item">
+            <label className="notif-filter-label">Loại thông báo</label>
             <select
               className="notif-select"
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value) || 20);
-                setPageNumber(1);
-              }}
+              value={filters.type}
+              onChange={(e) => handleFilterChange("type", e.target.value)}
             >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
+              <option value="">Tất cả</option>
+              {filterOptionsLoading && (
+                <option value="" disabled>
+                  Đang tải...
+                </option>
+              )}
+              {!filterOptionsLoading &&
+                (Array.isArray(filterOptions.types) ? filterOptions.types : [])
+                  .map((opt, idx) => {
+                    const value =
+                      (opt && (opt.value ?? opt.Value)) ??
+                      (typeof opt === "string" ? opt : "");
+                    if (!String(value || "").trim()) return null;
+
+                    // Nếu BE có Label thì ưu tiên, nếu không thì tự translate theo mapping hiện có
+                    const rawLabel =
+                      (opt && (opt.label ?? opt.Label)) ??
+                      (typeof opt === "string" ? opt : "");
+
+                    const label = rawLabel && rawLabel !== value
+                      ? rawLabel
+                      : notificationTypeLabel(value);
+
+                    return (
+                      <option key={`${value}-${idx}`} value={value}>
+                        {label}
+                      </option>
+                    );
+                  })
+                  .filter(Boolean)}
+            </select>
+          </div>
+
+          <div className="notif-filter-item">
+            <label className="notif-filter-label">Người tạo</label>
+            <select
+              className="notif-select"
+              value={filters.createdByEmail}
+              onChange={(e) => handleFilterChange("createdByEmail", e.target.value)}
+            >
+              <option value="">Tất cả</option>
+              {filterOptionsLoading && (
+                <option value="" disabled>
+                  Đang tải...
+                </option>
+              )}
+              {!filterOptionsLoading &&
+                (Array.isArray(filterOptions.creators)
+                  ? filterOptions.creators
+                  : [])
+                  .map((opt, idx) => {
+                    const value =
+                      (opt && (opt.value ?? opt.Value)) ??
+                      (typeof opt === "string" ? opt : "");
+                    if (value === undefined || value === null) return null;
+
+                    const rawLabel =
+                      (opt && (opt.label ?? opt.Label)) ??
+                      (typeof opt === "string" ? opt : String(value));
+
+                    const label = creatorLabelOnlyName(rawLabel);
+
+                    return (
+                      <option key={`${value}-${idx}`} value={value}>
+                        {label}
+                      </option>
+                    );
+                  })
+                  .filter(Boolean)}
             </select>
           </div>
 
@@ -560,36 +859,49 @@ const AdminNotificationsPage = () => {
               <thead>
                 <tr>
                   <th
-                    className="sortable"
+                    className="sortable col-created"
                     onClick={() => handleSortClick("CreatedAtUtc")}
                   >
                     Thời gian tạo
                     {renderSortIndicator("CreatedAtUtc")}
                   </th>
                   <th
-                    className="sortable"
+                    className="sortable col-title"
                     onClick={() => handleSortClick("Title")}
                   >
                     Tiêu đề / Nội dung
                     {renderSortIndicator("Title")}
                   </th>
                   <th
-                    className="sortable"
+                    className="sortable col-severity"
                     onClick={() => handleSortClick("Severity")}
                   >
                     Mức độ
                     {renderSortIndicator("Severity")}
                   </th>
-                  <th>Nguồn tạo</th>
-                  <th>Phạm vi</th>
-                  <th>Người nhận</th>
-                  <th>Thao tác</th>
+                  <th
+                    className="sortable col-type"
+                    onClick={() => handleSortClick("Type")}
+                  >
+                    Loại
+                    {renderSortIndicator("Type")}
+                  </th>
+                  <th
+                    className="sortable col-createdby"
+                    onClick={() => handleSortClick("CreatedByUserEmail")}
+                  >
+                    Người tạo
+                    {renderSortIndicator("CreatedByUserEmail")}
+                  </th>
+                  <th className="col-scope">Phạm vi</th>
+                  <th className="col-recipients">Người nhận</th>
+                  <th className="col-actions">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="notif-empty">
+                    <td colSpan={8} className="notif-empty">
                       Không có thông báo nào.
                     </td>
                   </tr>
@@ -597,12 +909,12 @@ const AdminNotificationsPage = () => {
 
                 {items.map((n) => (
                   <tr key={n.id}>
-                    <td>
+                    <td className="col-created">
                       <span className="notif-date">
                         {new Date(n.createdAtUtc).toLocaleString("vi-VN")}
                       </span>
                     </td>
-                    <td className="notif-title-cell">
+                    <td className="col-title notif-title-cell">
                       <div className="notif-title-text" title={n.title}>
                         {n.title}
                       </div>
@@ -612,37 +924,68 @@ const AdminNotificationsPage = () => {
                           : n.message}
                       </div>
                     </td>
-                    <td>
+                    <td className="col-severity">
                       <span className={severityClass(n.severity)}>
                         {severityLabel(n.severity)}
                       </span>
                     </td>
-                    <td>{n.isSystemGenerated ? "Hệ thống" : "Thủ công"}</td>
-                    <td>{n.isGlobal ? "Toàn hệ thống" : "Người dùng cụ thể"}</td>
-                    <td>
-                      <span className="notif-targets">
-                        {n.isGlobal ? (
-                          <>
-                            Tất cả người dùng | Đã đọc:{" "}
-                            {typeof n.readCount === "number" ? n.readCount : 0}
-                            {typeof n.totalTargetUsers === "number" &&
-                            n.totalTargetUsers > 0
-                              ? ` / ${n.totalTargetUsers}`
-                              : ""}
-                          </>
-                        ) : (
-                          <>
-                            Người dùng:{" "}
-                            {typeof n.totalTargetUsers === "number"
-                              ? n.totalTargetUsers
-                              : 0}
-                            {" "}| Đã đọc:{" "}
-                            {typeof n.readCount === "number" ? n.readCount : 0}
-                          </>
-                        )}
-                      </span>
+                    <td className="col-type">{notificationTypeLabelForList(n)}</td>
+                    <td className="col-createdby">
+                      <div className="notif-creator-block">
+                        <div
+                          className="notif-creator-name"
+                          title={
+                            n.createdByFullName ||
+                            n.createdByEmail ||
+                            n.createdByUserEmail ||
+                            ""
+                          }
+                        >
+                          {n.createdByFullName ||
+                            (n.isSystemGenerated
+                              ? "Hệ thống"
+                              : n.createdByUserEmail || "-")}
+                        </div>
+                        <div
+                          className="notif-creator-email"
+                          title={n.createdByEmail || n.createdByUserEmail || ""}
+                        >
+                          {n.isSystemGenerated
+                            ? ""
+                            : n.createdByEmail || n.createdByUserEmail || ""}
+                        </div>
+                      </div>
                     </td>
-                    <td className="notif-actions-cell">
+                    <td className="col-scope">{scopeLabelForList(n)}</td>
+                    <td className="col-recipients">
+                      <div className="notif-rec-block">
+                        <div className="notif-rec-line">
+                          {n.isGlobal ? "Tất cả người dùng" : "Người dùng cụ thể"}
+                        </div>
+                        <div className="notif-rec-line">
+                          {n.isGlobal ? (
+                            <>
+                              Đã đọc:{" "}
+                              {typeof n.readCount === "number" ? n.readCount : 0}
+                              {typeof n.totalTargetUsers === "number" &&
+                              n.totalTargetUsers > 0
+                                ? ` / ${n.totalTargetUsers}`
+                                : ""}
+                            </>
+                          ) : (
+                            <>
+                              Người nhận:{" "}
+                              {typeof n.totalTargetUsers === "number"
+                                ? n.totalTargetUsers
+                                : 0}
+                              {" · "}Đã đọc:{" "}
+                              {typeof n.readCount === "number" ? n.readCount : 0}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="col-actions notif-actions-cell">
                       <button
                         type="button"
                         className="notif-icon-btn"
@@ -1117,7 +1460,11 @@ const AdminNotificationsPage = () => {
                     <div className="detail-row">
                       <span className="detail-label">Người tạo:</span>
                       <span className="detail-value">
-                        {selectedNotification.createdByUserEmail ||
+                        {selectedNotification.createdByFullName ||
+                          (selectedNotification.isSystemGenerated
+                            ? "Hệ thống"
+                            : selectedNotification.createdByEmail ||
+                              selectedNotification.createdByUserEmail) ||
                           selectedNotification.createdByUserId ||
                           "-"}
                       </span>

@@ -8,7 +8,7 @@ import StorefrontCartApi, {
 } from "../../services/storefrontCartService";
 import { NotificationsApi } from "../../services/notifications";
 import axiosClient from "../../api/axiosClient";
-import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
+import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 import "./PublicHeader.css";
 
 const FALLBACK_PRODUCT_LINKS = [
@@ -461,6 +461,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   // ====== Notifications: poll unread count định kỳ ======
   useEffect(() => {
     let isMounted = true;
+    let timerId = null;
 
     const fetchUnreadNotifications = async () => {
       const token = localStorage.getItem("access_token");
@@ -484,12 +485,26 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       }
     };
 
+    const scheduleNext = () => {
+      if (!isMounted) return;
+
+      // Nếu SignalR đang Connected thì giảm polling (vì realtime sẽ push)
+      const conn = notifConnectionRef.current;
+      const isConnected = conn && conn.state === HubConnectionState.Connected;
+      const intervalMs = isConnected ? 120000 : 60000;
+
+      timerId = setTimeout(async () => {
+        await fetchUnreadNotifications();
+        scheduleNext();
+      }, intervalMs);
+    };
+
     fetchUnreadNotifications();
-    const intervalId = setInterval(fetchUnreadNotifications, 60000);
+    scheduleNext();
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      if (timerId) clearTimeout(timerId);
     };
   }, [customer]);
 
