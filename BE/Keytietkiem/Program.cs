@@ -7,8 +7,10 @@ using Keytietkiem.Repositories;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Background;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -37,6 +39,17 @@ builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailCon
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
 builder.Services.Configure<SendPulseConfig>(builder.Configuration.GetSection("SendPulse"));
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto |
+        ForwardedHeaders.XForwardedHost;
+
+    // Nếu bạn không whitelist IP proxy cụ thể, clear để accept (phù hợp VPS đơn)
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
@@ -64,6 +77,7 @@ builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
 {
     var opt = sp.GetRequiredService<IOptions<SendPulseConfig>>().Value;
@@ -273,7 +287,7 @@ app.UseStatusCodePages(async context =>
 
 // // (Tuỳ chọn) Auth
 // app.UseAuthentication();
-
+app.UseForwardedHeaders();
 app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();

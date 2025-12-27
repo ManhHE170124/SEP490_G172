@@ -16,6 +16,46 @@ import "./SupportPlanSubscriptionPage.css";
 import supportPlanPaymentApi from "../../api/supportPlanPaymentApi";
 
 // ===== Helpers chung =====
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const isPaidStatus = (s) => {
+  const st = String(s || "").trim().toLowerCase();
+  return st === "paid" || st === "success" || st === "completed";
+};
+
+const isTerminalFailStatus = (s) => {
+  const st = String(s || "").trim().toLowerCase();
+  return (
+    st === "cancelled" ||
+    st === "canceled" ||
+    st === "timeout" ||
+    st === "failed" ||
+    st === "dupcancelled" ||
+    st === "needreview"
+  );
+};
+
+const waitForSupportPlanPaymentPaid = async (paymentId, maxWaitMs = 25000, intervalMs = 1200) => {
+  const deadline = Date.now() + maxWaitMs;
+  let lastStatus = "";
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await supportPlanPaymentApi.getSupportPlanPaymentStatus(paymentId);
+      const data = res?.data ?? res;
+      lastStatus = data?.status ?? "";
+
+      if (isPaidStatus(lastStatus)) return { ok: true, status: lastStatus };
+      if (isTerminalFailStatus(lastStatus)) return { ok: false, status: lastStatus };
+    } catch {
+      // ignore transient errors and keep polling
+    }
+
+    await sleep(intervalMs);
+  }
+
+  return { ok: false, status: lastStatus || "Pending", timeout: true };
+};
 
 const formatCurrency = (value) => {
   if (value == null) return "0₫";
@@ -173,10 +213,10 @@ const SupportPlanSubscriptionPage = () => {
   // PriorityLevel hiện tại luôn lấy từ BE (/supportplans/me/current)
   const currentPriorityLevel = currentSub
     ? Number(
-        currentSub.priorityLevel ??
-          currentSub.PriorityLevel ??
-          0
-      ) || 0
+      currentSub.priorityLevel ??
+      currentSub.PriorityLevel ??
+      0
+    ) || 0
     : 0;
 
   // Status "None" nghĩa là không có subscription active, nhưng vẫn có PriorityLevel từ user
@@ -319,11 +359,11 @@ const SupportPlanSubscriptionPage = () => {
       // Chỉ gọi /me/current nếu user đang đăng nhập
       const currentPromise = customer
         ? axiosClient
-            .get("/supportplans/me/current")
-            .catch((err) => {
-              console.error("Failed to load current subscription", err);
-              return null;
-            })
+          .get("/supportplans/me/current")
+          .catch((err) => {
+            console.error("Failed to load current subscription", err);
+            return null;
+          })
         : Promise.resolve(null);
 
       const [activeRes, currentRes] = await Promise.all([
@@ -415,23 +455,43 @@ const SupportPlanSubscriptionPage = () => {
       const okCode = code === "00";
       const okStatus = (status || "").toUpperCase() === "PAID";
 
-      // Thanh toán thành công → gọi BE xác nhận & tạo subscription
+      // Thanh toán thành công → đợi webhook update DB rồi mới confirm
       if (okCode && okStatus && paymentId && supportPlanIdParam) {
         try {
+          const wait = await waitForSupportPlanPaymentPaid(paymentId);
+
+          if (!wait.ok) {
+            // Pending quá lâu hoặc trạng thái fail
+            const st = String(wait.status || "").trim();
+            if (wait.timeout || st.toLowerCase() === "pending") {
+              addToast(
+                "info",
+                "Đang xử lý thanh toán",
+                "Hệ thống đang cập nhật trạng thái thanh toán. Vui lòng đợi vài giây và tải lại trang nếu chưa thấy gói được kích hoạt."
+              );
+            } else {
+              addToast(
+                "error",
+                "Thanh toán chưa được ghi nhận",
+                `Trạng thái thanh toán hiện tại: ${st || "Unknown"}. Nếu bạn đã bị trừ tiền, vui lòng liên hệ CSKH.`
+              );
+            }
+
+            // reload data để nếu webhook vừa kịp apply subscription thì UI lên luôn
+            await fetchData();
+            navigate("/support/subscription", { replace: true });
+            return;
+          }
+
           const payload = {
             paymentId,
             supportPlanId: Number(supportPlanIdParam),
           };
 
-          const resp =
-            await supportPlanPaymentApi.confirmSupportPlanPayment(
-              payload
-            );
+          const resp = await supportPlanPaymentApi.confirmSupportPlanPayment(payload);
           const data = resp?.data ?? resp;
 
-          if (data) {
-            setCurrentSub(normalizeCurrentSubscription(data));
-          }
+          if (data) setCurrentSub(normalizeCurrentSubscription(data));
 
           addToast(
             "success",
@@ -446,9 +506,7 @@ const SupportPlanSubscriptionPage = () => {
             "Không thể xác nhận thanh toán gói hỗ trợ. Vui lòng liên hệ chăm sóc khách hàng nếu tiền đã bị trừ.";
           addToast("error", "Lỗi xác nhận thanh toán", msg);
         } finally {
-          // Luôn reload data cho chắc (priority level, subscription,...)
           await fetchData();
-          // Xoá query trên URL
           navigate("/support/subscription", { replace: true });
         }
         return;
@@ -537,8 +595,8 @@ const SupportPlanSubscriptionPage = () => {
       const planLevel =
         Number(
           plan.priorityLevel ??
-            plan.PriorityLevel ??
-            0
+          plan.PriorityLevel ??
+          0
         ) || 0;
 
       // Nếu đang có priority > 0 và gói này có level <= currentPriorityLevel => không cho chọn
@@ -981,23 +1039,23 @@ const SupportPlanSubscriptionPage = () => {
                         Gói hiện tại
                       </div>
                       {paymentCurrentPrice &&
-                      paymentRemainingDays != null &&
-                      paymentRemainingDays > 0 ? (
+                        paymentRemainingDays != null &&
+                        paymentRemainingDays > 0 ? (
                         <>
                           <div className="sp-sub-modal-summary-text">
                             <strong>
                               {currentSub &&
-                              Number(
-                                currentSub.price ??
+                                Number(
+                                  currentSub.price ??
                                   currentSub.Price ??
                                   0
-                              ) > 0 &&
-                              (currentSub.status || "")
-                                .toLowerCase() === "active"
+                                ) > 0 &&
+                                (currentSub.status || "")
+                                  .toLowerCase() === "active"
                                 ? currentSub.planName ||
-                                  getPriorityLabel(
-                                    currentSub.priorityLevel
-                                  )
+                                getPriorityLabel(
+                                  currentSub.priorityLevel
+                                )
                                 : getPriorityLabel(1)}
                             </strong>
                           </div>
