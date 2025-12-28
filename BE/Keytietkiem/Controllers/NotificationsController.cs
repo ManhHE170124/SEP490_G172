@@ -194,31 +194,8 @@ namespace Keytietkiem.Controllers
             }
 
 
-            if (HasValue(filter.Status))
-            {
-                var nowStatus = DateTime.UtcNow;
-                var status = filter.Status!.Trim();
-                var key = status.Replace(" ", "").ToLowerInvariant();
-
-                // Active = not archived, not expired
-                if (key == "active" || key == "danghieuluc" || key == "conhieuluc" || key == "valid")
-                {
-                    q = q.Where(x => x.N.ArchivedAtUtc == null
-                                     && (x.N.ExpiresAtUtc == null || x.N.ExpiresAtUtc > nowStatus));
-                }
-                // Expired = not archived, expires <= now
-                else if (key == "expired" || key == "hethanh" || key == "hethan" || key == "expiredat")
-                {
-                    q = q.Where(x => x.N.ArchivedAtUtc == null
-                                     && x.N.ExpiresAtUtc != null
-                                     && x.N.ExpiresAtUtc <= nowStatus);
-                }
-                // Archived
-                else if (key == "archived" || key == "daluutru" || key == "luutru")
-                {
-                    q = q.Where(x => x.N.ArchivedAtUtc != null);
-                }
-            }
+            // NOTE: Status filter existed in older schema (ArchivedAtUtc/ExpiresAtUtc).
+            // These columns were removed => ignore Status to keep API backward-compatible.
 
             // search: Title/Message/CreatedByEmail/Type/CorrelationId
             if (HasValue(filter.Search))
@@ -278,12 +255,6 @@ namespace Keytietkiem.Controllers
                     : q.OrderBy(x => db.NotificationTargetRoles.Count(ntr => ntr.NotificationId == x.N.Id))
                        .ThenBy(x => x.N.Id),
 
-                "expiresatutc" => desc ? q.OrderByDescending(x => x.N.ExpiresAtUtc).ThenByDescending(x => x.N.Id)
-                                       : q.OrderBy(x => x.N.ExpiresAtUtc).ThenBy(x => x.N.Id),
-
-                "archivedatutc" => desc ? q.OrderByDescending(x => x.N.ArchivedAtUtc).ThenByDescending(x => x.N.Id)
-                                        : q.OrderBy(x => x.N.ArchivedAtUtc).ThenBy(x => x.N.Id),
-
                 // default createdAtUtc
                 _ => desc ? q.OrderByDescending(x => x.N.CreatedAtUtc).ThenByDescending(x => x.N.Id)
                           : q.OrderBy(x => x.N.CreatedAtUtc).ThenBy(x => x.N.Id)
@@ -310,9 +281,7 @@ namespace Keytietkiem.Controllers
                     x.N.RelatedEntityId,
                     x.N.RelatedUrl,
                     x.N.Type,
-                    x.N.CorrelationId,
-                    x.N.ExpiresAtUtc,
-                    x.N.ArchivedAtUtc
+                    x.N.CorrelationId
                 })
                 .ToListAsync(ct);
 
@@ -380,9 +349,7 @@ namespace Keytietkiem.Controllers
                     TargetUsersCount = targetUsersCount,
 
                     Type = r.Type,
-                    CorrelationId = r.CorrelationId,
-                    ExpiresAtUtc = r.ExpiresAtUtc,
-                    ArchivedAtUtc = r.ArchivedAtUtc
+                    CorrelationId = r.CorrelationId
                 };
             }).ToList();
 
@@ -464,11 +431,7 @@ namespace Keytietkiem.Controllers
                 Recipients = new List<NotificationRecipientDto>(),
 
                 Type = row.N.Type,
-                DedupKey = row.N.DedupKey,
                 CorrelationId = row.N.CorrelationId,
-                PayloadJson = row.N.PayloadJson,
-                ExpiresAtUtc = row.N.ExpiresAtUtc,
-                ArchivedAtUtc = row.N.ArchivedAtUtc
             };
 
             return Ok(dto);
@@ -636,19 +599,6 @@ namespace Keytietkiem.Controllers
                     return BadRequest(new { message = "Bạn phải chọn ít nhất 1 role hoặc 1 user (hoặc bật Global)." });
             }
 
-            // Idempotency by DedupKey (optional)
-            if (HasValue(dto.DedupKey))
-            {
-                var existed = await db.Notifications.AsNoTracking()
-                    .FirstOrDefaultAsync(n => n.DedupKey == dto.DedupKey, ct);
-
-                if (existed != null)
-                {
-                    // return detail of existed (safe)
-                    return await GetAdminDetail(existed.Id, ct);
-                }
-            }
-
             var type = HasValue(dto.Type) ? dto.Type!.Trim() : "Manual";
             var correlationId = HasValue(dto.CorrelationId) ? dto.CorrelationId!.Trim() : Guid.NewGuid().ToString("N");
 
@@ -672,10 +622,7 @@ namespace Keytietkiem.Controllers
 
                 Type = type,
                 CorrelationId = correlationId,
-                DedupKey = dto.DedupKey,
-                PayloadJson = dto.PayloadJson,
-                ExpiresAtUtc = dto.ExpiresAtUtc,
-                ArchivedAtUtc = null
+                // ❌ Removed: DedupKey/PayloadJson/ExpiresAtUtc/ArchivedAtUtc
             };
 
             // Targets (precompute first to avoid creating notifications without recipients)
@@ -736,8 +683,7 @@ namespace Keytietkiem.Controllers
                     NotificationId = n.Id,
                     UserId = uid,
                     IsRead = false,
-                    ReadAtUtc = null,
-                    DismissedAtUtc = null
+                    ReadAtUtc = null
                 }).ToList();
 
                 db.NotificationUsers.AddRange(nus);
@@ -956,24 +902,18 @@ namespace Keytietkiem.Controllers
             using var db = await _dbFactory.CreateDbContextAsync(ct);
 
             var userId = GetCurrentUserId();
-            var now = DateTime.UtcNow;
-
             // unread targeted
             var unreadTargeted = await (
                 from nu in db.NotificationUsers.AsNoTracking()
                 join n in db.Notifications.AsNoTracking() on nu.NotificationId equals n.Id
                 where nu.UserId == userId
                       && !nu.IsRead
-                      && n.ArchivedAtUtc == null
-                      && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now)
                 select nu.Id
             ).CountAsync(ct);
 
             // unread global (no row or IsRead=false => unread; IsRead=true => read)
             var unreadGlobal = await db.Notifications.AsNoTracking()
-                .Where(n => n.IsGlobal
-                            && n.ArchivedAtUtc == null
-                            && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now))
+                .Where(n => n.IsGlobal)
                 .Where(n => !db.NotificationUsers.Any(nu => nu.UserId == userId && nu.NotificationId == n.Id && nu.IsRead))
                 .CountAsync(ct);
 
@@ -995,18 +935,12 @@ namespace Keytietkiem.Controllers
             using var db = await _dbFactory.CreateDbContextAsync(ct);
 
             var userId = GetCurrentUserId();
-            var now = DateTime.UtcNow;
-
             var pageNumber = filter.PageNumber <= 0 ? 1 : filter.PageNumber;
             var pageSize = filter.PageSize <= 0 ? 20 : filter.PageSize;
             if (pageSize > 100) pageSize = 100;
 
             // 1) base notifications (global OR targeted to user)
-            var q =
-                from n in db.Notifications
-                where n.ArchivedAtUtc == null
-                      && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now)
-                select n;
+            var q = db.Notifications.AsQueryable();
 
             if (filter.Severity.HasValue)
             {
@@ -1082,8 +1016,7 @@ namespace Keytietkiem.Controllers
                     n.RelatedEntityType,
                     n.RelatedEntityId,
                     n.RelatedUrl,
-                    n.Type,
-                    n.ExpiresAtUtc
+                    n.Type
                 })
                 .ToListAsync(ct);
 
@@ -1110,8 +1043,7 @@ namespace Keytietkiem.Controllers
                         NotificationId = nid,
                         UserId = userId,
                         IsRead = false,
-                        ReadAtUtc = null,
-                        DismissedAtUtc = null
+                        ReadAtUtc = null
                     });
                 }
 
@@ -1159,7 +1091,7 @@ namespace Keytietkiem.Controllers
                     RelatedUrl = x.RelatedUrl,
 
                     Type = x.Type,
-                    ExpiresAtUtc = x.ExpiresAtUtc
+                    // ❌ Removed: ExpiresAtUtc
                 };
             }).ToList();
 
@@ -1201,8 +1133,7 @@ namespace Keytietkiem.Controllers
                 NotificationUserId = nu.Id,
                 NotificationId = nu.NotificationId,
                 IsRead = nu.IsRead,
-                ReadAtUtc = nu.ReadAtUtc,
-                DismissedAtUtc = nu.DismissedAtUtc
+                ReadAtUtc = nu.ReadAtUtc
             });
         }
 

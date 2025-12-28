@@ -28,17 +28,20 @@ public class TicketsController : ControllerBase
     private readonly IHubContext<TicketHub> _ticketHub;
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
 
     public TicketsController(
         KeytietkiemDbContext db,
         IHubContext<TicketHub> ticketHub,
         IAuditLogger auditLogger,
-        INotificationSystemService notificationSystemService)
+        INotificationSystemService notificationSystemService,
+        IConfiguration config)
     {
         _db = db;
         _ticketHub = ticketHub;
         _auditLogger = auditLogger;
         _notificationSystemService = notificationSystemService;
+        _config = config;
     }
 
     // ============ Helpers ============
@@ -820,16 +823,19 @@ public class TicketsController : ControllerBase
         // ✅ System notification: Admin gán ticket -> notify nhân viên được gán
         try
         {
+            var actorName = actor.FullName ?? "(unknown)";
             var actorEmail = actor.Email ?? "(unknown)";
             var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/staff/tickets/{id}";
 
             await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
             {
                 Title = "Bạn được gán ticket mới",
                 Message =
-                    $"Admin {actorEmail} đã gán ticket cho bạn.\n" +
-                    $"- Ticket: {ticketCode}\n" +
-                    $"- Subject: {t.Subject ?? ""}",
+                    $"Admin {actorName} đã gán ticket cho bạn.\n" +
+                    $"-Mã ticket: {ticketCode}\n" +
+                    $"- Nội dung: {t.Subject ?? ""}",
                 Severity = 0, // Info
                 CreatedByUserId = actor.UserId,
                 CreatedByEmail = actorEmail,
@@ -838,7 +844,7 @@ public class TicketsController : ControllerBase
                 RelatedEntityId = t.TicketId.ToString(),
 
                 // ✅ bạn đổi route FE staff ticket detail
-                RelatedUrl = $"/staff/tickets/{t.TicketId}",
+                RelatedUrl = relatedUrl,
 
                 TargetUserIds = new List<Guid> { dto.AssigneeId }
             });
@@ -1034,16 +1040,18 @@ public class TicketsController : ControllerBase
         // ✅ System notification: chuyển ticket -> notify nhân viên được chuyển tới (best-effort)
         try
         {
+            var actorName = actor.FullName ?? "(unknown)";
             var actorEmail = actor.Email ?? "(unknown)";
             var ticketCode = t.TicketCode ?? t.TicketId.ToString();
-
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/staff/tickets/{id}";
             await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
             {
                 Title = "Ticket đã được chuyển cho bạn",
                 Message =
-                    $"Nhân viên {actorEmail} đã chuyển ticket cho bạn.\n" +
-                    $"- Ticket: {ticketCode}\n" +
-                    $"- Subject: {t.Subject ?? ""}",
+                    $"Nhân viên {actorName} đã chuyển ticket cho bạn.\n" +
+                    $"- Mã ticket: {ticketCode}\n" +
+                    $"- Nội dung: {t.Subject ?? ""}",
                 Severity = 0, // Info
                 CreatedByUserId = actor.UserId,
                 CreatedByEmail = actorEmail,
@@ -1053,7 +1061,7 @@ public class TicketsController : ControllerBase
                 RelatedEntityId = t.TicketId.ToString(),
 
                 // ✅ đổi theo route FE staff ticket detail của bạn
-                RelatedUrl = $"/staff/tickets/{t.TicketId}",
+                RelatedUrl = relatedUrl,
 
                 TargetUserIds = new List<Guid> { dto.AssigneeId }
             });

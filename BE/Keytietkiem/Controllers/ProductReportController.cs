@@ -4,9 +4,11 @@ using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
+using Keytietkiem.Utils; // ✅ NEW
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic; // ✅ NEW
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -20,15 +22,17 @@ public class ProductReportController : ControllerBase
     private readonly IProductReportService _productReportService;
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
 
     public ProductReportController(
         IProductReportService productReportService,
         IAuditLogger auditLogger,
-        INotificationSystemService notificationSystemService)
+        INotificationSystemService notificationSystemService, IConfiguration config)
     {
         _productReportService = productReportService ?? throw new ArgumentNullException(nameof(productReportService));
         _auditLogger = auditLogger;
         _notificationSystemService = notificationSystemService ?? throw new ArgumentNullException(nameof(notificationSystemService));
+        _config = config;
     }
 
     [HttpGet]
@@ -73,7 +77,13 @@ public class ProductReportController : ControllerBase
         try
         {
             var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
             var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "(unknown)";
+
+            // ✅ Ưu tiên username/display name (ClaimTypes.Name) -> fallback email
+            var actorDisplayName = (User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(actorDisplayName))
+                actorDisplayName = actorEmail;
 
             var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId!.Value);
 
@@ -85,18 +95,33 @@ public class ProductReportController : ControllerBase
                 before: null,
                 after: report
             );
-            // ✅ System notification: creates report -> notify STORAGE_STAFF (best-effort)
+
+            // ✅ System notification: tạo báo cáo -> notify STORAGE_STAFF (best-effort)
             try
             {
+                // Map status sang tiếng Việt (theo FE)
+                static string StatusVi(string? s)
+                {
+                    var v = (s ?? "").Trim();
+                    return v.Equals("Pending", StringComparison.OrdinalIgnoreCase) ? "Chờ xử lý"
+                         : v.Equals("Processing", StringComparison.OrdinalIgnoreCase) ? "Đang xử lý"
+                         : v.Equals("Resolved", StringComparison.OrdinalIgnoreCase) ? "Đã giải quyết"
+                         : v.Equals("Rejected", StringComparison.OrdinalIgnoreCase) ? "Từ chối"
+                         : string.IsNullOrWhiteSpace(v) ? "—" : v;
+                }
+
+                var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+                var relatedUrl = $"{origin}/reports/{report.Id}"; // ✅ route FE: /reports/:id
+
                 await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
                 {
                     Title = "Có báo cáo lỗi sản phẩm mới",
                     Message =
-                        $"Người dùng {actorEmail} đã tạo báo cáo lỗi sản phẩm.\n" +
-                        $"- ReportId: {report.Id}\n" +
-                        $"- Trạng thái: {report.Status}\n" +
-                        $"- Thời gian: {DateTime.UtcNow:yyyy-MM-dd HH:mm} (UTC)\n" +
-                        $"Vui lòng vào màn Báo cáo lỗi để kiểm tra và xử lý.",
+                        $"Nhân viên tạo: {actorDisplayName}\n" +
+                        $"Mã báo cáo: {report.Id}\n" +
+                        $"Trạng thái: {StatusVi(report.Status)}\n" +
+                        $"Thời gian tạo: {DateTime.UtcNow:dd/MM/yyyy HH:mm} (UTC)\n" +
+                        $"Vui lòng vào mục \"Báo cáo Sản phẩm\" để kiểm tra và xử lý.",
                     Severity = 2, // Warning
                     CreatedByUserId = actorId,
                     CreatedByEmail = actorEmail,
@@ -104,15 +129,12 @@ public class ProductReportController : ControllerBase
 
                     RelatedEntityType = "ProductReport",
                     RelatedEntityId = report.Id.ToString(),
-
-                    // ✅ bạn đổi route FE cho đúng trang xử lý report
-                    RelatedUrl = $"/admin/product-reports/{report.Id}",
+                    RelatedUrl = relatedUrl,
 
                     TargetRoleCodes = new List<string> { RoleCodes.STORAGE_STAFF }
                 });
             }
             catch { }
-
 
             return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
         }

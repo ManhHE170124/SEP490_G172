@@ -17,8 +17,6 @@ public partial class NotificationUser
 
     public DateTime CreatedAtUtc { get; set; }
 
-    public DateTime? DismissedAtUtc { get; set; }
-
     public virtual Notification Notification { get; set; } = null!;
 
     public virtual User User { get; set; } = null!;

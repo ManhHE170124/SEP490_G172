@@ -1,16 +1,18 @@
 // File: Controllers/ProductAccountController.cs
-using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
-using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
+using System.Security.Claims;
+using System.Text.Json;
 
 namespace Keytietkiem.Controllers;
 
@@ -22,15 +24,19 @@ public class ProductAccountController : ControllerBase
     private readonly IProductAccountService _productAccountService;
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
+
 
     public ProductAccountController(
         IProductAccountService productAccountService,
         IAuditLogger auditLogger,
-        INotificationSystemService notificationSystemService)
+        INotificationSystemService notificationSystemService,
+        IConfiguration config)
     {
         _productAccountService = productAccountService;
         _auditLogger = auditLogger;
         _notificationSystemService = notificationSystemService;
+        _config = config;
     }
 
     /// <summary>
@@ -277,12 +283,14 @@ public class ProductAccountController : ControllerBase
             var actorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             Guid? actorUserId = Guid.TryParse(actorIdStr, out var tmp) ? tmp : null;
             var actorEmail = User.FindFirstValue(ClaimTypes.Email) ?? "(unknown)";
-
+            var actorName = User.FindFirstValue(ClaimTypes.Name) ?? "(unknown)";
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/profile";
             await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
             {
                 Title = "Quyền truy cập tài khoản đã bị thu hồi",
                 Message =
-                    $"Quyền truy cập vào tài khoản sản phẩm của bạn đã bị thu hồi bởi {actorEmail}.\n" +
+                    $"Quyền truy cập vào tài khoản sản phẩm của bạn đã bị thu hồi bởi {actorName}.\n" +
                     $"- ProductAccountId: {removeDto.ProductAccountId}",
                 Severity = 2, // Warning
                 CreatedByUserId = actorUserId,
@@ -293,7 +301,7 @@ public class ProductAccountController : ControllerBase
                 RelatedEntityId = removeDto.ProductAccountId.ToString(),
 
                 // ✅ bạn đổi route FE trang customer xem account
-                RelatedUrl = $"/my-accounts?accountId={removeDto.ProductAccountId}",
+                RelatedUrl = relatedUrl,
 
                 TargetUserIds = new List<Guid> { removeDto.UserId }
             });

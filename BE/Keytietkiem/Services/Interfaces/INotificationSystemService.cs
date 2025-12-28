@@ -16,7 +16,7 @@ namespace Keytietkiem.Services.Interfaces
         public string Message { get; set; } = string.Empty;
 
         /// <summary>
-        /// 0..3 (0=Info, 1=Success, 2=Warning, 3=Error) - tuỳ hệ thống bạn đang dùng.
+        /// 0..3 (0=Info, 1=Success, 2=Warning, 3=Error)
         /// </summary>
         public byte Severity { get; set; } = 0;
 
@@ -35,9 +35,10 @@ namespace Keytietkiem.Services.Interfaces
         /// </summary>
         public string? Type { get; set; }
 
+        /// <summary>
+        /// Optional: correlation id để trace.
+        /// </summary>
         public string? CorrelationId { get; set; }
-        public string? DedupKey { get; set; }
-        public string? PayloadJson { get; set; }
 
         /// <summary>
         /// ✅ Link FE để click mở nhanh
@@ -54,8 +55,6 @@ namespace Keytietkiem.Services.Interfaces
         /// </summary>
         public string? RelatedEntityId { get; set; }
 
-        public DateTime? ExpiresAtUtc { get; set; }
-
         /// <summary>
         /// Gửi theo role code/role id (hệ thống sẽ tự resolve).
         /// Ví dụ: RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF...
@@ -66,6 +65,9 @@ namespace Keytietkiem.Services.Interfaces
         /// Gửi tới user cụ thể (optional).
         /// </summary>
         public List<Guid> TargetUserIds { get; set; } = new();
+
+        // ❌ Removed fields (không dùng nữa): DedupKey, PayloadJson, ExpiresAtUtc
+        // Nếu cần xoá dữ liệu cũ sau 30 ngày => làm cleanup theo CreatedAtUtc.
     }
 
     public interface INotificationSystemService

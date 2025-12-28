@@ -27,10 +27,8 @@ namespace Keytietkiem.DTOs
         public string? CreatedByEmail { get; set; }
 
         /// <summary>
-        /// Status filter (case-insensitive):
-        /// - Active   : not archived, (no expiry OR expiry > now)
-        /// - Expired  : not archived, expiry <= now
-        /// - Archived : archivedAtUtc != null
+        /// Status filter (giữ để backward-compatible với FE cũ).
+        /// Hiện tại hệ thống KHÔNG còn các cột Archived/Expired, nên filter này sẽ bị bỏ qua ở BE.
         /// </summary>
         [StringLength(20)]
         public string? Status { get; set; }
@@ -48,7 +46,6 @@ namespace Keytietkiem.DTOs
         /// - Type
         /// - CreatedByEmail, CreatedByUserEmail
         /// - ReadCount, TotalTargetUsers
-        /// - ExpiresAtUtc, ArchivedAtUtc
         /// </summary>
         public string? SortBy { get; set; } = "CreatedAtUtc";
 
@@ -91,8 +88,6 @@ namespace Keytietkiem.DTOs
         // Option A (optional)
         public string? Type { get; set; }
         public string? CorrelationId { get; set; }
-        public DateTime? ExpiresAtUtc { get; set; }
-        public DateTime? ArchivedAtUtc { get; set; }
 
         public int TargetRolesCount { get; set; }
         public int TargetUsersCount { get; set; }
@@ -183,11 +178,7 @@ namespace Keytietkiem.DTOs
 
         // Option A (optional)
         public string? Type { get; set; }
-        public string? DedupKey { get; set; }
         public string? CorrelationId { get; set; }
-        public string? PayloadJson { get; set; }
-        public DateTime? ExpiresAtUtc { get; set; }
-        public DateTime? ArchivedAtUtc { get; set; }
     }
 
     public class NotificationUserFilterDto
@@ -233,7 +224,6 @@ namespace Keytietkiem.DTOs
 
         // Option A (optional)
         public string? Type { get; set; }
-        public DateTime? ExpiresAtUtc { get; set; }
     }
 
     public class CreateNotificationDto
@@ -266,13 +256,6 @@ namespace Keytietkiem.DTOs
 
         [StringLength(64)]
         public string? CorrelationId { get; set; } // default generated
-
-        [StringLength(200)]
-        public string? DedupKey { get; set; } // optional (idempotency)
-
-        public string? PayloadJson { get; set; } // optional (technical payload)
-
-        public DateTime? ExpiresAtUtc { get; set; } // optional TTL
     }
 
     public class NotificationListResponseDto
@@ -329,6 +312,5 @@ namespace Keytietkiem.DTOs
         public int NotificationId { get; set; }
         public bool IsRead { get; set; }
         public DateTime? ReadAtUtc { get; set; }
-        public DateTime? DismissedAtUtc { get; set; }
     }
 }

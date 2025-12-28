@@ -46,20 +46,36 @@ function notificationTypeLabel(type) {
   const v = String(type || "").trim();
   if (!v) return "-";
 
-  const key = v.toLowerCase();
+  // Normalize để map được cả dạng "Ticket.Assigned", "Key.ImportCsv", ...
+  // Ví dụ: "Ticket.Assigned" -> "ticketassigned"
+  const raw = v.toLowerCase();
+  const key = raw.replace(/[^a-z0-9]/g, "");
+
   if (key === "manual") return "Thủ công";
   if (key === "system") return "Hệ thống";
 
-  // Một số type tự động hay dùng (mở rộng dần khi bạn bổ sung auto-notify)
+  // Map type hệ thống -> tiếng Việt (hiện tại đang dùng trong BE)
+  // NOTE: key đã được normalize (bỏ dấu chấm, dấu gạch, khoảng trắng...)
   const map = {
-    ordercreated: "Đơn hàng mới",
+    // Ticket
     ticketcreated: "Ticket mới",
     ticketassigned: "Gán ticket",
     tickettransferred: "Chuyển ticket",
     ticketcompleted: "Hoàn thành ticket",
-    producterrorreportcreated: "Báo lỗi sản phẩm",
-    productkeyimported: "Nhập key (import)",
-    productkeybulkupdatestatus: "Cập nhật trạng thái key hàng loạt",
+    ticketstaffreplied: "Ticket có phản hồi",
+
+    // Key
+    keyimportcsv: "Nhập key hàng loạt",
+    keybulkupdatestatus: "Cập nhật trạng thái key hàng loạt",
+
+    // Report
+    productreportcreated: "Báo lỗi sản phẩm",
+
+    // Product account
+    productaccountcustomerrevoked: "Thu hồi quyền truy cập tài khoản",
+
+    // (Tuỳ bạn mở rộng sau)
+    ordercreated: "Đơn hàng mới",
   };
 
   if (map[key]) return map[key];
@@ -942,17 +958,14 @@ const AdminNotificationsPage = () => {
                           }
                         >
                           {n.createdByFullName ||
-                            (n.isSystemGenerated
-                              ? "Hệ thống"
-                              : n.createdByUserEmail || "-")}
+                            n.createdByUserEmail ||
+                            (n.isSystemGenerated ? "Hệ thống" : "-")}
                         </div>
                         <div
                           className="notif-creator-email"
                           title={n.createdByEmail || n.createdByUserEmail || ""}
                         >
-                          {n.isSystemGenerated
-                            ? ""
-                            : n.createdByEmail || n.createdByUserEmail || ""}
+                          {n.createdByEmail || n.createdByUserEmail || ""}
                         </div>
                       </div>
                     </td>
@@ -1584,72 +1597,28 @@ const AdminNotificationsPage = () => {
                   ) : (
                     <>
                       {(selectedNotification.type ||
-                        selectedNotification.correlationId ||
-                        selectedNotification.dedupKey ||
-                        selectedNotification.expiresAtUtc ||
-                        selectedNotification.archivedAtUtc ||
-                        selectedNotification.payloadJson) ? (
-                  <div className="notif-tech-panel">
-                    <div className="notif-tech-grid">
-                      <div className="tech-row">
-                        <span className="tech-label">Loại thông báo:</span>
-                        <span className="tech-value">
-                          {notificationTypeLabel(selectedNotification.type)}
-                        </span>
-                      </div>
+                        selectedNotification.correlationId) ? (
+                        <div className="notif-tech-panel">
+                          <div className="notif-tech-grid">
+                            <div className="tech-row">
+                              <span className="tech-label">Loại thông báo:</span>
+                              <span className="tech-value">
+                                {notificationTypeLabel(selectedNotification.type)}
+                              </span>
+                            </div>
 
-                      <div className="tech-row">
-                        <span className="tech-label">Mã truy vết:</span>
-                        <span className="tech-value tech-mono">
-                          {selectedNotification.correlationId || "-"}
-                        </span>
-                      </div>
-
-                      <div className="tech-row">
-                        <span className="tech-label">Khóa chống trùng:</span>
-                        <span className="tech-value tech-mono">
-                          {selectedNotification.dedupKey || "-"}
-                        </span>
-                      </div>
-
-                      <div className="tech-row">
-                        <span className="tech-label">Thời điểm hết hạn:</span>
-                        <span className="tech-value">
-                          {selectedNotification.expiresAtUtc
-                            ? new Date(
-                                selectedNotification.expiresAtUtc
-                              ).toLocaleString("vi-VN")
-                            : "-"}
-                        </span>
-                      </div>
-
-                      <div className="tech-row">
-                        <span className="tech-label">Thời điểm lưu trữ:</span>
-                        <span className="tech-value">
-                          {selectedNotification.archivedAtUtc
-                            ? new Date(
-                                selectedNotification.archivedAtUtc
-                              ).toLocaleString("vi-VN")
-                            : "-"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {selectedNotification.payloadJson ? (
-                      <details className="notif-tech-payload">
-                        <summary>Dữ liệu đính kèm</summary>
-                        <pre className="tech-json">
-                          {selectedNotification.payloadJson}
-                        </pre>
-                      </details>
-                    ) : (
-                      <div className="notif-empty-inline">
-                        Không có dữ liệu đính kèm.
-                      </div>
-                    )}
-                  </div>
+                            <div className="tech-row">
+                              <span className="tech-label">Mã truy vết:</span>
+                              <span className="tech-value tech-mono">
+                                {selectedNotification.correlationId || "-"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="notif-empty-inline">Không có thông tin kỹ thuật.</div>
+                        <div className="notif-empty-inline">
+                          Không có thông tin kỹ thuật.
+                        </div>
                       )}
                     </>
                   )}

@@ -1,6 +1,6 @@
 // File: src/services/notifications.js
 // API client cho Notifications (Admin + lịch sử user)
-// Updated to match v16 Option A controller/DTO changes (Type/CreatedByEmail/sort aliases/search extra fields)
+// Updated to match Notifications controller changes (Type/CreatedByEmail/sort aliases/search fields)
 
 import axiosClient from "../api/axiosClient";
 
@@ -111,7 +111,7 @@ export const NotificationsApi = {
   /**
    * POST /api/notifications
    * Payload (minimal): { title, message, severity, isGlobal, targetUserIds?, targetRoleIds? }
-   * Option A extra fields allowed: type, correlationId, dedupKey, payloadJson, expiresAtUtc...
+   * Option fields allowed: type, correlationId, relatedUrl, relatedEntityType, relatedEntityId...
    * BE will default Type="Manual" if not provided.
    */
   createManual: (payload) => axiosClient.post(NOTIFICATION_ENDPOINTS.ROOT, payload),

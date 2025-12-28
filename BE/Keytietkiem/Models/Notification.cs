@@ -29,15 +29,7 @@ public partial class Notification
 
     public string? Type { get; set; }
 
-    public string? DedupKey { get; set; }
-
-    public string? PayloadJson { get; set; }
-
     public string? CorrelationId { get; set; }
-
-    public DateTime? ExpiresAtUtc { get; set; }
-
-    public DateTime? ArchivedAtUtc { get; set; }
 
     public virtual User? CreatedByUser { get; set; }
 

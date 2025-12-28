@@ -166,18 +166,22 @@
 /* Column sizing (để badge mức độ không bị rớt dòng + đủ chỗ cho thêm cột) */
 .notif-table th.col-created,
 .notif-table td.col-created {
-  width: 125px;
+  /* nhỏ hơn một chút để nhường chỗ cho các cột khác */
+  width: 145px;
+  white-space: nowrap;
 }
 
 .notif-table th.col-severity,
 .notif-table td.col-severity {
-  width: 95px;
+  /* rộng hơn để badge không bị chật */
+  width: 110px;
   white-space: nowrap;
 }
 
 .notif-table th.col-type,
 .notif-table td.col-type {
-  width: 95px;
+  /* tăng độ rộng để hiển thị "Nhập key hàng loạt", "Gán ticket"... */
+  width: 140px;
   white-space: nowrap;
 }
 
@@ -188,13 +192,13 @@
 
 .notif-table th.col-scope,
 .notif-table td.col-scope {
-  width: 105px;
+  width: 130px;
   white-space: nowrap;
 }
 
 .notif-table th.col-recipients,
 .notif-table td.col-recipients {
-  width: 270px;
+  width: 170px;
 }
 
 .notif-table th.col-actions,

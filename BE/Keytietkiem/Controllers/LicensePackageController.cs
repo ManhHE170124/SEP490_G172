@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
+using Keytietkiem.Utils; // ✅ NEW
+using System;            // ✅ ensure
+using System.Collections.Generic;
 
 namespace Keytietkiem.Controllers;
 
@@ -17,15 +20,17 @@ public class LicensePackageController : ControllerBase
     private readonly ILicensePackageService _licensePackageService;
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
 
     public LicensePackageController(
         ILicensePackageService licensePackageService,
         IAuditLogger auditLogger,
-        INotificationSystemService notificationSystemService)
+        INotificationSystemService notificationSystemService, IConfiguration config)
     {
         _licensePackageService = licensePackageService ?? throw new ArgumentNullException(nameof(licensePackageService));
         _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
         _notificationSystemService = notificationSystemService ?? throw new ArgumentNullException(nameof(notificationSystemService));
+        _config = config;
     }
 
     [HttpGet]
@@ -176,7 +181,15 @@ public class LicensePackageController : ControllerBase
         }
 
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
+
+        // Email vẫn giữ để audit/CreatedByEmail (FE/back-end thường dùng)
+        var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "(unknown)";
+
+        // ✅ Ưu tiên username/display name (ClaimTypes.Name) -> fallback email
+        var actorDisplayName =
+            (User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(actorDisplayName))
+            actorDisplayName = actorEmail;
 
         var result = await _licensePackageService.UploadLicenseCsvAsync(
             packageId,
@@ -209,17 +222,32 @@ public class LicensePackageController : ControllerBase
         // ✅ System notification: Import CSV -> notify ADMIN (best-effort)
         try
         {
+            // ✅ route FE đúng: /suppliers/:id (SupplierDetailPage)
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/suppliers/{supplierId}";
+
+            // Thuần Việt keyType
+            var keyTypeVi =
+                string.Equals(keyType, "Individual", StringComparison.OrdinalIgnoreCase) ? "Key cá nhân"
+                : string.Equals(keyType, "Pool", StringComparison.OrdinalIgnoreCase) ? "Key dùng chung (pool)"
+                : keyType;
+
+            var expiryVi = expiryDate.HasValue
+                ? expiryDate.Value.ToString("dd/MM/yyyy")
+                : "Không có";
+
             await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
             {
-                Title = "Nhập product key từ CSV",
+                Title = "Nhập kho product key từ file CSV",
                 Message =
-                    $"Nhân viên {actorEmail} đã upload CSV và nhập key vào kho.\n" +
-                    $"- PackageId: {packageId}\n" +
-                    $"- VariantId: {variantId}\n" +
-                    $"- SupplierId: {supplierId}\n" +
-                    $"- File: {file.FileName}\n" +
-                    $"- KeyType: {keyType}\n" +
-                    $"- ExpiryDate: {(expiryDate.HasValue ? expiryDate.Value.ToString("yyyy-MM-dd") : "N/A")}",
+                    $"Nhân viên: {actorDisplayName}\n" +
+                    $"Đã nhập kho product key từ file CSV.\n" +
+                    $"- Nhà cung cấp (Supplier): #{supplierId}\n" +
+                    $"- Gói mua (Package): {packageId}\n" +
+                    $"- Biến thể (Variant): {variantId}\n" +
+                    $"- Tệp CSV: {file.FileName}\n" +
+                    $"- Loại key: {keyTypeVi}\n" +
+                    $"- Ngày hết hạn: {expiryVi}",
                 Severity = 1, // Success
                 CreatedByUserId = actorId,
                 CreatedByEmail = actorEmail,
@@ -227,15 +255,12 @@ public class LicensePackageController : ControllerBase
 
                 RelatedEntityType = "LicensePackage",
                 RelatedEntityId = packageId.ToString(),
-
-                // ✅ bạn đổi route FE cho đúng trang quản lý package/import
-                RelatedUrl = $"/admin/license-packages/{packageId}",
+                RelatedUrl = relatedUrl,
 
                 TargetRoleCodes = new List<string> { RoleCodes.ADMIN }
             });
         }
         catch { }
-
 
         return Ok(result);
     }

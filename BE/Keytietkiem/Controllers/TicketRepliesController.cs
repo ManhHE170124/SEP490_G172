@@ -30,17 +30,20 @@ public class TicketRepliesController : ControllerBase
     private readonly IHubContext<TicketHub> _ticketHub;
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService; // ✅ NEW
+    private readonly IConfiguration _config;
 
     public TicketRepliesController(
         KeytietkiemDbContext db,
         IHubContext<TicketHub> ticketHub,
         IAuditLogger auditLogger,
-        INotificationSystemService notificationSystemService) // ✅ NEW
+        INotificationSystemService notificationSystemService,
+        IConfiguration config) // ✅ NEW
     {
         _db = db;
         _ticketHub = ticketHub;
         _auditLogger = auditLogger;
         _notificationSystemService = notificationSystemService; // ✅ NEW
+        _config = config;
     }
 
     /// <summary>
@@ -187,16 +190,19 @@ public class TicketRepliesController : ControllerBase
             // ✅ System notification: staff/admin reply -> notify customer chủ ticket (best-effort)
             try
             {
-                var actorEmail = sender.Email ?? "(unknown)";
-                var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+              var actorName = sender.FullName ?? "(unknown)";
+            var actorEmail = sender.Email ?? "(unknown)";
+            var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/tickets/{id}";
 
                 await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
                 {
                     Title = "Ticket của bạn có phản hồi mới",
                     Message =
-                        $"Nhân viên hỗ trợ {actorEmail} đã phản hồi ticket của bạn.\n" +
-                        $"- Ticket: {ticketCode}\n" +
-                        $"- Subject: {t.Subject ?? ""}",
+                        $"Nhân viên hỗ trợ {actorName} đã phản hồi ticket của bạn.\n" +
+                        $"-Mã ticket: {ticketCode}\n" +
+                        $"- Nội dung: {t.Subject ?? ""}",
                     Severity = 0, // Info
                     CreatedByUserId = sender.UserId,
                     CreatedByEmail = actorEmail,
@@ -206,7 +212,7 @@ public class TicketRepliesController : ControllerBase
                     RelatedEntityId = t.TicketId.ToString(),
 
                     // ✅ đổi theo route FE customer ticket detail của bạn
-                    RelatedUrl = $"/customer/tickets/{t.TicketId}",
+                    RelatedUrl = relatedUrl,
 
                     TargetUserIds = new List<Guid> { t.UserId }
                 });

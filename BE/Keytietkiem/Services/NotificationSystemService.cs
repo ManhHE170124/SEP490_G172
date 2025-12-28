@@ -15,11 +15,11 @@ using Microsoft.Extensions.Logging;
 namespace Keytietkiem.Services
 {
     /// <summary>
-    /// Service tạo notification "hệ thống":
-    /// - Lưu DB Notification + NotificationTargetRole + NotificationUser
-    /// - Push realtime qua SignalR (NotificationHub) bằng background queue
-    ///
-    /// Best-effort: bọc lỗi để không làm fail luồng chính.
+    /// Tạo + dispatch notification từ các nghiệp vụ khác.
+    /// 
+    /// Notes:
+    /// - Role claim của hệ thống = Role Code, nhưng bảng NotificationTargetRole cần RoleId.
+    /// - Dispatch realtime qua INotificationDispatchQueue để không fan-out SendAsync trực tiếp trong request.
     /// </summary>
     public class NotificationSystemService : INotificationSystemService
     {
@@ -40,27 +40,41 @@ namespace Keytietkiem.Services
             _logger = logger;
         }
 
+        /// <summary>
+        /// Tạo & dispatch system notification: có thể gửi theo role, theo user, hoặc cả 2.
+        /// Best-effort: không throw làm hỏng luồng chính (trừ request null).
+        /// </summary>
+        public Task<int> CreateAsync(SystemNotificationCreateRequest request, CancellationToken cancellationToken = default)
+        {
+            // dùng 1 luồng chung để tránh duplicate code
+            return CreateInternalAsync(request, cancellationToken);
+        }
+
         public Task<int> CreateForRoleCodesAsync(SystemNotificationCreateRequest request, CancellationToken cancellationToken = default)
-            => CreateAsync(request, cancellationToken);
+        {
+            return CreateInternalAsync(request, cancellationToken);
+        }
 
         public Task<int> CreateForUserIdsAsync(SystemNotificationCreateRequest request, CancellationToken cancellationToken = default)
-            => CreateAsync(request, cancellationToken);
-
-        public async Task<int> CreateAsync(SystemNotificationCreateRequest request, CancellationToken cancellationToken = default)
         {
-            if (request == null) return 0;
+            return CreateInternalAsync(request, cancellationToken);
+        }
 
-            // Trim + validate tối thiểu (không throw)
+        private async Task<int> CreateInternalAsync(SystemNotificationCreateRequest request, CancellationToken cancellationToken)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+
             var title = (request.Title ?? string.Empty).Trim();
             var message = (request.Message ?? string.Empty).Trim();
+
             if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(message))
             {
                 _logger.LogWarning("System notification missing Title/Message. Type={Type}", request.Type);
                 return 0;
             }
 
-            // Normalize targets
-            var roleInputs = (request.TargetRoleCodes ?? new List<string>())
+            // ---- Normalize inputs
+            var roleCodes = (request.TargetRoleCodes ?? new List<string>())
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -73,192 +87,156 @@ namespace Keytietkiem.Services
                 .Take(20000)
                 .ToList();
 
-            if (roleInputs.Count == 0 && explicitUserIds.Count == 0)
+            // ---- Resolve roles: roleCode -> roleId
+            List<string> roleIds = new();
+            if (roleCodes.Count > 0)
             {
-                // giống manual: không có target thì thôi (best-effort)
-                return 0;
+                roleIds = await _context.Roles
+                    .AsNoTracking()
+                    .Where(r => r.IsActive && roleCodes.Contains(r.Code))
+                    .Select(r => r.RoleId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
             }
 
-            var dedupKey = string.IsNullOrWhiteSpace(request.DedupKey) ? null : request.DedupKey.Trim();
-            var type = string.IsNullOrWhiteSpace(request.Type) ? "System" : request.Type.Trim();
-            var correlationId = string.IsNullOrWhiteSpace(request.CorrelationId)
-                ? Guid.NewGuid().ToString("N")
-                : request.CorrelationId.Trim();
+            // ---- Resolve users by roleIds
+            List<Guid> userIdsFromRoles = new();
+            if (roleIds.Count > 0)
+            {
+                userIdsFromRoles = await _context.Users
+                    .AsNoTracking()
+                    .Where(u => u.Status == "Active" && u.Roles.Any(r => roleIds.Contains(r.RoleId)))
+                    .Select(u => u.UserId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+            }
 
-            var relatedEntityType = string.IsNullOrWhiteSpace(request.RelatedEntityType) ? null : request.RelatedEntityType.Trim();
-            var relatedEntityId = string.IsNullOrWhiteSpace(request.RelatedEntityId) ? null : request.RelatedEntityId.Trim();
+            // ---- Validate explicit users exist (and active)
+            List<Guid> existedExplicitUsers = new();
+            if (explicitUserIds.Count > 0)
+            {
+                existedExplicitUsers = await _context.Users
+                    .AsNoTracking()
+                    .Where(u => u.Status == "Active" && explicitUserIds.Contains(u.UserId))
+                    .Select(u => u.UserId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+            }
+
+            var targetUserIds = userIdsFromRoles
+                .Concat(existedExplicitUsers)
+                .Distinct()
+                .ToList();
+
+            if (roleIds.Count == 0 && targetUserIds.Count == 0)
+            {
+                // Không có người nhận thì thôi
+                return 0;
+            }
 
             var now = _clock.UtcNow;
 
-            try
+            // 1) Create notification
+            var notification = new Notification
             {
-                // Idempotency (giống manual)
-                if (!string.IsNullOrWhiteSpace(dedupKey))
-                {
-                    var existed = await _context.Notifications.AsNoTracking()
-                        .FirstOrDefaultAsync(n => n.DedupKey == dedupKey, cancellationToken);
+                Title = title,
+                Message = message,
+                Severity = request.Severity,
+                IsSystemGenerated = true,
+                IsGlobal = false,
+                CreatedAtUtc = now,
+                CreatedByUserId = request.CreatedByUserId,
+                Type = string.IsNullOrWhiteSpace(request.Type) ? null : request.Type.Trim(),
+                CorrelationId = string.IsNullOrWhiteSpace(request.CorrelationId)
+                    ? Guid.NewGuid().ToString("N")
+                    : request.CorrelationId!.Trim(),
+                RelatedEntityType = string.IsNullOrWhiteSpace(request.RelatedEntityType) ? null : request.RelatedEntityType.Trim(),
+                RelatedEntityId = string.IsNullOrWhiteSpace(request.RelatedEntityId) ? null : request.RelatedEntityId.Trim(),
+                RelatedUrl = string.IsNullOrWhiteSpace(request.RelatedUrl) ? null : request.RelatedUrl.Trim(),
+                // ❌ Removed: DedupKey, PayloadJson, ExpiresAtUtc
+            };
 
-                    if (existed != null)
-                        return existed.Id;
-                }
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync(cancellationToken);
 
-                // Resolve roles: accept Role.Code OR Role.RoleId
-                List<Role> resolvedRoles = new();
-                if (roleInputs.Count > 0)
-                {
-                    resolvedRoles = await _context.Roles.AsNoTracking()
-                        .Where(r => roleInputs.Contains(r.Code) || roleInputs.Contains(r.RoleId))
-                        .ToListAsync(cancellationToken);
-                }
-
-                var roleIds = resolvedRoles
-                    .Select(r => r.RoleId)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct()
+            // 2) Target roles (để Admin xem "Phạm vi/Role" đúng)
+            if (roleIds.Count > 0)
+            {
+                var targetRoleRows = roleIds
+                    .Select(roleId => new NotificationTargetRole
+                    {
+                        NotificationId = notification.Id,
+                        RoleId = roleId
+                    })
                     .ToList();
 
-                // Users from roles (User.Roles navigation)
-                List<Guid> userIdsFromRoles = new();
-                if (roleIds.Count > 0)
+                _context.NotificationTargetRoles.AddRange(targetRoleRows);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            // 3) Create NotificationUser rows (to appear in /my list)
+            // NOTE: Nếu targetUserIds rỗng nhưng roleIds có (và role không có user) => vẫn không có người nhận => return 0 ở trên rồi.
+            var notificationUsersToInsert = targetUserIds
+                .Select(userId => new NotificationUser
                 {
-                    userIdsFromRoles = await _context.Users.AsNoTracking()
-                        .Where(u => u.Roles.Any(r => roleIds.Contains(r.RoleId)))
-                        .Select(u => u.UserId)
-                        .ToListAsync(cancellationToken);
-                }
-
-                // Validate explicit user ids exist
-                List<Guid> existedExplicitUsers = new();
-                if (explicitUserIds.Count > 0)
-                {
-                    existedExplicitUsers = await _context.Users.AsNoTracking()
-                        .Where(u => explicitUserIds.Contains(u.UserId))
-                        .Select(u => u.UserId)
-                        .ToListAsync(cancellationToken);
-                }
-
-                var targetUserIds = userIdsFromRoles
-                    .Concat(existedExplicitUsers)
-                    .Distinct()
-                    .ToList();
-
-                // Create notification (DB)
-                var notification = new Notification
-                {
-                    Title = title,
-                    Message = message,
-                    Severity = request.Severity,
-                    IsSystemGenerated = true,
-                    IsGlobal = false,
-
-                    Type = type,
-                    CorrelationId = correlationId,
-                    DedupKey = dedupKey,
-                    PayloadJson = request.PayloadJson,
-
-                    // ✅ keep all relation fields
-                    RelatedUrl = request.RelatedUrl,
-                    RelatedEntityType = relatedEntityType,
-                    RelatedEntityId = relatedEntityId,
-
-                    ExpiresAtUtc = request.ExpiresAtUtc,
-
-                    CreatedByUserId = request.CreatedByUserId,
+                    NotificationId = notification.Id,
+                    UserId = userId,
+                    IsRead = false,
                     CreatedAtUtc = now
+                })
+                .ToList();
+
+            if (notificationUsersToInsert.Count > 0)
+            {
+                _context.NotificationUsers.AddRange(notificationUsersToInsert);
+
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Unique index (NotificationId, UserId) prevents duplicates.
+                    // In rare race conditions, ignore duplicates to avoid failing the whole business action.
+                    _logger.LogWarning(ex, "NotificationUser insert may contain duplicates. NotificationId={NotificationId}", notification.Id);
+                }
+            }
+
+            // 4) Dispatch realtime (enqueue)
+            // ✅ Dispatch theo dữ liệu đã lưu thật trong DB (tránh trường hợp SaveChanges fail mà vẫn dispatch)
+            var persistedUsers = await _context.NotificationUsers
+                .AsNoTracking()
+                .Where(nu => nu.NotificationId == notification.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var nu in persistedUsers)
+            {
+                var payload = new
+                {
+                    notificationUserId = nu.Id,
+                    notificationId = notification.Id,
+                    title = notification.Title,
+                    message = notification.Message,
+                    severity = notification.Severity,
+                    createdAtUtc = notification.CreatedAtUtc,
+                    type = notification.Type,
+                    isRead = false,
+                    isSystemGenerated = true,
+                    isGlobal = false,
+                    relatedEntityType = notification.RelatedEntityType,
+                    relatedEntityId = notification.RelatedEntityId,
+                    relatedUrl = notification.RelatedUrl
                 };
 
-                _context.Notifications.Add(notification);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                // store target roles for admin detail UI
-                if (roleIds.Count > 0)
-                {
-                    var ntrs = roleIds.Select(rid => new NotificationTargetRole
-                    {
-                        NotificationId = notification.Id,
-                        RoleId = rid
-                    }).ToList();
-
-                    _context.NotificationTargetRoles.AddRange(ntrs);
-                }
-
-                // create NotificationUser rows (so FE always has NotificationUserId)
-                List<NotificationUser> notificationUsers = new();
-                if (targetUserIds.Count > 0)
-                {
-                    notificationUsers = targetUserIds.Select(uid => new NotificationUser
-                    {
-                        NotificationId = notification.Id,
-                        UserId = uid,
-                        IsRead = false,
-                        ReadAtUtc = null,
-                        CreatedAtUtc = now
-                    }).ToList();
-
-                    _context.NotificationUsers.AddRange(notificationUsers);
-                }
-
-                await _context.SaveChangesAsync(cancellationToken);
-
-                // Realtime dispatch (best-effort)
-                if (notificationUsers.Count > 0)
-                {
-                    foreach (var nu in notificationUsers)
-                    {
-                        var payload = new
-                        {
-                            notificationId = notification.Id,
-                            notificationUserId = nu.Id,
-                            title = notification.Title,
-                            message = notification.Message,
-                            severity = notification.Severity,
-                            type = notification.Type,
-                            createdAtUtc = notification.CreatedAtUtc,
-
-                            // ✅ include related fields for FE click
-                            relatedUrl = notification.RelatedUrl,
-                            relatedEntityType = notification.RelatedEntityType,
-                            relatedEntityId = notification.RelatedEntityId,
-
-                            isSystemGenerated = notification.IsSystemGenerated,
-                            isRead = false
-                        };
-
-                        // ✅ Queue signature has NO cancellationToken
-                        await _dispatchQueue.QueueToGroupAsync(
-                            NotificationHub.UserGroup(nu.UserId),
-                            payload,
-                            NotificationDispatchQueue.MethodReceiveNotification
-                        );
-                    }
-                }
-
-                return notification.Id;
+                await _dispatchQueue.QueueToGroupAsync(
+                    NotificationHub.UserGroup(nu.UserId),
+                    payload,
+                    NotificationDispatchQueue.MethodReceiveNotification,
+                    cancellationToken
+                );
             }
-            catch (DbUpdateException ex)
-            {
-                // Nếu vướng unique DedupKey thì trả record cũ (giống manual)
-                if (!string.IsNullOrWhiteSpace(dedupKey))
-                {
-                    try
-                    {
-                        var existed = await _context.Notifications.AsNoTracking()
-                            .FirstOrDefaultAsync(n => n.DedupKey == dedupKey, cancellationToken);
 
-                        if (existed != null)
-                            return existed.Id;
-                    }
-                    catch { /* ignore */ }
-                }
-
-                _logger.LogWarning(ex, "Failed to create system notification. Type={Type}", request.Type);
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to create system notification. Type={Type}", request.Type);
-                return 0;
-            }
+            return notification.Id;
         }
     }
 }
