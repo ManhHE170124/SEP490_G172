@@ -1,6 +1,6 @@
 // File: AdminNotificationsPage.jsx
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
 
@@ -42,6 +42,106 @@ function severityClass(sev) {
   }
 }
 
+function notificationTypeLabel(type) {
+  const v = String(type || "").trim();
+  if (!v) return "-";
+
+  // Normalize để map được cả dạng "Ticket.Assigned", "Key.ImportCsv", ...
+  // Ví dụ: "Ticket.Assigned" -> "ticketassigned"
+  const raw = v.toLowerCase();
+  const key = raw.replace(/[^a-z0-9]/g, "");
+
+  if (key === "manual") return "Thủ công";
+  if (key === "system") return "Hệ thống";
+
+  // Map type hệ thống -> tiếng Việt (hiện tại đang dùng trong BE)
+  // NOTE: key đã được normalize (bỏ dấu chấm, dấu gạch, khoảng trắng...)
+  const map = {
+    // Ticket
+    ticketcreated: "Ticket mới",
+    ticketassigned: "Gán ticket",
+    tickettransferred: "Chuyển ticket",
+    ticketcompleted: "Hoàn thành ticket",
+    ticketstaffreplied: "Ticket có phản hồi",
+
+    // Key
+    keyimportcsv: "Nhập key hàng loạt",
+    keybulkupdatestatus: "Cập nhật trạng thái key hàng loạt",
+
+    // Report
+    productreportcreated: "Báo lỗi sản phẩm",
+
+    // Product account
+    productaccountcustomerrevoked: "Thu hồi quyền truy cập tài khoản",
+
+    // (Tuỳ bạn mở rộng sau)
+    ordercreated: "Đơn hàng mới",
+  };
+
+  if (map[key]) return map[key];
+
+  // fallback: giữ nguyên (dành cho các type tự động mới)
+  return v;
+}
+
+function notificationTypeLabelForList(item) {
+  // Ưu tiên field Type; nếu null thì dựa vào IsSystemGenerated
+  const t = String(item?.type || "").trim();
+  if (t) return notificationTypeLabel(t);
+  return item?.isSystemGenerated ? "Hệ thống" : "Thủ công";
+}
+
+function scopeLabelForList(item) {
+  if (item?.isGlobal) return "Toàn hệ thống";
+  // Nếu sau này BE trả thêm targetRoleCount / targetRolesCount thì FE tự nhận
+  const roleCount =
+    typeof item?.targetRoleCount === "number"
+      ? item.targetRoleCount
+      : typeof item?.targetRolesCount === "number"
+      ? item.targetRolesCount
+      : 0;
+  if (roleCount > 0) return "Nhóm quyền";
+  return "Người dùng cụ thể";
+}
+
+
+function creatorLabelOnlyName(label) {
+  const s = String(label || "").trim();
+  if (!s) return s;
+
+  // Nếu BE trả dạng "FullName (email)" thì chỉ lấy FullName
+  const idx = s.indexOf(" (");
+  if (idx > 0 && s.endsWith(")")) return s.slice(0, idx).trim();
+
+  return s;
+}
+
+const isLikelyAbsoluteUrl = (s) => /^https?:\/\//i.test(String(s || "").trim());
+const isLikelyRelativeUrl = (s) => /^\//.test(String(s || "").trim());
+
+const renderRelatedUrl = (url) => {
+  const v = String(url || "").trim();
+  if (!v) return "-";
+
+  if (isLikelyAbsoluteUrl(v)) {
+    return (
+      <a href={v} target="_blank" rel="noreferrer">
+        {v}
+      </a>
+    );
+  }
+
+  if (isLikelyRelativeUrl(v)) {
+    return (
+      <a href={v} target="_blank" rel="noreferrer">
+        {v}
+      </a>
+    );
+  }
+
+  return v;
+};
+
 const AdminNotificationsPage = () => {
   // Permission checks removed - now role-based on backend
   const hasCreatePermission = true;
@@ -52,6 +152,9 @@ const AdminNotificationsPage = () => {
     severity: "",
     isSystemGenerated: "",
     isGlobal: "",
+    status: "",
+    type: "",
+    createdByEmail: "",
     sortBy: "CreatedAtUtc",
     sortDescending: true,
     createdFromUtc: "",
@@ -66,11 +169,32 @@ const AdminNotificationsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Abort previous list requests (debounce + cancel old)
+  const listAbortRef = useRef(null);
+
+  // Options dropdown cho bộ lọc danh sách (type + creator)
+  const [filterOptions, setFilterOptions] = useState({
+    types: [],
+    creators: [],
+  });
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+  const [filterOptionsError, setFilterOptionsError] = useState("");
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const [detailTab, setDetailTab] = useState("info");
+
+  // ✅ Recipients (paged) - loaded from separate endpoint to avoid heavy admin detail payload
+  const recipientsPageSize = 20;
+  const [recipientsItems, setRecipientsItems] = useState([]);
+  const [recipientsTotal, setRecipientsTotal] = useState(0);
+  const [recipientsPageNumber, setRecipientsPageNumber] = useState(1);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
+  const [recipientsError, setRecipientsError] = useState("");
+  const recipientsAbortRef = useRef(null);
 
   // Options dropdown user / role
   const [targetOptions, setTargetOptions] = useState({
@@ -120,9 +244,37 @@ const AdminNotificationsPage = () => {
     loadOptions();
   }, []);
 
+  // ====== Load options cho bộ lọc danh sách (type + creator) ======
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      setFilterOptionsLoading(true);
+      setFilterOptionsError("");
+      try {
+        const data = await NotificationsApi.getAdminFilterOptions();
+
+        setFilterOptions({
+          types: Array.isArray(data?.types) ? data.types : Array.isArray(data?.Types) ? data.Types : [],
+          creators: Array.isArray(data?.creators)
+            ? data.creators
+            : Array.isArray(data?.Creators)
+            ? data.Creators
+            : [],
+        });
+      } catch (err) {
+        console.error("Không thể tải option bộ lọc thông báo", err);
+        setFilterOptionsError("Không tải được loại thông báo / người tạo.");
+        setFilterOptions({ types: [], creators: [] });
+      } finally {
+        setFilterOptionsLoading(false);
+      }
+    };
+
+    loadFilterOptions();
+  }, []);
+
   // ====== Load list ======
   const refreshList = useCallback(
-    async () => {
+    async (signal) => {
       setLoading(true);
       setError("");
 
@@ -141,17 +293,27 @@ const AdminNotificationsPage = () => {
             filters.isGlobal === ""
               ? undefined
               : filters.isGlobal === "true",
+          status: (filters.status || "").trim() || undefined,
+          type: (filters.type || "").trim() || undefined,
+          createdByEmail: (filters.createdByEmail || "").trim() || undefined,
           sortBy: filters.sortBy || "CreatedAtUtc",
           sortDescending: filters.sortDescending,
           createdFromUtc: filters.createdFromUtc || undefined,
           createdToUtc: filters.createdToUtc || undefined,
         };
 
-        const result = await NotificationsApi.listAdminPaged(params);
+        const result = await NotificationsApi.listAdminPaged(params, { signal });
 
         setItems(result.items || []);
         setTotal(result.total || 0);
       } catch (err) {
+        if (
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError" ||
+          err?.name === "AbortError"
+        ) {
+          return;
+        }
         console.error("Không thể tải danh sách thông báo", err);
         setError("Không tải được danh sách thông báo. Vui lòng thử lại.");
       } finally {
@@ -161,8 +323,26 @@ const AdminNotificationsPage = () => {
     [filters, pageNumber, pageSize]
   );
 
+  // ✅ Debounce & cancel old list requests to avoid spamming API while typing search/filter
   useEffect(() => {
-    refreshList();
+    if (listAbortRef.current) {
+      try {
+        listAbortRef.current.abort();
+      } catch {}
+    }
+    const controller = new AbortController();
+    listAbortRef.current = controller;
+
+    const t = setTimeout(() => {
+      refreshList(controller.signal);
+    }, 400);
+
+    return () => {
+      clearTimeout(t);
+      try {
+        controller.abort();
+      } catch {}
+    };
   }, [refreshList]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -177,6 +357,16 @@ const AdminNotificationsPage = () => {
 
   // Sort theo tiêu đề cột: click lần 1 ASC, lần 2 DESC
   const handleSortClick = (sortBy) => {
+    // ⚠️ BE cần support sortBy các field này (xem ghi chú cuối file)
+    const sortable = new Set([
+      "CreatedAtUtc",
+      "Title",
+      "Severity",
+      "Type",
+      "CreatedByUserEmail",
+    ]);
+    if (!sortable.has(sortBy)) return;
+
     setFilters((prev) => {
       if (prev.sortBy === sortBy) {
         return { ...prev, sortDescending: !prev.sortDescending };
@@ -192,6 +382,9 @@ const AdminNotificationsPage = () => {
       severity: "",
       isSystemGenerated: "",
       isGlobal: "",
+      status: "",
+      type: "",
+      createdByEmail: "",
       sortBy: "CreatedAtUtc",
       sortDescending: true,
       createdFromUtc: "",
@@ -210,9 +403,16 @@ const AdminNotificationsPage = () => {
 
   const handleOpenDetail = async (id) => {
     setIsDetailModalOpen(true);
+    setDetailTab("info");
     setSelectedNotification(null);
     setDetailError("");
     setDetailLoading(true);
+
+    // reset recipients paging state (loaded lazily when switching to tab)
+    setRecipientsItems([]);
+    setRecipientsTotal(0);
+    setRecipientsPageNumber(1);
+    setRecipientsError("");
 
     try {
       const data = await NotificationsApi.getDetail(id);
@@ -224,6 +424,69 @@ const AdminNotificationsPage = () => {
       setDetailLoading(false);
     }
   };
+
+  const loadRecipientsPage = useCallback(
+    async (page) => {
+      const notificationId = selectedNotification?.id;
+      if (!notificationId) return;
+
+      if (recipientsAbortRef.current) {
+        try {
+          recipientsAbortRef.current.abort();
+        } catch {}
+      }
+
+      const controller = new AbortController();
+      recipientsAbortRef.current = controller;
+
+      setRecipientsLoading(true);
+      setRecipientsError("");
+      try {
+        const res = await NotificationsApi.getAdminRecipientsPaged(
+          notificationId,
+          { pageNumber: page, pageSize: recipientsPageSize },
+          { signal: controller.signal }
+        );
+        setRecipientsItems(res.items || []);
+        setRecipientsTotal(res.total || 0);
+        setRecipientsPageNumber(page);
+      } catch (err) {
+        if (
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError" ||
+          err?.name === "AbortError"
+        ) {
+          return;
+        }
+        console.error("Không thể tải danh sách người nhận", err);
+        setRecipientsError("Không tải được danh sách người nhận.");
+      } finally {
+        setRecipientsLoading(false);
+      }
+    },
+    [selectedNotification?.id, recipientsPageSize]
+  );
+
+  // lazy load recipients when user opens the tab
+  useEffect(() => {
+    if (!isDetailModalOpen) return;
+    // Recipients are shown inside "info" tab in current UI
+    if (detailTab !== "info") return;
+    if (!selectedNotification?.id) return;
+
+    // If current page isn't loaded yet (fresh open), load page 1
+    if (recipientsItems.length === 0 && !recipientsLoading && !recipientsError) {
+      loadRecipientsPage(1);
+    }
+  }, [
+    isDetailModalOpen,
+    detailTab,
+    selectedNotification?.id,
+    recipientsItems.length,
+    recipientsLoading,
+    recipientsError,
+    loadRecipientsPage,
+  ]);
 
   const handleOpenCreate = () => {
     setCreateErrors({});
@@ -253,53 +516,33 @@ const AdminNotificationsPage = () => {
     });
   };
 
-  // Toggle chọn 1 role + sync với nút Gửi toàn hệ thống
+  // Toggle chọn 1 role
   const toggleRoleSelection = (roleId) => {
     setCreateForm((prev) => {
-      let selectedRoleIds;
-      if (prev.selectedRoleIds.includes(roleId)) {
-        selectedRoleIds = prev.selectedRoleIds.filter((id) => id !== roleId);
-      } else {
-        selectedRoleIds = [...prev.selectedRoleIds, roleId];
-      }
+      if (prev.isGlobal) return prev;
 
-      const allRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
-      const allSelected =
-        allRoleIds.length > 0 &&
-        allRoleIds.every((id) => selectedRoleIds.includes(id));
+      const exists = prev.selectedRoleIds.includes(roleId);
+      const selectedRoleIds = exists
+        ? prev.selectedRoleIds.filter((id) => id !== roleId)
+        : [...prev.selectedRoleIds, roleId];
 
-      return {
-        ...prev,
-        selectedRoleIds,
-        isGlobal: allSelected, // chọn đủ tất cả role thì auto bật Gửi toàn hệ thống
-      };
+      return { ...prev, selectedRoleIds };
     });
   };
+
 
   // Nút gạt Gửi toàn hệ thống
+  // Global đúng nghĩa: BE tự áp dụng cho tất cả user, FE KHÔNG gửi allUserIds/allRoleIds.
   const handleGlobalToggle = (checked) => {
-    setCreateForm((prev) => {
-      let selectedRoleIds = prev.selectedRoleIds;
-      let selectedUserIds = prev.selectedUserIds;
-
-      if (checked) {
-        // Bật: chọn tất cả user + tất cả role
-        selectedRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
-        selectedUserIds = (targetOptions.users || []).map((u) => u.userId);
-      } else {
-        // Tắt: bỏ hết cả user lẫn role
-        selectedRoleIds = [];
-        selectedUserIds = [];
-      }
-
-      return {
-        ...prev,
-        isGlobal: checked,
-        selectedRoleIds,
-        selectedUserIds,
-      };
-    });
+    setCreateForm((prev) => ({
+      ...prev,
+      isGlobal: checked,
+      // Khi bật global: clear selections (không dùng selections để tạo recipients)
+      selectedRoleIds: checked ? [] : prev.selectedRoleIds,
+      selectedUserIds: checked ? [] : prev.selectedUserIds,
+    }));
   };
+
 
   const validateCreateForm = () => {
     const errs = {};
@@ -316,23 +559,27 @@ const AdminNotificationsPage = () => {
       errs.message = "Nội dung tối đa 1000 ký tự.";
     }
 
-    // Nếu KHÔNG gửi toàn hệ thống thì bắt buộc phải chọn ít nhất 1 user
-    if (
-      !createForm.isGlobal &&
-      (!createForm.selectedUserIds ||
-        createForm.selectedUserIds.length === 0)
-    ) {
+    // Nếu KHÔNG gửi toàn hệ thống thì bắt buộc phải chọn ít nhất 1 user hoặc 1 role
+    const hasUsers =
+      Array.isArray(createForm.selectedUserIds) &&
+      createForm.selectedUserIds.length > 0;
+    const hasRoles =
+      Array.isArray(createForm.selectedRoleIds) &&
+      createForm.selectedRoleIds.length > 0;
+
+    if (!createForm.isGlobal && !hasUsers && !hasRoles) {
       errs.selectedUserIds =
-        "Vui lòng chọn ít nhất một người nhận (user) hoặc bật chế độ gửi toàn hệ thống.";
+        "Vui lòng chọn ít nhất một người nhận (user) hoặc một nhóm quyền (role), hoặc bật chế độ gửi toàn hệ thống.";
     }
+
 
     const sevNum = Number(createForm.severity);
     if (Number.isNaN(sevNum) || sevNum < 0 || sevNum > 3) {
       errs.severity = "Mức độ phải nằm trong khoảng từ 0 đến 3.";
     }
 
-    if (createForm.relatedUrl && createForm.relatedUrl.length > 500) {
-      errs.relatedUrl = "Đường dẫn liên quan quá dài (tối đa 500 ký tự).";
+    if (createForm.relatedUrl && createForm.relatedUrl.length > 1024) {
+      errs.relatedUrl = "Đường dẫn liên quan quá dài (tối đa 1024 ký tự).";
     }
 
     setCreateErrors(errs);
@@ -343,17 +590,21 @@ const AdminNotificationsPage = () => {
     e.preventDefault();
     if (!validateCreateForm()) return;
 
-    // Tập user nhận: nếu gửi toàn hệ thống -> toàn bộ user trong options
-    const allUserIds = (targetOptions.users || []).map((u) => u.userId);
+    // Recipients:
+    // - Global: BE tự áp dụng cho tất cả user => không gửi allUserIds/allRoleIds
+    // - Non-global: có thể gửi theo userIds và/hoặc roleIds (BE resolve union)
     const targetUserIds = createForm.isGlobal
-      ? allUserIds
-      : createForm.selectedUserIds;
+      ? null
+      : createForm.selectedUserIds && createForm.selectedUserIds.length > 0
+      ? createForm.selectedUserIds
+      : null;
 
-    // Tập role gửi: nếu gửi toàn hệ thống -> toàn bộ role trong options
-    const allRoleIds = (targetOptions.roles || []).map((r) => r.roleId);
     const targetRoleIds = createForm.isGlobal
-      ? allRoleIds
-      : createForm.selectedRoleIds;
+      ? null
+      : createForm.selectedRoleIds && createForm.selectedRoleIds.length > 0
+      ? createForm.selectedRoleIds
+      : null;
+
 
     const payload = {
       title: createForm.title.trim(),
@@ -364,8 +615,7 @@ const AdminNotificationsPage = () => {
       relatedEntityId: null,
       relatedUrl: createForm.relatedUrl.trim() || null,
       targetUserIds: targetUserIds,
-      targetRoleIds:
-        targetRoleIds && targetRoleIds.length > 0 ? targetRoleIds : null,
+      targetRoleIds: targetRoleIds,
     };
 
     setCreateSubmitting(true);
@@ -383,10 +633,12 @@ const AdminNotificationsPage = () => {
     }
   };
 
-  const recipients =
-    selectedNotification && Array.isArray(selectedNotification.recipients)
-      ? selectedNotification.recipients
-      : [];
+  const recipients = recipientsItems;
+  const recipientsTotalPages = recipientsTotal
+    ? Math.ceil(recipientsTotal / recipientsPageSize)
+    : 1;
+  const canPrevRecipients = recipientsPageNumber > 1;
+  const canNextRecipients = recipientsPageNumber < recipientsTotalPages;
 
   return (
     <div className="admin-notifications-page">
@@ -463,6 +715,37 @@ const AdminNotificationsPage = () => {
               <option value="false">Thông báo cho người dùng cụ thể</option>
             </select>
           </div>
+
+
+          <div className="notif-filter-item">
+            <label className="notif-filter-label">Trạng thái</label>
+            <select
+              className="notif-select"
+              value={filters.status}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+            >
+              <option value="">Tất cả</option>
+              <option value="Active">Đang hiệu lực</option>
+              <option value="Expired">Hết hạn</option>
+              <option value="Archived">Đã lưu trữ</option>
+            </select>
+          </div>
+
+          <div className="notif-filter-item notif-filter-pagesize">
+            <label className="notif-filter-label">Số dòng / trang</label>
+            <select
+              className="notif-select"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value) || 20);
+                setPageNumber(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
         </div>
 
         <div className="notif-filters-row">
@@ -489,19 +772,82 @@ const AdminNotificationsPage = () => {
             />
           </div>
 
-          <div className="notif-filter-item notif-filter-pagesize">
-            <label className="notif-filter-label">Số dòng / trang</label>
+          <div className="notif-filter-item">
+            <label className="notif-filter-label">Loại thông báo</label>
             <select
               className="notif-select"
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value) || 20);
-                setPageNumber(1);
-              }}
+              value={filters.type}
+              onChange={(e) => handleFilterChange("type", e.target.value)}
             >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
+              <option value="">Tất cả</option>
+              {filterOptionsLoading && (
+                <option value="" disabled>
+                  Đang tải...
+                </option>
+              )}
+              {!filterOptionsLoading &&
+                (Array.isArray(filterOptions.types) ? filterOptions.types : [])
+                  .map((opt, idx) => {
+                    const value =
+                      (opt && (opt.value ?? opt.Value)) ??
+                      (typeof opt === "string" ? opt : "");
+                    if (!String(value || "").trim()) return null;
+
+                    // Nếu BE có Label thì ưu tiên, nếu không thì tự translate theo mapping hiện có
+                    const rawLabel =
+                      (opt && (opt.label ?? opt.Label)) ??
+                      (typeof opt === "string" ? opt : "");
+
+                    const label = rawLabel && rawLabel !== value
+                      ? rawLabel
+                      : notificationTypeLabel(value);
+
+                    return (
+                      <option key={`${value}-${idx}`} value={value}>
+                        {label}
+                      </option>
+                    );
+                  })
+                  .filter(Boolean)}
+            </select>
+          </div>
+
+          <div className="notif-filter-item">
+            <label className="notif-filter-label">Người tạo</label>
+            <select
+              className="notif-select"
+              value={filters.createdByEmail}
+              onChange={(e) => handleFilterChange("createdByEmail", e.target.value)}
+            >
+              <option value="">Tất cả</option>
+              {filterOptionsLoading && (
+                <option value="" disabled>
+                  Đang tải...
+                </option>
+              )}
+              {!filterOptionsLoading &&
+                (Array.isArray(filterOptions.creators)
+                  ? filterOptions.creators
+                  : [])
+                  .map((opt, idx) => {
+                    const value =
+                      (opt && (opt.value ?? opt.Value)) ??
+                      (typeof opt === "string" ? opt : "");
+                    if (value === undefined || value === null) return null;
+
+                    const rawLabel =
+                      (opt && (opt.label ?? opt.Label)) ??
+                      (typeof opt === "string" ? opt : String(value));
+
+                    const label = creatorLabelOnlyName(rawLabel);
+
+                    return (
+                      <option key={`${value}-${idx}`} value={value}>
+                        {label}
+                      </option>
+                    );
+                  })
+                  .filter(Boolean)}
             </select>
           </div>
 
@@ -529,54 +875,49 @@ const AdminNotificationsPage = () => {
               <thead>
                 <tr>
                   <th
-                    className="sortable"
+                    className="sortable col-created"
                     onClick={() => handleSortClick("CreatedAtUtc")}
                   >
                     Thời gian tạo
                     {renderSortIndicator("CreatedAtUtc")}
                   </th>
                   <th
-                    className="sortable"
+                    className="sortable col-title"
                     onClick={() => handleSortClick("Title")}
                   >
                     Tiêu đề / Nội dung
                     {renderSortIndicator("Title")}
                   </th>
                   <th
-                    className="sortable"
+                    className="sortable col-severity"
                     onClick={() => handleSortClick("Severity")}
                   >
                     Mức độ
                     {renderSortIndicator("Severity")}
                   </th>
                   <th
-                    className="sortable"
-                    onClick={() => handleSortClick("IsSystemGenerated")}
+                    className="sortable col-type"
+                    onClick={() => handleSortClick("Type")}
                   >
-                    Nguồn tạo
-                    {renderSortIndicator("IsSystemGenerated")}
+                    Loại
+                    {renderSortIndicator("Type")}
                   </th>
                   <th
-                    className="sortable"
-                    onClick={() => handleSortClick("IsGlobal")}
+                    className="sortable col-createdby"
+                    onClick={() => handleSortClick("CreatedByUserEmail")}
                   >
-                    Phạm vi
-                    {renderSortIndicator("IsGlobal")}
+                    Người tạo
+                    {renderSortIndicator("CreatedByUserEmail")}
                   </th>
-                  <th
-                    className="sortable"
-                    onClick={() => handleSortClick("TotalTargetUsers")}
-                  >
-                    Người nhận
-                    {renderSortIndicator("TotalTargetUsers")}
-                  </th>
-                  <th></th>
+                  <th className="col-scope">Phạm vi</th>
+                  <th className="col-recipients">Người nhận</th>
+                  <th className="col-actions">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="notif-empty">
+                    <td colSpan={8} className="notif-empty">
                       Không có thông báo nào.
                     </td>
                   </tr>
@@ -584,12 +925,12 @@ const AdminNotificationsPage = () => {
 
                 {items.map((n) => (
                   <tr key={n.id}>
-                    <td>
+                    <td className="col-created">
                       <span className="notif-date">
                         {new Date(n.createdAtUtc).toLocaleString("vi-VN")}
                       </span>
                     </td>
-                    <td className="notif-title-cell">
+                    <td className="col-title notif-title-cell">
                       <div className="notif-title-text" title={n.title}>
                         {n.title}
                       </div>
@@ -599,25 +940,94 @@ const AdminNotificationsPage = () => {
                           : n.message}
                       </div>
                     </td>
-                    <td>
+                    <td className="col-severity">
                       <span className={severityClass(n.severity)}>
                         {severityLabel(n.severity)}
                       </span>
                     </td>
-                    <td>{n.isSystemGenerated ? "Hệ thống" : "Thủ công"}</td>
-                    <td>{n.isGlobal ? "Toàn hệ thống" : "Người dùng cụ thể"}</td>
-                    <td>
-                      <span className="notif-targets">
-                        Người dùng: {n.totalTargetUsers} | Đã đọc: {n.readCount}
-                      </span>
+                    <td className="col-type">{notificationTypeLabelForList(n)}</td>
+                    <td className="col-createdby">
+                      <div className="notif-creator-block">
+                        <div
+                          className="notif-creator-name"
+                          title={
+                            n.createdByFullName ||
+                            n.createdByEmail ||
+                            n.createdByUserEmail ||
+                            ""
+                          }
+                        >
+                          {n.createdByFullName ||
+                            n.createdByUserEmail ||
+                            (n.isSystemGenerated ? "Hệ thống" : "-")}
+                        </div>
+                        <div
+                          className="notif-creator-email"
+                          title={n.createdByEmail || n.createdByUserEmail || ""}
+                        >
+                          {n.createdByEmail || n.createdByUserEmail || ""}
+                        </div>
+                      </div>
                     </td>
-                    <td className="notif-actions-cell">
+                    <td className="col-scope">{scopeLabelForList(n)}</td>
+                    <td className="col-recipients">
+                      <div className="notif-rec-block">
+                        <div className="notif-rec-line">
+                          {n.isGlobal ? "Tất cả người dùng" : "Người dùng cụ thể"}
+                        </div>
+                        <div className="notif-rec-line">
+                          {n.isGlobal ? (
+                            <>
+                              Đã đọc:{" "}
+                              {typeof n.readCount === "number" ? n.readCount : 0}
+                              {typeof n.totalTargetUsers === "number" &&
+                              n.totalTargetUsers > 0
+                                ? ` / ${n.totalTargetUsers}`
+                                : ""}
+                            </>
+                          ) : (
+                            <>
+                              Người nhận:{" "}
+                              {typeof n.totalTargetUsers === "number"
+                                ? n.totalTargetUsers
+                                : 0}
+                              {" · "}Đã đọc:{" "}
+                              {typeof n.readCount === "number" ? n.readCount : 0}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="col-actions notif-actions-cell">
                       <button
                         type="button"
-                        className="btn btn-link"
+                        className="notif-icon-btn"
                         onClick={() => handleOpenDetail(n.id)}
+                        aria-label="Xem chi tiết"
+                        title="Xem chi tiết"
                       >
-                        Chi tiết
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </button>
                     </td>
                   </tr>
@@ -775,8 +1185,9 @@ const AdminNotificationsPage = () => {
                           Áp dụng cho người dùng
                         </span>
                         <span className="notif-dropdown-count">
-                          ({createForm.selectedUserIds.length}/
-                          {targetOptions.users.length} đã chọn)
+                          {createForm.isGlobal
+                            ? "(Tất cả)"
+                            : `(${createForm.selectedUserIds.length}/${targetOptions.users.length} đã chọn)`}
                         </span>
                       </div>
                       <span
@@ -823,6 +1234,7 @@ const AdminNotificationsPage = () => {
                                   <input
                                     type="checkbox"
                                     checked={selected}
+                                    disabled={createForm.isGlobal}
                                     onChange={() =>
                                       toggleUserSelection(u.userId)
                                     }
@@ -865,8 +1277,9 @@ const AdminNotificationsPage = () => {
                           Áp dụng cho nhóm quyền
                         </span>
                         <span className="notif-dropdown-count">
-                          ({createForm.selectedRoleIds.length}/
-                          {targetOptions.roles.length} đã chọn)
+                          {createForm.isGlobal
+                            ? "(Tất cả)"
+                            : `(${createForm.selectedRoleIds.length}/${targetOptions.roles.length} đã chọn)`}
                         </span>
                       </div>
                       <span
@@ -901,6 +1314,7 @@ const AdminNotificationsPage = () => {
                                   <input
                                     type="checkbox"
                                     checked={selected}
+                                    disabled={createForm.isGlobal}
                                     onChange={() =>
                                       toggleRoleSelection(r.roleId)
                                     }
@@ -922,6 +1336,14 @@ const AdminNotificationsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {createForm.isGlobal && (
+                <div className="notif-help">
+                  Đang bật <b>Toàn hệ thống</b>: danh sách người dùng/nhóm quyền
+                  chỉ dùng để tham khảo và hệ thống sẽ tự áp dụng cho tất cả
+                  user.
+                </div>
+              )}
 
               {/* HÀNG 3: Đường dẫn liên quan – hàng cuối */}
               <div className="notif-form-group">
@@ -998,6 +1420,29 @@ const AdminNotificationsPage = () => {
               )}
               {!detailLoading && !detailError && selectedNotification && (
                 <>
+                  <div className="notif-detail-tabs">
+                    <button
+                      type="button"
+                      className={
+                        "notif-detail-tab" + (detailTab === "info" ? " active" : "")
+                      }
+                      onClick={() => setDetailTab("info")}
+                    >
+                      Thông tin
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        "notif-detail-tab" + (detailTab === "tech" ? " active" : "")
+                      }
+                      onClick={() => setDetailTab("tech")}
+                    >
+                      Kỹ thuật
+                    </button>
+                  </div>
+
+                  {detailTab === "info" ? (
+                    <>
                   {/* Lưới 2 cột cho thông tin meta */}
                   <div className="notif-detail-grid">
                     <div className="detail-row">
@@ -1028,7 +1473,11 @@ const AdminNotificationsPage = () => {
                     <div className="detail-row">
                       <span className="detail-label">Người tạo:</span>
                       <span className="detail-value">
-                        {selectedNotification.createdByUserEmail ||
+                        {selectedNotification.createdByFullName ||
+                          (selectedNotification.isSystemGenerated
+                            ? "Hệ thống"
+                            : selectedNotification.createdByEmail ||
+                              selectedNotification.createdByUserEmail) ||
                           selectedNotification.createdByUserId ||
                           "-"}
                       </span>
@@ -1048,7 +1497,7 @@ const AdminNotificationsPage = () => {
                         Đường dẫn liên quan:
                       </span>
                       <span className="detail-value">
-                        {selectedNotification.relatedUrl || "-"}
+                        {renderRelatedUrl(selectedNotification.relatedUrl)}
                       </span>
                     </div>
                   </div>
@@ -1097,10 +1546,10 @@ const AdminNotificationsPage = () => {
                           </thead>
                           <tbody>
                             {recipients.map((r, idx) => (
-                              <tr key={idx}>
+                              <tr key={r.userId || idx}>
                                 <td>{r.fullName || "(Chưa có tên)"}</td>
                                 <td>{r.email}</td>
-                                <td>{r.roleName || "-"}</td>
+                                <td>{r.roleNames || "-"}</td>
                                 <td>
                                   {r.isRead ? (
                                     <span className="recipient-status-read">
@@ -1144,6 +1593,36 @@ const AdminNotificationsPage = () => {
                       )}
                     </div>
                   </div>
+                    </>
+                  ) : (
+                    <>
+                      {(selectedNotification.type ||
+                        selectedNotification.correlationId) ? (
+                        <div className="notif-tech-panel">
+                          <div className="notif-tech-grid">
+                            <div className="tech-row">
+                              <span className="tech-label">Loại thông báo:</span>
+                              <span className="tech-value">
+                                {notificationTypeLabel(selectedNotification.type)}
+                              </span>
+                            </div>
+
+                            <div className="tech-row">
+                              <span className="tech-label">Mã truy vết:</span>
+                              <span className="tech-value tech-mono">
+                                {selectedNotification.correlationId || "-"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="notif-empty-inline">
+                          Không có thông tin kỹ thuật.
+                        </div>
+                      )}
+                    </>
+                  )}
+
                 </>
               )}
             </div>

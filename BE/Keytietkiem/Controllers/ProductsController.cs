@@ -136,7 +136,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST (không giá) =====
         [HttpGet("list")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<ProductListItemDto>>> List(
             [FromQuery] string? keyword,
             [FromQuery] int? categoryId,
@@ -226,7 +226,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL (Images + FAQs + Variants) =====
         [HttpGet("{id:guid}")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<ProductDetailDto>> GetById(Guid id)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();

@@ -153,12 +153,58 @@
   border-radius: 8px;
   padding: 12px 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  overflow-x: auto;
 }
 
 .notif-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
+}
+
+/* Column sizing (để badge mức độ không bị rớt dòng + đủ chỗ cho thêm cột) */
+.notif-table th.col-created,
+.notif-table td.col-created {
+  /* nhỏ hơn một chút để nhường chỗ cho các cột khác */
+  width: 145px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-severity,
+.notif-table td.col-severity {
+  /* rộng hơn để badge không bị chật */
+  width: 110px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-type,
+.notif-table td.col-type {
+  /* tăng độ rộng để hiển thị "Nhập key hàng loạt", "Gán ticket"... */
+  width: 140px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-createdby,
+.notif-table td.col-createdby {
+  width: 190px;
+}
+
+.notif-table th.col-scope,
+.notif-table td.col-scope {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-recipients,
+.notif-table td.col-recipients {
+  width: 170px;
+}
+
+.notif-table th.col-actions,
+.notif-table td.col-actions {
+  width: 70px;
+  white-space: nowrap;
 }
 
 .notif-table thead tr {
@@ -203,10 +249,48 @@
 .notif-date {
   font-size: 12px;
   color: #4b5563;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-creator-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.notif-creator-name {
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.notif-creator-email {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  min-height: 1.2em;
+}
+
+.notif-creator {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notif-title-cell {
-  max-width: 320px;
+  max-width: none;
 }
 
 .notif-title-text {
@@ -221,6 +305,25 @@
   font-size: 12px;
   color: #6b7280;
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-rec-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.notif-rec-line {
+  font-size: 12px;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .notif-targets {
@@ -230,6 +333,35 @@
 
 .notif-actions-cell {
   white-space: nowrap;
+  text-align: center;
+}
+
+/* Icon button ("con mắt" xem chi tiết) */
+.notif-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.notif-icon-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.notif-icon-btn:active {
+  transform: translateY(1px);
+}
+
+.notif-icon-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 /* BADGES */
@@ -237,10 +369,31 @@
 .badge-severity {
   display: inline-flex;
   align-items: center;
-  padding: 2px 6px;
-  font-size: 11px;
+  justify-content: center;
+  /*
+    IMPORTANT:
+    Một số global CSS (ở các màn khác) có thể đang áp fixed width/max-width/overflow
+    cho badge, làm chữ bị "lọt" ra ngoài hoặc bị cắt.
+    Ở trang Notification, ta ép badge auto-size để luôn bao hết label.
+  */
+  padding: 6px 14px;
+  font-size: 12px;
+  line-height: 1;
+  min-height: 26px;
   border-radius: 999px;
   border: 1px solid transparent;
+  white-space: nowrap;
+
+  /* Force auto size + no clipping */
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  box-sizing: border-box;
+}
+
+.notif-modal-header-right .badge-severity {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .badge-info {
@@ -321,7 +474,7 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 40px 16px;
+  padding: 24px 16px;
   z-index: 999;
   overflow-y: auto;
 }
@@ -329,15 +482,16 @@
 .notif-modal {
   background-color: #ffffff;
   border-radius: 10px;
-  max-width: 960px; /* rộng hơn cho 2 cột */
-  width: 100%;
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
   box-shadow: 0 10px 35px rgba(15, 23, 42, 0.3);
   display: flex;
   flex-direction: column;
 }
 
 .notif-modal-detail {
-  max-width: 700px;
+  width: min(1080px, calc(100vw - 32px));
 }
 
 .notif-modal-header {
@@ -366,6 +520,11 @@
   gap: 8px;
 }
 
+.notif-modal-header-right .badge-severity {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 .notif-global-label {
   font-size: 12px;
   color: #4b5563;
@@ -373,6 +532,8 @@
 
 .notif-modal-body {
   padding: 14px 16px 8px 16px;
+  overflow: auto;
+  flex: 1 1 auto;
 }
 
 .notif-modal-footer {
@@ -381,6 +542,84 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* Create modal footer is inside form body (sticky to bottom while scrolling) */
+form.notif-modal-body .notif-modal-footer {
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  margin: 10px -16px -8px -16px;
+  padding: 10px 16px 12px 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* TECH SECTION (Option A) */
+.notif-tech {
+  margin-top: 10px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.notif-tech > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+  list-style: none;
+}
+
+.notif-tech > summary::-webkit-details-marker {
+  display: none;
+}
+
+.notif-tech-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.tech-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.tech-label {
+  width: 110px;
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.tech-value {
+  flex: 1;
+  color: #111827;
+  word-break: break-word;
+}
+
+.tech-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+}
+
+.tech-row-json {
+  flex-direction: column;
+}
+
+.tech-json {
+  margin: 6px 0 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 /* FORM / LAYOUT – dùng prefix notif- để tránh trùng global */
@@ -494,6 +733,54 @@
   font-size: 13px;
 }
 
+/* DETAIL TABS (Info / Technical) */
+
+.notif-detail-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 10px 0;
+}
+
+.notif-detail-tab {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notif-detail-tab.active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.notif-detail-tab:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.notif-tech-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f9fafb;
+}
+
+.notif-tech-payload {
+  margin-top: 10px;
+}
+
+.notif-tech-payload summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #111827;
+}
+
 /* Lưới 2 cột cho các thông tin meta */
 .notif-detail-grid {
   display: grid;
@@ -563,7 +850,7 @@
   margin-top: 4px;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
-  max-height: 260px;
+  max-height: 320px;
   overflow-y: auto;
   background-color: #ffffff;
 }
@@ -726,7 +1013,19 @@
     min-width: 0;
   }
 
+  .notif-detail-tabs {
+    flex-wrap: wrap;
+  }
+
   .notif-detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+
+/* small helper text inside modal */
+.notif-help {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 10px;
 }

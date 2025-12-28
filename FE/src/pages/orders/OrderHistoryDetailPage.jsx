@@ -61,6 +61,62 @@ const formatOrderNumber = (orderId, createdAt) => {
   return `ORD-${dateStr}-${orderIdStr}`;
 };
 
+// Helper functions to extract account/key info from orderDetail (same as admin)
+const pickArr = (v) => (Array.isArray(v) ? v : []);
+
+const pickAccounts = (it) => {
+  const accounts = pickArr(it?.accounts ?? it?.Accounts);
+
+  // fallback single
+  const singleEmail = it?.accountEmail ?? it?.AccountEmail;
+  const singleUsername = it?.accountUsername ?? it?.AccountUsername;
+  const singlePassword = it?.accountPassword ?? it?.AccountPassword;
+
+  if (accounts.length > 0) return accounts;
+
+  if (singleEmail || singleUsername || singlePassword) {
+    return [
+      {
+        Email: singleEmail,
+        Username: singleUsername,
+        Password: singlePassword,
+        email: singleEmail,
+        username: singleUsername,
+        password: singlePassword,
+      },
+    ];
+  }
+
+  return [];
+};
+
+const pickKeys = (it) => {
+  const list = pickArr(it?.keyStrings ?? it?.KeyStrings);
+  const single = it?.keyString ?? it?.KeyString;
+  if (list.length > 0) return list;
+  if (single) return [single];
+  return [];
+};
+
+const getInfoKind = (it) => {
+  const pType = String(it?.productType ?? it?.ProductType ?? "").trim().toLowerCase();
+  const keys = pickKeys(it);
+  const accounts = pickAccounts(it);
+
+  // ưu tiên KEY nếu có keyStrings
+  if (keys.length > 0) return { kind: "key", keys, accounts: [] };
+
+  // chỉ coi là account khi không phải key
+  if (accounts.length > 0) return { kind: "account", keys: [], accounts };
+
+  // fallback theo ProductType
+  if (pType.includes("key")) return { kind: "key", keys: [], accounts: [] };
+  if (pType.includes("account") || pType.includes("tài khoản") || pType.includes("shared"))
+    return { kind: "account", keys: [], accounts: [] };
+
+  return { kind: "none", keys: [], accounts: [] };
+};
+
 export default function OrderHistoryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -70,6 +126,8 @@ export default function OrderHistoryDetailPage() {
   const [modalData, setModalData] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [modalReveal, setModalReveal] = useState(false); // For account password
+  const [keyRevealStates, setKeyRevealStates] = useState({}); // For individual keys: { keyIndex: boolean }
   
   // Toast notification
   const { toasts, removeToast, showError, showSuccess } = useToast();
@@ -84,9 +142,25 @@ export default function OrderHistoryDetailPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await orderApi.get(id);
+      // API now returns { order, orderItems, pageIndex, pageSize, totalItems }
+      // For customer view, we want all order details, so use a large pageSize
+      const response = await orderApi.get(id, { pageSize: 1000 });
       const data = response?.data ?? response;
-      setOrder(data);
+      
+      // Extract order from new response structure
+      const order = data?.order ?? data?.Order ?? data;
+      
+      // If orderDetails are paged, ensure we have all of them
+      // The backend already includes all orderDetails in order.orderDetails (paged)
+      // But we might need to merge orderItems if they're separate
+      if (order && data?.orderItems && Array.isArray(data.orderItems)) {
+        // If orderItems are provided separately and orderDetails is empty/paged, use orderItems
+        if (!order.orderDetails || order.orderDetails.length === 0) {
+          order.orderDetails = data.orderItems;
+        }
+      }
+      
+      setOrder(order);
     } catch (err) {
       
       if (err?.response?.status === 403 || err?.response?.status === 404) {
@@ -107,28 +181,17 @@ export default function OrderHistoryDetailPage() {
     loadOrder();
   }, [loadOrder]);
 
-  const handleGetCredentials = useCallback(async (orderDetailId) => {
-    if (!id || !orderDetailId) return;
-
-    setModalLoading(true);
-    try {
-      const response = await orderApi.getDetailCredentials(id, orderDetailId);
-      const data = response?.data ?? response;
-      setModalData(data);
-    } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Không thể tải thông tin tài khoản.";
-      showError("Lỗi", message);
-    } finally {
-      setModalLoading(false);
-    }
-  }, [id]);
+  const handleGetCredentials = useCallback((detail) => {
+    // Get account/key info directly from orderDetail (same as admin)
+    if (!detail) return;
+    setModalData(detail);
+  }, []);
 
   const handleCloseModal = () => {
     setModalData(null);
     setShowPassword(false);
+    setModalReveal(false);
+    setKeyRevealStates({});
   };
 
   const handleCopy = (text) => {
@@ -249,6 +312,10 @@ export default function OrderHistoryDetailPage() {
                   <tbody>
                     {order.orderDetails.map((detail) => {
                       const isPaid = order.status?.toLowerCase() === "paid";
+                      const info = getInfoKind(detail);
+                      const hasCredentials = (info.kind === "key" && info.keys.length > 0) || 
+                                           (info.kind === "account" && info.accounts.length > 0);
+                      
                       return (
                         <tr key={detail.orderDetailId}>
                           <td>{detail.productName || "—"}</td>
@@ -257,14 +324,14 @@ export default function OrderHistoryDetailPage() {
                           <td className="order-detail-text-right">{formatMoney(detail.unitPrice)}</td>
                           <td className="order-detail-text-right">{formatMoney(detail.subTotal)}</td>
                           <td>
-                            {isPaid ? (
+                            {isPaid && hasCredentials ? (
                               <button
                                 type="button"
                                 className="order-detail-btn-credential"
-                                onClick={() => handleGetCredentials(detail.orderDetailId)}
+                                onClick={() => handleGetCredentials(detail)}
                                 disabled={modalLoading}
                               >
-                                Lấy thông tin tài khoản
+                                {info.kind === "account" ? "Xem thông tin tài khoản" : "Xem mã kích hoạt"}
                               </button>
                             ) : (
                               <span className="order-detail-text-muted">—</span>
@@ -308,113 +375,173 @@ export default function OrderHistoryDetailPage() {
       </div>
 
       {/* Modal hiển thị thông tin tài khoản/key */}
-      {modalData && (
-        <div className="order-detail-modal-backdrop" onClick={handleCloseModal}>
-          <div className="order-detail-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="order-detail-modal-header">
-              <h3>Thông tin {modalData.productType === "ACCOUNT" ? "tài khoản" : "mã kích hoạt"}</h3>
-              <button
-                type="button"
-                className="order-detail-modal-close"
-                onClick={handleCloseModal}
-              >
-                ×
-              </button>
-            </div>
-            <div className="order-detail-modal-body">
-              <div className="order-detail-modal-field">
-                <label className="order-detail-modal-label">Tên sản phẩm</label>
-                <div className="order-detail-modal-value">{modalData.productName || "—"}</div>
+      {modalData && (() => {
+        const info = getInfoKind(modalData);
+        const productName = modalData.productName ?? modalData.ProductName ?? "—";
+        const variantTitle = modalData.variantTitle ?? modalData.VariantTitle ?? "—";
+        
+        return (
+          <div className="order-detail-modal-backdrop" onClick={handleCloseModal}>
+            <div className="order-detail-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="order-detail-modal-header">
+                <h3>{variantTitle}</h3>
+                <button
+                  type="button"
+                  className="order-detail-modal-close"
+                  onClick={handleCloseModal}
+                >
+                  ×
+                </button>
               </div>
+              <div className="order-detail-modal-body">
+                <div className="order-detail-modal-field">
+                  <label className="order-detail-modal-label">Tên sản phẩm</label>
+                  <div className="order-detail-modal-value">{productName}</div>
+                </div>
 
-              <div className="order-detail-modal-field">
-                <label className="order-detail-modal-label">
-                  {modalData.productType === "ACCOUNT" ? "Tài khoản" : "Mã kích hoạt"}
-                </label>
-                {modalData.productType === "ACCOUNT" ? (
-                  <>
-                    <div className="order-detail-modal-input-group">
-                      <label className="order-detail-modal-sublabel">Email tài khoản</label>
-                      <div className="order-detail-modal-input-wrapper">
-                        <input
-                          type="text"
-                          className="order-detail-modal-input"
-                          value={modalData.accountEmail || ""}
-                          readOnly
-                        />
-                        <button
-                          type="button"
-                          className="order-detail-modal-copy-btn"
-                          onClick={() => handleCopy(modalData.accountEmail || "")}
-                        >
-                          Sao chép
-                        </button>
-                      </div>
-                    </div>
-                    <div className="order-detail-modal-input-group">
-                      <label className="order-detail-modal-sublabel">Mật khẩu</label>
-                      <div className="order-detail-modal-input-wrapper">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          className="order-detail-modal-input"
-                          value={modalData.accountPassword || ""}
-                          readOnly
-                        />
-                        <button
-                          type="button"
-                          className="order-detail-modal-eye-btn"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? "👁️" : "👁️‍🗨️"}
-                        </button>
-                        <button
-                          type="button"
-                          className="order-detail-modal-copy-btn"
-                          onClick={() => handleCopy(modalData.accountPassword || "")}
-                        >
-                          Sao chép
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="order-detail-modal-input-group">
-                    <div className="order-detail-modal-input-wrapper">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        className="order-detail-modal-input"
-                        value={modalData.keyString || ""}
-                        readOnly
-                      />
-                      <button
-                        type="button"
-                        className="order-detail-modal-eye-btn"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? "👁️" : "👁️‍🗨️"}
-                      </button>
-                      <button
-                        type="button"
-                        className="order-detail-modal-copy-btn"
-                        onClick={() => handleCopy(modalData.keyString || "")}
-                      >
-                        Sao chép
-                      </button>
+                {info.kind === "none" ? (
+                  <div className="order-detail-modal-field">
+                    <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+                      Sản phẩm này không có thông tin Mã kích hoạt/Tài khoản để hiển thị.
                     </div>
                   </div>
+                ) : info.kind === "key" ? (
+                  <div className="order-detail-modal-field">
+                    <label className="order-detail-modal-label">Mã kích hoạt sản phẩm</label>
+                    {info.keys.length === 0 ? (
+                      <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+                        Không có mã kích hoạt.
+                      </div>
+                    ) : (
+                      info.keys.map((key, idx) => {
+                        const isRevealed = keyRevealStates[idx] || false;
+                        return (
+                          <div key={idx} className="order-detail-modal-input-group" style={{ marginBottom: "12px" }}>
+                            <label className="order-detail-modal-sublabel">Key {idx + 1}</label>
+                            <div className="order-detail-modal-input-wrapper">
+                              <input
+                                type={isRevealed ? "text" : "password"}
+                                className="order-detail-modal-input"
+                                value={String(key)}
+                                readOnly
+                              />
+                              <button
+                                type="button"
+                                className="order-detail-modal-eye-btn"
+                                onClick={() => setKeyRevealStates(prev => ({ ...prev, [idx]: !isRevealed }))}
+                                title={isRevealed ? "Ẩn mã kích hoạt" : "Hiện mã kích hoạt"}
+                              >
+                                {isRevealed ? (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                  </svg>
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                  </svg>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                className="order-detail-modal-copy-btn"
+                                onClick={() => handleCopy(String(key))}
+                              >
+                                Sao chép
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : (
+                  <div className="order-detail-modal-field">
+                    <label className="order-detail-modal-label">Tài khoản sản phẩm</label>
+                    {info.accounts.length === 0 ? (
+                      <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+                        Không có tài khoản.
+                      </div>
+                    ) : (
+                      info.accounts.map((account, idx) => {
+                        const emailA = account.email ?? account.Email ?? "—";
+                        const passA = account.password ?? account.Password ?? "—";
+                        
+                        return (
+                          <div key={idx} style={{ marginBottom: "16px", padding: "12px", border: "1px solid #e5e7eb", borderRadius: "8px" }}>
+                            <div className="order-detail-modal-input-group">
+                              <label className="order-detail-modal-sublabel">Email</label>
+                              <div className="order-detail-modal-input-wrapper">
+                                <input
+                                  type="text"
+                                  className="order-detail-modal-input"
+                                  value={String(emailA)}
+                                  readOnly
+                                />
+                                <button
+                                  type="button"
+                                  className="order-detail-modal-copy-btn"
+                                  onClick={() => handleCopy(String(emailA))}
+                                >
+                                  Sao chép
+                                </button>
+                              </div>
+                            </div>
+                            <div className="order-detail-modal-input-group">
+                              <label className="order-detail-modal-sublabel">Mật khẩu</label>
+                              <div className="order-detail-modal-input-wrapper">
+                                <input
+                                  type={modalReveal ? "text" : "password"}
+                                  className="order-detail-modal-input"
+                                  value={String(passA)}
+                                  readOnly
+                                />
+                                <button
+                                  type="button"
+                                  className="order-detail-modal-eye-btn"
+                                  onClick={() => setModalReveal(!modalReveal)}
+                                  title={modalReveal ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                                >
+                                  {modalReveal ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                      <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    </svg>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="order-detail-modal-copy-btn"
+                                  onClick={() => handleCopy(String(passA))}
+                                >
+                                  Sao chép
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 )}
-              </div>
 
-              <div className="order-detail-modal-warning">
-                <span className="order-detail-modal-warning-icon">⚠️</span>
-                <span className="order-detail-modal-warning-text">
-                  Vì lý do bảo mật, vui lòng không chia sẻ những thông tin đăng nhập này.
-                </span>
+                <div className="order-detail-modal-warning">
+                  <span className="order-detail-modal-warning-icon">⚠️</span>
+                  <span className="order-detail-modal-warning-text">
+                    Vì lý do bảo mật, vui lòng không chia sẻ những thông tin đăng nhập này.
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

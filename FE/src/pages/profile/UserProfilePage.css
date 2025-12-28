@@ -268,7 +268,10 @@
 }
 
 .profile-orders-filter-row:last-child {
-  grid-template-columns: 1fr 1fr 1fr auto;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: nowrap;
 }
 
 .profile-filter-group {
@@ -472,4 +475,115 @@
   .profile-transactions-filter {
     flex-direction: column;
   }
+}
+
+/* ===== Transaction History Styles ===== */
+
+/* Payment status pills */
+.profile-pill.payment-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.profile-pill.payment-paid {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.profile-pill.payment-cancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.profile-pill.payment-timeout {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.profile-pill.payment-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.profile-pill.payment-refunded {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.profile-pill.payment-unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Transaction type pills */
+.profile-pill.type-order {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.profile-pill.type-support {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.profile-pill.payment-unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Modal styles */
+.profile-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.profile-modal {
+  background: var(--profile-card);
+  border-radius: var(--profile-radius);
+  box-shadow: var(--profile-shadow);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.profile-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+  border-bottom: 1px solid var(--profile-line);
+}
+
+.profile-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-modal-body {
+  padding: 18px;
+}
+
+/* Icon button in table */
+.profile-table td .profile-btn {
+  padding: 6px 10px;
+  min-width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-table td .profile-btn svg {
+  width: 16px;
+  height: 16px;
 }

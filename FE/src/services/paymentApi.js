@@ -19,6 +19,9 @@ export const paymentApi = {
   // params: search, createdFrom, createdTo, paymentStatus, transactionType, amountFrom, amountTo, sortBy, sortDir, pageIndex, pageSize
   listPaged: (params = {}) => axiosClient.get(END.PAYMENTS, { params }).then(normalizePaged),
 
+  // Customer payment history (filtered by current user)
+  listCustomerPaged: (params = {}) => axiosClient.get(`${END.PAYMENTS}/customer`, { params }).then(normalizePaged),
+
   // detail: full payment fields (không dùng attempts)
   get: (paymentId, params) => {
     const cfg = params ? { params } : undefined;

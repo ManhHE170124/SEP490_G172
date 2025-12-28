@@ -7,10 +7,13 @@ using Keytietkiem.Repositories;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Background;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
@@ -36,6 +39,17 @@ builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailCon
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
 builder.Services.Configure<SendPulseConfig>(builder.Configuration.GetSection("SendPulse"));
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto |
+        ForwardedHeaders.XForwardedHost;
+
+    // Nếu bạn không whitelist IP proxy cụ thể, clear để accept (phù hợp VPS đơn)
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
@@ -45,7 +59,6 @@ builder.Services.AddHttpClient<PayOSService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ===== Services =====
-builder.Services.AddHttpClient<ISendPulseService, SendPulseService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
@@ -60,11 +73,22 @@ builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();  // ✅ chỉ 1 lần
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();          // ✅ chỉ 1 lần
+builder.Services.AddScoped<INotificationSystemService, NotificationSystemService>();
 builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
+{
+    var opt = sp.GetRequiredService<IOptions<SendPulseConfig>>().Value;
 
+    if (string.IsNullOrWhiteSpace(opt.BaseUrl))
+        throw new InvalidOperationException("SendPulse:BaseUrl is missing");
+
+    http.BaseAddress = new Uri(opt.BaseUrl.TrimEnd('/') + "/");
+    http.Timeout = TimeSpan.FromSeconds(20); // tránh treo lâu khi SendPulse chậm
+});
 
 
 // Clock (mockable for tests) – dùng luôn block này
@@ -82,6 +106,10 @@ builder.Services.AddControllers()
 
 // ===== SignalR cho realtime Ticket chat =====
 builder.Services.AddSignalR();
+
+// ✅ NotificationHub dispatch queue (avoid request-time fanout)
+builder.Services.AddSingleton<INotificationDispatchQueue, NotificationDispatchQueue>();
+builder.Services.AddHostedService<NotificationDispatchBackgroundService>();
 
 // ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -131,6 +159,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
             ClockSkew = TimeSpan.Zero
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -200,13 +243,8 @@ builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 // ✅ Job thống kê support hằng ngày
 //builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
-
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
-
-// ✅ Job cập nhật trạng thái hết hạn cho ProductAccount và ProductKey (mỗi 6h)
-builder.Services.AddSingleton<IBackgroundJob, ExpiryStatusUpdateJob>();
-
 
 // Scheduler nhận IEnumerable<IBackgroundJob> và chạy từng job theo Interval
 builder.Services.AddHostedService<BackgroundJobScheduler>();
@@ -264,7 +302,7 @@ app.UseStatusCodePages(async context =>
 
 // // (Tuỳ chọn) Auth
 // app.UseAuthentication();
-
+app.UseForwardedHeaders();
 app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
@@ -275,6 +313,5 @@ app.MapControllers();
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
 app.MapHub<SupportChatHub>("/hubs/support-chat");
-app.MapHub<NotificationHub>("/hubs/notifications");
-
+app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 app.Run();
