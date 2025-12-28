@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+
 namespace Keytietkiem.Controllers;
 
 [ApiController]
@@ -20,13 +21,16 @@ public class ProductAccountController : ControllerBase
 {
     private readonly IProductAccountService _productAccountService;
     private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
 
     public ProductAccountController(
         IProductAccountService productAccountService,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService)
     {
         _productAccountService = productAccountService;
         _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService;
     }
 
     /// <summary>
@@ -266,6 +270,36 @@ public class ProductAccountController : ControllerBase
                 removeDto.UserId,
                 Removed = true
             });
+
+        // ✅ System notification: thu hồi customer khỏi account -> notify đúng customer đó
+        try
+        {
+            var actorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Guid? actorUserId = Guid.TryParse(actorIdStr, out var tmp) ? tmp : null;
+            var actorEmail = User.FindFirstValue(ClaimTypes.Email) ?? "(unknown)";
+
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Quyền truy cập tài khoản đã bị thu hồi",
+                Message =
+                    $"Quyền truy cập vào tài khoản sản phẩm của bạn đã bị thu hồi bởi {actorEmail}.\n" +
+                    $"- ProductAccountId: {removeDto.ProductAccountId}",
+                Severity = 2, // Warning
+                CreatedByUserId = actorUserId,
+                CreatedByEmail = actorEmail,
+                Type = "ProductAccount.CustomerRevoked",
+
+                RelatedEntityType = "ProductAccount",
+                RelatedEntityId = removeDto.ProductAccountId.ToString(),
+
+                // ✅ bạn đổi route FE trang customer xem account
+                RelatedUrl = $"/my-accounts?accountId={removeDto.ProductAccountId}",
+
+                TargetUserIds = new List<Guid> { removeDto.UserId }
+            });
+        }
+        catch { }
+
 
         return Ok(new { message = "Xóa khách hàng khỏi tài khoản thành công" });
     }

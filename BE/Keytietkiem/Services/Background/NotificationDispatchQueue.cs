@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
@@ -19,12 +20,15 @@ namespace Keytietkiem.Services.Background
     {
         ChannelReader<NotificationDispatchItem> Reader { get; }
 
-        ValueTask QueueToUserAsync(Guid userId, object payload, string methodName);
-        ValueTask QueueToGroupAsync(string groupName, object payload, string methodName);
+        ValueTask QueueToUserAsync(Guid userId, object payload, string methodName, CancellationToken cancellationToken = default);
+        ValueTask QueueToGroupAsync(string groupName, object payload, string methodName, CancellationToken cancellationToken = default);
     }
 
     public class NotificationDispatchQueue : INotificationDispatchQueue
     {
+        // FE/Hub method name: clients should listen on this method.
+        public const string MethodReceiveNotification = "ReceiveNotification";
+
         private readonly Channel<NotificationDispatchItem> _channel;
 
         public NotificationDispatchQueue()
@@ -39,24 +43,24 @@ namespace Keytietkiem.Services.Background
 
         public ChannelReader<NotificationDispatchItem> Reader => _channel.Reader;
 
-        public ValueTask QueueToUserAsync(Guid userId, object payload, string methodName)
+        public ValueTask QueueToUserAsync(Guid userId, object payload, string methodName, CancellationToken cancellationToken = default)
         {
             return _channel.Writer.WriteAsync(new NotificationDispatchItem(
                 MethodName: methodName,
                 Payload: payload,
                 GroupName: null,
                 UserId: userId
-            ));
+            ), cancellationToken);
         }
 
-        public ValueTask QueueToGroupAsync(string groupName, object payload, string methodName)
+        public ValueTask QueueToGroupAsync(string groupName, object payload, string methodName, CancellationToken cancellationToken = default)
         {
             return _channel.Writer.WriteAsync(new NotificationDispatchItem(
                 MethodName: methodName,
                 Payload: payload,
                 GroupName: groupName,
                 UserId: null
-            ));
+            ), cancellationToken);
         }
     }
 }

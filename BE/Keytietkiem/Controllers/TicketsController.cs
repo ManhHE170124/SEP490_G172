@@ -1,20 +1,21 @@
 ﻿// File: Controllers/TicketsController.cs
+using Keytietkiem.Attributes;
+using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Keytietkiem.Attributes;
-using Keytietkiem.Constants;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Keytietkiem.Controllers;
 
@@ -26,15 +27,18 @@ public class TicketsController : ControllerBase
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<TicketHub> _ticketHub;
     private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
 
     public TicketsController(
         KeytietkiemDbContext db,
         IHubContext<TicketHub> ticketHub,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService)
     {
         _db = db;
         _ticketHub = ticketHub;
         _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService;
     }
 
     // ============ Helpers ============
@@ -813,6 +817,33 @@ public class TicketsController : ControllerBase
             before: before,
             after: after
         );
+        // ✅ System notification: Admin gán ticket -> notify nhân viên được gán
+        try
+        {
+            var actorEmail = actor.Email ?? "(unknown)";
+            var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Bạn được gán ticket mới",
+                Message =
+                    $"Admin {actorEmail} đã gán ticket cho bạn.\n" +
+                    $"- Ticket: {ticketCode}\n" +
+                    $"- Subject: {t.Subject ?? ""}",
+                Severity = 0, // Info
+                CreatedByUserId = actor.UserId,
+                CreatedByEmail = actorEmail,
+                Type = "Ticket.Assigned",
+                RelatedEntityType = "Ticket",
+                RelatedEntityId = t.TicketId.ToString(),
+
+                // ✅ bạn đổi route FE staff ticket detail
+                RelatedUrl = $"/staff/tickets/{t.TicketId}",
+
+                TargetUserIds = new List<Guid> { dto.AssigneeId }
+            });
+        }
+        catch { }
 
         return NoContent();
     }
@@ -1000,6 +1031,34 @@ public class TicketsController : ControllerBase
             before: before,
             after: after
         );
+        // ✅ System notification: chuyển ticket -> notify nhân viên được chuyển tới (best-effort)
+        try
+        {
+            var actorEmail = actor.Email ?? "(unknown)";
+            var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Ticket đã được chuyển cho bạn",
+                Message =
+                    $"Nhân viên {actorEmail} đã chuyển ticket cho bạn.\n" +
+                    $"- Ticket: {ticketCode}\n" +
+                    $"- Subject: {t.Subject ?? ""}",
+                Severity = 0, // Info
+                CreatedByUserId = actor.UserId,
+                CreatedByEmail = actorEmail,
+                Type = "Ticket.Transferred",
+
+                RelatedEntityType = "Ticket",
+                RelatedEntityId = t.TicketId.ToString(),
+
+                // ✅ đổi theo route FE staff ticket detail của bạn
+                RelatedUrl = $"/staff/tickets/{t.TicketId}",
+
+                TargetUserIds = new List<Guid> { dto.AssigneeId }
+            });
+        }
+        catch { }
 
         return NoContent();
     }

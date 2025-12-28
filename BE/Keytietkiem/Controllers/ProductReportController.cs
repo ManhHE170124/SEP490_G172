@@ -5,7 +5,6 @@ using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
@@ -20,23 +19,18 @@ public class ProductReportController : ControllerBase
 {
     private readonly IProductReportService _productReportService;
     private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
 
     public ProductReportController(
         IProductReportService productReportService,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService)
     {
         _productReportService = productReportService ?? throw new ArgumentNullException(nameof(productReportService));
         _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService ?? throw new ArgumentNullException(nameof(notificationSystemService));
     }
 
-    /// <summary>
-    /// Get all product reports with pagination and filtering
-    /// </summary>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <param name="status">Optional status filter (Pending, Processing, Resolved)</param>
-    /// <param name="userId">Optional user ID filter (for getting user's own reports)</param>
-    /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAllProductReports(
@@ -62,12 +56,8 @@ public class ProductReportController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get product report by ID
-    /// </summary>
-    /// <param name="id">Product report ID</param>
     [HttpGet("{id:guid}")]
-    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE,RoleCodes.STORAGE_STAFF)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetProductReportById(Guid id)
     {
         if (id == Guid.Empty)
@@ -77,15 +67,14 @@ public class ProductReportController : ControllerBase
         return Ok(report);
     }
 
-    /// <summary>
-    /// Create a new product report
-    /// </summary>
-    /// <param name="dto">Product report creation data</param>
     [HttpPost]
     public async Task<IActionResult> CreateProductReport([FromBody] CreateProductReportDto dto)
     {
         try
         {
+            var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "(unknown)";
+
             var report = await _productReportService.CreateProductReportAsync(dto, dto.UserId!.Value);
 
             await _auditLogger.LogAsync(
@@ -95,7 +84,35 @@ public class ProductReportController : ControllerBase
                 entityId: report.Id.ToString(),
                 before: null,
                 after: report
-);
+            );
+            // ✅ System notification: creates report -> notify STORAGE_STAFF (best-effort)
+            try
+            {
+                await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
+                {
+                    Title = "Có báo cáo lỗi sản phẩm mới",
+                    Message =
+                        $"Người dùng {actorEmail} đã tạo báo cáo lỗi sản phẩm.\n" +
+                        $"- ReportId: {report.Id}\n" +
+                        $"- Trạng thái: {report.Status}\n" +
+                        $"- Thời gian: {DateTime.UtcNow:yyyy-MM-dd HH:mm} (UTC)\n" +
+                        $"Vui lòng vào màn Báo cáo lỗi để kiểm tra và xử lý.",
+                    Severity = 2, // Warning
+                    CreatedByUserId = actorId,
+                    CreatedByEmail = actorEmail,
+                    Type = "Product.ReportCreated",
+
+                    RelatedEntityType = "ProductReport",
+                    RelatedEntityId = report.Id.ToString(),
+
+                    // ✅ bạn đổi route FE cho đúng trang xử lý report
+                    RelatedUrl = $"/admin/product-reports/{report.Id}",
+
+                    TargetRoleCodes = new List<string> { RoleCodes.STORAGE_STAFF }
+                });
+            }
+            catch { }
+
 
             return CreatedAtAction(nameof(GetProductReportById), new { id = report.Id }, report);
         }
@@ -106,18 +123,12 @@ public class ProductReportController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update product report status (Admin/Staff only)
-    /// </summary>
-    /// <param name="id">Product report ID</param>
-    /// <param name="dto">Product report update data</param>
     [HttpPatch("{id:guid}/status")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> UpdateProductReportStatus(Guid id, [FromBody] UpdateProductReportDto dto)
     {
         if (id != dto.Id)
         {
-            // Không log 400 để tránh spam log
             return BadRequest(new { message = "ID trong URL và body không khớp" });
         }
 
@@ -135,24 +146,16 @@ public class ProductReportController : ControllerBase
                 entityId: report.Id.ToString(),
                 before: null,
                 after: report
-);
+            );
 
             return Ok(report);
         }
         catch (Exception)
         {
-            // Giữ nguyên behavior cũ (exception -> 500), không log để tránh spam
             throw;
         }
     }
 
-    /// <summary>
-    /// Get current user's product reports
-    /// </summary>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <param name="status">Optional status filter</param>
-    /// <param name="searchTerm">Optional search term for title</param>
     [HttpGet("my-reports")]
     public async Task<IActionResult> GetMyProductReports(
         [FromQuery] int pageNumber = 1,
@@ -178,12 +181,6 @@ public class ProductReportController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get key error reports with pagination (reports with ProductKeyId)
-    /// </summary>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet("key-errors")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetKeyErrors(
@@ -201,12 +198,6 @@ public class ProductReportController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get account error reports with pagination (reports with ProductAccountId)
-    /// </summary>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <param name="searchTerm">Optional search term for title and email</param>
     [HttpGet("account-errors")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAccountErrors(
@@ -224,9 +215,6 @@ public class ProductReportController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get total count of key error reports
-    /// </summary>
     [HttpGet("key-errors/count")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> CountKeyErrors()
@@ -235,9 +223,6 @@ public class ProductReportController : ControllerBase
         return Ok(new { count });
     }
 
-    /// <summary>
-    /// Get total count of account error reports
-    /// </summary>
     [HttpGet("account-errors/count")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> CountAccountErrors()
