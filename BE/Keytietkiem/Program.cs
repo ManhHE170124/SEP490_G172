@@ -7,10 +7,13 @@ using Keytietkiem.Repositories;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Background;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
@@ -35,6 +38,18 @@ builder.Services.AddDbContextFactory<KeytietkiemDbContext>(opt =>
 builder.Services.Configure<MailConfig>(builder.Configuration.GetSection("MailConfig"));
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.Configure<ClientConfig>(builder.Configuration.GetSection("ClientConfig"));
+builder.Services.Configure<SendPulseConfig>(builder.Configuration.GetSection("SendPulse"));
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto |
+        ForwardedHeaders.XForwardedHost;
+
+    // Nếu bạn không whitelist IP proxy cụ thể, clear để accept (phù hợp VPS đơn)
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // ===== Memory Cache =====
 builder.Services.AddMemoryCache();
@@ -44,7 +59,6 @@ builder.Services.AddHttpClient<PayOSService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ===== Services =====
-builder.Services.AddScoped<ISendPulseService, SendPulseService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IPhotoService, CloudinaryService>();
@@ -63,6 +77,19 @@ builder.Services.AddScoped<INotificationSystemService, NotificationSystemService
 builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
+builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
+{
+    var opt = sp.GetRequiredService<IOptions<SendPulseConfig>>().Value;
+
+    if (string.IsNullOrWhiteSpace(opt.BaseUrl))
+        throw new InvalidOperationException("SendPulse:BaseUrl is missing");
+
+    http.BaseAddress = new Uri(opt.BaseUrl.TrimEnd('/') + "/");
+    http.Timeout = TimeSpan.FromSeconds(20); // tránh treo lâu khi SendPulse chậm
+});
+
 
 // Clock (mockable for tests) – dùng luôn block này
 builder.Services.AddSingleton<IClock, SystemClock>();                                         // ✅ chỉ 1 lần
@@ -275,7 +302,7 @@ app.UseStatusCodePages(async context =>
 
 // // (Tuỳ chọn) Auth
 // app.UseAuthentication();
-
+app.UseForwardedHeaders();
 app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
