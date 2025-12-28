@@ -27,6 +27,10 @@ public partial class Notification
 
     public string? RelatedUrl { get; set; }
 
+    public string? Type { get; set; }
+
+    public string? CorrelationId { get; set; }
+
     public virtual User? CreatedByUser { get; set; }
 
     public virtual ICollection<NotificationTargetRole> NotificationTargetRoles { get; set; } = new List<NotificationTargetRole>();

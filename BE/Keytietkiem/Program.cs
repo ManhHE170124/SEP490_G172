@@ -73,6 +73,7 @@ builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();  // ✅ chỉ 1 lần
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();          // ✅ chỉ 1 lần
+builder.Services.AddScoped<INotificationSystemService, NotificationSystemService>();
 builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
@@ -105,6 +106,10 @@ builder.Services.AddControllers()
 
 // ===== SignalR cho realtime Ticket chat =====
 builder.Services.AddSignalR();
+
+// ✅ NotificationHub dispatch queue (avoid request-time fanout)
+builder.Services.AddSingleton<INotificationDispatchQueue, NotificationDispatchQueue>();
+builder.Services.AddHostedService<NotificationDispatchBackgroundService>();
 
 // ===== Uniform ModelState error => { message: "..." } (giữ nguyên) =====
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -154,6 +159,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
             ClockSkew = TimeSpan.Zero
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -223,13 +243,8 @@ builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 // ✅ Job thống kê support hằng ngày
 //builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
-
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
-
-// ✅ Job cập nhật trạng thái hết hạn cho ProductAccount và ProductKey (mỗi 6h)
-builder.Services.AddSingleton<IBackgroundJob, ExpiryStatusUpdateJob>();
-
 
 // Scheduler nhận IEnumerable<IBackgroundJob> và chạy từng job theo Interval
 builder.Services.AddHostedService<BackgroundJobScheduler>();
@@ -298,6 +313,5 @@ app.MapControllers();
 // Hub realtime cho ticket chat (chỉ dùng cho khung chat)
 app.MapHub<TicketHub>("/hubs/tickets");
 app.MapHub<SupportChatHub>("/hubs/support-chat");
-app.MapHub<NotificationHub>("/hubs/notifications");
-
+app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 app.Run();

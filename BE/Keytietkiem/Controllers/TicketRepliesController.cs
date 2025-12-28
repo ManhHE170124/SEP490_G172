@@ -4,6 +4,7 @@ using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces; // ✅ NEW
 using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -11,15 +12,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic; // ✅ NEW
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization; // ✅ NEW
 
 namespace Keytietkiem.Controllers;
 
 [ApiController]
-[Authorize] // ✅ NEW: bắt buộc đăng nhập
+[Authorize] // ✅ bắt buộc đăng nhập
 // Cố định prefix là "api/Tickets" để giữ nguyên route cũ:
 // POST /api/Tickets/{id}/replies
 [Route("api/Tickets")]
@@ -28,15 +29,21 @@ public class TicketRepliesController : ControllerBase
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<TicketHub> _ticketHub;
     private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService; // ✅ NEW
+    private readonly IConfiguration _config;
 
     public TicketRepliesController(
         KeytietkiemDbContext db,
         IHubContext<TicketHub> ticketHub,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService,
+        IConfiguration config) // ✅ NEW
     {
         _db = db;
         _ticketHub = ticketHub;
         _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService; // ✅ NEW
+        _config = config;
     }
 
     /// <summary>
@@ -55,7 +62,7 @@ public class TicketRepliesController : ControllerBase
             return BadRequest(new { message = "Nội dung phản hồi trống." });
 
         var t = await _db.Tickets
-            .Include(x => x.User)
+            .Include(x => x.User) // chủ ticket
             .FirstOrDefaultAsync(x => x.TicketId == id);
         if (t is null)
             return NotFound();
@@ -73,7 +80,7 @@ public class TicketRepliesController : ControllerBase
         if (sender is null)
             return Unauthorized();
 
-        // ✅ NEW: chặn user bị khoá
+        // ✅ chặn user bị khoá
         if ((sender.Status ?? "Active") != "Active")
         {
             return StatusCode(StatusCodes.Status403Forbidden,
@@ -91,13 +98,12 @@ public class TicketRepliesController : ControllerBase
         {
             var name = (r.Name ?? string.Empty).Trim().ToLowerInvariant();
             var rid = (r.RoleId ?? string.Empty).Trim().ToLowerInvariant();
-            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant(); // ✅ NEW
-            return name == "admin" || rid == "admin" || code.Contains("admin"); // ✅ NEW
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return name == "admin" || rid == "admin" || code.Contains("admin");
         });
 
         if (!isTicketOwner && !isAssignee && !isAdmin)
         {
-            // Trả về 403 + message để FE hiển thị ở chỗ "Bạn cần đăng nhập...".
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Người dùng không có quyền hạn để phản hồi." });
         }
@@ -149,8 +155,6 @@ public class TicketRepliesController : ControllerBase
             IsStaffReply = reply.IsStaffReply,
             Message = reply.Message,
             SentAt = reply.SentAt,
-
-            // ✅ OPTIONAL nhưng nên có để đồng bộ với Detail() đang map SenderAvatarUrl
             SenderAvatarUrl = sender.AvatarUrl
         };
 
@@ -161,7 +165,6 @@ public class TicketRepliesController : ControllerBase
         // 🔐 AUDIT LOG – CHỈ log khi staff/admin reply (không log khách để tránh spam)
         if (isStaffReply)
         {
-            // Không log full message để tránh log nhạy cảm quá chi tiết, chỉ log preview
             var preview = msg.Length <= 200 ? msg : msg.Substring(0, 200);
 
             await _auditLogger.LogAsync(
@@ -183,9 +186,40 @@ public class TicketRepliesController : ControllerBase
                     t.UpdatedAt
                 }
             );
+
+            // ✅ System notification: staff/admin reply -> notify customer chủ ticket (best-effort)
+            try
+            {
+              var actorName = sender.FullName ?? "(unknown)";
+            var actorEmail = sender.Email ?? "(unknown)";
+            var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/tickets/{id}";
+
+                await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+                {
+                    Title = "Ticket của bạn có phản hồi mới",
+                    Message =
+                        $"Nhân viên hỗ trợ {actorName} đã phản hồi ticket của bạn.\n" +
+                        $"-Mã ticket: {ticketCode}\n" +
+                        $"- Nội dung: {t.Subject ?? ""}",
+                    Severity = 0, // Info
+                    CreatedByUserId = sender.UserId,
+                    CreatedByEmail = actorEmail,
+                    Type = "Ticket.StaffReplied",
+
+                    RelatedEntityType = "Ticket",
+                    RelatedEntityId = t.TicketId.ToString(),
+
+                    // ✅ đổi theo route FE customer ticket detail của bạn
+                    RelatedUrl = relatedUrl,
+
+                    TargetUserIds = new List<Guid> { t.UserId }
+                });
+            }
+            catch { }
         }
 
-        // FE vẫn nhận response trực tiếp để xử lý lạc quan
         return Ok(dtoOut);
     }
 }

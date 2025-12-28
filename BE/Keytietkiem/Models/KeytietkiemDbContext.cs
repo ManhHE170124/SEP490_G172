@@ -382,6 +382,7 @@ public partial class KeytietkiemDbContext : DbContext
 
             entity.HasIndex(e => e.CreatedAtUtc, "IX_Notification_CreatedAtUtc").IsDescending();
 
+            entity.Property(e => e.CorrelationId).HasMaxLength(64);
             entity.Property(e => e.CreatedAtUtc)
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysutcdatetime())");
@@ -391,6 +392,7 @@ public partial class KeytietkiemDbContext : DbContext
             entity.Property(e => e.RelatedEntityType).HasMaxLength(100);
             entity.Property(e => e.RelatedUrl).HasMaxLength(512);
             entity.Property(e => e.Title).HasMaxLength(200);
+            entity.Property(e => e.Type).HasMaxLength(50);
 
             entity.HasOne(d => d.CreatedByUser).WithMany(p => p.Notifications).HasForeignKey(d => d.CreatedByUserId);
         });
@@ -400,6 +402,8 @@ public partial class KeytietkiemDbContext : DbContext
             entity.HasKey(e => e.Id).HasName("PK__Notifica__3214EC07029E1EDB");
 
             entity.ToTable("NotificationTargetRole");
+
+            entity.HasIndex(e => new { e.RoleId, e.NotificationId }, "IX_NotificationTargetRole_RoleId");
 
             entity.HasIndex(e => new { e.NotificationId, e.RoleId }, "UX_NotificationTargetRole_Notification_Role").IsUnique();
 

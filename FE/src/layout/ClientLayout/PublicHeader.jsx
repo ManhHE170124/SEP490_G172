@@ -8,7 +8,7 @@ import StorefrontCartApi, {
 } from "../../services/storefrontCartService";
 import { NotificationsApi } from "../../services/notifications";
 import axiosClient from "../../api/axiosClient";
-import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
+import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 import "./PublicHeader.css";
 
 const FALLBACK_PRODUCT_LINKS = [
@@ -208,11 +208,18 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     pageSize: 5,
     hasMore: true,
   });
-  const notifLoadTimerRef = useRef(null);
   const notifWidgetRef = useRef(null);
+  const notifBodyRef = useRef(null);
+  const notifSentinelRef = useRef(null);
   const notifConnectionRef = useRef(null);
+  const isNotifLoadingRef = useRef(false);
   const [toastQueue, setToastQueue] = useState([]);
   const [activeToast, setActiveToast] = useState(null);
+
+  // keep ref in sync for IntersectionObserver callback
+  useEffect(() => {
+    isNotifLoadingRef.current = isNotifLoading;
+  }, [isNotifLoading]);
 
   // ===== CART COUNT =====
   const [cartCount, setCartCount] = useState(0);
@@ -454,6 +461,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   // ====== Notifications: poll unread count định kỳ ======
   useEffect(() => {
     let isMounted = true;
+    let timerId = null;
 
     const fetchUnreadNotifications = async () => {
       const token = localStorage.getItem("access_token");
@@ -465,18 +473,10 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       }
 
       try {
-        const res = await NotificationsApi.listMyPaged({
-          pageNumber: 1,
-          pageSize: 5,
-          onlyUnread: true,
-          sortBy: "CreatedAtUtc",
-          sortDescending: true,
-        });
+        const total = await NotificationsApi.getMyUnreadCount();
 
         if (!isMounted) return;
-
-        const { total } = normalizeNotificationResponse(res);
-        setUnreadCount(total);
+        setUnreadCount(typeof total === "number" ? total : 0);
       } catch (error) {
         console.error(
           "Failed to fetch unread notifications (public header):",
@@ -485,12 +485,26 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       }
     };
 
+    const scheduleNext = () => {
+      if (!isMounted) return;
+
+      // Nếu SignalR đang Connected thì giảm polling (vì realtime sẽ push)
+      const conn = notifConnectionRef.current;
+      const isConnected = conn && conn.state === HubConnectionState.Connected;
+      const intervalMs = isConnected ? 120000 : 60000;
+
+      timerId = setTimeout(async () => {
+        await fetchUnreadNotifications();
+        scheduleNext();
+      }, intervalMs);
+    };
+
     fetchUnreadNotifications();
-    const intervalId = setInterval(fetchUnreadNotifications, 15000);
+    scheduleNext();
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      if (timerId) clearTimeout(timerId);
     };
   }, [customer]);
 
@@ -552,36 +566,39 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     }
   };
 
-  // ====== Auto load thêm mỗi 3s nếu widget đang mở ======
+  // ====== Load more khi scroll xuống cuối widget (IntersectionObserver) ======
   useEffect(() => {
-    if (!isNotifWidgetOpen) {
-      if (notifLoadTimerRef.current) {
-        clearTimeout(notifLoadTimerRef.current);
-        notifLoadTimerRef.current = null;
-      }
-      return;
-    }
+    if (!isNotifWidgetOpen) return;
 
-    if (!hasMoreNotifications || isNotifLoading) {
-      return;
-    }
+    const rootEl = notifBodyRef.current;
+    const sentinelEl = notifSentinelRef.current;
+    if (!rootEl || !sentinelEl) return;
 
-    notifLoadTimerRef.current = setTimeout(() => {
-      fetchNotificationHistory({ append: true });
-    }, 3000);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries && entries[0];
+        if (!first || !first.isIntersecting) return;
+        if (isNotifLoadingRef.current) return;
+        if (!notifPagingRef.current?.hasMore) return;
+
+        fetchNotificationHistory({ append: true });
+      },
+      { root: rootEl, threshold: 1.0 }
+    );
+
+    observer.observe(sentinelEl);
 
     return () => {
-      if (notifLoadTimerRef.current) {
-        clearTimeout(notifLoadTimerRef.current);
-        notifLoadTimerRef.current = null;
-      }
+      try {
+        observer.disconnect();
+      } catch {}
     };
-  }, [isNotifWidgetOpen, notifications.length, hasMoreNotifications, isNotifLoading]);
+  }, [isNotifWidgetOpen]);
 
-  // ====== SignalR: nhận "ReceiveNotification" realtime ======
+// ====== SignalR: nhận "ReceiveNotification" realtime ======
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token || !customer) {
+    const getToken = () => localStorage.getItem("access_token") || "";
+    if (!getToken() || !customer) {
       return;
     }
 
@@ -592,7 +609,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
 
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl, {
-        accessTokenFactory: () => token,
+        accessTokenFactory: () => localStorage.getItem("access_token") || "",
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
@@ -632,6 +649,34 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       ]);
     });
 
+
+    connection.on("ReceiveGlobalNotification", async (n) => {
+      // Global notifications may not include NotificationUserId; fallback to refresh if needed
+      const id =
+        extractNotificationId(n) || `global-${Date.now()}-${Math.random()}`;
+      const title = n.title || n.Title;
+      const message = n.message || n.Message;
+
+      setToastQueue((prev) => [
+        ...prev,
+        {
+          id,
+          title,
+          message,
+          severity: n.severity ?? n.Severity ?? 0,
+          createdAt: n.createdAtUtc || n.CreatedAtUtc,
+        },
+      ]);
+
+      // best-effort sync unread count + refresh first page
+      try {
+        const total = await NotificationsApi.getMyUnreadCount();
+        setUnreadCount(typeof total === "number" ? total : 0);
+      } catch {}
+
+      fetchNotificationHistory({ append: false });
+    });
+
     connection
       .start()
       .catch((err) =>
@@ -641,7 +686,8 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     return () => {
       if (notifConnectionRef.current) {
         notifConnectionRef.current.off("ReceiveNotification");
-        notifConnectionRef.current.stop();
+        notifConnectionRef.current.off("ReceiveGlobalNotification");
+        notifConnectionRef.current.stop().catch(() => {});
         notifConnectionRef.current = null;
       }
     };
@@ -664,12 +710,8 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     setActiveToast(null);
   };
 
-  // ===== Hover item => mark read =====
-  const handleNotificationHover = (item) => {
-    const notifUserId = extractNotificationId(item);
-    const isRead = item.isRead ?? item.IsRead ?? false;
-    if (!notifUserId || isRead) return;
-
+  // ===== Click item => mark read + điều hướng (tránh mark-read khi hover) =====
+  const markNotificationReadOptimistic = (notifUserId) => {
     setNotifications((prev) =>
       prev.map((n) => {
         const id = extractNotificationId(n);
@@ -679,13 +721,37 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     );
     setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
 
-    NotificationsApi.markMyNotificationRead(notifUserId).catch((err) => {
-      console.error("Failed to mark notification as read (public header)", err);
-    });
+    // rollback fn
+    return () => {
+      setNotifications((prev) =>
+        prev.map((n) => {
+          const id = extractNotificationId(n);
+          if (id !== notifUserId) return n;
+          return { ...n, isRead: false, IsRead: false };
+        })
+      );
+      setUnreadCount((prev) => prev + 1);
+    };
   };
 
-  // ===== Click item => điều hướng tới RelatedUrl =====
-  const handleNotificationClick = (item) => {
+  const handleNotificationItemClick = async (item) => {
+    const notifUserId = extractNotificationId(item);
+    const isRead = item.isRead ?? item.IsRead ?? false;
+
+    let rollback = null;
+    if (notifUserId && !isRead) {
+      rollback = markNotificationReadOptimistic(notifUserId);
+      try {
+        await NotificationsApi.markMyNotificationRead(notifUserId);
+      } catch (err) {
+        console.error(
+          "Failed to mark notification as read (public header)",
+          err
+        );
+        if (rollback) rollback();
+      }
+    }
+
     const url = item.relatedUrl || item.RelatedUrl;
     if (!url) return;
 
@@ -1008,7 +1074,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
               </button>
             </div>
 
-            <div className="alh-notif-widget-body">
+            <div className="alh-notif-widget-body" ref={notifBodyRef}>
               {isNotifLoading && notifications.length === 0 && (
                 <div className="alh-notif-empty">Đang tải...</div>
               )}
@@ -1035,8 +1101,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                       className={
                         "alh-notif-item" + (isRead ? " read" : " unread")
                       }
-                      onMouseEnter={() => handleNotificationHover(n)}
-                      onClick={() => handleNotificationClick(n)}
+                      onClick={() => handleNotificationItemClick(n)}
                     >
                       <div className="alh-notif-left">
                         {!isRead && (
@@ -1071,6 +1136,8 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
               {isNotifLoading && notifications.length > 0 && (
                 <div className="alh-notif-empty">Đang tải thêm...</div>
               )}
+
+              <div ref={notifSentinelRef} style={{ height: 1 }} />
             </div>
           </div>
         </div>
