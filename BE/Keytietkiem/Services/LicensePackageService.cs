@@ -528,7 +528,8 @@ namespace Keytietkiem.Services
                 {
                     if (existingKeySet.Contains(key))
                     {
-                        parseResult.DuplicateKeys.Add(key);
+                        result.DuplicateKeys++;
+                        result.Errors.Add($"Key '{key}' đã tồn tại trong hệ thống");
                         continue;
                     }
 
@@ -569,12 +570,15 @@ namespace Keytietkiem.Services
 
                 result.PackageId = package.PackageId;
                 result.SuccessfullyImported = successCount;
-                result.DuplicateKeys = parseResult.DuplicateKeys.Count;
+                result.DuplicateKeys += parseResult.DuplicateKeys.Count;
                 result.InvalidKeys = parseResult.InvalidKeys.Count;
 
                 if (parseResult.DuplicateKeys.Count > 0)
                 {
-                    result.Errors.Add($"{parseResult.DuplicateKeys.Count} key bị trùng lặp");
+                    foreach (var key in parseResult.DuplicateKeys)
+                    {
+                        result.Errors.Add($"Key '{key}' bị trùng lặp trong file upload");
+                    }
                 }
 
                 if (parseResult.InvalidKeys.Count > 0)
@@ -583,6 +587,11 @@ namespace Keytietkiem.Services
                 }
 
                 result.Message = $"Đã nhập thành công {successCount} license key vào kho";
+
+                if (result.Errors.Count > 0)
+                {
+                    result.Message += $". Có {result.Errors.Count} lỗi được tìm thấy.";
+                }
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);

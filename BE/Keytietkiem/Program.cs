@@ -20,6 +20,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
@@ -270,9 +271,13 @@ app.UseExceptionHandler(exApp =>
 {
     exApp.Run(async context =>
     {
+        var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+        var exception = exceptionHandlerPathFeature?.Error;
+
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json; charset=utf-8";
-        var payload = JsonSerializer.Serialize(new { message = "Đã có lỗi hệ thống. Vui lòng thử lại sau." });
+        var message = exception?.Message ?? "Đã có lỗi hệ thống. Vui lòng thử lại sau.";
+        var payload = JsonSerializer.Serialize(new { message = message, trace = exception?.StackTrace });
         await context.Response.WriteAsync(payload);
     });
 });
