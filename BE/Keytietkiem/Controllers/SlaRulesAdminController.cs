@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Keytietkiem.Attributes;
+using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.SlaRules;

@@ -20,7 +20,7 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Keytietkiem.Attributes;
+using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using Microsoft.EntityFrameworkCore;
 namespace Keytietkiem.Controllers

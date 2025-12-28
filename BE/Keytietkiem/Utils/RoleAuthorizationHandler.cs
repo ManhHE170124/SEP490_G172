@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
-namespace Keytietkiem.Authorization
+namespace Keytietkiem.Utils
 {
     /// <summary>
     /// Requirement for role-based authorization

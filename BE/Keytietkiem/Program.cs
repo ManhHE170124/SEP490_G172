@@ -1,5 +1,4 @@
-﻿using Keytietkiem.Authorization;
-using Keytietkiem.Hubs;
+﻿using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
@@ -7,6 +6,7 @@ using Keytietkiem.Repositories;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Background;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,6 +43,7 @@ builder.Services.AddHttpClient<PayOSService>();
 
 // ===== Repositories =====
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IPostRepository, PostRepository>();
 
 // ===== Services =====
 builder.Services.AddHttpClient<ISendPulseService, SendPulseService>();
@@ -64,6 +65,7 @@ builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddScoped<IPostService, PostService>();
 
 
 
