@@ -19,6 +19,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Keytietkiem.Utils;
 
 namespace Keytietkiem.Controllers
 {
@@ -1251,7 +1252,7 @@ namespace Keytietkiem.Controllers
             var desc = $"SP_{plan.SupportPlanId}";
             if (desc.Length > 25) desc = desc.Substring(0, 25);
 
-            var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/') ?? "https://keytietkiem.com";
+            var frontendBaseUrl = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
             var returnUrl = $"{frontendBaseUrl}/support/subscription?paymentId={payment.PaymentId}&supportPlanId={plan.SupportPlanId}";
             var cancelUrl = $"{frontendBaseUrl}/support/subscription?paymentId={payment.PaymentId}&supportPlanId={plan.SupportPlanId}";
 

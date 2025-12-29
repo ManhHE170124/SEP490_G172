@@ -14,31 +14,38 @@ namespace Keytietkiem.DTOs
         public int PageSize { get; set; } = 20;
 
         /// <summary>
-        /// Tìm kiếm theo Title/Message.
+        /// Search: Title/Message/CreatedByEmail/CreatedByFullName/Type/CorrelationId...
         /// </summary>
         [StringLength(200)]
         public string? Search { get; set; }
 
+        // ✅ Explicit filters (FE uses these)
+        [StringLength(50)]
+        public string? Type { get; set; }
+
+        [StringLength(254)]
+        public string? CreatedByEmail { get; set; }
+
         /// <summary>
-        /// 0 = Info, 1 = Success, 2 = Warning, 3 = Error.
+        /// Status filter (giữ để backward-compatible với FE cũ).
+        /// Hiện tại hệ thống KHÔNG còn các cột Archived/Expired, nên filter này sẽ bị bỏ qua ở BE.
         /// </summary>
+        [StringLength(20)]
+        public string? Status { get; set; }
+
         public byte? Severity { get; set; }
-
-        /// <summary>
-        /// Lọc theo thông báo hệ thống hay thủ công.
-        /// </summary>
         public bool? IsSystemGenerated { get; set; }
-
-        /// <summary>
-        /// Lọc theo thông báo global hay không.
-        /// </summary>
         public bool? IsGlobal { get; set; }
 
         public DateTime? CreatedFromUtc { get; set; }
         public DateTime? CreatedToUtc { get; set; }
 
         /// <summary>
-        /// Trường sort: "CreatedAtUtc" (default), "Title", "Severity".
+        /// SortBy (case-insensitive, accept aliases):
+        /// - CreatedAtUtc, Title, Severity
+        /// - Type
+        /// - CreatedByEmail, CreatedByUserEmail
+        /// - ReadCount, TotalTargetUsers
         /// </summary>
         public string? SortBy { get; set; } = "CreatedAtUtc";
 
@@ -48,9 +55,6 @@ namespace Keytietkiem.DTOs
         public bool SortDescending { get; set; } = true;
     }
 
-    /// <summary>
-    /// Item cho list thông báo (admin).
-    /// </summary>
     public class NotificationListItemDto
     {
         public int Id { get; set; }
@@ -64,35 +68,37 @@ namespace Keytietkiem.DTOs
 
         public DateTime CreatedAtUtc { get; set; }
         public Guid? CreatedByUserId { get; set; }
+
+        // ✅ NEW: list hiển thị 2 dòng (FullName + Email)
+        public string? CreatedByFullName { get; set; }
+
+        // ✅ Backward compatible (old FE)
         public string? CreatedByUserEmail { get; set; }
+
+        // ✅ New alias (preferred)
+        public string? CreatedByEmail { get; set; }
 
         public string? RelatedEntityType { get; set; }
         public string? RelatedEntityId { get; set; }
         public string? RelatedUrl { get; set; }
 
-        /// <summary>
-        /// Tổng số user đã được gán thông báo này (NotificationUser).
-        /// </summary>
         public int TotalTargetUsers { get; set; }
-
-        /// <summary>
-        /// Số user đã đọc.
-        /// </summary>
         public int ReadCount { get; set; }
+
+        // Option A (optional)
+        public string? Type { get; set; }
+        public string? CorrelationId { get; set; }
+
+        public int TargetRolesCount { get; set; }
+        public int TargetUsersCount { get; set; }
     }
 
-    /// <summary>
-    /// Chi tiết role mục tiêu của thông báo.
-    /// </summary>
     public class NotificationTargetRoleDto
     {
         public string RoleId { get; set; } = null!;
         public string? RoleName { get; set; }
     }
 
-    /// <summary>
-    /// Người nhận chi tiết trong 1 thông báo.
-    /// </summary>
     public class NotificationRecipientDto
     {
         public Guid UserId { get; set; }
@@ -100,7 +106,7 @@ namespace Keytietkiem.DTOs
         public string Email { get; set; } = string.Empty;
 
         /// <summary>
-        /// Tên các role của user, gộp dạng "Admin, Customer".
+        /// e.g. "Admin, Customer"
         /// </summary>
         public string RoleNames { get; set; } = string.Empty;
 
@@ -108,8 +114,35 @@ namespace Keytietkiem.DTOs
     }
 
     /// <summary>
-    /// Chi tiết thông báo (admin view).
+    /// Admin recipients paging/filter for detail modal.
+    /// Pagination UI: "Trang trước / sau".
     /// </summary>
+    public class NotificationRecipientsFilterDto
+    {
+        [Range(1, int.MaxValue)]
+        public int PageNumber { get; set; } = 1;
+
+        [Range(1, 200)]
+        public int PageSize { get; set; } = 20;
+
+        /// <summary>
+        /// Optional search by recipient FullName/Email.
+        /// </summary>
+        [StringLength(200)]
+        public string? Search { get; set; }
+
+        /// <summary>
+        /// Optional filter: true = only read, false = only unread.
+        /// </summary>
+        public bool? IsRead { get; set; }
+    }
+
+    public class NotificationRecipientsPagedResponseDto
+    {
+        public int TotalCount { get; set; }
+        public IReadOnlyList<NotificationRecipientDto> Items { get; set; } = Array.Empty<NotificationRecipientDto>();
+    }
+
     public class NotificationDetailDto
     {
         public int Id { get; set; }
@@ -123,7 +156,14 @@ namespace Keytietkiem.DTOs
 
         public DateTime CreatedAtUtc { get; set; }
         public Guid? CreatedByUserId { get; set; }
+
+        public string? CreatedByFullName { get; set; }
+
+        // ✅ Backward compatible
         public string? CreatedByUserEmail { get; set; }
+
+        // ✅ Alias
+        public string? CreatedByEmail { get; set; }
 
         public string? RelatedEntityType { get; set; }
         public string? RelatedEntityId { get; set; }
@@ -134,16 +174,13 @@ namespace Keytietkiem.DTOs
         public int UnreadCount { get; set; }
 
         public List<NotificationTargetRoleDto> TargetRoles { get; set; } = new();
-
-        /// <summary>
-        /// Danh sách người nhận chi tiết (dùng cho bảng trong modal).
-        /// </summary>
         public List<NotificationRecipientDto> Recipients { get; set; } = new();
+
+        // Option A (optional)
+        public string? Type { get; set; }
+        public string? CorrelationId { get; set; }
     }
 
-    /// <summary>
-    /// Request filter cho lịch sử thông báo của user hiện tại.
-    /// </summary>
     public class NotificationUserFilterDto
     {
         [Range(1, int.MaxValue)]
@@ -152,9 +189,6 @@ namespace Keytietkiem.DTOs
         [Range(1, 100)]
         public int PageSize { get; set; } = 20;
 
-        /// <summary>
-        /// Chỉ lấy thông báo chưa đọc.
-        /// </summary>
         public bool OnlyUnread { get; set; } = false;
 
         public byte? Severity { get; set; }
@@ -164,17 +198,10 @@ namespace Keytietkiem.DTOs
         [StringLength(200)]
         public string? Search { get; set; }
 
-        /// <summary>
-        /// "CreatedAtUtc" (default), "Severity", "IsRead".
-        /// </summary>
         public string? SortBy { get; set; } = "CreatedAtUtc";
-
         public bool SortDescending { get; set; } = true;
     }
 
-    /// <summary>
-    /// Item lịch sử thông báo của user (NotificationUser + Notification).
-    /// </summary>
     public class NotificationUserListItemDto
     {
         public long NotificationUserId { get; set; }
@@ -194,12 +221,11 @@ namespace Keytietkiem.DTOs
         public string? RelatedEntityType { get; set; }
         public string? RelatedEntityId { get; set; }
         public string? RelatedUrl { get; set; }
+
+        // Option A (optional)
+        public string? Type { get; set; }
     }
 
-    /// <summary>
-    /// Tạo thông báo thủ công và gán cho user cụ thể.
-    /// (Ở đây thiết kế tối thiểu: bắt buộc có TargetUserIds; TargetRoleIds chỉ để lưu mapping.)
-    /// </summary>
     public class CreateNotificationDto
     {
         [Required]
@@ -210,9 +236,6 @@ namespace Keytietkiem.DTOs
         [StringLength(1000)]
         public string Message { get; set; } = null!;
 
-        /// <summary>
-        /// 0 = Info, 1 = Success, 2 = Warning, 3 = Error.
-        /// </summary>
         [Range(0, 3)]
         public byte Severity { get; set; } = 0;
 
@@ -220,38 +243,31 @@ namespace Keytietkiem.DTOs
 
         public string? RelatedEntityType { get; set; }
         public string? RelatedEntityId { get; set; }
+
+        [StringLength(1024)]
         public string? RelatedUrl { get; set; }
 
-        /// <summary>
-        /// Danh sách RoleId mà thông báo nhắm tới (mapping vào NotificationTargetRole).
-        /// </summary>
         public List<string>? TargetRoleIds { get; set; }
-
-        /// <summary>
-        /// Danh sách user (Guid) sẽ nhận thông báo (NotificationUser).
-        /// BẮT BUỘC có ít nhất 1 user cho luồng thủ công tối thiểu.
-        /// </summary>
         public List<Guid>? TargetUserIds { get; set; }
+
+        // ✅ Option A create fields (manual defaults in Controller)
+        [StringLength(50)]
+        public string? Type { get; set; } // default "Manual"
+
+        [StringLength(64)]
+        public string? CorrelationId { get; set; } // default generated
     }
 
-    /// <summary>
-    /// Response phân trang danh sách thông báo (admin).
-    /// </summary>
     public class NotificationListResponseDto
     {
         public int TotalCount { get; set; }
-        public IReadOnlyList<NotificationListItemDto> Items { get; set; } =
-            Array.Empty<NotificationListItemDto>();
+        public IReadOnlyList<NotificationListItemDto> Items { get; set; } = Array.Empty<NotificationListItemDto>();
     }
 
-    /// <summary>
-    /// Response phân trang lịch sử thông báo user hiện tại.
-    /// </summary>
     public class NotificationUserListResponseDto
     {
         public int TotalCount { get; set; }
-        public IReadOnlyList<NotificationUserListItemDto> Items { get; set; } =
-            Array.Empty<NotificationUserListItemDto>();
+        public IReadOnlyList<NotificationUserListItemDto> Items { get; set; } = Array.Empty<NotificationUserListItemDto>();
     }
 
     public class NotificationTargetRoleOptionDto
@@ -267,12 +283,34 @@ namespace Keytietkiem.DTOs
         public string Email { get; set; } = string.Empty;
     }
 
-    /// <summary>
-    /// Dữ liệu dropdown phục vụ tạo thông báo thủ công (Admin).
-    /// </summary>
     public class NotificationManualTargetOptionsDto
     {
         public List<NotificationTargetRoleOptionDto> Roles { get; set; } = new();
         public List<NotificationTargetUserOptionDto> Users { get; set; } = new();
+    }
+
+    public class NotificationFilterOptionDto
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
+
+    public class NotificationAdminFilterOptionsDto
+    {
+        public List<NotificationFilterOptionDto> Types { get; set; } = new();
+        public List<NotificationFilterOptionDto> Creators { get; set; } = new();
+    }
+
+    public class NotificationUnreadCountDto
+    {
+        public int UnreadCount { get; set; }
+    }
+
+    public class NotificationUpsertResultDto
+    {
+        public long NotificationUserId { get; set; }
+        public int NotificationId { get; set; }
+        public bool IsRead { get; set; }
+        public DateTime? ReadAtUtc { get; set; }
     }
 }

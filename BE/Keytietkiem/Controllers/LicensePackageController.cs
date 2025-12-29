@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
+using Keytietkiem.Utils; // ✅ NEW
+using System;            // ✅ ensure
+using System.Collections.Generic;
 
 namespace Keytietkiem.Controllers;
 
@@ -16,22 +19,20 @@ public class LicensePackageController : ControllerBase
 {
     private readonly ILicensePackageService _licensePackageService;
     private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
 
     public LicensePackageController(
         ILicensePackageService licensePackageService,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService, IConfiguration config)
     {
         _licensePackageService = licensePackageService ?? throw new ArgumentNullException(nameof(licensePackageService));
         _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
+        _notificationSystemService = notificationSystemService ?? throw new ArgumentNullException(nameof(notificationSystemService));
+        _config = config;
     }
 
-    /// <summary>
-    /// Get all license packages with pagination and optional filters
-    /// </summary>
-    /// <param name="pageNumber">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 10)</param>
-    /// <param name="supplierId">Optional supplier ID filter</param>
-    /// <param name="productId">Optional product ID filter</param>
     [HttpGet]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetAllLicensePackages(
@@ -55,10 +56,6 @@ public class LicensePackageController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get license package by ID
-    /// </summary>
-    /// <param name="id">License package ID</param>
     [HttpGet("{id}")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetLicensePackageById(Guid id)
@@ -67,10 +64,6 @@ public class LicensePackageController : ControllerBase
         return Ok(package);
     }
 
-    /// <summary>
-    /// Create a new license package
-    /// </summary>
-    /// <param name="dto">License package creation data</param>
     [HttpPost]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> CreateLicensePackage([FromBody] CreateLicensePackageDto dto)
@@ -95,11 +88,6 @@ public class LicensePackageController : ControllerBase
         return CreatedAtAction(nameof(GetLicensePackageById), new { id = package.PackageId }, package);
     }
 
-    /// <summary>
-    /// Update an existing license package
-    /// </summary>
-    /// <param name="id">License package ID</param>
-    /// <param name="dto">License package update data</param>
     [HttpPut("{id}")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> UpdateLicensePackage(int id, [FromBody] UpdateLicensePackageDto dto)
@@ -130,10 +118,6 @@ public class LicensePackageController : ControllerBase
         return Ok(package);
     }
 
-    /// <summary>
-    /// Import licenses from package to stock
-    /// </summary>
-    /// <param name="dto">Import request with quantity</param>
     [HttpPost("import-to-stock")]
     public async Task<IActionResult> ImportLicenseToStock([FromBody] ImportLicenseToStockDto dto)
     {
@@ -146,7 +130,7 @@ public class LicensePackageController : ControllerBase
             HttpContext,
             action: "ImportLicenseToStock",
             entityType: "LicensePackage",
-            entityId: null,           // PackageId nằm trong dto nếu cần truy ngược
+            entityId: null,
             before: null,
             after: dto
         );
@@ -154,10 +138,6 @@ public class LicensePackageController : ControllerBase
         return Ok(new { message = "Đã nhập license vào kho thành công" });
     }
 
-    /// <summary>
-    /// Delete a license package
-    /// </summary>
-    /// <param name="id">License package ID</param>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteLicensePackage(Guid id)
     {
@@ -178,15 +158,6 @@ public class LicensePackageController : ControllerBase
         return Ok(new { message = "Gói license đã được xóa thành công" });
     }
 
-    /// <summary>
-    /// Upload CSV file containing license keys and import to stock
-    /// </summary>
-    /// <param name="packageId">License package ID</param>
-    /// <param name="variantId">Product variant ID</param>
-    /// <param name="supplierId">Supplier ID</param>
-    /// <param name="file">CSV file containing license keys</param>
-    /// <param name="keyType">Key type (Individual/Pool)</param>
-    /// <param name="expiryDate">Optional expiry date</param>
     [HttpPost("upload-csv")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadLicenseCsv(
@@ -210,7 +181,15 @@ public class LicensePackageController : ControllerBase
         }
 
         var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var actorEmail = User.FindFirst(ClaimTypes.Email)!.Value;
+
+        // Email vẫn giữ để audit/CreatedByEmail (FE/back-end thường dùng)
+        var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "(unknown)";
+
+        // ✅ Ưu tiên username/display name (ClaimTypes.Name) -> fallback email
+        var actorDisplayName =
+            (User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(actorDisplayName))
+            actorDisplayName = actorEmail;
 
         var result = await _licensePackageService.UploadLicenseCsvAsync(
             packageId,
@@ -240,14 +219,52 @@ public class LicensePackageController : ControllerBase
             }
         );
 
+        // ✅ System notification: Import CSV -> notify ADMIN (best-effort)
+        try
+        {
+            // ✅ route FE đúng: /suppliers/:id (SupplierDetailPage)
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/suppliers/{supplierId}";
+
+            // Thuần Việt keyType
+            var keyTypeVi =
+                string.Equals(keyType, "Individual", StringComparison.OrdinalIgnoreCase) ? "Key cá nhân"
+                : string.Equals(keyType, "Pool", StringComparison.OrdinalIgnoreCase) ? "Key dùng chung (pool)"
+                : keyType;
+
+            var expiryVi = expiryDate.HasValue
+                ? expiryDate.Value.ToString("dd/MM/yyyy")
+                : "Không có";
+
+            await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Nhập kho product key từ file CSV",
+                Message =
+                    $"Nhân viên: {actorDisplayName}\n" +
+                    $"Đã nhập kho product key từ file CSV.\n" +
+                    $"- Nhà cung cấp (Supplier): #{supplierId}\n" +
+                    $"- Gói mua (Package): {packageId}\n" +
+                    $"- Biến thể (Variant): {variantId}\n" +
+                    $"- Tệp CSV: {file.FileName}\n" +
+                    $"- Loại key: {keyTypeVi}\n" +
+                    $"- Ngày hết hạn: {expiryVi}",
+                Severity = 1, // Success
+                CreatedByUserId = actorId,
+                CreatedByEmail = actorEmail,
+                Type = "Key.ImportCsv",
+
+                RelatedEntityType = "LicensePackage",
+                RelatedEntityId = packageId.ToString(),
+                RelatedUrl = relatedUrl,
+
+                TargetRoleCodes = new List<string> { RoleCodes.ADMIN }
+            });
+        }
+        catch { }
+
         return Ok(result);
     }
 
-    /// <summary>
-    /// Get license keys imported from a specific package
-    /// </summary>
-    /// <param name="packageId">License package ID</param>
-    /// <param name="supplierId">Supplier ID</param>
     [HttpGet("{packageId}/keys")]
     public async Task<IActionResult> GetLicenseKeysByPackage(
         Guid packageId,

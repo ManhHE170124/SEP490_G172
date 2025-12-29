@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthService } from "../../services/authService";
 import { NotificationsApi } from "../../services/notifications";
 import axiosClient from "../../api/axiosClient"; 
-import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr"; // ✅ thêm
+import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr"; // ✅ thêm
 import "./Header.css";
 
 const Header = ({ profile }) => {
@@ -40,11 +40,17 @@ const Header = ({ profile }) => {
     pageSize: 5,
     hasMore: true,
   });
-  const notifLoadTimerRef = useRef(null);
-
-  // Toast khi có thông báo mới
+  const notifBodyRef = useRef(null);
+  const notifSentinelRef = useRef(null);
+  const isNotifLoadingRef = useRef(false);
+// Toast khi có thông báo mới
   const [toastQueue, setToastQueue] = useState([]);
   const [activeToast, setActiveToast] = useState(null);
+
+  // keep ref in sync for IntersectionObserver callback
+  useEffect(() => {
+    isNotifLoadingRef.current = isNotifLoading;
+  }, [isNotifLoading]);
 
 const notifConnectionRef = useRef(null);
 
@@ -131,6 +137,7 @@ const notifConnectionRef = useRef(null);
   // ===== POLL UNREAD COUNT ĐỊNH KỲ (CHỈ ĐỂ ĐỒNG BỘ SỐ LƯỢNG) =====
   useEffect(() => {
     let isMounted = true;
+    let timerId = null;
 
     const fetchUnreadNotifications = async () => {
       const token = localStorage.getItem("access_token");
@@ -142,32 +149,36 @@ const notifConnectionRef = useRef(null);
       }
 
       try {
-        const res = await NotificationsApi.listMyPaged({
-          pageNumber: 1,
-          pageSize: 5,
-          onlyUnread: true,
-          sortBy: "CreatedAtUtc",
-          sortDescending: true,
-        });
+        const total = await NotificationsApi.getMyUnreadCount();
 
         if (!isMounted) return;
-
-        const { total } = normalizeNotificationResponse(res);
-        setUnreadCount(total);
+        setUnreadCount(typeof total === "number" ? total : 0);
       } catch (error) {
         console.error("Failed to fetch unread notifications:", error);
       }
     };
 
+    const scheduleNext = () => {
+      if (!isMounted) return;
+
+      // Nếu SignalR đang Connected thì giảm polling (vì realtime sẽ push)
+      const conn = notifConnectionRef.current;
+      const isConnected = conn && conn.state === HubConnectionState.Connected;
+      const intervalMs = isConnected ? 120000 : 60000;
+
+      timerId = setTimeout(async () => {
+        await fetchUnreadNotifications();
+        scheduleNext();
+      }, intervalMs);
+    };
+
     // Lần đầu
     fetchUnreadNotifications();
-
-    // 15s/lần để đồng bộ số lượng (không show toast)
-    const intervalId = setInterval(fetchUnreadNotifications, 15000);
+    scheduleNext();
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      if (timerId) clearTimeout(timerId);
     };
   }, []);
 
@@ -231,31 +242,35 @@ const notifConnectionRef = useRef(null);
     }
   };
 
-  // ===== TỰ ĐỘNG LOAD THÊM MỖI 3s NẾU VẪN MỞ WIDGET & CÒN DATA =====
+  // ===== Load more khi scroll xuống cuối widget (IntersectionObserver) =====
   useEffect(() => {
-    if (!isNotifWidgetOpen) {
-      if (notifLoadTimerRef.current) {
-        clearTimeout(notifLoadTimerRef.current);
-        notifLoadTimerRef.current = null;
-      }
-      return;
-    }
+    if (!isNotifWidgetOpen) return;
 
-    if (!hasMoreNotifications || isNotifLoading) {
-      return;
-    }
+    const rootEl = notifBodyRef.current;
+    const sentinelEl = notifSentinelRef.current;
+    if (!rootEl || !sentinelEl) return;
 
-    notifLoadTimerRef.current = setTimeout(() => {
-      fetchNotificationHistory({ append: true });
-    }, 3000);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries && entries[0];
+        if (!first || !first.isIntersecting) return;
+        if (isNotifLoadingRef.current) return;
+        if (!notifPagingRef.current?.hasMore) return;
+
+        fetchNotificationHistory({ append: true });
+      },
+      { root: rootEl, threshold: 1.0 }
+    );
+
+    observer.observe(sentinelEl);
 
     return () => {
-      if (notifLoadTimerRef.current) {
-        clearTimeout(notifLoadTimerRef.current);
-        notifLoadTimerRef.current = null;
-      }
+      try {
+        observer.disconnect();
+      } catch {}
     };
-  }, [isNotifWidgetOpen, notifications.length, hasMoreNotifications, isNotifLoading]);
+  }, [isNotifWidgetOpen]);
+
 // ===== REALTIME SIGNALR: nhận "ReceiveNotification" từ NotificationHub =====
 useEffect(() => {
   const token = localStorage.getItem("access_token");
@@ -272,7 +287,7 @@ useEffect(() => {
 
   const connection = new HubConnectionBuilder()
     .withUrl(hubUrl, {
-      accessTokenFactory: () => token,
+      accessTokenFactory: () => localStorage.getItem("access_token") || "",
     })
     .withAutomaticReconnect()
     .configureLogging(LogLevel.Information)
@@ -315,6 +330,32 @@ useEffect(() => {
     ]);
   });
 
+  connection.on("ReceiveGlobalNotification", async (n) => {
+    const id = extractNotificationId(n) || `global-${Date.now()}-${Math.random()}`;
+    const title = n.title || n.Title;
+    const message = n.message || n.Message;
+
+    setToastQueue((prev) => [
+      ...prev,
+      {
+        id,
+        title,
+        message,
+        severity: n.severity ?? n.Severity ?? 0,
+        createdAt: n.createdAtUtc || n.CreatedAtUtc,
+      },
+    ]);
+
+    try {
+      const total = await NotificationsApi.getMyUnreadCount();
+      setUnreadCount(typeof total === "number" ? total : 0);
+    } catch {}
+
+    fetchNotificationHistory({ append: false });
+  });
+
+
+
   connection
     .start()
     .catch((err) =>
@@ -324,7 +365,8 @@ useEffect(() => {
   return () => {
     if (notifConnectionRef.current) {
       notifConnectionRef.current.off("ReceiveNotification");
-      notifConnectionRef.current.stop();
+      notifConnectionRef.current.off("ReceiveGlobalNotification");
+      notifConnectionRef.current.stop().catch(() => {});
       notifConnectionRef.current = null;
     }
   };
@@ -374,10 +416,22 @@ useEffect(() => {
       await AuthService.logout();
     } catch (error) {
       console.error("Logout error:", error);
+    } finally {
+      // always clear local tokens
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user");
-    } finally {
+
+      // stop notification hub (avoid dangling connection)
+      if (notifConnectionRef.current) {
+        try {
+          notifConnectionRef.current.off("ReceiveNotification");
+          notifConnectionRef.current.off("ReceiveGlobalNotification");
+          await notifConnectionRef.current.stop();
+        } catch {}
+        notifConnectionRef.current = null;
+      }
+
       navigate("/login");
     }
   };
@@ -406,6 +460,15 @@ useEffect(() => {
     }
   };
 
+  const getNotificationTypeLabel = (type) => {
+    const v = String(type || "").trim();
+    if (!v) return "";
+    const key = v.toLowerCase();
+    if (key === "manual") return "Thủ công";
+    if (key === "system") return "Hệ thống";
+    return v;
+  };
+
   const formatTime = (value) => {
     if (!value) return "";
     try {
@@ -415,13 +478,8 @@ useEffect(() => {
     }
   };
 
-  // Hover vào item → mark read (gửi API + update UI + giảm unreadCount)
-  const handleNotificationHover = (item) => {
-    const notifUserId = extractNotificationId(item);
-    const isRead = item.isRead ?? item.IsRead ?? false;
-    if (!notifUserId || isRead) return;
-
-    // Optimistic update
+  // Click item => mark read + điều hướng (tránh mark-read khi hover)
+  const markNotificationReadOptimistic = (notifUserId) => {
     setNotifications((prev) =>
       prev.map((n) => {
         const id = extractNotificationId(n);
@@ -431,13 +489,33 @@ useEffect(() => {
     );
     setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
 
-    NotificationsApi.markMyNotificationRead(notifUserId).catch((err) => {
-      console.error("Failed to mark notification as read", err);
-    });
+    return () => {
+      setNotifications((prev) =>
+        prev.map((n) => {
+          const id = extractNotificationId(n);
+          if (id !== notifUserId) return n;
+          return { ...n, isRead: false, IsRead: false };
+        })
+      );
+      setUnreadCount((prev) => prev + 1);
+    };
   };
 
-  // Click vào item → chuyển tới RelatedUrl (nếu có)
-  const handleNotificationClick = (item) => {
+  const handleNotificationItemClick = async (item) => {
+    const notifUserId = extractNotificationId(item);
+    const isRead = item.isRead ?? item.IsRead ?? false;
+
+    let rollback = null;
+    if (notifUserId && !isRead) {
+      rollback = markNotificationReadOptimistic(notifUserId);
+      try {
+        await NotificationsApi.markMyNotificationRead(notifUserId);
+      } catch (err) {
+        console.error("Failed to mark notification as read (admin header)", err);
+        if (rollback) rollback();
+      }
+    }
+
     const url = item.relatedUrl || item.RelatedUrl;
     if (!url) return;
 
@@ -672,7 +750,7 @@ useEffect(() => {
               </button>
             </div>
 
-            <div className="alh-notif-widget-body">
+            <div className="alh-notif-widget-body" ref={notifBodyRef}>
               {isNotifLoading && notifications.length === 0 && (
                 <div className="alh-notif-empty">Đang tải...</div>
               )}
@@ -690,6 +768,7 @@ useEffect(() => {
                     n.title || n.Title || "(Không có tiêu đề)";
                   const message = n.message || n.Message || "";
                   const severity = n.severity ?? n.Severity ?? 0;
+                  const type = n.type || n.Type || "";
                   const createdAt = n.createdAtUtc || n.CreatedAtUtc;
                   const isRead = n.isRead ?? n.IsRead ?? false;
 
@@ -699,8 +778,7 @@ useEffect(() => {
                       className={
                         "alh-notif-item" + (isRead ? " read" : " unread")
                       }
-                      onMouseEnter={() => handleNotificationHover(n)}
-                      onClick={() => handleNotificationClick(n)}
+                      onClick={() => handleNotificationItemClick(n)}
                     >
                       <div className="alh-notif-left">
                         {/* Dot xanh dương chỉ hiển thị khi chưa đọc */}
@@ -723,6 +801,14 @@ useEffect(() => {
                           <span className="alh-notif-severity">
                             {getSeverityLabel(severity)}
                           </span>
+                          {type ? (
+                            <>
+                              <span className="alh-notif-dot-sep">•</span>
+                              <span className="alh-notif-type">
+                                {getNotificationTypeLabel(type)}
+                              </span>
+                            </>
+                          ) : null}
                           <span className="alh-notif-dot-sep">•</span>
                           <span className="alh-notif-time">
                             {formatTime(createdAt)}
@@ -737,6 +823,8 @@ useEffect(() => {
               {isNotifLoading && notifications.length > 0 && (
                 <div className="alh-notif-empty">Đang tải thêm...</div>
               )}
+
+              <div ref={notifSentinelRef} style={{ height: 1 }} />
             </div>
           </div>
         </div>

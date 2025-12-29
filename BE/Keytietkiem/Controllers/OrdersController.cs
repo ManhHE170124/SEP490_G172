@@ -1548,7 +1548,7 @@ namespace Keytietkiem.Controllers
             var random = Random.Shared.Next(100, 999);             // 100..998
             var orderCode = Math.Abs(baseCode * 1000 + random);    // < 2,000,000,000
 
-            var frontendBaseUrl = _config["PayOS:FrontendBaseUrl"]?.TrimEnd('/') ?? "https://keytietkiem.com";
+            var frontendBaseUrl = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
 
             var returnUrl = !string.IsNullOrWhiteSpace(dto.ReturnUrl)
                 ? dto.ReturnUrl!
