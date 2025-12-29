@@ -31,6 +31,8 @@ using Keytietkiem.DTOs.Post;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
+using Keytietkiem.Infrastructure;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 
 namespace Keytietkiem.Controllers
@@ -41,11 +43,22 @@ namespace Keytietkiem.Controllers
     {
         private readonly IPostService _postService;
         private readonly IPhotoService _photoService;
+        private readonly KeytietkiemDbContext _context;
+        private readonly IClock _clock;
+        private readonly ILogger<PostsController> _logger;
         
-        public PostsController(IPostService postService, IPhotoService photoService)
+        public PostsController(
+            IPostService postService, 
+            IPhotoService photoService,
+            KeytietkiemDbContext context,
+            IClock clock,
+            ILogger<PostsController> logger)
         {
             _postService = postService ?? throw new ArgumentNullException(nameof(postService));
             _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /**
@@ -61,8 +74,9 @@ namespace Keytietkiem.Controllers
         {
             try
             {
-                var posts = await _postService.GetAllPostsAsync();
-                return Ok(posts);
+                var posts = await _postService.GetAllPostsAsync(includeRelations: true);
+                var postDtos = posts.Select(MapToPostListItemDTO).ToList();
+                return Ok(postDtos);
             }
             catch (Exception ex)
             {
@@ -83,12 +97,14 @@ namespace Keytietkiem.Controllers
         {
             try
             {
-                var post = await _postService.GetPostByIdAsync(id);
-                return Ok(post);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return NotFound(new { message = ex.Message });
+                var post = await _postService.GetPostByIdAsync(id, includeRelations: true);
+                if (post == null)
+                {
+                    return NotFound();
+                }
+
+                var postDto = MapToPostDTO(post);
+                return Ok(postDto);
             }
             catch (Exception ex)
             {
@@ -118,23 +134,93 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
+            // Validate PostType exists
+            if (createPostDto.PostTypeId.HasValue)
+            {
+                var postType = await _postService.GetPostTypeByIdAsync(createPostDto.PostTypeId.Value);
+                if (postType == null)
+                {
+                    return NotFound(new { message = "Danh mục bài viết không được tìm thấy." });
+                }
+            }
+
+            // Validate Author exists
+            if (createPostDto.AuthorId.HasValue)
+            {
+                var author = await _context.Users.FindAsync(new object[] { createPostDto.AuthorId.Value });
+                if (author == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy thông tin tác giả." });
+                }
+            }
+
+            // Validate Tags exist
+            if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
+            {
+                var tagCount = await _context.Tags
+                    .CountAsync(t => createPostDto.TagIds.Contains(t.TagId));
+                if (tagCount != createPostDto.TagIds.Count)
+                {
+                    return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
+                }
+            }
+
+            // Check if Slug is unique
+            if (await _postService.SlugExistsAsync(createPostDto.Slug, null))
+            {
+                return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+            }
+
+            var newPost = new Post
+            {
+                Title = createPostDto.Title,
+                Slug = createPostDto.Slug,
+                ShortDescription = createPostDto.ShortDescription,
+                Content = createPostDto.Content,
+                Thumbnail = createPostDto.Thumbnail,
+                PostTypeId = createPostDto.PostTypeId,
+                AuthorId = createPostDto.AuthorId,
+                MetaTitle = createPostDto.MetaTitle,
+                Status = createPostDto.Status ?? "Draft",
+                ViewCount = 0,
+                CreatedAt = _clock.UtcNow
+            };
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                var post = await _postService.CreatePostAsync(createPostDto, actorId);
-                return CreatedAtAction(nameof(GetPostById), new { id = post.PostId }, post);
+                _context.Posts.Add(newPost);
+                await _context.SaveChangesAsync();
+
+                // Add Tags
+                if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
+                {
+                    var tags = await _context.Tags
+                        .Where(t => createPostDto.TagIds.Contains(t.TagId))
+                        .ToListAsync();
+                    newPost.Tags = tags;
+                    await _context.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("Post {PostId} created by {ActorId}", newPost.PostId, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
+
+                // Reload post with relations
+                var createdPost = await _postService.GetPostByIdAsync(newPost.PostId, includeRelations: true);
+                var postDto = MapToPostDTO(createdPost!);
+
+                return CreatedAtAction(nameof(GetPostById), new { id = createdPost!.PostId }, postDto);
             }
-            catch (ArgumentNullException ex)
+            catch (DbUpdateException ex)
             {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
+                await transaction.RollbackAsync();
+                if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+                throw;
             }
         }
 
@@ -161,23 +247,81 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
+            var existing = await _postService.GetPostByIdAsync(id, includeRelations: true);
+            if (existing == null)
+            {
+                return NotFound();
+            }
+
+            // Validate PostType exists
+            if (updatePostDto.PostTypeId.HasValue)
+            {
+                var postType = await _postService.GetPostTypeByIdAsync(updatePostDto.PostTypeId.Value);
+                if (postType == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy danh mục bài viết." });
+                }
+            }
+
+            // Validate Tags exist
+            if (updatePostDto.TagIds != null && updatePostDto.TagIds.Any())
+            {
+                var tagCount = await _context.Tags
+                    .CountAsync(t => updatePostDto.TagIds.Contains(t.TagId));
+                if (tagCount != updatePostDto.TagIds.Count)
+                {
+                    return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
+                }
+            }
+
+            // Check if Slug is unique (excluding current post)
+            if (existing.Slug != updatePostDto.Slug)
+            {
+                if (await _postService.SlugExistsAsync(updatePostDto.Slug, id))
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+            }
+
+            existing.Title = updatePostDto.Title;
+            existing.Slug = updatePostDto.Slug;
+            existing.ShortDescription = updatePostDto.ShortDescription;
+            existing.Content = updatePostDto.Content;
+            existing.Thumbnail = updatePostDto.Thumbnail;
+            existing.PostTypeId = updatePostDto.PostTypeId;
+            existing.MetaTitle = updatePostDto.MetaTitle;
+            existing.Status = updatePostDto.Status;
+            existing.UpdatedAt = _clock.UtcNow;
+
+            // Update Tags
+            if (updatePostDto.TagIds != null)
+            {
+                var tags = await _context.Tags
+                    .Where(t => updatePostDto.TagIds.Contains(t.TagId))
+                    .ToListAsync();
+                existing.Tags = tags;
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                await _postService.UpdatePostAsync(id, updatePostDto, actorId);
+                _context.Posts.Update(existing);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("Post {PostId} updated by {ActorId}", id, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
+
                 return NoContent();
             }
-            catch (ArgumentNullException ex)
+            catch (DbUpdateException ex)
             {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
+                await transaction.RollbackAsync();
+                if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
+                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
+                {
+                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
+                }
+                throw;
             }
         }
 
@@ -192,20 +336,18 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePost(Guid id)
         {
-            try
+            var existingPost = await _postService.GetPostByIdAsync(id, includeRelations: false);
+            if (existingPost == null)
             {
-                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                await _postService.DeletePostAsync(id, actorId);
-                return NoContent();
+                return NotFound();
             }
-            catch (InvalidOperationException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+
+            _context.Posts.Remove(existingPost);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Post {PostId} deleted by {ActorId}", id, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
+
+            return NoContent();
         }
 
         /**
@@ -222,7 +364,8 @@ namespace Keytietkiem.Controllers
             try
             {
                 var postTypes = await _postService.GetAllPostTypesAsync();
-                return Ok(postTypes);
+                var postTypeDtos = postTypes.Select(MapToPostTypeDTO).ToList();
+                return Ok(postTypeDtos);
             }
             catch (Exception ex)
             {
@@ -246,20 +389,20 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            try
+            var newPostType = new PostType
             {
-                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                var postType = await _postService.CreatePostTypeAsync(createPostTypeDto, actorId);
-                return CreatedAtAction(nameof(GetPosttypes), new { id = postType.PostTypeId }, postType);
-            }
-            catch (ArgumentNullException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+                PostTypeName = createPostTypeDto.PostTypeName,
+                Description = createPostTypeDto.Description,
+                CreatedAt = _clock.UtcNow
+            };
+
+            _context.PostTypes.Add(newPostType);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("PostType {PostTypeId} created by {ActorId}", newPostType.PostTypeId, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
+
+            var postTypeDto = MapToPostTypeDTO(newPostType);
+            return CreatedAtAction(nameof(GetPosttypes), new { id = newPostType.PostTypeId }, postTypeDto);
         }
 
         [HttpPut("posttypes/{id}")]
@@ -278,24 +421,22 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            try
+            var existing = await _postService.GetPostTypeByIdAsync(id);
+            if (existing == null)
             {
-                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                await _postService.UpdatePostTypeAsync(id, updatePostTypeDto, actorId);
-                return NoContent();
+                return NotFound();
             }
-            catch (ArgumentNullException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+
+            existing.PostTypeName = updatePostTypeDto.PostTypeName;
+            existing.Description = updatePostTypeDto.Description;
+            existing.UpdatedAt = _clock.UtcNow;
+
+            _context.PostTypes.Update(existing);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("PostType {PostTypeId} updated by {ActorId}", id, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
+
+            return NoContent();
         }
 
 
@@ -304,20 +445,23 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePosttype(Guid id)
         {
-            try
+            var existing = await _postService.GetPostTypeByIdAsync(id);
+            if (existing == null)
             {
-                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                await _postService.DeletePostTypeAsync(id, actorId);
-                return NoContent();
+                return NotFound();
             }
-            catch (InvalidOperationException ex)
+
+            if (await _postService.PostTypeHasPostsAsync(id))
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest("Không thể xóa danh mục này.");
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+
+            _context.PostTypes.Remove(existing);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("PostType {PostTypeId} deleted by {ActorId}", id, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
+
+            return NoContent();
         }
 
         /**
@@ -330,19 +474,21 @@ namespace Keytietkiem.Controllers
         [AllowAnonymous] // Public endpoint - không cần auth
         public async Task<IActionResult> GetPostBySlug(string slug)
         {
-            try
+            var post = await _postService.GetPostBySlugAsync(slug, includeRelations: true);
+            if (post == null)
             {
-                var post = await _postService.GetPostBySlugAsync(slug);
-                return Ok(post);
+                return NotFound(new { message = "Không tìm thấy bài viết" });
             }
-            catch (InvalidOperationException ex)
+
+            // Increment view count
+            if (post.Status == "Published")
             {
-                return NotFound(new { message = ex.Message });
+                post.ViewCount = (post.ViewCount ?? 0) + 1;
+                await _context.SaveChangesAsync();
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message });
-            }
+
+            var postDto = MapToPostDTO(post);
+            return Ok(postDto);
         }
 
         /**
@@ -355,19 +501,85 @@ namespace Keytietkiem.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetRelatedPosts(Guid id, [FromQuery] int limit = 3)
         {
-            try
+            var currentPost = await _postService.GetPostByIdAsync(id, includeRelations: false);
+            if (currentPost == null)
             {
-                var relatedPosts = await _postService.GetRelatedPostsAsync(id, limit);
-                return Ok(relatedPosts);
+                return NotFound();
             }
-            catch (InvalidOperationException ex)
+
+            var relatedPosts = await _postService.GetRelatedPostsAsync(id, currentPost.PostTypeId, limit);
+            var relatedPostDtos = relatedPosts.Select(MapToPostListItemDTO).ToList();
+            return Ok(relatedPostDtos);
+        }
+
+        // ===== Helper Methods =====
+
+        private PostDTO MapToPostDTO(Post post)
+        {
+            return new PostDTO
             {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
+                PostId = post.PostId,
+                Title = post.Title,
+                Slug = post.Slug,
+                ShortDescription = post.ShortDescription,
+                Content = post.Content,
+                Thumbnail = post.Thumbnail,
+                PostTypeId = post.PostTypeId,
+                AuthorId = post.AuthorId,
+                MetaTitle = post.MetaTitle,
+                Status = post.Status,
+                ViewCount = post.ViewCount,
+                CreatedAt = post.CreatedAt,
+                UpdatedAt = post.UpdatedAt,
+                AuthorName = post.Author != null ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim()) : null,
+                PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
+                Tags = post.Tags.Select(t => new TagDTO
+                {
+                    TagId = t.TagId,
+                    TagName = t.TagName,
+                    Slug = t.Slug
+                }).ToList()
+            };
+        }
+
+        private PostListItemDTO MapToPostListItemDTO(Post post)
+        {
+            return new PostListItemDTO
             {
-                return StatusCode(500, new { message = ex.Message });
-            }
+                PostId = post.PostId,
+                Title = post.Title,
+                Slug = post.Slug,
+                ShortDescription = post.ShortDescription,
+                Thumbnail = post.Thumbnail,
+                PostTypeId = post.PostTypeId,
+                AuthorId = post.AuthorId,
+                Status = post.Status,
+                ViewCount = post.ViewCount,
+                CreatedAt = post.CreatedAt,
+                UpdatedAt = post.UpdatedAt,
+                AuthorName = post.Author != null ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim()) : null,
+                PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
+                Tags = post.Tags.Select(t => new TagDTO
+                {
+                    TagId = t.TagId,
+                    TagName = t.TagName,
+                    Slug = t.Slug,
+                    CreatedAt = t.CreatedAt,
+                    UpdatedAt = t.UpdatedAt
+                }).ToList()
+            };
+        }
+
+        private PostTypeDTO MapToPostTypeDTO(PostType postType)
+        {
+            return new PostTypeDTO
+            {
+                PostTypeId = postType.PostTypeId,
+                PostTypeName = postType.PostTypeName,
+                Description = postType.Description,
+                CreatedAt = postType.CreatedAt,
+                UpdatedAt = postType.UpdatedAt
+            };
         }
     }
 }

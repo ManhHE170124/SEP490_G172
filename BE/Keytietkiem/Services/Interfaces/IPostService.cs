@@ -3,14 +3,16 @@
  * Author: Keytietkiem Team
  * Created: 2025
  * Version: 1.0.0
- * Purpose: Service interface for Post, PostComment, Tag, and PostType business logic operations.
+ * Purpose: Service interface for Post, PostComment, Tag, and PostType operations.
+ *          Service layer is a pass-through to Repository, returns entities only.
  */
-using Keytietkiem.DTOs.Post;
+using Keytietkiem.Models;
 
 namespace Keytietkiem.Services.Interfaces;
 
 /// <summary>
-/// Service interface for Post-related business logic operations.
+/// Service interface for Post-related operations.
+/// Service is a pass-through layer that delegates to Repository and returns entities.
 /// </summary>
 public interface IPostService
 {
@@ -19,86 +21,76 @@ public interface IPostService
     /// <summary>
     /// Gets a post by ID.
     /// </summary>
-    Task<PostDTO> GetPostByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Post?> GetPostByIdAsync(Guid id, bool includeRelations = false, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Gets a post by slug (for public viewing).
+    /// Gets a post by slug.
     /// </summary>
-    Task<PostDTO> GetPostBySlugAsync(string slug, CancellationToken cancellationToken = default);
+    Task<Post?> GetPostBySlugAsync(string slug, bool includeRelations = false, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Gets all posts.
     /// </summary>
-    Task<IEnumerable<PostListItemDTO>> GetAllPostsAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<Post>> GetAllPostsAsync(bool includeRelations = false, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Creates a new post.
+    /// Gets posts by status.
     /// </summary>
-    Task<PostDTO> CreatePostAsync(CreatePostDTO createDto, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Updates an existing post.
-    /// </summary>
-    Task UpdatePostAsync(Guid id, UpdatePostDTO updateDto, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Deletes a post by ID.
-    /// </summary>
-    Task DeletePostAsync(Guid id, Guid actorId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Post>> GetPostsByStatusAsync(string status, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Gets related posts (same post type, excluding current post).
     /// </summary>
-    Task<IEnumerable<PostListItemDTO>> GetRelatedPostsAsync(Guid postId, int limit, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Post>> GetRelatedPostsAsync(Guid postId, Guid? postTypeId, int limit, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Increments view count for a post.
+    /// Checks if a post exists by ID.
     /// </summary>
-    Task IncrementViewCountAsync(Guid postId, CancellationToken cancellationToken = default);
+    Task<bool> PostExistsAsync(Guid id, CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Checks if a slug exists (optionally excluding a specific post ID).
+    /// </summary>
+    Task<bool> SlugExistsAsync(string slug, Guid? excludePostId = null, CancellationToken cancellationToken = default);
     
     // ===== PostType Operations =====
     
     /// <summary>
     /// Gets all post types.
     /// </summary>
-    Task<IEnumerable<PostTypeDTO>> GetAllPostTypesAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<PostType>> GetAllPostTypesAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Gets a post type by ID.
     /// </summary>
-    Task<PostTypeDTO> GetPostTypeByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<PostType?> GetPostTypeByIdAsync(Guid id, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Creates a new post type.
+    /// Checks if a post type exists by ID.
     /// </summary>
-    Task<PostTypeDTO> CreatePostTypeAsync(CreatePostTypeDTO createDto, Guid actorId, CancellationToken cancellationToken = default);
+    Task<bool> PostTypeExistsAsync(Guid id, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Updates an existing post type.
+    /// Checks if a post type has any posts.
     /// </summary>
-    Task UpdatePostTypeAsync(Guid id, UpdatePostTypeDTO updateDto, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Deletes a post type by ID.
-    /// </summary>
-    Task DeletePostTypeAsync(Guid id, Guid actorId, CancellationToken cancellationToken = default);
+    Task<bool> PostTypeHasPostsAsync(Guid postTypeId, CancellationToken cancellationToken = default);
     
     // ===== PostComment Operations =====
     
     /// <summary>
     /// Gets a comment by ID.
     /// </summary>
-    Task<PostCommentDTO> GetCommentByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<PostComment?> GetCommentByIdAsync(Guid id, bool includeRelations = false, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Gets comments for a specific post with pagination.
+    /// Gets all comments for a specific post.
     /// </summary>
-    Task<object> GetCommentsByPostIdAsync(Guid postId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<IEnumerable<PostComment>> GetCommentsByPostIdAsync(Guid postId, bool includeReplies = false, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Gets comments by filter criteria.
     /// </summary>
-    Task<IEnumerable<PostCommentListItemDTO>> GetCommentsByFilterAsync(
+    Task<IEnumerable<PostComment>> GetCommentsByFilterAsync(
         Guid? postId,
         Guid? userId,
         bool? isApproved,
@@ -108,58 +100,38 @@ public interface IPostService
     /// <summary>
     /// Gets direct replies for a parent comment.
     /// </summary>
-    Task<IEnumerable<PostCommentDTO>> GetCommentRepliesAsync(Guid parentCommentId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<PostComment>> GetCommentRepliesAsync(Guid parentCommentId, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Creates a new comment or reply.
+    /// Checks if a comment exists by ID.
     /// </summary>
-    Task<PostCommentDTO> CreateCommentAsync(CreatePostCommentDTO createDto, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Updates an existing comment.
-    /// </summary>
-    Task<PostCommentDTO> UpdateCommentAsync(Guid id, UpdatePostCommentDTO updateDto, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Deletes a comment and all its replies recursively.
-    /// </summary>
-    Task DeleteCommentAsync(Guid id, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Shows a comment (sets IsApproved = true) and all its replies recursively.
-    /// </summary>
-    Task ShowCommentAsync(Guid id, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Hides a comment (sets IsApproved = false) and all its replies recursively.
-    /// </summary>
-    Task HideCommentAsync(Guid id, Guid actorId, CancellationToken cancellationToken = default);
+    Task<bool> CommentExistsAsync(Guid id, CancellationToken cancellationToken = default);
     
     // ===== Tag Operations =====
     
     /// <summary>
     /// Gets all tags.
     /// </summary>
-    Task<IEnumerable<TagDTO>> GetAllTagsAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<Tag>> GetAllTagsAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Gets a tag by ID.
     /// </summary>
-    Task<TagDTO> GetTagByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Tag?> GetTagByIdAsync(Guid id, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Creates a new tag.
+    /// Checks if a tag exists by ID.
     /// </summary>
-    Task<TagDTO> CreateTagAsync(CreateTagDTO createDto, Guid actorId, CancellationToken cancellationToken = default);
+    Task<bool> TagExistsAsync(Guid id, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Updates an existing tag.
+    /// Checks if a tag name exists (optionally excluding a specific tag ID).
     /// </summary>
-    Task UpdateTagAsync(Guid id, UpdateTagDTO updateDto, Guid actorId, CancellationToken cancellationToken = default);
+    Task<bool> TagNameExistsAsync(string tagName, Guid? excludeTagId = null, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Deletes a tag by ID.
+    /// Checks if a tag slug exists (optionally excluding a specific tag ID).
     /// </summary>
-    Task DeleteTagAsync(Guid id, Guid actorId, CancellationToken cancellationToken = default);
+    Task<bool> TagSlugExistsAsync(string slug, Guid? excludeTagId = null, CancellationToken cancellationToken = default);
 }
 
