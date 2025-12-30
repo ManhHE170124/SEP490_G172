@@ -1,5 +1,4 @@
 ﻿// File: Controllers/TicketsController.cs
-using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;

@@ -257,24 +257,24 @@ export default function AppRoutes() {
       {/* Products */}
       <Route
         path="/admin/products"
-        element={renderAdminPage(<ProductsPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<ProductsPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/products/add"
-        element={renderAdminPage(<ProductAdd />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<ProductAdd />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/products/:id"
-        element={renderAdminPage(<ProductDetail />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<ProductDetail />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/products/:id/variants/:variantId"
-        element={renderAdminPage(<VariantDetail />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<VariantDetail />, role(ROLES.ADMIN))}
       />
 
       <Route
         path="/admin/categories"
-        element={renderAdminPage(<CategoryPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<CategoryPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/orders"

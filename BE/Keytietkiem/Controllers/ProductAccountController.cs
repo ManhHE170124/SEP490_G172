@@ -1,5 +1,4 @@
 // File: Controllers/ProductAccountController.cs
-using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;

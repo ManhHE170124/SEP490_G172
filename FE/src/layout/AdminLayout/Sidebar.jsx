@@ -110,7 +110,7 @@ const Sidebar = () => {
           id: "products",
           label: "Quản lý sản phẩm",
           to: "/admin/products",
-          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
+          allowedRoles: [ROLE_ADMIN],
           isActive:
             currentPage === "admin/products" ||
             currentPage.startsWith("admin/products/"),
@@ -137,7 +137,7 @@ const Sidebar = () => {
           id: "categories",
           label: "Quản lý danh mục",
           to: "/admin/categories",
-          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/categories",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -246,7 +246,7 @@ const Sidebar = () => {
           id: "faqs",
           label: "Câu hỏi thường gặp",
           to: "/admin/faqs",
-          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/faqs",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
@@ -270,70 +270,70 @@ const Sidebar = () => {
       ],
     },
 
-    {
-      id: "role",
-      title: "Quản lý phân quyền",
-      items: [
-        {
-          id: "role-manage",
-          label: "Quản lý phân quyền",
-          to: "/role-manage",
-          allowedRoles: [ROLE_ADMIN],
-          isActive: currentPage === "role-manage",
-          icon: (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="200"
-              height="200"
-              viewBox="0 0 32 32"
-            >
-              <path
-                fill="currentColor"
-                d="M18 23h-2v-2a3.003 3.003 0 0 0-3-3H9a3.003 3.003 0 0 0-3 3v2H4v-2a5.006 5.006 0 0 1 5-5h4a5.006 5.006 0 0 1 5 5zM11 6a3 3 0 1 1-3 3a3 3 0 0 1 3-3m0-2a5 5 0 1 0 5 5a5 5 0 0 0-5-5zM2 26h28v2H2zM22 4v2h4.586L20 12.586L21.414 14L28 7.414V12h2V4h-8z"
-              />
-            </svg>
-          ),
-        },
-        // {
-        //   id: "role-assign",
-        //   label: "Phân công vai trò",
-        //   to: "/role-assign",
-        //   allowedRoles: [ROLE_ADMIN],
-        //   isActive: currentPage === "role-assign",
-        //   icon: (
-        //     <svg
-        //       xmlns="http://www.w3.org/2000/svg"
-        //       width="200"
-        //       height="200"
-        //       viewBox="0 0 48 48"
-        //     >
-        //       <g
-        //         fill="none"
-        //         stroke="currentColor"
-        //         strokeLinecap="round"
-        //         strokeWidth="4"
-        //       >
-        //         <path
-        //           strokeLinejoin="round"
-        //           d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
-        //         />
-        //         <path d="M10 23h8m-8 8h24" />
-        //         <circle
-        //           cx="34"
-        //           cy="16"
-        //           r="6"
-        //           strokeLinejoin="round"
-        //         />
-        //         <path
-        //           strokeLinejoin="round"
-        //           d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
-        //         />
-        //       </g>
-        //     </svg>
-        //   ),
-        // },
-      ],
-    },
+    // {
+    //   id: "role",
+    //   title: "Quản lý phân quyền",
+    //   items: [
+    //     {
+    //       id: "role-manage",
+    //       label: "Quản lý phân quyền",
+    //       to: "/role-manage",
+    //       allowedRoles: [ROLE_ADMIN],
+    //       isActive: currentPage === "role-manage",
+    //       icon: (
+    //         <svg
+    //           xmlns="http://www.w3.org/2000/svg"
+    //           width="200"
+    //           height="200"
+    //           viewBox="0 0 32 32"
+    //         >
+    //           <path
+    //             fill="currentColor"
+    //             d="M18 23h-2v-2a3.003 3.003 0 0 0-3-3H9a3.003 3.003 0 0 0-3 3v2H4v-2a5.006 5.006 0 0 1 5-5h4a5.006 5.006 0 0 1 5 5zM11 6a3 3 0 1 1-3 3a3 3 0 0 1 3-3m0-2a5 5 0 1 0 5 5a5 5 0 0 0-5-5zM2 26h28v2H2zM22 4v2h4.586L20 12.586L21.414 14L28 7.414V12h2V4h-8z"
+    //           />
+    //         </svg>
+    //       ),
+    //     },
+    //     {
+    //       id: "role-assign",
+    //       label: "Phân công vai trò",
+    //       to: "/role-assign",
+    //       allowedRoles: [ROLE_ADMIN],
+    //       isActive: currentPage === "role-assign",
+    //       icon: (
+    //         <svg
+    //           xmlns="http://www.w3.org/2000/svg"
+    //           width="200"
+    //           height="200"
+    //           viewBox="0 0 48 48"
+    //         >
+    //           <g
+    //             fill="none"
+    //             stroke="currentColor"
+    //             strokeLinecap="round"
+    //             strokeWidth="4"
+    //           >
+    //             <path
+    //               strokeLinejoin="round"
+    //               d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
+    //             />
+    //             <path d="M10 23h8m-8 8h24" />
+    //             <circle
+    //               cx="34"
+    //               cy="16"
+    //               r="6"
+    //               strokeLinejoin="round"
+    //             />
+    //             <path
+    //               strokeLinejoin="round"
+    //               d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
+    //             />
+    //           </g>
+    //         </svg>
+    //       ),
+    //     },
+    //   ],
+    // },
     {
       id: "warehouse",
       title: "Kho & Nhà cung cấp",
@@ -710,7 +710,8 @@ const Sidebar = () => {
           label: "Tạo bài viết",
           to: "/post-create-edit",
           allowedRoles: [ROLE_ADMIN, ROLE_CONTENT_CREATOR],
-          isActive: currentPage === "post-create-edit",
+          isActive: currentPage === "post-create-edit"||
+            currentPage.startsWith("post-create-edit/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
