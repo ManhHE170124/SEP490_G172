@@ -56,16 +56,19 @@ const Sidebar = () => {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        const roles = Array.isArray(parsedUser?.roles) 
-          ? parsedUser.roles 
-          : parsedUser?.role 
-            ? [parsedUser.role] 
-            : [];
-        return roles.map(r => {
-          if (typeof r === "string") return r.toUpperCase();
-          if (typeof r === "object") return (r.code || r.roleCode || r.name || "").toUpperCase();
-          return "";
-        }).filter(Boolean);
+        const roles = Array.isArray(parsedUser?.roles)
+          ? parsedUser.roles
+          : parsedUser?.role
+          ? [parsedUser.role]
+          : [];
+        return roles
+          .map((r) => {
+            if (typeof r === "string") return r.toUpperCase();
+            if (typeof r === "object")
+              return (r.code || r.roleCode || r.name || "").toUpperCase();
+            return "";
+          })
+          .filter(Boolean);
       }
     } catch (error) {
       console.warn("Không thể đọc roles từ localStorage", error);
@@ -76,9 +79,8 @@ const Sidebar = () => {
   // Check if user has any of the allowed roles
   const hasRole = (allowedRoles) => {
     if (!allowedRoles || allowedRoles.length === 0) return true;
-    return allowedRoles.some(role => userRoles.includes(role.toUpperCase()));
+    return allowedRoles.some((role) => userRoles.includes(role.toUpperCase()));
   };
-
 
   const defaultSections = [
     {
@@ -159,88 +161,141 @@ const Sidebar = () => {
           ),
         },
 
-// === Danh sách đơn hàng ===
-{
-  id: "orders-admin-list",
-  label: "Danh sách đơn hàng",
-  to: "/admin/orders",
-  allowedRoles: [ROLE_ADMIN],
-  isActive:
-    currentPage === "admin/orders" ||
-    currentPage.startsWith("admin/orders/"),
-  icon: (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="200"
-      height="200"
-      viewBox="0 0 32 32"
-    >
-      <rect
-        x="3"
-        y="4"
-        width="18"
-        height="16"
-        rx="2"
-        ry="2"
-        stroke="currentColor"
-        strokeWidth="2"
-        fill="none"
-      />
-      <path
-        d="M3 9h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M8 13h4M8 17h3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  ),
-},
+        // === Danh sách đơn hàng ===
+        {
+          id: "orders-admin-list",
+          label: "Danh sách đơn hàng",
+          to: "/admin/orders",
+          allowedRoles: [ROLE_ADMIN],
+          isActive:
+            currentPage === "admin/orders" ||
+            currentPage.startsWith("admin/orders/"),
+          icon: (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="200"
+              height="200"
+              viewBox="0 0 32 32"
+            >
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="16"
+                rx="2"
+                ry="2"
+                stroke="currentColor"
+                strokeWidth="2"
+                fill="none"
+              />
+              <path
+                d="M3 9h18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M8 13h4M8 17h3"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          ),
+        },
 
-// === Danh sách giao dịch ===
-{
-  id: "payments-admin",
-  label: "Danh sách giao dịch",
-  to: "/admin/payments",
-  allowedRoles: [ROLE_ADMIN],
-  isActive: currentPage === "admin/payments",
-  icon: (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="200"
-      height="200"
-      viewBox="0 0 32 32"
-    >
-      <rect
-        x="2"
-        y="5"
-        width="20"
-        height="14"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="2"
-        fill="none"
-      />
-      <path
-        d="M2 10h20"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6 15h4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  ),
-},
+        // === Danh sách giao dịch ===
+        {
+          id: "payments-admin",
+          label: "Danh sách giao dịch",
+          to: "/admin/payments",
+          allowedRoles: [ROLE_ADMIN],
+          isActive:
+            currentPage === "admin/payments" ||
+            currentPage.startsWith("admin/payments/"),
+          icon: (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="200"
+              height="200"
+              viewBox="0 0 32 32"
+            >
+              <rect
+                x="2"
+                y="5"
+                width="20"
+                height="14"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="2"
+                fill="none"
+              />
+              <path
+                d="M2 10h20"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M6 15h4"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          ),
+        },
+
+        // ✅ NEW: Dashboard thanh toán
+        {
+          id: "payments-dashboard-admin",
+          label: "Dashboard thanh toán",
+          to: "/admin/payments/dashboard",
+          allowedRoles: [ROLE_ADMIN],
+          isActive:
+            currentPage === "admin/payments/dashboard" ||
+            currentPage.startsWith("admin/payments/dashboard/"),
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 19V5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M4 19H20"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <rect
+                x="7"
+                y="12"
+                width="2.5"
+                height="5"
+                rx="0.6"
+                fill="currentColor"
+              />
+              <rect
+                x="11"
+                y="9"
+                width="2.5"
+                height="8"
+                rx="0.6"
+                fill="currentColor"
+              />
+              <rect
+                x="15"
+                y="7"
+                width="2.5"
+                height="10"
+                rx="0.6"
+                fill="currentColor"
+              />
+            </svg>
+          ),
+        },
 
         {
           id: "faqs",
@@ -294,46 +349,9 @@ const Sidebar = () => {
             </svg>
           ),
         },
-        // {
-        //   id: "role-assign",
-        //   label: "Phân công vai trò",
-        //   to: "/role-assign",
-        //   allowedRoles: [ROLE_ADMIN],
-        //   isActive: currentPage === "role-assign",
-        //   icon: (
-        //     <svg
-        //       xmlns="http://www.w3.org/2000/svg"
-        //       width="200"
-        //       height="200"
-        //       viewBox="0 0 48 48"
-        //     >
-        //       <g
-        //         fill="none"
-        //         stroke="currentColor"
-        //         strokeLinecap="round"
-        //         strokeWidth="4"
-        //       >
-        //         <path
-        //           strokeLinejoin="round"
-        //           d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"
-        //         />
-        //         <path d="M10 23h8m-8 8h24" />
-        //         <circle
-        //           cx="34"
-        //           cy="16"
-        //           r="6"
-        //           strokeLinejoin="round"
-        //         />
-        //         <path
-        //           strokeLinejoin="round"
-        //           d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"
-        //         />
-        //       </g>
-        //     </svg>
-        //   ),
-        // },
       ],
     },
+
     {
       id: "warehouse",
       title: "Kho & Nhà cung cấp",
@@ -344,8 +362,7 @@ const Sidebar = () => {
           to: "/suppliers",
           allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
           isActive:
-            currentPage === "suppliers" ||
-            currentPage.startsWith("suppliers/"),
+            currentPage === "suppliers" || currentPage.startsWith("suppliers/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -397,8 +414,7 @@ const Sidebar = () => {
           label: "Quản lý kho Key",
           to: "/keys",
           allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
-          isActive:
-            currentPage === "keys" || currentPage.startsWith("keys/"),
+          isActive: currentPage === "keys" || currentPage.startsWith("keys/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -417,8 +433,7 @@ const Sidebar = () => {
           to: "/accounts",
           allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
           isActive:
-            currentPage === "accounts" ||
-            currentPage.startsWith("accounts/"),
+            currentPage === "accounts" || currentPage.startsWith("accounts/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -447,6 +462,7 @@ const Sidebar = () => {
         },
       ],
     },
+
     {
       id: "user",
       title: "Quản lý người dùng",
@@ -457,8 +473,7 @@ const Sidebar = () => {
           to: "/admin/users",
           allowedRoles: [ROLE_ADMIN],
           isActive:
-            currentPage === "admin/users" ||
-            currentPage.startsWith("admin/users/"),
+            currentPage === "admin/users" || currentPage.startsWith("admin/users/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -490,6 +505,7 @@ const Sidebar = () => {
         },
       ],
     },
+
     {
       id: "support",
       title: "Quản lý hỗ trợ",
@@ -618,9 +634,7 @@ const Sidebar = () => {
           label: "Báo cáo sản phẩm",
           to: "/reports",
           allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
-          isActive:
-            currentPage === "reports" ||
-            currentPage.startsWith("reports/"),
+          isActive: currentPage === "reports" || currentPage.startsWith("reports/"),
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -663,6 +677,7 @@ const Sidebar = () => {
         },
       ],
     },
+
     {
       id: "posts",
       title: "Quản lý bài viết",
@@ -772,6 +787,7 @@ const Sidebar = () => {
         },
       ],
     },
+
     {
       id: "settings",
       title: "Cài đặt",
@@ -849,19 +865,8 @@ const Sidebar = () => {
           allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/sla-rules",
           icon: (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              style={{ width: 20, height: 20 }}
-            >
-              {/* icon đồng hồ SLA */}
-              <circle
-                cx="12"
-                cy="12"
-                r="8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
+            <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
+              <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
               <path
                 d="M12 8v4l2.5 2.5"
                 stroke="currentColor"
@@ -869,12 +874,7 @@ const Sidebar = () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path
-                d="M9 3h6"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
+              <path d="M9 3h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           ),
         },
@@ -909,19 +909,15 @@ const Sidebar = () => {
               />
             </svg>
           ),
-        }
-        , {
+        },
+        {
           id: "notifications-admin",
           label: "Thông báo hệ thống",
           to: "/admin/notifications",
           allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/notifications",
           icon: (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              style={{ width: 20, height: 20 }}
-            >
+            <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
               <path
                 d="M12 3a6 6 0 0 0-6 6v3.5L4 15v1h16v-1l-2-2.5V9a6 6 0 0 0-6-6Z"
                 stroke="currentColor"
@@ -938,18 +934,15 @@ const Sidebar = () => {
               />
             </svg>
           ),
-        }, {
+        },
+        {
           id: "audit-logs",
           label: "Lịch sử thao tác hệ thống",
           to: "/admin/audit-logs",
           allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/audit-logs",
           icon: (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              style={{ width: 20, height: 20 }}
-            >
+            <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
               <rect
                 x="3"
                 y="4"
@@ -968,9 +961,7 @@ const Sidebar = () => {
               />
             </svg>
           ),
-        }
-
-
+        },
       ],
     },
   ];
@@ -1002,11 +993,7 @@ const Sidebar = () => {
     }
 
     return (
-      <SidebarTooltip
-        key={item.id}
-        label={item.label}
-        disabled={!isCollapsed}
-      >
+      <SidebarTooltip key={item.id} label={item.label} disabled={!isCollapsed}>
         <Link
           className={`sb-item ${item.isActive ? "active" : ""}`}
           to={item.to}

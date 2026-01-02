@@ -58,15 +58,12 @@ function notificationTypeLabel(type) {
   // NOTE: key đã được normalize (bỏ dấu chấm, dấu gạch, khoảng trắng...)
   const map = {
     // Ticket
-    ticketcreated: "Ticket mới",
     ticketassigned: "Gán ticket",
     tickettransferred: "Chuyển ticket",
-    ticketcompleted: "Hoàn thành ticket",
     ticketstaffreplied: "Ticket có phản hồi",
 
     // Key
     keyimportcsv: "Nhập key hàng loạt",
-    keybulkupdatestatus: "Cập nhật trạng thái key hàng loạt",
 
     // Report
     productreportcreated: "Báo lỗi sản phẩm",

@@ -22,6 +22,7 @@ import AdminPostList from "../pages/PostManage/AdminPostList";
 import PostCreateEdit from "../pages/PostManage/CreateEditPost";
 import TagPostTypeManage from "../pages/PostManage/TagAndPostTypeManage";
 import PostDashboardPage from "../pages/PostManage/PostDashboardPage";
+import AdminPaymentsDashboardPage from "../pages/admin/AdminPaymentsDashboardPage";
 
 // Admin pages
 import CategoryPage from "../pages/admin/CategoryPage.jsx";
@@ -277,6 +278,11 @@ export default function AppRoutes() {
         path="/admin/payments"
         element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN))}
       />
+      <Route
+  path="/admin/payments/dashboard"
+  element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+/>
+
 <Route
         path="/admin/orders/:id"
         element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN))}
