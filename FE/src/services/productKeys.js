@@ -49,4 +49,10 @@ export const ProductKeyApi = {
     axiosClient.post(PRODUCT_KEY_ENDPOINTS.IMPORT_CSV, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
+
+  // Get expired product keys
+  getExpired: (params) =>
+    axiosClient.get(PRODUCT_KEY_ENDPOINTS.EXPORT.replace("export", "expired"), {
+      params,
+    }),
 };

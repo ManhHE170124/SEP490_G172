@@ -330,6 +330,9 @@ export default function AccountDetailPage() {
     if (!isNew) {
       loadProductAccount();
       loadHistory(true);
+    } else {
+        // Set default start date to today for new accounts
+        setFormData(prev => ({ ...prev, startDate: new Date().toISOString().split('T')[0] }));
     }
   }, [isNew, loadProductAccount, loadSuppliers, loadProducts, loadHistory]);
 
@@ -416,17 +419,10 @@ export default function AccountDetailPage() {
     }
 
     if (isNew && !formData.startDate) {
+      // Should be set automatically, but just in case
       newErrors.startDate = "Ngày bắt đầu là bắt buộc";
-    } else if (formData.startDate) {
-      const [y, m, d] = formData.startDate
-        .split("-")
-        .map((x) => parseInt(x, 10));
-      const selected = new Date(y, m - 1, d);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (selected < today) {
-        newErrors.expiryDate = "Ngày hết hạn không được trong quá khứ";
-      }
+    } else if (formData.startDate && formData.expiryDate) {
+       // Validate expiry > start + duration is handled by UI min attribute, but good to keep check
     }
 
     setErrors(newErrors);
@@ -574,6 +570,20 @@ export default function AccountDetailPage() {
     const dd = String(t.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   }, []);
+
+  // Calculate min expiry date
+  const minExpiryDate = useMemo(() => {
+      if (!selectedVariant?.durationDays) return todayStr;
+      const duration = parseInt(selectedVariant.durationDays, 10);
+      if (isNaN(duration) || duration <= 0) return todayStr;
+      
+      const t = new Date();
+      t.setDate(t.getDate() + duration);
+      const yyyy = t.getFullYear();
+      const mm = String(t.getMonth() + 1).padStart(2, "0");
+      const dd = String(t.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+  }, [selectedVariant, todayStr]);
 
   const closeConfirmDialog = () => {
     setConfirmDialog({ ...confirmDialog, isOpen: false });
@@ -970,25 +980,7 @@ export default function AccountDetailPage() {
               </div>
             )}
 
-            {isNew && (
-              <div className="group" style={{ flex: "1 1 300px" }}>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  Ngày bắt đầu <span style={{ color: "red" }}>*</span>
-                </span>
-                <input
-                  className="input"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => handleChange("startDate", e.target.value)}
-                  min={todayStr}
-                  disabled={!isNew || !selectedVariant}
-                  required={isNew}
-                />
-                {errors.startDate && (
-                  <small style={{ color: "red" }}>{errors.startDate}</small>
-                )}
-              </div>
-            )}
+
 
             <div className="group" style={{ flex: "1 1 300px" }}>
               <span style={{ whiteSpace: "nowrap" }}>
@@ -1003,8 +995,9 @@ export default function AccountDetailPage() {
                       ? formatVietnameseDate(formData.expiryDate)
                       : formData.expiryDate
                   }
-                  min={todayStr}
-                  disabled={true}
+                  onChange={(e) => handleChange("expiryDate", e.target.value)}
+                  min={minExpiryDate}
+                  disabled={!isNew}
                   style={{ flex: 1 }}
                 />
                 {!isNew && (

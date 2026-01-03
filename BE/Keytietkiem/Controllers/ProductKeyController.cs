@@ -372,5 +372,27 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+
+        /// <summary>
+        /// Get expired product keys
+        /// </summary>
+        [HttpGet("expired")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        public async Task<IActionResult> GetExpiredKeys(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var result = await _productKeyService.GetExpiredKeysAsync(pageNumber, pageSize, cancellationToken);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

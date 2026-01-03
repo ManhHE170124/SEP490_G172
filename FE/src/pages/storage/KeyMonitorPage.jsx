@@ -38,7 +38,24 @@ export default function KeyMonitorPage() {
   const [accountReportsPage, setAccountReportsPage] = useState(1);
   const [accountReportsPageSize, setAccountReportsPageSize] = useState(10);
   const [accountReportsTotalPages, setAccountReportsTotalPages] = useState(1);
+
   const [accountReportsTotalItems, setAccountReportsTotalItems] = useState(0);
+
+  // Expired accounts pagination
+  const [expiredAccounts, setExpiredAccounts] = useState([]);
+  const [loadingExpiredAccounts, setLoadingExpiredAccounts] = useState(false);
+  const [expiredAccountsPage, setExpiredAccountsPage] = useState(1);
+  const [expiredAccountsPageSize, setExpiredAccountsPageSize] = useState(10);
+  const [expiredAccountsTotalPages, setExpiredAccountsTotalPages] = useState(1);
+  const [expiredAccountsTotalItems, setExpiredAccountsTotalItems] = useState(0);
+
+  // Expired keys pagination
+  const [expiredKeys, setExpiredKeys] = useState([]);
+  const [loadingExpiredKeys, setLoadingExpiredKeys] = useState(false);
+  const [expiredKeysPage, setExpiredKeysPage] = useState(1);
+  const [expiredKeysPageSize, setExpiredKeysPageSize] = useState(10);
+  const [expiredKeysTotalPages, setExpiredKeysTotalPages] = useState(1);
+  const [expiredKeysTotalItems, setExpiredKeysTotalItems] = useState(0);
   // Import CSV modal state (keys only)
   const [showImportModal, setShowImportModal] = useState(false);
   const [importProduct, setImportProduct] = useState(null);
@@ -175,6 +192,48 @@ export default function KeyMonitorPage() {
       setLoadingExpiringAccounts(false);
     }
   }, [showError]);
+
+  // Load expired accounts
+  const loadExpiredAccounts = useCallback(async () => {
+    setLoadingExpiredAccounts(true);
+    try {
+      const response = await ProductAccountApi.getExpired({
+        pageNumber: expiredAccountsPage,
+        pageSize: expiredAccountsPageSize,
+      });
+      const items = response?.items || response?.data || [];
+      setExpiredAccounts(items);
+      setExpiredAccountsTotalPages(response?.totalPages || 1);
+      setExpiredAccountsTotalItems(response?.totalCount || response?.total || 0);
+    } catch (err) {
+      console.error("Failed to load expired accounts:", err);
+      // showError("Lỗi tải dữ liệu", "Không thể tải danh sách tài khoản hết hạn");
+      setExpiredAccounts([]);
+    } finally {
+      setLoadingExpiredAccounts(false);
+    }
+  }, [expiredAccountsPage, expiredAccountsPageSize]);
+
+  // Load expired keys
+  const loadExpiredKeys = useCallback(async () => {
+    setLoadingExpiredKeys(true);
+    try {
+      const response = await ProductKeyApi.getExpired({
+        pageNumber: expiredKeysPage,
+        pageSize: expiredKeysPageSize,
+      });
+      const items = response?.items || response?.data || [];
+      setExpiredKeys(items);
+      setExpiredKeysTotalPages(response?.totalPages || 1);
+      setExpiredKeysTotalItems(response?.totalCount || response?.total || 0);
+    } catch (err) {
+      console.error("Failed to load expired keys:", err);
+      // showError("Lỗi tải dữ liệu", "Không thể tải danh sách key hết hạn");
+      setExpiredKeys([]);
+    } finally {
+      setLoadingExpiredKeys(false);
+    }
+  }, [expiredKeysPage, expiredKeysPageSize]);
   // Load low stock (keys only)
   const loadLowStock = useCallback(async () => {
     setLoadingLowStock(true);
@@ -237,6 +296,14 @@ export default function KeyMonitorPage() {
   useEffect(() => {
     loadExpiringAccounts();
   }, [loadExpiringAccounts]);
+
+  useEffect(() => {
+    loadExpiredAccounts();
+  }, [loadExpiredAccounts]);
+
+  useEffect(() => {
+    loadExpiredKeys();
+  }, [loadExpiredKeys]);
   const openImportModal = async (product) => {
     setImportProduct(product);
     setCsvFile(null);
@@ -808,6 +875,234 @@ export default function KeyMonitorPage() {
         <small className="muted">
           Danh sách tài khoản sẽ hết hạn trong vòng 5 ngày tới.
         </small>
+      </section>
+
+      <section className="card">
+        <h2 style={{ margin: 0, marginBottom: 10 }}>
+          Tài khoản đã hết hạn
+        </h2>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Sản phẩm</th>
+              <th>Email tài khoản</th>
+              <th>Biến thể</th>
+              <th>Ngày hết hạn</th>
+              <th>Slot</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loadingExpiredAccounts && (
+              <tr>
+                <td colSpan="7" style={{ padding: 16, textAlign: "center" }}>
+                  Đang tải...
+                </td>
+              </tr>
+            )}
+            {!loadingExpiredAccounts && expiredAccounts.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ padding: 16, textAlign: "center" }}>
+                  Không có tài khoản đã hết hạn
+                </td>
+              </tr>
+            )}
+            {!loadingExpiredAccounts &&
+              expiredAccounts.map((account) => (
+                <tr key={account.productAccountId}>
+                  <td>{account.productName}</td>
+                  <td>{account.accountEmail}</td>
+                  <td>{account.variantTitle}</td>
+                  <td style={{ color: "#dc2626", fontWeight: "bold" }}>
+                    {account.expiryDate
+                      ? new Date(account.expiryDate).toLocaleDateString("vi-VN")
+                      : "-"}
+                  </td>
+                  <td>
+                    {account.currentUsers}/{account.maxUsers}
+                  </td>
+                  <td>
+                    <span
+                      className="label-chip"
+                      style={{
+                        background:
+                          account.status === "Active"
+                            ? "#16a34a"
+                            : account.status === "Full"
+                            ? "#ea580c"
+                            : "#6b7280",
+                      }}
+                    >
+                      {account.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="action-buttons">
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          (window.location.href = `/accounts/${account.productAccountId}`)
+                        }
+                      >
+                        Chi tiết
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+        {!loadingExpiredAccounts && expiredAccountsTotalItems > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 12,
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 14, color: "#6b7280" }}>
+              Hiển thị {(expiredAccountsPage - 1) * expiredAccountsPageSize + 1} -{" "}
+              {Math.min(
+                expiredAccountsPage * expiredAccountsPageSize,
+                expiredAccountsTotalItems
+              )}{" "}
+              / {expiredAccountsTotalItems}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="btn"
+               onClick={() =>
+                  setExpiredAccountsPage((p) => Math.max(1, p - 1))
+                }
+                disabled={expiredAccountsPage === 1}
+              >
+                ← Trước
+              </button>
+              <div style={{ padding: "6px 12px", fontSize: 14 }}>
+                Trang {expiredAccountsPage} / {expiredAccountsTotalPages}
+              </div>
+              <button
+                className="btn"
+                onClick={() =>
+                  setExpiredAccountsPage((p) =>
+                    Math.min(expiredAccountsTotalPages, p + 1)
+                  )
+                }
+                disabled={expiredAccountsPage === expiredAccountsTotalPages}
+              >
+                Sau →
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2 style={{ margin: 0, marginBottom: 10 }}>Key đã hết hạn</h2>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Key ID</th>
+              <th>Sản phẩm</th>
+              <th>Loại</th>
+              <th>Ngày hết hạn</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loadingExpiredKeys && (
+              <tr>
+                <td colSpan="6" style={{ padding: 16, textAlign: "center" }}>
+                  Đang tải...
+                </td>
+              </tr>
+            )}
+            {!loadingExpiredKeys && expiredKeys.length === 0 && (
+              <tr>
+                <td colSpan="6" style={{ padding: 16, textAlign: "center" }}>
+                  Không có key đã hết hạn
+                </td>
+              </tr>
+            )}
+            {!loadingExpiredKeys &&
+              expiredKeys.map((key) => (
+                <tr key={key.keyId}>
+                  <td>
+                      <span title={key.keyString}>
+                          {key.keyString?.substring(0, 10)}...
+                      </span>
+                  </td>
+                  <td>{key.productName}</td>
+                  <td>{key.type}</td>
+                  <td style={{ color: "#dc2626", fontWeight: "bold" }}>
+                    {key.expiryDate
+                      ? new Date(key.expiryDate).toLocaleDateString("vi-VN")
+                      : "-"}
+                  </td>
+                  <td>
+                    <span
+                      className="label-chip"
+                      style={{
+                        background: "#6b7280",
+                      }}
+                    >
+                      {key.status}
+                    </span>
+                  </td>
+                  <td>
+                     {/* Add details action if needed/available, currently no page for key details provided in context, maybe modal? */}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+         {!loadingExpiredKeys && expiredKeysTotalItems > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 12,
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 14, color: "#6b7280" }}>
+              Hiển thị {(expiredKeysPage - 1) * expiredKeysPageSize + 1} -{" "}
+              {Math.min(
+                expiredKeysPage * expiredKeysPageSize,
+                expiredKeysTotalItems
+              )}{" "}
+              / {expiredKeysTotalItems}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="btn"
+                onClick={() => setExpiredKeysPage((p) => Math.max(1, p - 1))}
+                disabled={expiredKeysPage === 1}
+              >
+                ← Trước
+              </button>
+              <div style={{ padding: "6px 12px", fontSize: 14 }}>
+                Trang {expiredKeysPage} / {expiredKeysTotalPages}
+              </div>
+              <button
+                className="btn"
+                onClick={() =>
+                  setExpiredKeysPage((p) =>
+                    Math.min(expiredKeysTotalPages, p + 1)
+                  )
+                }
+                disabled={expiredKeysPage === expiredKeysTotalPages}
+              >
+                Sau →
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {showImportModal && (
