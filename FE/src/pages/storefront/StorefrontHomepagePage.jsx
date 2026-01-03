@@ -50,15 +50,6 @@ const DEFAULT_SIDE_SLIDES = [
   },
 ];
 
-const TOP_KEYWORDS = [
-  "Windows 11 Pro",
-  "Office 365",
-  "ChatGPT Plus",
-  "Midjourney",
-  "Steam Wallet",
-  "Canva Pro",
-];
-
 const PRICE_FILTERS = [
   { label: "20.000đ", minPrice: 20000 },
   { label: "50.000đ", minPrice: 50000 },
@@ -78,25 +69,20 @@ const hasText = (b) => !!(b?.title?.trim() || b?.subtitle?.trim());
 
 const normalizeInternalUrl = (url) => {
   if (!url) return url;
-  // Nếu admin lỡ nhập full URL của chính site (http://localhost:3000/...) thì convert về path
   try {
     if (isExternalUrl(url)) {
       const u = new URL(url);
-      // Nếu cùng origin frontend thì lấy pathname + search + hash
       if (typeof window !== "undefined" && u.origin === window.location.origin) {
         return `${u.pathname}${u.search}${u.hash}`;
       }
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
   return url;
 };
 
 const StorefrontHomepagePage = () => {
   const navigate = useNavigate();
 
-  // ✅ banners
   const [mainSlides, setMainSlides] = useState(DEFAULT_MAIN_SLIDES);
   const [sideSlides, setSideSlides] = useState(DEFAULT_SIDE_SLIDES);
   const [loadingBanners, setLoadingBanners] = useState(false);
@@ -114,7 +100,6 @@ const StorefrontHomepagePage = () => {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [errorProducts, setErrorProducts] = useState("");
 
-  // ✅ Auto slide (pause khi hover để UX tốt hơn)
   useEffect(() => {
     if ((mainSlides?.length || 0) <= 1) return;
     if (isHoverMain) return;
@@ -126,12 +111,10 @@ const StorefrontHomepagePage = () => {
     return () => clearInterval(timer);
   }, [mainSlides, isHoverMain]);
 
-  // ✅ nếu data load về ít hơn index hiện tại -> reset
   useEffect(() => {
     if (mainSlideIndex >= (mainSlides?.length || 0)) setMainSlideIndex(0);
   }, [mainSlides, mainSlideIndex]);
 
-  // ✅ load banners (gộp side: HOME_SIDE -> lấy 2 banner theo sortOrder)
   const loadHomepageBanners = useCallback(async () => {
     setLoadingBanners(true);
     try {
@@ -140,7 +123,6 @@ const StorefrontHomepagePage = () => {
         storefrontBannerService.getPublicByPlacement("HOME_SIDE"),
       ]);
 
-      // main: list
       const mainList = Array.isArray(main) ? main : main?.items || [];
       const mappedMain = mainList
         .filter((x) => x?.isActive !== false)
@@ -156,7 +138,6 @@ const StorefrontHomepagePage = () => {
           linkTarget: x.linkTarget,
         }));
 
-      // side: list -> lấy 2 item đầu
       const sideList = Array.isArray(side) ? side : side?.items || [];
       const actives = sideList
         .filter((x) => x?.isActive !== false)
@@ -185,7 +166,6 @@ const StorefrontHomepagePage = () => {
       setSideSlides(mappedSide);
     } catch (err) {
       console.error("Load homepage banners failed:", err);
-      // fallback: giữ DEFAULT_*
     } finally {
       setLoadingBanners(false);
     }
@@ -195,7 +175,6 @@ const StorefrontHomepagePage = () => {
     loadHomepageBanners();
   }, [loadHomepageBanners]);
 
-  // GỌI API homepage/products
   const loadHomepageProducts = useCallback(async () => {
     setLoadingProducts(true);
     setErrorProducts("");
@@ -233,7 +212,6 @@ const StorefrontHomepagePage = () => {
     navigate(`/products${search ? `?${search}` : ""}`);
   };
 
-  const handleKeywordClick = (keyword) => goToProductList({ q: keyword });
   const handlePriceFilterClick = (minPrice) =>
     goToProductList({ minPrice, sort: "price-asc" });
 
@@ -274,7 +252,6 @@ const StorefrontHomepagePage = () => {
     [mainSlides, mainSlideIndex]
   );
 
-  // ✅ slider controls
   const canSlide = (mainSlides?.length || 0) > 1;
 
   const goPrev = (e) => {
@@ -289,13 +266,11 @@ const StorefrontHomepagePage = () => {
     setMainSlideIndex((prev) => (prev + 1) % mainSlides.length);
   };
 
-  // “Xem tất cả” cho từng block
   const handleViewAllTodayDeals = () => goToProductList({ sort: "default" });
   const handleViewAllBestSellers = () => goToProductList({ sort: "sold" });
   const handleViewAllWeeklyTrends = () => goToProductList({ sort: "default" });
   const handleViewAllNewlyUpdated = () => goToProductList({ sort: "updated" });
 
-  // Render 1 card sản phẩm
   const renderProductCard = (item) => {
     const variantTitle = item.variantTitle || item.title || item.productName;
     const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
@@ -418,7 +393,6 @@ const StorefrontHomepagePage = () => {
         {/* HERO */}
         <section className="sf-home-hero">
           <div className="sf-home-hero-inner">
-            {/* Slider chính (smooth slide + arrow hover) */}
             <div
               className={`sf-home-main-slider ${canSlide ? "sf-can-slide" : ""}`}
               onMouseEnter={() => setIsHoverMain(true)}
@@ -433,7 +407,6 @@ const StorefrontHomepagePage = () => {
               >
                 {(mainSlides || []).map((slide, idx) => {
                   const showText = hasText(slide) || !!slide?.badge || loadingBanners;
-                  // ✅ nếu chỉ có ảnh và không có text => KHÔNG phủ lớp đen mờ
                   const bg = slide?.mediaUrl
                     ? showText
                       ? `linear-gradient(135deg, rgba(15,23,42,.45), rgba(15,23,42,.15)), url("${slide.mediaUrl}")`
@@ -501,7 +474,6 @@ const StorefrontHomepagePage = () => {
               )}
             </div>
 
-            {/* 2 banner nhỏ cố định (HOME_SIDE lấy 2 item theo sortOrder) */}
             <div className="sf-home-side-sliders">
               {sideSlides.map((s) => {
                 const showText = hasText(s);
@@ -536,28 +508,6 @@ const StorefrontHomepagePage = () => {
                   </div>
                 );
               })}
-            </div>
-          </div>
-        </section>
-
-        {/* Thanh tìm kiếm hàng đầu */}
-        <section className="sf-home-top-search">
-          <div className="sf-home-top-search-inner">
-            <div className="sf-home-top-search-header">
-              <h3>Tìm kiếm hàng đầu</h3>
-              <p>Một số từ khóa được khách chọn nhiều. Click để lọc nhanh danh sách sản phẩm.</p>
-            </div>
-            <div className="sf-home-top-search-keywords">
-              {TOP_KEYWORDS.map((kw) => (
-                <button
-                  key={kw}
-                  type="button"
-                  className="sf-home-chip"
-                  onClick={() => handleKeywordClick(kw)}
-                >
-                  {kw}
-                </button>
-              ))}
             </div>
           </div>
         </section>

@@ -44,6 +44,10 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers
 {
@@ -135,6 +139,90 @@ namespace Keytietkiem.Controllers
                 : "ACTIVE";
         }
 
+
+
+        // ✅ PATCH: Stock thật cho variant (chỉ tính key/account còn hạn + chưa gắn vào đơn + trừ reservation)
+        private async Task<Dictionary<Guid, int>> ComputeAvailableStockByVariantIdAsync(
+            KeytietkiemDbContext db,
+            Dictionary<Guid, string?> productTypeByVariantId,
+            DateTime nowUtc,
+            CancellationToken ct)
+        {
+            var variantIds = productTypeByVariantId?.Keys?.Distinct().ToList() ?? new List<Guid>();
+            if (variantIds.Count == 0) return new Dictionary<Guid, int>();
+
+            var reservedByVariantId = await db.Set<OrderInventoryReservation>()
+                .AsNoTracking()
+                .Where(r => variantIds.Contains(r.VariantId)
+                            && r.ReservedUntilUtc > nowUtc
+                            && r.Status == "Reserved")
+                .GroupBy(r => r.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var keyCountByVariantId = await db.Set<ProductKey>()
+                .AsNoTracking()
+                .Where(k => variantIds.Contains(k.VariantId)
+                            && k.Status == "Available"
+                            && k.AssignedToOrderId == null
+                            && (!k.ExpiryDate.HasValue || k.ExpiryDate.Value >= nowUtc))
+                .GroupBy(k => k.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var personalAccountCountByVariantId = await db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => variantIds.Contains(pa.VariantId)
+                             && pa.Status == "Active"
+                             && pa.MaxUsers == 1
+                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc)
+                             && !pa.ProductAccountCustomers.Any(pac => pac.IsActive))
+                .GroupBy(pa => pa.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var sharedAccountSlotsByVariantId = await db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => variantIds.Contains(pa.VariantId)
+                             && pa.Status == "Active"
+                             && pa.MaxUsers > 1
+                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc))
+                .Select(pa => new
+                {
+                    pa.VariantId,
+                    Available = pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive)
+                })
+                .Where(x => x.Available > 0)
+                .GroupBy(x => x.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Available) })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var result = new Dictionary<Guid, int>();
+            foreach (var id in variantIds)
+            {
+                if (!productTypeByVariantId.TryGetValue(id, out var pt))
+                    continue;
+
+                var raw = 0;
+                if (pt == ProductEnums.PERSONAL_KEY)
+                    raw = keyCountByVariantId.TryGetValue(id, out var kq) ? kq : 0;
+                else if (pt == ProductEnums.PERSONAL_ACCOUNT)
+                    raw = personalAccountCountByVariantId.TryGetValue(id, out var aq) ? aq : 0;
+                else if (pt == ProductEnums.SHARED_ACCOUNT)
+                    raw = sharedAccountSlotsByVariantId.TryGetValue(id, out var sq) ? sq : 0;
+                else
+                    continue; // unknown type -> caller fallback to v.StockQty
+
+                var reserved = reservedByVariantId.TryGetValue(id, out var rq) ? rq : 0;
+                var available = raw - reserved;
+                if (available < 0) available = 0;
+
+                result[id] = available;
+            }
+
+            return result;
+        }
+
         // ===== LIST (không giá) =====
         [HttpGet("list")]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
@@ -206,21 +294,46 @@ namespace Keytietkiem.Controllers
                 _ => q.OrderByDescending(p => p.CreatedAt)
             };
 
-            var total = await q.CountAsync();
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
 
-            var items = await q
-                .Skip((page - 1) * pageSize).Take(pageSize)
-                .Select(p => new ProductListItemDto(
-                    p.ProductId,
-                    p.ProductCode,
-                    p.ProductName,
-                    p.ProductType,
-                    (p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0),
-                    p.Status,
-                    p.Categories.Select(c => c.CategoryId),
-                    p.ProductBadges.Select(b => b.Badge)
-                ))
-                .ToListAsync();
+            var total = await q.CountAsync(ct);
+
+            // Load page entities first, then compute "real" stock from keys/accounts (exclude expired/assigned) and subtract reservations.
+            var pageProducts = await q
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+
+            var productTypeByVariantId = pageProducts
+                .SelectMany(p => p.ProductVariants.Select(v => new { v.VariantId, p.ProductType }))
+                .GroupBy(x => x.VariantId)
+                .ToDictionary(g => g.Key, g => g.First().ProductType);
+
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(
+                db,
+                productTypeByVariantId,
+                nowUtc,
+                ct);
+
+            var items = pageProducts
+                .Select(p =>
+                {
+                    var totalStock = p.ProductVariants.Sum(v =>
+                        stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty);
+
+                    return new ProductListItemDto(
+                        p.ProductId,
+                        p.ProductCode,
+                        p.ProductName,
+                        p.ProductType,
+                        totalStock,
+                        p.Status,
+                        p.Categories.Select(c => c.CategoryId),
+                        p.ProductBadges.Select(b => b.Badge)
+                    );
+                })
+                .ToList();
 
             return Ok(new PagedResult<ProductListItemDto>(items, total, page, pageSize));
         }
@@ -240,6 +353,20 @@ namespace Keytietkiem.Controllers
 
             if (p is null) return NotFound();
 
+
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
+
+            var productTypeByVariantId = p.ProductVariants
+                .GroupBy(v => v.VariantId)
+                .ToDictionary(g => g.Key, g => p.ProductType);
+
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(
+                db,
+                productTypeByVariantId,
+                nowUtc,
+                ct);
+
             var dto = new ProductDetailDto(
                 p.ProductId,
                 p.ProductCode,
@@ -251,7 +378,7 @@ namespace Keytietkiem.Controllers
                 p.ProductVariants
                     .Select(v => new ProductVariantMiniDto(
                         v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                        v.StockQty, v.Status
+                        stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty, v.Status
                     ))
             );
 

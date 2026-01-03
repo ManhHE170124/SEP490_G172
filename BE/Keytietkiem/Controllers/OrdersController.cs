@@ -498,14 +498,14 @@ namespace Keytietkiem.Controllers
         [HttpGet]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrders(
-          [FromQuery] string? search = null,                
+          [FromQuery] string? search = null,
      [FromQuery] DateTime? createdFrom = null,
      [FromQuery] DateTime? createdTo = null,
      [FromQuery] string? orderStatus = null,
-     [FromQuery] decimal? minTotal = null,            
+     [FromQuery] decimal? minTotal = null,
      [FromQuery] decimal? maxTotal = null,
-     [FromQuery] string? sortBy = "createdat",         
-     [FromQuery] string? sortDir = "desc",              
+     [FromQuery] string? sortBy = "createdat",
+     [FromQuery] string? sortDir = "desc",
      [FromQuery] int pageIndex = 1,
      [FromQuery] int pageSize = 20)
         {
@@ -706,9 +706,9 @@ namespace Keytietkiem.Controllers
                 // Customer can only view their own orders
                 var currentUserId = GetCurrentUserIdOrNull();
                 var roleCodes = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-                
+
                 bool hasPermission = false;
-                
+
                 // Admin or Storage Staff have full access
                 if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
                 {
@@ -841,6 +841,28 @@ namespace Keytietkiem.Controllers
                 // ✅ đảm bảo payload không “lộ” list full ngoài paging
                 orderDto.OrderDetails = pagedItems;
 
+
+                // ✅ Audit truy cập Order Detail (có thể chứa key/account/password).
+                // Chỉ audit khi order.Status == "Paid" để tránh spam log.
+                await TryAuditOrderDetailAccessIfPaidAsync(
+                    order,
+                    endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{id:guid}"),
+                    includesCredentials: true,
+                    extra: new
+                    {
+                        includePaymentAttempts,
+                        includeCheckoutUrl,
+                        HasSearch = !string.IsNullOrWhiteSpace(search),
+                        minPrice,
+                        maxPrice,
+                        sortBy,
+                        sortDir,
+                        pageIndex,
+                        pageSize,
+                        TotalItems = totalItems,
+                        ReturnedItems = pagedItems.Count
+                    });
+
                 return Ok(new OrderDetailResponseDto
                 {
                     Order = orderDto,
@@ -927,6 +949,26 @@ namespace Keytietkiem.Controllers
                 .Take(pageSize)
                 .ToList();
 
+
+            // ✅ Audit truy cập Order Detail list (có thể chứa key/account/password).
+            // Chỉ audit khi order.Status == "Paid" để tránh spam log.
+            await TryAuditOrderDetailAccessIfPaidAsync(
+                order,
+                endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{id:guid}/details"),
+                includesCredentials: true,
+                extra: new
+                {
+                    HasSearch = !string.IsNullOrWhiteSpace(search),
+                    minPrice,
+                    maxPrice,
+                    sortBy,
+                    sortDir,
+                    pageIndex,
+                    pageSize,
+                    TotalItems = totalItems,
+                    ReturnedItems = paged.Count
+                });
+
             return Ok(new
             {
                 items = paged,
@@ -973,6 +1015,22 @@ namespace Keytietkiem.Controllers
                 ? (alist ?? new List<OrderAccountCredentialDTO>())
                 : new List<OrderAccountCredentialDTO>();
 
+
+            // ✅ Audit truy cập credentials (key/account/password).
+            // Chỉ audit khi order.Status == "Paid" để tránh spam log.
+            await TryAuditOrderDetailAccessIfPaidAsync(
+                order,
+                endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{orderId:guid}/details/{orderDetailId:long}/credentials"),
+                includesCredentials: true,
+                extra: new
+                {
+                    orderDetailId,
+                    variantId = od.VariantId,
+                    productType = od.Variant?.Product?.ProductType,
+                    ReturnedKeyCount = keys?.Count ?? 0,
+                    ReturnedAccountCount = accounts?.Count ?? 0
+                });
+
             return Ok(new
             {
                 orderId,
@@ -1001,6 +1059,42 @@ namespace Keytietkiem.Controllers
             var orderIdStr = orderId.ToString().Replace("-", "").Substring(0, 4).ToUpperInvariant();
             return $"ORD-{dateStr}-{orderIdStr}";
         }
+
+
+        private async Task TryAuditOrderDetailAccessIfPaidAsync(
+            Order order,
+            string endpoint,
+            bool includesCredentials,
+            object? extra = null)
+        {
+            if (order == null) return;
+
+            // ✅ Chỉ audit khi đơn đã Paid (yêu cầu truy vết truy cập credentials)
+            if (!string.Equals(order.Status, "Paid", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: includesCredentials ? "OrderDetail.ViewWithCredentials" : "OrderDetail.View",
+                    entityType: "Order",
+                    entityId: order.OrderId.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        OrderId = order.OrderId,
+                        Endpoint = endpoint,
+                        IncludesCredentials = includesCredentials,
+                        Extra = extra
+                    });
+            }
+            catch
+            {
+                // audit fail must not fail API
+            }
+        }
+
 
         private async Task<bool> TryClaimCartForCheckoutAsync(KeytietkiemDbContext db, Guid cartId, DateTime nowUtc)
         {

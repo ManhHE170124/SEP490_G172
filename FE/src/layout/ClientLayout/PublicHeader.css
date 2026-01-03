@@ -626,3 +626,55 @@
 .badge-info {
   background-color: #3b82f6;
 }
+/* ===== PublicHeader: search suggestion ===== */
+.ph-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+}
+
+.ph-suggest {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #fff;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  z-index: 50;
+}
+
+.ph-suggest-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ph-suggest-item:hover,
+.ph-suggest-item.active {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.ph-suggest-title {
+  font-weight: 600;
+  color: var(--ink, #0b1220);
+  line-height: 1.25;
+}
+
+.ph-suggest-sub {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+
+.ph-suggest-muted {
+  color: var(--muted, #6b7280);
+  cursor: default;
+}

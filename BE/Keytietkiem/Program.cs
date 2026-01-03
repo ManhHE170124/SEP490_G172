@@ -79,6 +79,7 @@ builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddHostedService<StartupStockSyncHostedService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
 {
