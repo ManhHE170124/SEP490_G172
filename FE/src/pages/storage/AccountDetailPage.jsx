@@ -956,8 +956,8 @@ export default function AccountDetailPage() {
             </div>
 
             {!isNew && (
-              <div className="form-row" style={{ flex: "1 1 300px" }}>
-                <label>Trạng thái</label>
+              <div className="group" style={{ flex: "1 1 300px" }}>
+                <span>Trạng thái</span>
                 <input
                   className="input"
                   type="text"
