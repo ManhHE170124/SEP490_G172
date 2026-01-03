@@ -50,4 +50,8 @@ export const ProductAccountApi = {
     axiosClient.get(`${PRODUCT_ACCOUNT_ENDPOINTS.ROOT}/expiring-soon`, {
       params: { days },
     }),
+
+  // Get expired product accounts
+  getExpired: (params) =>
+    axiosClient.get(`${PRODUCT_ACCOUNT_ENDPOINTS.ROOT}/expired`, { params }),
 };

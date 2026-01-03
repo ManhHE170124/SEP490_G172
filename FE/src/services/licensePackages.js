@@ -4,6 +4,7 @@ const LICENSE_PACKAGE_ENDPOINTS = {
   ROOT: "/licensepackage",
   IMPORT_TO_STOCK: "/licensepackage/import-to-stock",
   UPLOAD_CSV: "/licensepackage/upload-csv",
+  DOWNLOAD_TEMPLATE: "/licensepackage/download-template",
 };
 
 export const LicensePackageApi = {
@@ -37,6 +38,11 @@ export const LicensePackageApi = {
   getKeysByPackage: (packageId, supplierId) =>
     axiosClient.get(`${LICENSE_PACKAGE_ENDPOINTS.ROOT}/${packageId}/keys`, {
       params: { supplierId }
+    }),
+
+  downloadCsvTemplate: () =>
+    axiosClient.get(LICENSE_PACKAGE_ENDPOINTS.DOWNLOAD_TEMPLATE, {
+      responseType: 'blob',
     }),
 };
 

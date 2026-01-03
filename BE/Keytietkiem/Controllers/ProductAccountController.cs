@@ -384,4 +384,13 @@ public class ProductAccountController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+    
+    [HttpGet("expired")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+    public async Task<IActionResult> GetExpiredAccounts([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    {
+        var response = await _productAccountService.GetExpiredAccountsAsync(pageNumber, pageSize);
+        return Ok(response);
+    }
 }
+
