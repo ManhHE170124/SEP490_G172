@@ -330,7 +330,8 @@
 }
 
 .aol-page .status-pill.payment-cancelled,
-.aol-page .status-pill.payment-failed {
+.aol-page .status-pill.payment-failed,
+.aol-page .status-pill.payment-timeout {
   background: rgba(239, 68, 68, 0.1);
   color: #b91c1c;
   border-color: rgba(239, 68, 68, 0.2);

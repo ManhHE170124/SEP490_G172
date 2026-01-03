@@ -23,29 +23,36 @@ const formatDateTime = (dt) => {
   )}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
 
-const normalizeStatus = (s) => String(s || "").trim().toLowerCase();
+const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
+/**
+ * ✅ Map đúng Order status theo BE:
+ * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction
+ * (vẫn tolerant thêm Timeout/Success/Completed nếu dữ liệu legacy)
+ */
 const statusVi = (s) => {
-  const x = normalizeStatus(s);
-  if (!x) return "Không rõ";
+  const v = normalizeStatusKey(s);
+  if (!v) return "Không rõ";
 
-  if (x.includes("paid") || x === "success" || x === "completed") return "Đã thanh toán";
-  if (x.includes("pending")) return "Đang chờ";
-  if (x.includes("cancel")) return "Đã hủy";
-  if (x.includes("fail")) return "Thất bại";
-  if (x.includes("refund")) return "Hoàn tiền";
-  if (x.includes("new")) return "Mới";
+  if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED") return "Đã thanh toán";
+  if (v === "PENDINGPAYMENT" || v === "PENDING") return "Chờ thanh toán";
+  if (v === "NEEDSMANUALACTION") return "Cần xử lý thủ công";
+  if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "Hủy do quá hạn";
+  if (v === "CANCELLED") return "Đã hủy";
 
-  return s;
+  // fallback
+  return String(s);
 };
 
 const statusPillClass = (s) => {
-  const x = normalizeStatus(s);
-  if (x.includes("paid") || x === "success" || x === "completed") return "aod-pill aod-paid";
-  if (x.includes("pending")) return "aod-pill aod-pending";
-  if (x.includes("cancel")) return "aod-pill aod-cancelled";
-  if (x.includes("fail")) return "aod-pill aod-failed";
-  if (x.includes("refund")) return "aod-pill aod-refunded";
+  const v = normalizeStatusKey(s);
+
+  if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED") return "aod-pill aod-paid";
+  if (v === "PENDINGPAYMENT" || v === "PENDING") return "aod-pill aod-pending";
+  if (v === "NEEDSMANUALACTION") return "aod-pill aod-pending";
+  if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "aod-pill aod-cancelled";
+  if (v === "CANCELLED") return "aod-pill aod-cancelled";
+
   return "aod-pill aod-unknown";
 };
 
@@ -197,8 +204,7 @@ export default function AdminOrderDetailPage() {
   const createdAt = order?.createdAt ?? order?.CreatedAt;
   const buyerName = order?.userName ?? order?.UserName;
 
- const hasDiscount = Math.max(0, Number(totalAmount) - Number(finalAmount)) > 0.0001;
-
+  const hasDiscount = Math.max(0, Number(totalAmount) - Number(finalAmount)) > 0.0001;
 
   // ✅ dùng /orders/{id} để lấy order + orderItems (có key/account)
   const load = useCallback(async () => {
@@ -333,7 +339,6 @@ export default function AdminOrderDetailPage() {
     if (!modalItem) return null;
 
     const detailId = modalItem?.orderDetailId ?? modalItem?.OrderDetailId;
-    const productName = modalItem?.productName ?? modalItem?.ProductName ?? "—";
     const variantTitle = modalItem?.variantTitle ?? modalItem?.VariantTitle ?? "—";
 
     const { kind, keys, accounts } = getInfoKind(modalItem);
@@ -417,8 +422,7 @@ export default function AdminOrderDetailPage() {
         <div className="aod-orderHead">
           <div>
             <div className="aod-orderMeta">Chi tiết đơn hàng</div>
-<div className="aod-orderTitle aod-mono">{oId || "—"}</div>
-
+            <div className="aod-orderTitle aod-mono">{oId || "—"}</div>
           </div>
 
           <div className="aod-orderActions">
@@ -446,19 +450,18 @@ export default function AdminOrderDetailPage() {
             <div className="aod-k">Ngày tạo</div>
             <div className="aod-v aod-mono">{formatDateTime(createdAt)}</div>
 
-          <div className="aod-k">Tổng tiền</div>
-<div className="aod-v">
-  <div className="aod-moneyInline">
-    <span className="aod-moneyMain">
-      {formatMoneyVnd(hasDiscount ? finalAmount : totalAmount)}
-    </span>
+            <div className="aod-k">Tổng tiền</div>
+            <div className="aod-v">
+              <div className="aod-moneyInline">
+                <span className="aod-moneyMain">
+                  {formatMoneyVnd(hasDiscount ? finalAmount : totalAmount)}
+                </span>
 
-    {hasDiscount ? (
-      <span className="aod-moneyOld">{formatMoneyVnd(totalAmount)}</span>
-    ) : null}
-  </div>
-</div>
-
+                {hasDiscount ? (
+                  <span className="aod-moneyOld">{formatMoneyVnd(totalAmount)}</span>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -568,7 +571,12 @@ export default function AdminOrderDetailPage() {
                   const subTotal = it.subTotal ?? it.SubTotal ?? qty * unitPrice;
 
                   const info = getInfoKind(it);
-                  const canShowInfo = info.kind === "key" ? info.keys.length > 0 : info.kind === "account" ? info.accounts.length > 0 : false;
+                  const canShowInfo =
+                    info.kind === "key"
+                      ? info.keys.length > 0
+                      : info.kind === "account"
+                      ? info.accounts.length > 0
+                      : false;
 
                   return (
                     <tr key={String(detailId)}>
@@ -623,7 +631,7 @@ export default function AdminOrderDetailPage() {
             </button>
 
             {buildPages(paged.pageIndex, totalPages).map((p, idx) =>
-              p === "..." ? (
+             p === "..." ? (
                 <span key={`dots_${idx}`} className="aod-dots">
                   …
                 </span>
@@ -666,10 +674,9 @@ export default function AdminOrderDetailPage() {
         <div className="aod-modalBackdrop" role="dialog" aria-modal="true" onMouseDown={closeProductModal}>
           <div className="aod-modal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="aod-modalHead">
-             <div className="aod-modalTitle">
-  {modalItem?.variantTitle ?? modalItem?.VariantTitle ?? "Thông tin sản phẩm"}
-</div>
-
+              <div className="aod-modalTitle">
+                {modalItem?.variantTitle ?? modalItem?.VariantTitle ?? "Thông tin sản phẩm"}
+              </div>
 
               <div className="aod-modalActions">
                 <button

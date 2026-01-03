@@ -15,7 +15,7 @@ namespace Keytietkiem.Services.Background
         private readonly ILogger<CartCleanupService> _logger;
 
         // Docs ghi chạy weekly (có thể đổi sang daily nếu muốn)
-        private readonly TimeSpan _period = TimeSpan.FromDays(7);
+        private readonly TimeSpan _period = TimeSpan.FromDays(1);
 
         public CartCleanupService(IServiceProvider serviceProvider, ILogger<CartCleanupService> logger)
         {
@@ -78,8 +78,8 @@ namespace Keytietkiem.Services.Background
                 "  AND ( [UpdatedAt] < {1} OR ([ExpiresAt] IS NOT NULL AND [ExpiresAt] < {0}) )",
                 new object[] { now, userExpiredThreshold }, stoppingToken);
 
-            // Hard delete expired quá 90 ngày
-            var hardDeleteThreshold = now.AddDays(-90);
+            // Hard delete expired quá 1 ngày
+            var hardDeleteThreshold = now.AddDays(-1);
             await context.Database.ExecuteSqlRawAsync(
                 "DELETE FROM [dbo].[Cart] WHERE [Status] = N'Expired' AND [UpdatedAt] < {0}",
                 new object[] { hardDeleteThreshold }, stoppingToken);
