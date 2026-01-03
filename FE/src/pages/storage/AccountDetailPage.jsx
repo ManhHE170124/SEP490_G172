@@ -372,6 +372,17 @@ export default function AccountDetailPage() {
     }
   };
 
+  // Pre-select product if passed via query param (e.g. from KeyMonitor)
+  useEffect(() => {
+    if (isNew) {
+      const params = new URLSearchParams(location.search);
+      const pid = params.get("productId");
+      if (pid) {
+        setFormData((prev) => ({ ...prev, productId: pid }));
+      }
+    }
+  }, [location.search, isNew]);
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -509,7 +520,11 @@ export default function AccountDetailPage() {
     setFormData((prev) => {
       // Reset product and variant when supplier changes
       if (field === "supplierId" && value !== prev.supplierId) {
-        return { ...prev, [field]: value, productId: "", variantId: "" };
+        // Only reset if changing from one supplier to another (not on initial set)
+        if (prev.supplierId) {
+           return { ...prev, [field]: value, productId: "", variantId: "" };
+        }
+        return { ...prev, [field]: value };
       }
       // Reset variant when product changes
       if (field === "productId" && value !== prev.productId) {
@@ -766,10 +781,10 @@ export default function AccountDetailPage() {
                   className="input"
                   value={formData.productId}
                   onChange={(e) => handleChange("productId", e.target.value)}
-                  disabled={!isNew || !formData.supplierId}
+                  disabled={!isNew}
                 >
                   <option value="">
-                    {!formData.supplierId
+                    {!formData.supplierId && !formData.productId
                       ? "Chọn nhà cung cấp trước"
                       : "Chọn sản phẩm"}
                   </option>

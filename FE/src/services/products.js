@@ -145,6 +145,14 @@ export const ProductApi = {
     return axiosRes?.data ?? axiosRes;
   },
 
+  // ===== LOW STOCK (GET /api/products/low-stock) =====
+  getLowStock: async (type = null, threshold = 20) => {
+    const axiosRes = await axiosClient.get(`${ROOT}/low-stock`, {
+      params: { type, threshold },
+    });
+    return axiosRes?.data ?? axiosRes;
+  },
+
   // ===== DELETE =====
   remove: (id) => axiosClient.delete(`${ROOT}/${id}`),
 

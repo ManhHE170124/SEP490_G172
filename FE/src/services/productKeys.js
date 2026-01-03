@@ -55,4 +55,10 @@ export const ProductKeyApi = {
     axiosClient.get(PRODUCT_KEY_ENDPOINTS.EXPORT.replace("export", "expired"), {
       params,
     }),
+
+  // Get product keys expiring soon (new endpoint)
+  getExpiringSoon: (days = 5) =>
+    axiosClient.get(`${PRODUCT_KEY_ENDPOINTS.ROOT}/expiring-soon`, {
+      params: { days },
+    }),
 };

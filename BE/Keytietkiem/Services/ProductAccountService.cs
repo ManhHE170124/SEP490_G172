@@ -812,7 +812,7 @@ public class ProductAccountService : IProductAccountService
                 .ThenInclude(v => v.Product)
             .Include(pa => pa.Supplier)
             .Include(pa => pa.ProductAccountCustomers)
-            .Where(pa => pa.ExpiryDate.HasValue && pa.ExpiryDate.Value < now)
+            .Where(pa => pa.Status == nameof(ProductAccountStatus.Expired))
             .AsQueryable();
 
         // Get total count

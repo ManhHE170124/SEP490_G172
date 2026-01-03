@@ -87,5 +87,13 @@ namespace Keytietkiem.Services.Interfaces
             int pageNumber,
             int pageSize,
             CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Get product keys expiring soon (within days)
+        /// </summary>
+        Task<ProductKeyListResponseDto> GetKeysExpiringSoonAsync(
+            int days,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default);
     }
 }

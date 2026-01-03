@@ -394,5 +394,26 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+        /// <summary>
+        /// Get product keys expiring soon
+        /// </summary>
+        [HttpGet("expiring-soon")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        public async Task<IActionResult> GetKeysExpiringSoon(
+            [FromQuery] int days = 5,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var result = await _productKeyService.GetKeysExpiringSoonAsync(days, pageNumber, pageSize, cancellationToken);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

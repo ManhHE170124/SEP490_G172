@@ -36,6 +36,7 @@ using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
 using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
+using Keytietkiem.DTOs.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -575,6 +576,99 @@ namespace Keytietkiem.Controllers
             );
 
             return NoContent();
+        }
+        // ===== LOW STOCK / EXPIRING REPORTS =====
+        [HttpGet("low-stock")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        public async Task<IActionResult> GetLowStockProducts(
+            [FromQuery] string? type = null, // "KEYS" | "ACCOUNTS" | null (all)
+            [FromQuery] int threshold = 20)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            // 1. Get all active products we care about
+            var query = db.Products.AsNoTracking()
+                .Include(p => p.ProductVariants)
+                .Where(p => p.Status != "INACTIVE")
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                var t = type.Trim().ToUpperInvariant();
+                if (t == "KEYS")
+                {
+                    query = query.Where(p => p.ProductType == ProductEnums.PERSONAL_KEY || p.ProductType == ProductEnums.SHARED_KEY);
+                }
+                else if (t == "ACCOUNTS")
+                {
+                    query = query.Where(p => p.ProductType == ProductEnums.PERSONAL_ACCOUNT || p.ProductType == ProductEnums.SHARED_ACCOUNT);
+                }
+            }
+
+            var products = await query.ToListAsync();
+            var result = new List<object>();
+
+            // 2. Pre-fetch availability stats
+            // For Keys: Available keys per product
+            var productIds = products.Select(p => p.ProductId).ToList();
+
+            var availableKeysMap = await db.ProductKeys
+                .Where(k => productIds.Contains(k.Variant.ProductId) && k.Status == nameof(ProductKeyStatus.Available))
+                .GroupBy(k => k.Variant.ProductId)
+                .Select(g => new { ProductId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ProductId, x => x.Count);
+
+            // For Accounts: Available slots (Active accounts)
+            // Complex logic: Sum(MaxUsers - ActiveUsers)
+            // To avoid complex EF groupBy with subquery, fetch active accounts flat list
+            var activeAccounts = await db.ProductAccounts
+                .Where(a => productIds.Contains(a.Variant.ProductId) &&
+                       (a.Status == nameof(ProductAccountStatus.Active) || a.Status == nameof(ProductAccountStatus.Full))) // Check Full too just in case? No, Full has 0 slots.
+                .Select(a => new
+                {
+                    a.Variant.ProductId,
+                    a.MaxUsers,
+                    ActiveUsers = a.ProductAccountCustomers.Count(c => c.IsActive)
+                })
+                .ToListAsync();
+
+            var availableAccountsMap = activeAccounts
+                .GroupBy(a => a.ProductId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Sum(x => Math.Max(0, x.MaxUsers - x.ActiveUsers))
+                );
+
+            // 3. Match and filter
+            var finalResult = new List<object>();
+             foreach (var p in products)
+            {
+                var available = 0;
+                var isKey = p.ProductType == ProductEnums.PERSONAL_KEY || p.ProductType == ProductEnums.SHARED_KEY;
+                var isAccount = p.ProductType == ProductEnums.PERSONAL_ACCOUNT || p.ProductType == ProductEnums.SHARED_ACCOUNT;
+
+                if (isKey)
+                    available = availableKeysMap.TryGetValue(p.ProductId, out var kVal) ? kVal : 0;
+                else if (isAccount)
+                    available = availableAccountsMap.TryGetValue(p.ProductId, out var aVal) ? aVal : 0;
+                else
+                     available = p.ProductVariants.Sum(v => v.StockQty);
+                
+                if (available < threshold)
+                {
+                    finalResult.Add(new
+                    {
+                        p.ProductId,
+                        p.ProductCode,
+                        p.ProductName,
+                        p.ProductType,
+                        AvailableCount = available,
+                        Threshold = threshold
+                    });
+                }
+            }
+
+            return Ok(finalResult);
         }
     }
 }
