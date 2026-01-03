@@ -250,6 +250,9 @@ builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();
 // Scheduler nhận IEnumerable<IBackgroundJob> và chạy từng job theo Interval
 builder.Services.AddHostedService<BackgroundJobScheduler>();
 
+//Job cập nhật trạng thái hết hạn cho ProductAccount và ProductKey (mỗi 6h)
+builder.Services.AddSingleton<IBackgroundJob, ExpiryStatusUpdateJob>();
+
 // ===== Swagger =====
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
