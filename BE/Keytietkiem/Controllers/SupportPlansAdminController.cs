@@ -1,5 +1,5 @@
 ﻿// File: Controllers/SupportPlansAdminController.cs
-using System;
+using CloudinaryDotNet.Actions;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System;
 using System.Collections.Generic;
 
 namespace Keytietkiem.Controllers
@@ -21,7 +22,7 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IAuditLogger _auditLogger;
-
+        private readonly IClock _clock;
         public SupportPlansAdminController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
             IAuditLogger auditLogger)
@@ -207,7 +208,7 @@ namespace Keytietkiem.Controllers
                 PriorityLevel = dto.PriorityLevel,
                 Price = dto.Price,
                 IsActive = dto.IsActive,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = _clock.UtcNow
             };
 
             // Nếu tạo gói đang ACTIVE -> kiểm tra quy tắc giá / priority

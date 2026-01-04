@@ -28,7 +28,7 @@ public class TicketsController : ControllerBase
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
     private readonly IConfiguration _config;
-
+    private readonly IClock _clock;
     public TicketsController(
         KeytietkiemDbContext db,
         IHubContext<TicketHub> ticketHub,
@@ -636,7 +636,7 @@ public class TicketsController : ControllerBase
             });
         }
 
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
 
         // Sinh TicketCode mới kiểu TCK-0001, TCK-0002...
         var ticketCode = await GenerateNextTicketCodeAsync();
@@ -799,7 +799,7 @@ public class TicketsController : ControllerBase
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
-        t.UpdatedAt = DateTime.UtcNow;
+        t.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         var after = new
@@ -917,7 +917,7 @@ public class TicketsController : ControllerBase
             ticket.Status = "InProgress";
         }
 
-        ticket.UpdatedAt = DateTime.UtcNow;
+        ticket.UpdatedAt = _clock.UtcNow;
 
         await _db.SaveChangesAsync();
 
@@ -1016,7 +1016,7 @@ public class TicketsController : ControllerBase
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
-        t.UpdatedAt = DateTime.UtcNow;
+        t.UpdatedAt = _clock.UtcNow;
         await _db.SaveChangesAsync();
 
         var after = new
@@ -1126,7 +1126,7 @@ public class TicketsController : ControllerBase
             t.ResolvedAt
         };
 
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
 
         t.Status = "Completed";
 
@@ -1208,7 +1208,7 @@ public class TicketsController : ControllerBase
             t.ResolvedAt
         };
 
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
 
         t.Status = "Closed";
 

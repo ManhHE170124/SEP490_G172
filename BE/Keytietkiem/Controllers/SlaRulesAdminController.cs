@@ -1,7 +1,5 @@
 ﻿// File: Controllers/SlaRulesAdminController.cs
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using CloudinaryDotNet.Actions;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
@@ -12,6 +10,9 @@ using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
@@ -21,6 +22,8 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IAuditLogger _auditLogger;
+        private readonly IClock _clock;
+
 
         // Danh sách Severity cho phép (fix-cứng để đồng bộ với Ticket / TicketSubject / FE)
         private static readonly string[] AllowedSeverities = new[]
@@ -292,7 +295,7 @@ namespace Keytietkiem.Controllers
                 FirstResponseMinutes = dto.FirstResponseMinutes,
                 ResolutionMinutes = dto.ResolutionMinutes,
                 IsActive = dto.IsActive,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = _clock.UtcNow
             };
 
             if (entity.IsActive)
@@ -435,7 +438,7 @@ namespace Keytietkiem.Controllers
             entity.FirstResponseMinutes = dto.FirstResponseMinutes;
             entity.ResolutionMinutes = dto.ResolutionMinutes;
             entity.IsActive = dto.IsActive;
-            entity.UpdatedAt = DateTime.UtcNow;
+            entity.UpdatedAt = _clock.UtcNow;
 
             if (entity.IsActive)
             {
@@ -743,7 +746,7 @@ namespace Keytietkiem.Controllers
             var existingSet = new HashSet<(string Severity, int PriorityLevel)>(
                 existingPairs.Select(e => (e.Severity, e.PriorityLevel)));
 
-            var now = DateTime.UtcNow;
+            var now = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Unspecified);
             var hasChanges = false;
 
             foreach (var def in DefaultSlaRulesMatrix)
