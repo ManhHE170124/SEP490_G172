@@ -16,14 +16,10 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using Keytietkiem.Models;
-using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Post;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
-using Keytietkiem.Infrastructure;
-using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 
 namespace Keytietkiem.Controllers
@@ -34,20 +30,10 @@ namespace Keytietkiem.Controllers
     public class TagsController : ControllerBase
     {
         private readonly IPostService _postService;
-        private readonly KeytietkiemDbContext _context;
-        private readonly IClock _clock;
-        private readonly ILogger<TagsController> _logger;
 
-        public TagsController(
-            IPostService postService,
-            KeytietkiemDbContext context,
-            IClock clock,
-            ILogger<TagsController> logger)
+        public TagsController(IPostService postService)
         {
             _postService = postService ?? throw new ArgumentNullException(nameof(postService));
-            _context = context ?? throw new ArgumentNullException(nameof(context));
-            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /**
@@ -63,8 +49,7 @@ namespace Keytietkiem.Controllers
             try
             {
                 var tags = await _postService.GetAllTagsAsync();
-                var tagDtos = tags.Select(MapToTagDTO).ToList();
-                return Ok(tagDtos);
+                return Ok(tags);
             }
             catch (Exception ex)
             {
@@ -82,14 +67,19 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTagById(Guid id)
         {
-            var tag = await _postService.GetTagByIdAsync(id);
-            if (tag == null)
+            try
             {
-                return NotFound();
+                var tag = await _postService.GetTagByIdAsync(id);
+                return Ok(tag);
             }
-
-            var tagDto = MapToTagDTO(tag);
-            return Ok(tagDto);
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -113,30 +103,24 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            if (await _postService.TagNameExistsAsync(createTagDto.TagName, null))
+            try
             {
-                return Conflict(new { message = "Tên thẻ đã tồn tại." });
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var tag = await _postService.CreateTagAsync(createTagDto, actorId);
+                return CreatedAtAction(nameof(GetTagById), new { id = tag.TagId }, tag);
             }
-
-            if (await _postService.TagSlugExistsAsync(createTagDto.Slug, null))
+            catch (ArgumentNullException ex)
             {
-                return Conflict(new { message = "Slug đã tồn tại." });
+                return BadRequest(new { message = ex.Message });
             }
-
-            var newTag = new Tag
+            catch (InvalidOperationException ex)
             {
-                TagName = createTagDto.TagName,
-                Slug = createTagDto.Slug,
-                CreatedAt = _clock.UtcNow
-            };
-
-            _context.Tags.Add(newTag);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Tag {TagId} created by {ActorId}", newTag.TagId, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
-
-            var tagDto = MapToTagDTO(newTag);
-            return CreatedAtAction(nameof(GetTagById), new { id = newTag.TagId }, tagDto);
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -161,32 +145,28 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            var existing = await _postService.GetTagByIdAsync(id);
-            if (existing == null)
+            try
             {
-                return NotFound();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.UpdateTagAsync(id, updateTagDto, actorId);
+                return NoContent();
             }
-
-            if (await _postService.TagNameExistsAsync(updateTagDto.TagName, id))
+            catch (ArgumentNullException ex)
             {
-                return Conflict(new { message = "Tên thẻ đã tồn tại." });
+                return BadRequest(new { message = ex.Message });
             }
-
-            if (await _postService.TagSlugExistsAsync(updateTagDto.Slug, id))
+            catch (InvalidOperationException ex)
             {
-                return Conflict(new { message = "Slug trùng với thẻ đã có sẵn." });
+                if (ex.Message.Contains("tồn tại") || ex.Message.Contains("trùng"))
+                {
+                    return Conflict(new { message = ex.Message });
+                }
+                return NotFound(new { message = ex.Message });
             }
-
-            existing.TagName = updateTagDto.TagName;
-            existing.Slug = updateTagDto.Slug;
-            existing.UpdatedAt = _clock.UtcNow;
-
-            _context.Tags.Update(existing);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Tag {TagId} updated by {ActorId}", id, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -199,32 +179,20 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteTag(Guid id)
         {
-            var existingTag = await _postService.GetTagByIdAsync(id);
-            if (existingTag == null)
+            try
             {
-                return NotFound();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.DeleteTagAsync(id, actorId);
+                return NoContent();
             }
-
-            _context.Tags.Remove(existingTag);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Tag {TagId} deleted by {ActorId}", id, Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value));
-
-            return NoContent();
-        }
-
-        // ===== Helper Methods =====
-
-        private TagDTO MapToTagDTO(Tag tag)
-        {
-            return new TagDTO
+            catch (InvalidOperationException ex)
             {
-                TagId = tag.TagId,
-                TagName = tag.TagName,
-                Slug = tag.Slug,
-                CreatedAt = tag.CreatedAt,
-                UpdatedAt = tag.UpdatedAt
-            };
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
     }
 }

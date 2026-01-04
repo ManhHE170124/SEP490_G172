@@ -36,7 +36,8 @@ const END = {
 
 export const postsApi = {
   // Post CRUD
-  getAllPosts: () => axiosClient.get(END.POSTS),
+  getAllPosts: (excludeStaticContent = false) => 
+    axiosClient.get(END.POSTS, { params: { excludeStaticContent } }),
   getPostById: (id) => axiosClient.get(`${END.POSTS}/${id}`),
   createPost: (data) => axiosClient.post(END.POSTS, data),
   updatePost: (id, data) => axiosClient.put(`${END.POSTS}/${id}`, data),

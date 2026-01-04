@@ -771,6 +771,100 @@ const Sidebar = () => {
             </svg>
           ),
         },
+        {
+          id: "policy",
+          label: "Chính sách & bảo mật",
+          to: "/admin/policy",
+          allowedRoles: [ROLE_ADMIN, ROLE_CONTENT_CREATOR],
+          isActive: currentPage === "admin/policy",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <polyline
+                points="14 2 14 8 20 8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <line
+                x1="9"
+                y1="15"
+                x2="15"
+                y2="15"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ),
+        },
+        {
+          id: "user-guide",
+          label: "Quản lý UserGuide",
+          to: "/admin/user-guide",
+          allowedRoles: [ROLE_ADMIN, ROLE_CONTENT_CREATOR],
+          isActive: currentPage === "admin/user-guide",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M8 7h8M8 11h8M8 15h4"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ),
+        },
+        {
+          id: "about-us",
+          label: "Quản lý AboutUs",
+          to: "/admin/about-us",
+          allowedRoles: [ROLE_ADMIN, ROLE_CONTENT_CREATOR],
+          isActive: currentPage === "admin/about-us",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 16v-4M12 8h.01"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ),
+        },
       ],
     },
     {

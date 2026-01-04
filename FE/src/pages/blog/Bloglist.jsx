@@ -54,18 +54,22 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getAllPosts(),
+                postsApi.getAllPosts(true), // Exclude static content posts
                 postsApi.getPosttypes(),
                 postsApi.getTags()
             ]);
 
+            // Additional frontend filtering as backup
+            const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
+            const filteredPosts = filterStaticContentPosts(Array.isArray(postsRes) ? postsRes : []);
+
             console.log("✅ Data loaded:", {
-                posts: postsRes.length,
+                posts: filteredPosts.length,
                 categories: categoriesRes.length,
                 tags: tagsRes.length
             });
 
-            setPosts(Array.isArray(postsRes) ? postsRes : []);
+            setPosts(filteredPosts);
             setCategories(Array.isArray(categoriesRes) ? categoriesRes : []);
             setTags(Array.isArray(tagsRes) ? tagsRes : []);
         } catch (err) {
@@ -101,6 +105,10 @@ const BlogList = () => {
     // ✅ Filter logic using URL params
     const filteredPosts = useMemo(() => {
         let result = posts;
+
+        // Additional static content filtering as backup
+        const { isStaticContentPost } = require('../../utils/staticContentHelper');
+        result = result.filter(p => !isStaticContentPost(p));
 
         // Search filter
         if (search.trim()) {

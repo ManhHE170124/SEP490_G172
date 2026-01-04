@@ -38,6 +38,9 @@ import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
 import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
+import PolicyPage from "../pages/admin/PolicyPage.jsx";
+import UserGuidePage from "../pages/admin/UserGuidePage.jsx";
+import AboutUsPage from "../pages/admin/AboutUsPage.jsx";
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -327,6 +330,19 @@ export default function AppRoutes() {
       <Route
         path="/tag-post-type-manage"
         element={renderAdminPage(<TagPostTypeManage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+      />
+      {/* Static Content Routes */}
+      <Route
+        path="/admin/policy"
+        element={renderAdminPage(<PolicyPage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+      />
+      <Route
+        path="/admin/user-guide"
+        element={renderAdminPage(<UserGuidePage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+      />
+      <Route
+        path="/admin/about-us"
+        element={renderAdminPage(<AboutUsPage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
       />
       {/* Suppliers */}
       <Route

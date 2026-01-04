@@ -57,12 +57,17 @@ export default function AdminPostList() {
   const loadData = async () => {
     setLoading(true);
     setError("");
+    
+    // Exclude static content posts from the list
     try {
       const [postsData, posttypesData] = await Promise.all([
-        postsApi.getAllPosts(),
+        postsApi.getAllPosts(true), // Exclude static content posts
         postsApi.getPosttypes()
       ]);
-      setPosts(Array.isArray(postsData) ? postsData : []);
+      // Additional frontend filtering as backup
+      const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
+      const filteredPosts = filterStaticContentPosts(Array.isArray(postsData) ? postsData : []);
+      setPosts(filteredPosts);
       setPosttypes(Array.isArray(posttypesData) ? posttypesData : []);
     } catch (err) {
       setError(err.message || "Không thể tải dữ liệu");
