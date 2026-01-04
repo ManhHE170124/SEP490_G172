@@ -94,9 +94,25 @@ namespace Keytietkiem.Controllers
                 var nowUtc = DateTime.UtcNow;
                 var currentUserId = GetCurrentUserIdOrNull();
 
-                var anonymousId = string.IsNullOrWhiteSpace(dto.AnonymousId)
-                    ? (Request.Cookies["ktk_anon_id"] ?? Request.Headers["X-Guest-Cart-Id"].FirstOrDefault())
-                    : dto.AnonymousId;
+                // ✅ Guest identity (anon cart id)
+                // Priority: body.anonymousId (explicit) -> header X-Guest-Cart-Id -> cookie ktk_anon_id (or legacy)
+                var dtoAnon = string.IsNullOrWhiteSpace(dto.AnonymousId) ? null : dto.AnonymousId.Trim();
+
+                var headerAnon = Request.Headers[GuestCartIdentityHelper.HeaderName].FirstOrDefault();
+                headerAnon = string.IsNullOrWhiteSpace(headerAnon) ? null : headerAnon.Trim();
+
+                var cookieAnon = Request.Cookies[GuestCartIdentityHelper.CookieName];
+                if (string.IsNullOrWhiteSpace(cookieAnon))
+                    cookieAnon = Request.Cookies[GuestCartIdentityHelper.LegacyCookieName];
+                cookieAnon = string.IsNullOrWhiteSpace(cookieAnon) ? null : cookieAnon.Trim();
+
+                var anonymousId = dtoAnon ?? headerAnon ?? cookieAnon;
+
+                // Keep cookie in sync (Path="/") so it is sent to /api/orders/* too.
+                if (!string.IsNullOrWhiteSpace(anonymousId))
+                {
+                    GuestCartIdentityHelper.EnsureCookie(HttpContext, anonymousId);
+                }
 
                 var cartLookupWindow = PaymentTimeout + ConvertingLockTimeout + TimeSpan.FromMinutes(1);
 
@@ -131,14 +147,24 @@ namespace Keytietkiem.Controllers
                 }
                 else
                 {
-                    if (string.IsNullOrWhiteSpace(anonymousId))
+                    // ✅ Guest lookup: try body/header/cookie candidates to avoid "Cart không tồn tại"
+                    // when identity got out-of-sync between requests.
+                    var candidates = new List<string>();
+
+                    if (!string.IsNullOrWhiteSpace(dtoAnon)) candidates.Add(dtoAnon);
+                    if (!string.IsNullOrWhiteSpace(headerAnon) && !candidates.Contains(headerAnon)) candidates.Add(headerAnon);
+                    if (!string.IsNullOrWhiteSpace(cookieAnon) && !candidates.Contains(cookieAnon)) candidates.Add(cookieAnon);
+
+                    if (candidates.Count == 0)
                         return BadRequest(new { message = "AnonymousId is required for guest checkout" });
 
                     cart = await db.Carts
                         .Include(c => c.CartItems)
                             .ThenInclude(ci => ci.Variant)
                                 .ThenInclude(v => v.Product)
-                        .Where(c => c.AnonymousId == anonymousId
+                        .Where(c => c.UserId == null
+                                    && c.AnonymousId != null
+                                    && candidates.Contains(c.AnonymousId)
                                     && (c.Status == "Active" || c.Status == "Converting"))
                         .OrderByDescending(c => c.UpdatedAt)
                         .FirstOrDefaultAsync();
@@ -151,12 +177,20 @@ namespace Keytietkiem.Controllers
                             .Include(c => c.CartItems)
                                 .ThenInclude(ci => ci.Variant)
                                     .ThenInclude(v => v.Product)
-                            .Where(c => c.AnonymousId == anonymousId
+                            .Where(c => c.UserId == null
+                                        && c.AnonymousId != null
+                                        && candidates.Contains(c.AnonymousId)
                                         && c.Status == "Converted"
                                         && c.ConvertedOrderId != null
                                         && c.UpdatedAt >= cutoff)
                             .OrderByDescending(c => c.UpdatedAt)
                             .FirstOrDefaultAsync();
+                    }
+
+                    // ✅ Sync cookie to the cart we found (most reliable id).
+                    if (cart != null && !string.IsNullOrWhiteSpace(cart.AnonymousId))
+                    {
+                        GuestCartIdentityHelper.EnsureCookie(HttpContext, cart.AnonymousId);
                     }
                 }
 

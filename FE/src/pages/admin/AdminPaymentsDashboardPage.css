@@ -42,6 +42,7 @@
   cursor: pointer;
   font-weight: 800;
   font-size: 13px;
+  white-space: nowrap;
 }
 .apd-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
@@ -57,60 +58,29 @@
   color: #111827;
 }
 
-/* File: src/pages/admin/AdminPaymentsDashboardPage.css */
-
-/* Filters */
+/* Filters (✅ không rớt dòng, màn hẹp thì cuộn ngang) */
 .apd-filters{
   display: grid;
-  grid-template-columns: minmax(520px, 2.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr);
+  grid-template-columns: minmax(560px, 2.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr);
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--line, #e5e7eb);
   border-radius: 14px;
   background: #fff;
-
   align-items: start;
-  overflow-x: auto;      /* nếu màn hình hẹp: cuộn ngang thay vì rớt dòng */
+  overflow-x: auto;
 }
 
 .apd-filter{
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;          /* quan trọng: tránh grid bị “đẩy” rớt dòng */
+  min-width: 0;
 }
 
 .apd-filter-wide{
-  min-width: 0;          /* bỏ min-width cứng để grid tự co giãn */
+  min-width: 0;
 }
-
-/* range extra (custom) vẫn nằm trong filter-wide */
-.apd-range-extra{
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 180px minmax(220px, 1fr) minmax(220px, 1fr) 160px;
-  gap: 10px;
-  align-items: end;
-}
-
-.apd-range-item{ min-width: 0; }
-
-/* react-datepicker: input full width + popper không bị che */
-.react-datepicker-wrapper{ width: 100%; }
-.react-datepicker-popper{ z-index: 50; }
-
-/* Responsive */
-@media (max-width: 1100px){
-  .apd-filters{
-    grid-template-columns: 1fr;  /* mobile/tablet: xuống dòng theo cột */
-    overflow-x: visible;
-  }
-  .apd-range-extra{
-    grid-template-columns: 1fr;
-  }
-}
-
-.apd-range-item { min-width: 220px; flex: 1 1 220px; }
 
 .apd-label {
   font-size: 12px;
@@ -140,6 +110,7 @@
   font-weight: 700;
 }
 
+/* Seg buttons */
 .apd-seg {
   display: inline-flex;
   gap: 6px;
@@ -153,12 +124,39 @@
   font-weight: 950;
   font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .apd-segbtn.is-on {
   border-color: #111827;
   background: #111827;
   color: #fff;
 }
+
+/* ✅ Preset row: buttons + Apply cùng hàng */
+.apd-time-row{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.apd-time-seg{ flex: 1 1 auto; }
+.apd-apply-inline{
+  margin-left: auto;      /* ✅ đẩy ra cuối hàng */
+}
+
+/* ✅ Custom row: Kiểu lọc + Từ + Đến cùng hàng */
+.apd-range-extra{
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 10px;
+  align-items: end;
+  overflow-x: auto;        /* nếu màn hẹp vẫn không “mất” field */
+}
+.apd-range-item{ min-width: 0; }
+
+/* react-datepicker */
+.react-datepicker-wrapper{ width: 100%; }
+.react-datepicker-popper{ z-index: 50; }
 
 .apd-error {
   margin: 10px 0 0;
@@ -236,7 +234,19 @@
   grid-template-columns: 2fr 1fr 1fr;
   gap: 10px;
 }
+.apd-grid-4 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 10px;
+}
 .apd-grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+
+/* ✅ Bottom row: Heatmap + Pie cùng hàng */
+.apd-grid-2{
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
 
 .apd-panel {
   background: #fff;
@@ -296,7 +306,6 @@
   width: 18px;
   height: 18px;
   border-radius: 6px;
-  background: #111827;
 }
 
 /* ✅ Recharts Tooltip đẹp hơn */
@@ -323,5 +332,23 @@
 @media (max-width: 1100px) {
   .apd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .apd-grid-3 { grid-template-columns: 1fr; }
-  .apd-filter-wide { flex: 1 1 360px; }
+  .apd-grid-4 { grid-template-columns: 1fr; }
+  .apd-grid-2 { grid-template-columns: 1fr; }
+
+  .apd-filters{
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+
+  .apd-time-row{
+    flex-wrap: wrap;   /* màn hẹp: vẫn thấy nút Apply */
+  }
+  .apd-apply-inline{
+    margin-left: 0;    /* tránh bị đẩy “mất” khi wrap */
+  }
+
+  .apd-range-extra{
+    grid-template-columns: 1fr; /* custom xuống cột */
+    overflow-x: visible;
+  }
 }

@@ -71,6 +71,9 @@ const GUEST_CART_HEADER_NAME = "X-Guest-Cart-Id";
  * - header X-Guest-Cart-Id (FE gửi).
  *
  * Vì FE không đọc được HttpOnly cookie, ta luôn gửi header ổn định theo localStorage.
+ *
+ * NOTE:
+ * - Đọc localStorage MỖI REQUEST để tránh desync nếu localStorage thay đổi trong session.
  */
 function getOrInitGuestCartId() {
   if (typeof window === "undefined") return null;
@@ -90,8 +93,6 @@ function getOrInitGuestCartId() {
     return null;
   }
 }
-
-const GUEST_CART_ID = getOrInitGuestCartId();
 
 /* ====================== AXIOS INSTANCE ====================== */
 
@@ -135,7 +136,8 @@ axiosClient.interceptors.request.use(
     if (CLIENT_ID) config.headers["X-Client-Id"] = CLIENT_ID;
 
     // ✅ guest cart identity header (always send)
-    if (GUEST_CART_ID) config.headers[GUEST_CART_HEADER_NAME] = GUEST_CART_ID;
+    const guestId = getOrInitGuestCartId();
+    if (guestId) config.headers[GUEST_CART_HEADER_NAME] = guestId;
 
     const fullUrl = (config.baseURL || "") + (config.url || "");
     console.log("[API REQUEST]", config.method?.toUpperCase(), fullUrl);
