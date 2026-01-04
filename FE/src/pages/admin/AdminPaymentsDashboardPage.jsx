@@ -1,6 +1,5 @@
 // File: src/pages/admin/AdminPaymentsDashboardPage.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -9,6 +8,9 @@ import {
   ComposedChart,
   BarChart,
   LineChart,
+  PieChart,
+  Pie,
+  Cell,
   Bar,
   Line,
   XAxis,
@@ -87,7 +89,6 @@ const startOfYearLocal = (y) => new Date(y, 0, 1, 0, 0, 0, 0);
 const startOfNextYearLocal = (y) => new Date(y + 1, 0, 1, 0, 0, 0, 0);
 
 const isoUtc = (localDate) => localDate.toISOString();
-
 const getTzOffsetMinutesAdd = () => -new Date().getTimezoneOffset();
 
 const chooseGrain = (days) => {
@@ -200,7 +201,7 @@ const normalizeTrendPoint = (p) => {
   };
 };
 
-// ✅ palette (để chart có màu + legend/tooltip rõ)
+// ✅ palette
 const C = {
   success: "#16a34a",
   pending: "#2563eb",
@@ -211,13 +212,19 @@ const C = {
   rate: "#0ea5e9",
   amount: "#22c55e",
   neutralBar: "#111827",
+
+  typeOrder: "#7c3aed",
+  typeSupport: "#10b981",
+  typeOther: "#94a3b8",
 };
 
 const CustomTooltip = ({ active, payload, label, valueFmt }) => {
   if (!active || !payload || payload.length === 0) return null;
+  const title =
+    label || payload?.[0]?.payload?.name || payload?.[0]?.name || "Chi tiết";
   return (
     <div className="apd-tooltip">
-      <div className="apd-tooltip-title">{label}</div>
+      <div className="apd-tooltip-title">{title}</div>
       <div className="apd-tooltip-body">
         {payload.map((x) => (
           <div key={x.dataKey ?? x.name} className="apd-tooltip-row">
@@ -230,6 +237,12 @@ const CustomTooltip = ({ active, payload, label, valueFmt }) => {
       </div>
     </div>
   );
+};
+
+const typeLabel = (tt) => {
+  if (tt === "Order") return "Đơn hàng";
+  if (tt === "SupportPlan") return "Gói hỗ trợ";
+  return "Khác";
 };
 
 export default function AdminPaymentsDashboardPage() {
@@ -255,6 +268,8 @@ export default function AdminPaymentsDashboardPage() {
   const [attempts, setAttempts] = useState(null);
   const [heatmap, setHeatmap] = useState(null);
   const [reasons, setReasons] = useState([]);
+
+  const [typeSplit, setTypeSplit] = useState({ order: 0, support: 0 });
 
   const tzOffsetMinutesAdd = useMemo(() => getTzOffsetMinutesAdd(), []);
 
@@ -333,7 +348,7 @@ export default function AdminPaymentsDashboardPage() {
         3660
       );
 
-      const [trend, ttp, att, hm, fr] = await Promise.all([
+      const [trend, ttp, att, hm, fr, sumOrder, sumSupport] = await Promise.all([
         paymentsDashboardAdminApi.dailyTrends({
           fromUtc: isoUtc(effFrom),
           toUtc: isoUtc(effTo),
@@ -363,6 +378,22 @@ export default function AdminPaymentsDashboardPage() {
           targetType: targetParam || undefined,
           top: 10,
         }),
+
+        // ✅ pie split: Order / SupportPlan
+        paymentsDashboardAdminApi.summary({
+          fromUtc: isoUtc(effFrom),
+          toUtc: isoUtc(effTo),
+          provider: providerParam || undefined,
+          targetType: "Order",
+          pendingOverdueMinutes: clamp(asNum(pendingOverdueMinutes, 5), 1, 240),
+        }),
+        paymentsDashboardAdminApi.summary({
+          fromUtc: isoUtc(effFrom),
+          toUtc: isoUtc(effTo),
+          provider: providerParam || undefined,
+          targetType: "SupportPlan",
+          pendingOverdueMinutes: clamp(asNum(pendingOverdueMinutes, 5), 1, 240),
+        }),
       ]);
 
       setDailyRaw(Array.isArray(trend) ? trend : []);
@@ -370,6 +401,11 @@ export default function AdminPaymentsDashboardPage() {
       setAttempts(att || null);
       setHeatmap(hm || null);
       setReasons(Array.isArray(fr) ? fr : []);
+
+      setTypeSplit({
+        order: asNum(pick(sumOrder, "totalPaymentsCreated", "TotalPaymentsCreated"), 0),
+        support: asNum(pick(sumSupport, "totalPaymentsCreated", "TotalPaymentsCreated"), 0),
+      });
     } catch (e) {
       setErr(e?.message || "Không thể tải dữ liệu dashboard thanh toán.");
     } finally {
@@ -415,6 +451,33 @@ export default function AdminPaymentsDashboardPage() {
     return agg.filter((_, idx) => idx % step === 0);
   }, [dailyRaw, grain]);
 
+  const histData = useMemo(() => {
+    const arr = pick(timeToPay, "histogram", "Histogram");
+    const list = Array.isArray(arr) ? arr : [];
+    return list.map((x) => ({
+      label: pick(x, "label", "Label") ?? "",
+      count: asNum(pick(x, "count", "Count"), 0),
+    }));
+  }, [timeToPay]);
+
+  const attemptData = useMemo(() => {
+    const arr = pick(attempts, "attemptBuckets", "AttemptBuckets");
+    const list = Array.isArray(arr) ? arr : [];
+    return list.map((x) => ({
+      label: pick(x, "label", "Label") ?? "",
+      count: asNum(pick(x, "count", "Count"), 0),
+    }));
+  }, [attempts]);
+
+  const reasonsData = useMemo(() => {
+    const list = Array.isArray(reasons) ? reasons : [];
+    return list.map((x) => ({
+      reason: pick(x, "reason", "Reason") ?? "—",
+      count: asNum(pick(x, "count", "Count"), 0),
+      code: pick(x, "code", "Code") ?? "",
+    }));
+  }, [reasons]);
+
   const successRateValue = useMemo(() => {
     const r = pick(summary, "successRate", "SuccessRate");
     if (r === null || r === undefined) return null;
@@ -439,15 +502,7 @@ export default function AdminPaymentsDashboardPage() {
   }, [summary]);
 
   const onPreset = (p) => setRangePreset(p);
-
-  const onRefresh = async () => {
-    await loadAll();
-  };
-
-  const onApplyCustom = async () => {
-    setRangePreset("custom");
-    await loadAll();
-  };
+  const onApply = async () => loadAll();
 
   const fmtYAxisVnd = (v) => {
     const n = asNum(v, 0);
@@ -468,6 +523,43 @@ export default function AdminPaymentsDashboardPage() {
     return m;
   }, [heatmap]);
 
+  const typePieData = useMemo(() => {
+    const totalFiltered = asNum(
+      pick(summary, "totalPaymentsCreated", "TotalPaymentsCreated"),
+      0
+    );
+    const order = asNum(typeSplit.order, 0);
+    const support = asNum(typeSplit.support, 0);
+
+    if (targetType === "Order") {
+      return [{ name: typeLabel("Order"), value: totalFiltered || order }];
+    }
+    if (targetType === "SupportPlan") {
+      return [{ name: typeLabel("SupportPlan"), value: totalFiltered || support }];
+    }
+
+    const other = Math.max(0, totalFiltered - order - support);
+
+    const arr = [
+      { name: typeLabel("Order"), value: order },
+      { name: typeLabel("SupportPlan"), value: support },
+    ];
+    if (other > 0) arr.push({ name: typeLabel("Other"), value: other });
+
+    return arr.filter((x) => x.value > 0);
+  }, [summary, typeSplit, targetType]);
+
+  const typePieTotal = useMemo(
+    () => typePieData.reduce((s, x) => s + asNum(x.value, 0), 0),
+    [typePieData]
+  );
+
+  const typePieColor = (name) => {
+    if (name === typeLabel("Order")) return C.typeOrder;
+    if (name === typeLabel("SupportPlan")) return C.typeSupport;
+    return C.typeOther;
+  };
+
   return (
     <div className="apd-page">
       <div className="apd-head">
@@ -487,15 +579,6 @@ export default function AdminPaymentsDashboardPage() {
             </span>
           </div>
         </div>
-
-        <div className="apd-actions">
-          <Link className="apd-link" to="/admin/payments">
-            Danh sách giao dịch
-          </Link>
-          <button className="apd-btn" onClick={onRefresh} disabled={loading}>
-            {loading ? "Đang tải..." : "Tải lại"}
-          </button>
-        </div>
       </div>
 
       {/* Filters */}
@@ -503,33 +586,47 @@ export default function AdminPaymentsDashboardPage() {
         <div className="apd-filters">
           <div className="apd-filter apd-filter-wide">
             <div className="apd-label">Khoảng thời gian</div>
-            <div className="apd-seg">
+
+            {/* ✅ Preset buttons + Apply cùng hàng */}
+            <div className="apd-time-row">
+              <div className="apd-seg apd-time-seg">
+                <button
+                  className={"apd-segbtn " + (rangePreset === "today" ? "is-on" : "")}
+                  onClick={() => onPreset("today")}
+                >
+                  Hôm nay
+                </button>
+                <button
+                  className={"apd-segbtn " + (rangePreset === "week" ? "is-on" : "")}
+                  onClick={() => onPreset("week")}
+                >
+                  Tuần này
+                </button>
+                <button
+                  className={"apd-segbtn " + (rangePreset === "month" ? "is-on" : "")}
+                  onClick={() => onPreset("month")}
+                >
+                  Tháng này
+                </button>
+                <button
+                  className={"apd-segbtn " + (rangePreset === "custom" ? "is-on" : "")}
+                  onClick={() => onPreset("custom")}
+                >
+                  Tùy chọn
+                </button>
+              </div>
+
               <button
-                className={"apd-segbtn " + (rangePreset === "today" ? "is-on" : "")}
-                onClick={() => onPreset("today")}
+                className="apd-btn apd-apply-inline"
+                onClick={onApply}
+                disabled={loading}
+                title="Áp dụng bộ lọc hiện tại"
               >
-                Hôm nay
-              </button>
-              <button
-                className={"apd-segbtn " + (rangePreset === "week" ? "is-on" : "")}
-                onClick={() => onPreset("week")}
-              >
-                Tuần này
-              </button>
-              <button
-                className={"apd-segbtn " + (rangePreset === "month" ? "is-on" : "")}
-                onClick={() => onPreset("month")}
-              >
-                Tháng này
-              </button>
-              <button
-                className={"apd-segbtn " + (rangePreset === "custom" ? "is-on" : "")}
-                onClick={() => onPreset("custom")}
-              >
-                Tùy chọn
+                {loading ? "Đang tải..." : "Áp dụng"}
               </button>
             </div>
 
+            {/* ✅ Custom: Kiểu lọc + Từ + Đến cùng hàng */}
             {rangePreset === "custom" && (
               <div className="apd-range-extra">
                 <div className="apd-range-item">
@@ -590,12 +687,6 @@ export default function AdminPaymentsDashboardPage() {
                     showMonthYearPicker={customMode === "month"}
                     showYearPicker={customMode === "year"}
                   />
-                </div>
-
-                <div className="apd-range-item">
-                  <button className="apd-btn" onClick={onApplyCustom} disabled={loading}>
-                    Áp dụng
-                  </button>
                 </div>
               </div>
             )}
@@ -706,7 +797,9 @@ export default function AdminPaymentsDashboardPage() {
               {asNum(pick(summary, "pendingOverdueCount", "PendingOverdueCount"), 0)}
             </div>
             <div className="apd-card-foot">
-              Quá {asNum(pick(summary, "pendingOverdueMinutes", "PendingOverdueMinutes"), 5)} phút
+              Quá{" "}
+              {asNum(pick(summary, "pendingOverdueMinutes", "PendingOverdueMinutes"), 5)}{" "}
+              phút
             </div>
           </div>
 
@@ -753,7 +846,6 @@ export default function AdminPaymentsDashboardPage() {
         <div className="apd-section-title">Biểu đồ & xu hướng</div>
 
         <div className="apd-grid-3">
-          {/* BIG: Stacked + Success rate */}
           <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Giao dịch theo trạng thái</div>
@@ -762,9 +854,17 @@ export default function AdminPaymentsDashboardPage() {
 
             <div className="apd-chart apd-rechart">
               <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={trendPoints} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+                <ComposedChart
+                  data={trendPoints}
+                  margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" minTickGap={16} interval="preserveStartEnd" tick={{ fontSize: 11 }} />
+                  <XAxis
+                    dataKey="label"
+                    minTickGap={16}
+                    interval="preserveStartEnd"
+                    tick={{ fontSize: 11 }}
+                  />
                   <YAxis yAxisId="cnt" tick={{ fontSize: 11 }} />
                   <YAxis
                     yAxisId="pct"
@@ -776,18 +876,64 @@ export default function AdminPaymentsDashboardPage() {
                   <Tooltip
                     content={
                       <CustomTooltip
-                        valueFmt={(v, key) => (key === "successRate" ? `${asNum(v, 0).toFixed(1)}%` : String(asNum(v, 0)))}
+                        valueFmt={(v, key) =>
+                          key === "successRate"
+                            ? `${asNum(v, 0).toFixed(1)}%`
+                            : String(asNum(v, 0))
+                        }
                       />
                     }
                   />
                   <Legend iconType="circle" />
 
-                  <Bar yAxisId="cnt" dataKey="success" name="Thành công" stackId="st" fill={C.success} isAnimationActive={false} />
-                  <Bar yAxisId="cnt" dataKey="pending" name="Đang chờ" stackId="st" fill={C.pending} isAnimationActive={false} />
-                  <Bar yAxisId="cnt" dataKey="timeout" name="Hết hạn" stackId="st" fill={C.timeout} isAnimationActive={false} />
-                  <Bar yAxisId="cnt" dataKey="cancelled" name="Đã hủy" stackId="st" fill={C.cancelled} isAnimationActive={false} />
-                  <Bar yAxisId="cnt" dataKey="failed" name="Lỗi" stackId="st" fill={C.failed} isAnimationActive={false} />
-                  <Bar yAxisId="cnt" dataKey="other" name="Khác" stackId="st" fill={C.other} isAnimationActive={false} />
+                  <Bar
+                    yAxisId="cnt"
+                    dataKey="success"
+                    name="Thành công"
+                    stackId="st"
+                    fill={C.success}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    yAxisId="cnt"
+                    dataKey="pending"
+                    name="Đang chờ"
+                    stackId="st"
+                    fill={C.pending}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    yAxisId="cnt"
+                    dataKey="timeout"
+                    name="Hết hạn"
+                    stackId="st"
+                    fill={C.timeout}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    yAxisId="cnt"
+                    dataKey="cancelled"
+                    name="Đã hủy"
+                    stackId="st"
+                    fill={C.cancelled}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    yAxisId="cnt"
+                    dataKey="failed"
+                    name="Lỗi"
+                    stackId="st"
+                    fill={C.failed}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    yAxisId="cnt"
+                    dataKey="other"
+                    name="Khác"
+                    stackId="st"
+                    fill={C.other}
+                    isAnimationActive={false}
+                  />
 
                   <Line
                     yAxisId="pct"
@@ -806,7 +952,6 @@ export default function AdminPaymentsDashboardPage() {
             </div>
           </div>
 
-          {/* Small: success rate trend */}
           <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Xu hướng tỷ lệ thành công</div>
@@ -814,25 +959,48 @@ export default function AdminPaymentsDashboardPage() {
             </div>
 
             <div className="apd-metric-row">
-              <div className="apd-big">{successRateValue === null ? "—" : toPct(successRateValue)}</div>
+              <div className="apd-big">
+                {successRateValue === null ? "—" : toPct(successRateValue)}
+              </div>
             </div>
 
             <div className="apd-chart apd-rechart">
               <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={trendPoints} margin={{ top: 12, right: 10, left: 0, bottom: 0 }}>
+                <LineChart
+                  data={trendPoints}
+                  margin={{ top: 12, right: 10, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" minTickGap={18} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip content={<CustomTooltip valueFmt={(v) => `${asNum(v, 0).toFixed(1)}%`} />} />
+                  <XAxis
+                    dataKey="label"
+                    minTickGap={18}
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <Tooltip
+                    content={<CustomTooltip valueFmt={(v) => `${asNum(v, 0).toFixed(1)}%`} />}
+                  />
                   <Legend iconType="circle" />
-                  <Line type="monotone" dataKey="successRate" name="Tỷ lệ thành công (%)" stroke={C.rate} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="successRate"
+                    name="Tỷ lệ thành công (%)"
+                    stroke={C.rate}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
                   <Brush dataKey="label" height={20} stroke="#94a3b8" travellerWidth={10} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Small: amount trend */}
           <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Xu hướng tiền thu</div>
@@ -840,18 +1008,36 @@ export default function AdminPaymentsDashboardPage() {
             </div>
 
             <div className="apd-metric-row">
-              <div className="apd-big">{toVnd(pick(summary, "totalAmountCollected", "TotalAmountCollected"))}</div>
+              <div className="apd-big">
+                {toVnd(pick(summary, "totalAmountCollected", "TotalAmountCollected"))}
+              </div>
             </div>
 
             <div className="apd-chart apd-rechart">
               <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={trendPoints} margin={{ top: 12, right: 10, left: 0, bottom: 0 }}>
+                <LineChart
+                  data={trendPoints}
+                  margin={{ top: 12, right: 10, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" minTickGap={18} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <XAxis
+                    dataKey="label"
+                    minTickGap={18}
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                  />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtYAxisVnd} />
                   <Tooltip content={<CustomTooltip valueFmt={(v) => toVnd(v)} />} />
                   <Legend iconType="circle" />
-                  <Line type="monotone" dataKey="amount" name="Tiền thu" stroke={C.amount} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="amount"
+                    name="Tiền thu"
+                    stroke={C.amount}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
                   <Brush dataKey="label" height={20} stroke="#94a3b8" travellerWidth={10} />
                 </LineChart>
               </ResponsiveContainer>
@@ -874,16 +1060,18 @@ export default function AdminPaymentsDashboardPage() {
 
             <div className="apd-chart apd-rechart">
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={Array.isArray(pick(timeToPay, "histogram", "Histogram")) ? pick(timeToPay, "histogram", "Histogram") : []}
-                  margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
-                >
+                <BarChart data={histData} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip content={<CustomTooltip valueFmt={(v) => String(asNum(v, 0))} />} />
                   <Legend iconType="circle" />
-                  <Bar dataKey="count" name="Số giao dịch" fill={C.neutralBar} isAnimationActive={false} />
+                  <Bar
+                    dataKey="count"
+                    name="Số giao dịch"
+                    fill={C.neutralBar}
+                    isAnimationActive={false}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -897,16 +1085,18 @@ export default function AdminPaymentsDashboardPage() {
 
             <div className="apd-chart apd-rechart">
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={Array.isArray(pick(attempts, "attemptBuckets", "AttemptBuckets")) ? pick(attempts, "attemptBuckets", "AttemptBuckets") : []}
-                  margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
-                >
+                <BarChart data={attemptData} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip content={<CustomTooltip valueFmt={(v) => String(asNum(v, 0))} />} />
                   <Legend iconType="circle" />
-                  <Bar dataKey="count" name="Số đối tượng" fill={C.pending} isAnimationActive={false} />
+                  <Bar
+                    dataKey="count"
+                    name="Số đối tượng"
+                    fill={C.pending}
+                    isAnimationActive={false}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -927,20 +1117,15 @@ export default function AdminPaymentsDashboardPage() {
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart
                   layout="vertical"
-                  data={Array.isArray(reasons) ? reasons : []}
+                  data={reasonsData}
                   margin={{ top: 8, right: 10, left: 10, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    type="category"
-                    dataKey={(x) => pick(x, "reason", "Reason")}
-                    tick={{ fontSize: 11 }}
-                    width={110}
-                  />
+                  <YAxis type="category" dataKey="reason" tick={{ fontSize: 11 }} width={110} />
                   <Tooltip content={<CustomTooltip valueFmt={(v) => String(asNum(v, 0))} />} />
                   <Legend iconType="circle" />
-                  <Bar dataKey={(x) => pick(x, "count", "Count")} name="Số lượng" fill={C.failed} isAnimationActive={false} />
+                  <Bar dataKey="count" name="Số lượng" fill={C.failed} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -948,20 +1133,24 @@ export default function AdminPaymentsDashboardPage() {
         </div>
       </div>
 
-      {/* Heatmap */}
+      {/* Bottom row: Heatmap + Pie cùng hàng */}
       <div className="apd-section">
-        <div className="apd-grid-1">
-          <div className="apd-panel apd-panel-full">
+        <div className="apd-grid-2">
+          <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Giao dịch thành công theo giờ</div>
-              <div className="apd-panel-sub">Theo múi giờ trình duyệt (UTC+{Math.round(tzOffsetMinutesAdd / 60)})</div>
+              <div className="apd-panel-sub">
+                Theo múi giờ trình duyệt (UTC+{Math.round(tzOffsetMinutesAdd / 60)})
+              </div>
             </div>
 
             <div className="apd-heatmap">
               <div className="apd-heatmap-head">
                 <div className="apd-heatmap-spacer" />
                 {Array.from({ length: 24 }).map((_, h) => (
-                  <div key={h} className="apd-heatmap-hour">{h}</div>
+                  <div key={h} className="apd-heatmap-hour">
+                    {h}
+                  </div>
                 ))}
               </div>
 
@@ -992,6 +1181,41 @@ export default function AdminPaymentsDashboardPage() {
                   );
                 });
               })()}
+            </div>
+          </div>
+
+          <div className="apd-panel">
+            <div className="apd-panel-head">
+              <div className="apd-panel-title">Tỷ lệ theo loại thanh toán</div>
+              <div className="apd-panel-sub">Đơn hàng vs Gói hỗ trợ</div>
+            </div>
+
+            <div className="apd-chart apd-rechart">
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Tooltip content={<CustomTooltip valueFmt={(v) => String(asNum(v, 0))} />} />
+                  <Legend iconType="circle" />
+                  <Pie
+                    data={typePieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={58}
+                    outerRadius={88}
+                    paddingAngle={2}
+                    isAnimationActive={false}
+                    labelLine={false}
+                    label={({ percent }) => `${Math.round((percent || 0) * 100)}%`}
+                  >
+                    {typePieData.map((e, i) => (
+                      <Cell key={i} fill={typePieColor(e.name)} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="apd-note">
+              Tổng: <b>{typePieTotal}</b> giao dịch
             </div>
           </div>
         </div>
