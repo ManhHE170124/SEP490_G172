@@ -74,6 +74,30 @@ namespace Keytietkiem.Controllers
             return "ACTIVE";
         }
 
+        private static void TrySetProductStockQty(object productEntity, int totalStock)
+        {
+            // Avoid compile-time dependency on Product.StockQty (some DB versions may not have it).
+            var prop = productEntity.GetType().GetProperty("StockQty");
+            if (prop == null || !prop.CanWrite) return;
+
+            var t = prop.PropertyType;
+            if (t == typeof(int)) { prop.SetValue(productEntity, totalStock); return; }
+            if (t == typeof(int?)) { prop.SetValue(productEntity, (int?)totalStock); return; }
+            if (t == typeof(long)) { prop.SetValue(productEntity, (long)totalStock); return; }
+            if (t == typeof(long?)) { prop.SetValue(productEntity, (long?)totalStock); return; }
+
+            try
+            {
+                var target = Nullable.GetUnderlyingType(t) ?? t;
+                var converted = Convert.ChangeType(totalStock, target);
+                prop.SetValue(productEntity, converted);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
         /// <summary>
         /// Recalc status của Product dựa trên tổng stock các variant.
         /// Hết hàng -> OUT_OF_STOCK, còn hàng -> ACTIVE.
@@ -88,6 +112,9 @@ namespace Keytietkiem.Controllers
                             .FirstAsync(x => x.ProductId == productId);
 
             var totalStock = p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0;
+
+            // Persist tổng tồn kho xuống Product (nếu có cột StockQty trong DB).
+            TrySetProductStockQty(p, totalStock);
 
             // Nếu admin đã đặt sản phẩm INACTIVE và không truyền desiredStatus
             // thì không tự động thay đổi nữa.

@@ -55,6 +55,7 @@ const formatVnd = (n) => {
 };
 
 const normalizeText = (v) => String(v ?? "").trim();
+const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
 const getPaymentId = (p) => p?.paymentId ?? p?.PaymentId ?? p?.id ?? p?.Id ?? "";
 const getCreatedAt = (p) =>
@@ -99,21 +100,33 @@ const mapTargetToUi = (t) => {
   return { label: "Không rõ", cls: "payment-unknown", value: "Unknown" };
 };
 
+/**
+ * ✅ Map đúng Payment Status theo BE hiện tại:
+ * Pending, Paid, Cancelled, Timeout, NeedReview, DupCancelled, Replaced
+ */
 const mapStatusToUi = (s) => {
-  const v = normalizeText(s).toLowerCase();
+  const v = normalizeStatusKey(s);
 
-  if (v === "pending") return { label: "Chờ thanh toán", cls: "payment-pending", value: "Pending" };
-  if (v === "paid" || v === "success" || v === "completed")
+  if (v === "PENDING") return { label: "Chờ thanh toán", cls: "payment-pending", value: "Pending" };
+
+  if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED")
     return { label: "Đã thanh toán", cls: "payment-paid", value: "Paid" };
 
-  if (v === "cancelledbytimeout" || v === "timeout")
-    return { label: "Hủy do quá hạn", cls: "payment-timeout", value: "CancelledByTimeout" };
+  if (v === "TIMEOUT" || v === "CANCELLEDBYTIMEOUT")
+    return { label: "Hủy do quá hạn", cls: "payment-timeout", value: "Timeout" };
 
-  if (v === "cancelled") return { label: "Đã hủy", cls: "payment-cancelled", value: "Cancelled" };
-  if (v === "failed") return { label: "Thất bại", cls: "payment-failed", value: "Failed" };
-  if (v === "refunded") return { label: "Đã hoàn tiền", cls: "payment-refunded", value: "Refunded" };
+  if (v === "CANCELLED") return { label: "Đã hủy", cls: "payment-cancelled", value: "Cancelled" };
 
-  return { label: "Không rõ", cls: "payment-unknown", value: "Unknown" };
+  if (v === "NEEDREVIEW")
+    return { label: "Cần kiểm tra", cls: "payment-pending", value: "NeedReview" };
+
+  if (v === "DUPCANCELLED")
+    return { label: "Hủy do trùng", cls: "payment-cancelled", value: "DupCancelled" };
+
+  if (v === "REPLACED")
+    return { label: "Đã thay thế", cls: "payment-cancelled", value: "Replaced" };
+
+  return { label: s ? String(s) : "Không rõ", cls: "payment-unknown", value: s || "Unknown" };
 };
 
 const fmtDateTime = (d) => {
@@ -175,10 +188,11 @@ export default function AdminPaymentListPage() {
       { value: "", label: "Tất cả trạng thái" },
       { value: "Pending", label: "Chờ thanh toán" },
       { value: "Paid", label: "Đã thanh toán" },
-      { value: "Failed", label: "Thất bại" },
-      { value: "Cancelled", label: "Đã hủy" },
+      { value: "NeedReview", label: "Cần kiểm tra" },
       { value: "Timeout", label: "Hủy do quá hạn" },
-      { value: "Refunded", label: "Đã hoàn tiền" },
+      { value: "Cancelled", label: "Đã hủy" },
+      { value: "DupCancelled", label: "Hủy do trùng" },
+      { value: "Replaced", label: "Đã thay thế" },
     ],
     []
   );

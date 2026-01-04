@@ -273,4 +273,13 @@ public class LicensePackageController : ControllerBase
         var result = await _licensePackageService.GetLicenseKeysByPackageAsync(packageId, supplierId);
         return Ok(result);
     }
+
+    [HttpGet("download-template")]
+    [AllowAnonymous]
+    public IActionResult DownloadCsvTemplate()
+    {
+        var csvContent = "key\nExampleKey123\nExampleKey456";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(csvContent);
+        return File(bytes, "text/csv", "import_keys_template.csv");
+    }
 }

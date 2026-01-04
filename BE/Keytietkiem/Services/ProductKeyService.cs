@@ -396,6 +396,98 @@ namespace Keytietkiem.Services
             return Encoding.UTF8.GetBytes(csv.ToString());
         }
 
+        public async Task<ProductKeyListResponseDto> GetExpiredKeysAsync(
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+
+            var query = _productKeyRepository.Query()
+                .Include(pk => pk.Variant)
+                    .ThenInclude(v => v.Product)
+                .Include(pk => pk.Supplier)
+                .Where(pk => pk.Status == nameof(ProductKeyStatus.Expired))
+                .AsQueryable();
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .OrderByDescending(pk => pk.ExpiryDate)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(pk => new ProductKeyListDto
+                {
+                    KeyId = pk.KeyId,
+                    ProductName = pk.Variant.Product.ProductName,
+                    ProductSku = pk.Variant.Product.ProductCode,
+                    KeyString = pk.KeyString,
+                    Status = pk.Status,
+                    Type = pk.Type,
+                    UpdatedAt = pk.UpdatedAt,
+                    ImportedAt = pk.ImportedAt,
+                    AssignToOrder = pk.AssignedToOrderId
+                })
+                .ToListAsync(cancellationToken);
+
+            return new ProductKeyListResponseDto
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+
+        public async Task<ProductKeyListResponseDto> GetKeysExpiringSoonAsync(
+            int days,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var futureDate = now.AddDays(days);
+
+            var query = _productKeyRepository.Query()
+                .Include(pk => pk.Variant)
+                    .ThenInclude(v => v.Product)
+                .Include(pk => pk.Supplier)
+                .Where(pk => pk.Status == nameof(ProductKeyStatus.Available) &&
+                             pk.ExpiryDate.HasValue &&
+                             pk.ExpiryDate.Value >= now &&
+                             pk.ExpiryDate.Value <= futureDate)
+                .AsQueryable();
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .OrderBy(pk => pk.ExpiryDate)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(pk => new ProductKeyListDto
+                {
+                    KeyId = pk.KeyId,
+                    ProductName = pk.Variant.Product.ProductName,
+                    ProductSku = pk.Variant.Product.ProductCode,
+                    KeyString = pk.KeyString,
+                    Status = pk.Status,
+                    Type = pk.Type,
+                    UpdatedAt = pk.UpdatedAt,
+                    ImportedAt = pk.ImportedAt,
+                    AssignToOrder = pk.AssignedToOrderId,
+                    ExpiryDate = pk.ExpiryDate
+                })
+                .ToListAsync(cancellationToken);
+
+            return new ProductKeyListResponseDto
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+
         private static ProductKeyType ParseProductKeyType(string type)
         {
             if (Enum.TryParse<ProductKeyType>(type, true, out var value))

@@ -20,8 +20,8 @@ namespace Keytietkiem.Infrastructure
 
         public string Name => "ExpiryStatusUpdateJob";
 
-        // Chạy mỗi 6 tiếng
-        public TimeSpan Interval => TimeSpan.FromHours(6);
+        // Chạy mỗi 1 tiếng
+        public TimeSpan Interval => TimeSpan.FromHours(0.1);
 
         public async Task ExecuteAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken)
         {

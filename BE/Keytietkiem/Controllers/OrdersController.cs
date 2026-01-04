@@ -94,9 +94,25 @@ namespace Keytietkiem.Controllers
                 var nowUtc = DateTime.UtcNow;
                 var currentUserId = GetCurrentUserIdOrNull();
 
-                var anonymousId = string.IsNullOrWhiteSpace(dto.AnonymousId)
-                    ? (Request.Cookies["ktk_anon_id"] ?? Request.Headers["X-Guest-Cart-Id"].FirstOrDefault())
-                    : dto.AnonymousId;
+                // ✅ Guest identity (anon cart id)
+                // Priority: body.anonymousId (explicit) -> header X-Guest-Cart-Id -> cookie ktk_anon_id (or legacy)
+                var dtoAnon = string.IsNullOrWhiteSpace(dto.AnonymousId) ? null : dto.AnonymousId.Trim();
+
+                var headerAnon = Request.Headers[GuestCartIdentityHelper.HeaderName].FirstOrDefault();
+                headerAnon = string.IsNullOrWhiteSpace(headerAnon) ? null : headerAnon.Trim();
+
+                var cookieAnon = Request.Cookies[GuestCartIdentityHelper.CookieName];
+                if (string.IsNullOrWhiteSpace(cookieAnon))
+                    cookieAnon = Request.Cookies[GuestCartIdentityHelper.LegacyCookieName];
+                cookieAnon = string.IsNullOrWhiteSpace(cookieAnon) ? null : cookieAnon.Trim();
+
+                var anonymousId = dtoAnon ?? headerAnon ?? cookieAnon;
+
+                // Keep cookie in sync (Path="/") so it is sent to /api/orders/* too.
+                if (!string.IsNullOrWhiteSpace(anonymousId))
+                {
+                    GuestCartIdentityHelper.EnsureCookie(HttpContext, anonymousId);
+                }
 
                 var cartLookupWindow = PaymentTimeout + ConvertingLockTimeout + TimeSpan.FromMinutes(1);
 
@@ -131,14 +147,24 @@ namespace Keytietkiem.Controllers
                 }
                 else
                 {
-                    if (string.IsNullOrWhiteSpace(anonymousId))
+                    // ✅ Guest lookup: try body/header/cookie candidates to avoid "Cart không tồn tại"
+                    // when identity got out-of-sync between requests.
+                    var candidates = new List<string>();
+
+                    if (!string.IsNullOrWhiteSpace(dtoAnon)) candidates.Add(dtoAnon);
+                    if (!string.IsNullOrWhiteSpace(headerAnon) && !candidates.Contains(headerAnon)) candidates.Add(headerAnon);
+                    if (!string.IsNullOrWhiteSpace(cookieAnon) && !candidates.Contains(cookieAnon)) candidates.Add(cookieAnon);
+
+                    if (candidates.Count == 0)
                         return BadRequest(new { message = "AnonymousId is required for guest checkout" });
 
                     cart = await db.Carts
                         .Include(c => c.CartItems)
                             .ThenInclude(ci => ci.Variant)
                                 .ThenInclude(v => v.Product)
-                        .Where(c => c.AnonymousId == anonymousId
+                        .Where(c => c.UserId == null
+                                    && c.AnonymousId != null
+                                    && candidates.Contains(c.AnonymousId)
                                     && (c.Status == "Active" || c.Status == "Converting"))
                         .OrderByDescending(c => c.UpdatedAt)
                         .FirstOrDefaultAsync();
@@ -151,12 +177,20 @@ namespace Keytietkiem.Controllers
                             .Include(c => c.CartItems)
                                 .ThenInclude(ci => ci.Variant)
                                     .ThenInclude(v => v.Product)
-                            .Where(c => c.AnonymousId == anonymousId
+                            .Where(c => c.UserId == null
+                                        && c.AnonymousId != null
+                                        && candidates.Contains(c.AnonymousId)
                                         && c.Status == "Converted"
                                         && c.ConvertedOrderId != null
                                         && c.UpdatedAt >= cutoff)
                             .OrderByDescending(c => c.UpdatedAt)
                             .FirstOrDefaultAsync();
+                    }
+
+                    // ✅ Sync cookie to the cart we found (most reliable id).
+                    if (cart != null && !string.IsNullOrWhiteSpace(cart.AnonymousId))
+                    {
+                        GuestCartIdentityHelper.EnsureCookie(HttpContext, cart.AnonymousId);
                     }
                 }
 
@@ -498,14 +532,14 @@ namespace Keytietkiem.Controllers
         [HttpGet]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetOrders(
-          [FromQuery] string? search = null,                
+          [FromQuery] string? search = null,
      [FromQuery] DateTime? createdFrom = null,
      [FromQuery] DateTime? createdTo = null,
      [FromQuery] string? orderStatus = null,
-     [FromQuery] decimal? minTotal = null,            
+     [FromQuery] decimal? minTotal = null,
      [FromQuery] decimal? maxTotal = null,
-     [FromQuery] string? sortBy = "createdat",         
-     [FromQuery] string? sortDir = "desc",              
+     [FromQuery] string? sortBy = "createdat",
+     [FromQuery] string? sortDir = "desc",
      [FromQuery] int pageIndex = 1,
      [FromQuery] int pageSize = 20)
         {
@@ -706,9 +740,9 @@ namespace Keytietkiem.Controllers
                 // Customer can only view their own orders
                 var currentUserId = GetCurrentUserIdOrNull();
                 var roleCodes = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-                
+
                 bool hasPermission = false;
-                
+
                 // Admin or Storage Staff have full access
                 if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
                 {
@@ -841,6 +875,28 @@ namespace Keytietkiem.Controllers
                 // ✅ đảm bảo payload không “lộ” list full ngoài paging
                 orderDto.OrderDetails = pagedItems;
 
+
+                // ✅ Audit truy cập Order Detail (có thể chứa key/account/password).
+                // Chỉ audit khi order.Status == "Paid" để tránh spam log.
+                await TryAuditOrderDetailAccessIfPaidAsync(
+                    order,
+                    endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{id:guid}"),
+                    includesCredentials: true,
+                    extra: new
+                    {
+                        includePaymentAttempts,
+                        includeCheckoutUrl,
+                        HasSearch = !string.IsNullOrWhiteSpace(search),
+                        minPrice,
+                        maxPrice,
+                        sortBy,
+                        sortDir,
+                        pageIndex,
+                        pageSize,
+                        TotalItems = totalItems,
+                        ReturnedItems = pagedItems.Count
+                    });
+
                 return Ok(new OrderDetailResponseDto
                 {
                     Order = orderDto,
@@ -927,6 +983,26 @@ namespace Keytietkiem.Controllers
                 .Take(pageSize)
                 .ToList();
 
+
+            // ✅ Audit truy cập Order Detail list (có thể chứa key/account/password).
+            // Chỉ audit khi order.Status == "Paid" để tránh spam log.
+            await TryAuditOrderDetailAccessIfPaidAsync(
+                order,
+                endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{id:guid}/details"),
+                includesCredentials: true,
+                extra: new
+                {
+                    HasSearch = !string.IsNullOrWhiteSpace(search),
+                    minPrice,
+                    maxPrice,
+                    sortBy,
+                    sortDir,
+                    pageIndex,
+                    pageSize,
+                    TotalItems = totalItems,
+                    ReturnedItems = paged.Count
+                });
+
             return Ok(new
             {
                 items = paged,
@@ -973,6 +1049,22 @@ namespace Keytietkiem.Controllers
                 ? (alist ?? new List<OrderAccountCredentialDTO>())
                 : new List<OrderAccountCredentialDTO>();
 
+
+            // ✅ Audit truy cập credentials (key/account/password).
+            // Chỉ audit khi order.Status == "Paid" để tránh spam log.
+            await TryAuditOrderDetailAccessIfPaidAsync(
+                order,
+                endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{orderId:guid}/details/{orderDetailId:long}/credentials"),
+                includesCredentials: true,
+                extra: new
+                {
+                    orderDetailId,
+                    variantId = od.VariantId,
+                    productType = od.Variant?.Product?.ProductType,
+                    ReturnedKeyCount = keys?.Count ?? 0,
+                    ReturnedAccountCount = accounts?.Count ?? 0
+                });
+
             return Ok(new
             {
                 orderId,
@@ -1001,6 +1093,42 @@ namespace Keytietkiem.Controllers
             var orderIdStr = orderId.ToString().Replace("-", "").Substring(0, 4).ToUpperInvariant();
             return $"ORD-{dateStr}-{orderIdStr}";
         }
+
+
+        private async Task TryAuditOrderDetailAccessIfPaidAsync(
+            Order order,
+            string endpoint,
+            bool includesCredentials,
+            object? extra = null)
+        {
+            if (order == null) return;
+
+            // ✅ Chỉ audit khi đơn đã Paid (yêu cầu truy vết truy cập credentials)
+            if (!string.Equals(order.Status, "Paid", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: includesCredentials ? "OrderDetail.ViewWithCredentials" : "OrderDetail.View",
+                    entityType: "Order",
+                    entityId: order.OrderId.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        OrderId = order.OrderId,
+                        Endpoint = endpoint,
+                        IncludesCredentials = includesCredentials,
+                        Extra = extra
+                    });
+            }
+            catch
+            {
+                // audit fail must not fail API
+            }
+        }
+
 
         private async Task<bool> TryClaimCartForCheckoutAsync(KeytietkiemDbContext db, Guid cartId, DateTime nowUtc)
         {

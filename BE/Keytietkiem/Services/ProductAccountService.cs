@@ -800,6 +800,60 @@ public class ProductAccountService : IProductAccountService
         }).ToList();
     }
 
+    public async Task<ProductAccountListResponseDto> GetExpiredAccountsAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _clock.UtcNow;
+
+        var query = _productAccountRepository.Query()
+            .Include(pa => pa.Variant)
+                .ThenInclude(v => v.Product)
+            .Include(pa => pa.Supplier)
+            .Include(pa => pa.ProductAccountCustomers)
+            .Where(pa => pa.Status == nameof(ProductAccountStatus.Expired))
+            .AsQueryable();
+
+        // Get total count
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        // Apply pagination
+        var items = await query
+            .OrderByDescending(pa => pa.ExpiryDate)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(pa => new ProductAccountListDto
+            {
+                ProductAccountId = pa.ProductAccountId,
+                VariantId = pa.VariantId,
+                VariantTitle = pa.Variant.Title,
+                ProductName = pa.Variant.Product.ProductName,
+                SupplierId = pa.SupplierId,
+                SupplierName = pa.Supplier.Name,
+                AccountEmail = pa.AccountEmail,
+                AccountUsername = pa.AccountUsername,
+                MaxUsers = pa.MaxUsers,
+                CurrentUsers = pa.ProductAccountCustomers.Count(pac => pac.IsActive),
+                Status = pa.Status,
+                CogsPrice = pa.Variant.CogsPrice,
+                SellPrice = pa.Variant.SellPrice,
+                ExpiryDate = pa.ExpiryDate,
+                CreatedAt = pa.CreatedAt,
+                OrderId = pa.ProductAccountCustomers.FirstOrDefault(x => x.OrderId.HasValue).OrderId
+            })
+            .ToListAsync(cancellationToken);
+
+        return new ProductAccountListResponseDto
+        {
+            Items = items,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            CurrentPage = pageNumber
+        };
+    }
+    
+
     private static void ValidateProductAccountEntity(ProductAccount account, bool requireExpiryDate)
     {
         var validationContext = new ValidationContext(account);

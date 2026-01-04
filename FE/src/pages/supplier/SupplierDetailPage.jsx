@@ -86,6 +86,8 @@ export default function SupplierDetailPage() {
   const [csvKeyType, setCsvKeyType] = useState("Individual");
   const [csvExpiryDate, setCsvExpiryDate] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [showImportResultModal, setShowImportResultModal] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   // View keys modal states
   const [showKeysModal, setShowKeysModal] = useState(false);
@@ -550,17 +552,26 @@ export default function SupplierDetailPage() {
         formData.append("expiryDate", csvExpiryDate);
       }
 
-      await LicensePackageApi.uploadCsv(formData);
+      const response = await LicensePackageApi.uploadCsv(formData);
+      const data = response?.data || response;
 
-      showSuccess(
-        "Thành công",
-        "Đã nhập license từ file CSV vào kho thành công"
-      );
+      setImportResult(data);
+      if (data.errors && data.errors.length > 0) {
+        showError("Có lỗi xảy ra", "Vui lòng kiểm tra lại kết quả nhập liệu");
+      } else {
+        showSuccess(
+          "Thành công",
+          "Đã nhập license từ file CSV vào kho thành công"
+        );
+      }
+
       setShowUploadModal(false);
       setCsvFile(null);
       setCsvKeyType("Individual");
       setCsvExpiryDate("");
       setSelectedPackageForImport(null);
+      
+      setShowImportResultModal(true);
       loadLicensePackages();
     } catch (err) {
       console.error("Failed to upload CSV:", err);
@@ -569,9 +580,13 @@ export default function SupplierDetailPage() {
         err.message ||
         "Không thể upload file CSV";
       showError("Lỗi upload", errorMsg);
-    } finally {
       setUploading(false);
     }
+  };
+
+  const closeImportResultModal = () => {
+    setShowImportResultModal(false);
+    setImportResult(null);
   };
 
   const closeUploadModal = () => {
@@ -1329,6 +1344,123 @@ export default function SupplierDetailPage() {
         packageKeys={selectedPackageKeys}
         loading={loadingKeys}
       />
+
+      {/* Import Result Modal */}
+      {showImportResultModal && importResult && (
+        <div className="modal-backdrop" onClick={closeImportResultModal}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Kết quả nhập Key</h3>
+            </div>
+            <div className="modal-body">
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#f0fdf4",
+                    borderRadius: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#166534" }}>Thành công</div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      color: "#16a34a",
+                    }}
+                  >
+                    {importResult.successfullyImported}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#fefce8",
+                    borderRadius: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#854d0e" }}>Trùng lặp</div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      color: "#ca8a04",
+                    }}
+                  >
+                    {importResult.duplicateKeys}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#fef2f2",
+                    borderRadius: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#991b1b" }}>Lỗi khác</div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      color: "#dc2626",
+                    }}
+                  >
+                    {importResult.invalidKeys}
+                  </div>
+                </div>
+              </div>
+
+              {importResult.errors && importResult.errors.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: 14 }}>
+                    Chi tiết lỗi:
+                  </h4>
+                  <div
+                    style={{
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      background: "#fff1f2",
+                      border: "1px solid #fca5a5",
+                      borderRadius: 6,
+                      padding: 8,
+                    }}
+                  >
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 20,
+                        fontSize: 13,
+                        color: "#b91c1c",
+                      }}
+                    >
+                      {importResult.errors.map((err, idx) => (
+                        <li key={idx} style={{ marginBottom: 4 }}>
+                          {err}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn primary" onClick={closeImportResultModal}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

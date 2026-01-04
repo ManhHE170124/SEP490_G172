@@ -2,6 +2,7 @@
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Utils;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -499,23 +500,11 @@ namespace Keytietkiem.Controllers
 
         private string GetOrSetAnonymousId()
         {
-            if (Request.Cookies.TryGetValue(AnonIdCookieName, out var cookieId) &&
-                !string.IsNullOrWhiteSpace(cookieId))
-                return cookieId;
-
-            var headerId = Request.Headers[GuestIdHeaderName].FirstOrDefault();
-            var newId = !string.IsNullOrWhiteSpace(headerId) ? headerId!.Trim() : Guid.NewGuid().ToString();
-
-            var options = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                Expires = DateTime.UtcNow.AddDays(90)
-            };
-
-            Response.Cookies.Append(AnonIdCookieName, newId, options);
-            return newId;
+            // ✅ Centralized guest identity logic:
+            // - Prefer header X-Guest-Cart-Id (FE localStorage)
+            // - Fallback cookie ktk_anon_id / legacy
+            // - Ensure cookie Path="/" so it is sent to /api/orders/* too
+            return GuestCartIdentityHelper.GetOrInit(HttpContext);
         }
 
         private static bool IsValidEmail(string email)

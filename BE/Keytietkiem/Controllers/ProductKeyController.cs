@@ -5,6 +5,8 @@ using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
+using Keytietkiem.Utils;
+using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
@@ -12,6 +14,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+
 namespace Keytietkiem.Controllers
 {
     [ApiController]
@@ -22,15 +26,18 @@ namespace Keytietkiem.Controllers
         private readonly IProductKeyService _productKeyService;
         private readonly ILicensePackageService _licensePackageService;
         private readonly IAuditLogger _auditLogger;
+        private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
 
         public ProductKeyController(
             IProductKeyService productKeyService,
             ILicensePackageService licensePackageService,
-            IAuditLogger auditLogger)
+            IAuditLogger auditLogger,
+            IDbContextFactory<KeytietkiemDbContext> dbFactory)
         {
             _productKeyService = productKeyService;
             _licensePackageService = licensePackageService;
             _auditLogger = auditLogger;
+            _dbFactory = dbFactory;
         }
 
         /// <summary>
@@ -98,7 +105,17 @@ namespace Keytietkiem.Controllers
                     entityId: result.KeyId.ToString(),
                     before: null,
                     after: result
-);
+                );
+
+                // ✅ Sync stock to DB for variant + product (computed stock types)
+                await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                        db,
+                        dto.VariantId,
+                        DateTime.UtcNow,
+                        cancellationToken);
+                }
 
                 return CreatedAtAction(nameof(GetProductKeyById), new { keyId = result.KeyId }, result);
             }
@@ -138,13 +155,22 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-
                     action: "Update",
                     entityType: "ProductKey",
                     entityId: keyId.ToString(),
                     before: before,
                     after: result
-);
+                );
+
+                // ✅ Sync stock
+                await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                        db,
+                        before.VariantId,
+                        DateTime.UtcNow,
+                        cancellationToken);
+                }
 
                 return Ok(result);
             }
@@ -170,6 +196,10 @@ namespace Keytietkiem.Controllers
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+                // Lấy trước để biết VariantId, tránh sync mù
+                var before = await _productKeyService.GetProductKeyByIdAsync(keyId, cancellationToken);
+
                 await _productKeyService.DeleteProductKeyAsync(keyId, actorId, cancellationToken);
 
                 await _auditLogger.LogAsync(
@@ -179,7 +209,17 @@ namespace Keytietkiem.Controllers
                     entityId: keyId.ToString(),
                     before: null,
                     after: new { KeyId = keyId, Deleted = true }
-);
+                );
+
+                // ✅ Sync stock
+                await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                        db,
+                        before.VariantId,
+                        DateTime.UtcNow,
+                        cancellationToken);
+                }
 
                 return NoContent();
             }
@@ -205,6 +245,10 @@ namespace Keytietkiem.Controllers
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+                // Lấy trước để biết VariantId
+                var before = await _productKeyService.GetProductKeyByIdAsync(dto.KeyId, cancellationToken);
+
                 await _productKeyService.AssignKeyToOrderAsync(dto, actorId, cancellationToken);
 
                 await _auditLogger.LogAsync(
@@ -214,7 +258,17 @@ namespace Keytietkiem.Controllers
                     entityId: null,
                     before: null,
                     after: dto
-);
+                );
+
+                // ✅ Sync stock
+                await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                        db,
+                        before.VariantId,
+                        DateTime.UtcNow,
+                        cancellationToken);
+                }
 
                 return Ok(new { message = "Gán key cho đơn hàng thành công" });
             }
@@ -240,6 +294,9 @@ namespace Keytietkiem.Controllers
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+                var before = await _productKeyService.GetProductKeyByIdAsync(keyId, cancellationToken);
+
                 await _productKeyService.UnassignKeyFromOrderAsync(keyId, actorId, cancellationToken);
 
                 await _auditLogger.LogAsync(
@@ -249,7 +306,17 @@ namespace Keytietkiem.Controllers
                     entityId: keyId.ToString(),
                     before: null,
                     after: new { KeyId = keyId, Unassigned = true }
-);
+                );
+
+                // ✅ Sync stock
+                await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                        db,
+                        before.VariantId,
+                        DateTime.UtcNow,
+                        cancellationToken);
+                }
 
                 return Ok(new { message = "Gỡ key khỏi đơn hàng thành công" });
             }
@@ -274,6 +341,18 @@ namespace Keytietkiem.Controllers
         {
             try
             {
+                // Lấy danh sách VariantId bị ảnh hưởng (để sync stock) – query 1 lần
+                var affectedVariantIds = new List<Guid>();
+                await using (var dbLookup = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    affectedVariantIds = await dbLookup.Set<ProductKey>()
+                        .AsNoTracking()
+                        .Where(k => dto.KeyIds.Contains(k.KeyId))
+                        .Select(k => k.VariantId)
+                        .Distinct()
+                        .ToListAsync(cancellationToken);
+                }
+
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 var count = await _productKeyService.BulkUpdateKeyStatusAsync(dto, actorId, cancellationToken);
 
@@ -284,7 +363,20 @@ namespace Keytietkiem.Controllers
                     entityId: null,
                     before: null,
                     after: new { UpdatedCount = count, Request = dto }
-);
+                );
+
+                // ✅ Sync stock for all affected variants
+                if (affectedVariantIds.Count > 0)
+                {
+                    await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                    {
+                        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                            db,
+                            affectedVariantIds,
+                            DateTime.UtcNow,
+                            cancellationToken);
+                    }
+                }
 
                 return Ok(new { message = $"Đã cập nhật trạng thái {count} product keys", count });
             }
@@ -339,7 +431,17 @@ namespace Keytietkiem.Controllers
                     entityId: null,
                     before: null,
                     after: result
-);
+                );
+
+                // ✅ Sync stock
+                await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                        db,
+                        dto.VariantId,
+                        DateTime.UtcNow,
+                        cancellationToken);
+                }
 
                 return Ok(result);
             }
@@ -366,6 +468,49 @@ namespace Keytietkiem.Controllers
             {
                 var csvData = await _productKeyService.ExportKeysToCSVAsync(filter, cancellationToken);
                 return File(csvData, "text/csv", $"product-keys-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+
+        /// <summary>
+        /// Get expired product keys
+        /// </summary>
+        [HttpGet("expired")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        public async Task<IActionResult> GetExpiredKeys(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var result = await _productKeyService.GetExpiredKeysAsync(pageNumber, pageSize, cancellationToken);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+        /// <summary>
+        /// Get product keys expiring soon
+        /// </summary>
+        [HttpGet("expiring-soon")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        public async Task<IActionResult> GetKeysExpiringSoon(
+            [FromQuery] int days = 5,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var result = await _productKeyService.GetKeysExpiringSoonAsync(days, pageNumber, pageSize, cancellationToken);
+                return Ok(result);
             }
             catch (Exception ex)
             {
