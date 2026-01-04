@@ -1,4 +1,5 @@
-﻿using Keytietkiem.Attributes;
+﻿using CloudinaryDotNet.Actions;
+using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Support;
@@ -17,6 +18,7 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IAuditLogger _auditLogger;
+        private readonly IClock _clock;
 
         public SupportPriorityLoyaltyRulesController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
@@ -660,7 +662,7 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync() ?? 0;
 
             // 3. Level từ gói hỗ trợ đang ACTIVE (nếu có)
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Unspecified);
 
             var activePlanLevel = await db.UserSupportPlanSubscriptions
                 .Include(s => s.SupportPlan)

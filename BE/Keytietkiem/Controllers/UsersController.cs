@@ -21,6 +21,7 @@ namespace Keytietkiem.Controllers
     {
         private readonly KeytietkiemDbContext _db;
         private readonly IAuditLogger _auditLogger;
+        private readonly IClock _clock;
 
         private bool IsValidPhoneNumber(string? phone)
         {
@@ -115,7 +116,7 @@ namespace Keytietkiem.Controllers
         /// </summary>
         private async Task<int> GetActivePlanPriorityLevelAsync(Guid userId)
         {
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = _clock.UtcNow;
 
             // JOIN subscription + plan để không phụ thuộc navigation name
             var planLv = await (
@@ -143,7 +144,7 @@ namespace Keytietkiem.Controllers
             User user,
             int? targetSupportPlanId)
         {
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = _clock.UtcNow;
 
             if (user.IsTemp)
                 return (false, "Không thể thay đổi gói hỗ trợ cho người dùng tạm thời (IsTemp = true).");
@@ -345,7 +346,7 @@ namespace Keytietkiem.Controllers
                 if (trackedUser.SupportPriorityLevel != finalLv)
                 {
                     trackedUser.SupportPriorityLevel = finalLv;
-                    trackedUser.UpdatedAt = DateTime.UtcNow;
+                    trackedUser.UpdatedAt = _clock.UtcNow;
                     await _db.SaveChangesAsync();
                 }
             }
@@ -393,7 +394,7 @@ namespace Keytietkiem.Controllers
             if (u.IsTemp)
                 return BadRequest(new { message = "Không thể xem chi tiết người dùng tạm thời (IsTemp = true)." });
 
-            var now = DateTime.UtcNow;
+            var now = _clock.UtcNow;
 
             // active subscription (query riêng theo DB mới)
             var activeSub = await (
@@ -424,7 +425,7 @@ namespace Keytietkiem.Controllers
                 if (u.SupportPriorityLevel != finalLv)
                 {
                     u.SupportPriorityLevel = finalLv;
-                    u.UpdatedAt = DateTime.UtcNow;
+                    u.UpdatedAt = _clock.UtcNow;
                     await _db.SaveChangesAsync();
                 }
             }
@@ -480,7 +481,7 @@ namespace Keytietkiem.Controllers
             if (await _db.Set<User>().AnyAsync(x => x.Email == dto.Email))
                 return Conflict(new { message = "Email đã tồn tại, vui lòng dùng email khác." });
 
-            var now = DateTime.UtcNow;
+            var now = _clock.UtcNow;
 
             var user = new User
             {
@@ -643,7 +644,7 @@ namespace Keytietkiem.Controllers
             u.Status = UserStatusHelper.IsValid(dto.Status) ? UserStatusHelper.Normalize(dto.Status) : u.Status;
 
             u.SupportPriorityLevel = dto.SupportPriorityLevel;
-            u.UpdatedAt = DateTime.UtcNow;
+            u.UpdatedAt = _clock.UtcNow;
 
             u.Roles.Clear();
             if (!string.IsNullOrEmpty(dto.RoleId))
@@ -656,7 +657,7 @@ namespace Keytietkiem.Controllers
 
             if (!string.IsNullOrWhiteSpace(dto.NewPassword))
             {
-                var now = DateTime.UtcNow;
+                var now = _clock.UtcNow;
 
                 if (u.Account == null)
                 {
@@ -700,7 +701,7 @@ namespace Keytietkiem.Controllers
                     if (exists) return Conflict(new { message = "Username đã tồn tại, vui lòng dùng username khác." });
 
                     u.Account.Username = newUsername;
-                    u.Account.UpdatedAt = DateTime.UtcNow;
+                    u.Account.UpdatedAt = _clock.UtcNow;
                 }
             }
 
@@ -774,7 +775,7 @@ namespace Keytietkiem.Controllers
                 ? "Disabled"
                 : "Active";
 
-            u.UpdatedAt = DateTime.UtcNow;
+            u.UpdatedAt = _clock.UtcNow;
             await _db.SaveChangesAsync();
 
             var after = new
