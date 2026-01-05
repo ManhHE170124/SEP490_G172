@@ -228,5 +228,20 @@ namespace Keytietkiem.Controllers
                 });
             }
         }
+
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublic()
+        {
+            var setting = await _settingService.GetOrCreateAsync();
+            return Ok(new
+            {
+                contact = new { address = setting.CompanyAddress, phone = setting.Phone, email = setting.Email },
+                social = new { facebook = setting.Facebook, instagram = setting.Instagram, zalo = setting.Zalo, tiktok = setting.TikTok },
+                logoUrl = setting.LogoUrl,
+                name = setting.SiteName,
+                slogan = setting.Slogan
+            });
+        }
     }
 }
