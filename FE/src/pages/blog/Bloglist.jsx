@@ -54,9 +54,9 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getAllPosts(),
-                postsApi.getPosttypes(),
-                postsApi.getTags()
+                postsApi.getPublicPosts(),
+                postsApi.getPublicPosttypes(),
+                postsApi.getPublicTags()
             ]);
 
             console.log("✅ Data loaded:", {
@@ -113,7 +113,8 @@ const BlogList = () => {
 
         // Category filter (by postTypeId)
         if (categoryId !== "all") {
-            result = result.filter(p => p.postTypeId === categoryId);
+            result = result.filter(p => p.postTypeId?.toString() === categoryId);
+
         }
 
         // Tag filter (by slug)
@@ -160,7 +161,7 @@ const BlogList = () => {
     }, [search]);
 
     // Get active filter labels
-    const activeCategory = categories.find(c => c.postTypeId === categoryId);
+    const activeCategory = categories.find(c => c.postTypeId?.toString() === categoryId);
     const activeTag = tags.find(t => t.slug === tagSlug);
 
     return (
