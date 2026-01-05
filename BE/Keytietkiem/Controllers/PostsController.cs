@@ -26,6 +26,8 @@ using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using System.Security.Claims;
+using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
@@ -34,11 +36,12 @@ namespace Keytietkiem.Controllers
     public class PostsController : ControllerBase
     {
         private readonly IPostService _postService;
-        
+        private readonly KeytietkiemDbContext _context;
         public PostsController(
-            IPostService postService)
+            IPostService postService, KeytietkiemDbContext keytietkiemDbContext)
         {
             _postService = postService ?? throw new ArgumentNullException(nameof(postService));
+            _context = keytietkiemDbContext;
         }
 
         /**

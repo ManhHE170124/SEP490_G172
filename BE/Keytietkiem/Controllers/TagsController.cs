@@ -21,6 +21,8 @@ using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using System.Security.Claims;
+using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
@@ -30,10 +32,12 @@ namespace Keytietkiem.Controllers
     public class TagsController : ControllerBase
     {
         private readonly IPostService _postService;
+        private readonly KeytietkiemDbContext _context;
 
-        public TagsController(IPostService postService)
+        public TagsController(IPostService postService, KeytietkiemDbContext keytietkiemDbContext)
         {
             _postService = postService ?? throw new ArgumentNullException(nameof(postService));
+            _context = keytietkiemDbContext;
         }
 
         /**
