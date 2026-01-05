@@ -96,6 +96,8 @@ import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
 import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
 import SupportDashboardAdminPage from "../pages/admin/SupportDashboardAdminPage";
+import UserDashboardAdminPage from "../pages/admin/UserDashboardAdminPage.jsx";
+
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -104,8 +106,8 @@ const AdminTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-        ? m.AdminTicketDetail
-        : () => null,
+          ? m.AdminTicketDetail
+          : () => null,
   }))
 );
 
@@ -116,8 +118,8 @@ const StaffTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.StaffTicketDetail === "function"
-        ? m.StaffTicketDetail
-        : () => null,
+          ? m.StaffTicketDetail
+          : () => null,
   }))
 );
 
@@ -279,11 +281,11 @@ export default function AppRoutes() {
         element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN))}
       />
       <Route
-  path="/admin/payments/dashboard"
-  element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
-/>
+        path="/admin/payments/dashboard"
+        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+      />
 
-<Route
+      <Route
         path="/admin/orders/:id"
         element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN))}
       />
@@ -301,6 +303,10 @@ export default function AppRoutes() {
       <Route
         path="/admin/users"
         element={renderAdminPage(<AdminUserManagement />, role(ROLES.ADMIN))}
+      />
+      <Route
+        path="/admin/user-dashboard"
+        element={renderAdminPage(<UserDashboardAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       <Route
         path="/role-manage"
@@ -368,7 +374,7 @@ export default function AppRoutes() {
 
       {/* Settings */}
       <Route path="/admin/website-config" element={renderAdminPage(<WebsiteConfig />, role(ROLES.ADMIN))} />
-       <Route
+      <Route
         path="/admin/notifications"
         element={renderAdminPage(<AdminNotificationsPage />, role(ROLES.ADMIN))}
       />

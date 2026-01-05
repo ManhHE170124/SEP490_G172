@@ -1,0 +1,143 @@
+/* File: src/pages/admin/UserDashboardAdminPage.css */
+/* Unique prefix: udg- */
+
+.udg-page {
+  padding: 16px 18px 28px;
+  color: var(--ink, #0b1220);
+}
+
+.udg-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.udg-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.udg-sub {
+  margin-top: 6px;
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.udg-subhint {
+  margin-left: 6px;
+  font-weight: 800;
+  color: #6b7280;
+}
+
+.udg-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.udg-btn {
+  border: 1px solid var(--line, #e5e7eb);
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.udg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+.udg-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.udg-filter-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted, #6b7280);
+}
+
+.udg-filter input,
+.udg-filter select {
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 800;
+}
+
+.udg-error {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 900;
+  color: #b91c1c;
+  margin-bottom: 12px;
+}
+
+.udg-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.udg-kpi {
+  border: 1px solid var(--line, #e5e7eb);
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+}
+
+.udg-kpi-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted, #6b7280);
+}
+
+.udg-kpi-value {
+  font-size: 20px;
+  font-weight: 900;
+  margin-top: 4px;
+}
+
+.udg-kpi-sub {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted, #6b7280);
+  margin-top: 6px;
+}
+
+.udg-card {
+  border: 1px solid var(--line, #e5e7eb);
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.udg-card-title {
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.udg-empty {
+  padding: 14px;
+  color: var(--muted, #6b7280);
+  font-weight: 900;
+}
+
+.udg-chart {
+  width: 100%;
+}
