@@ -7,8 +7,11 @@ import "./StorefrontProductListPage.css";
 
 const SORT_OPTIONS = [
   { value: "default",    label: "Phù hợp nhất" },
+  { value: "deals",      label: "Ưu đãi hôm nay" },   // ✅ NEW
+  { value: "low-stock",  label: "Sắp hết hàng" },     // ✅ NEW
   { value: "updated",    label: "Mới cập nhật" },
   { value: "sold",       label: "Bán chạy" },
+  { value: "views",      label: "Xem nhiều" },        // (optional)
   { value: "price-asc",  label: "Giá tăng dần" },
   { value: "price-desc", label: "Giá giảm dần" },
   { value: "name-asc",   label: "Tên A → Z" },
@@ -35,16 +38,12 @@ const buildQueryFromSearch = (search) => {
   const params = new URLSearchParams(search);
 
   const q = params.get("q") || "";
-
   const categoryIdStr = params.get("categoryId");
   const productType = params.get("productType") || "";
-
   const minPriceStr = params.get("minPrice");
   const maxPriceStr = params.get("maxPrice");
-
   const sort = params.get("sort") || "default";
 
-  // page / pageSize: luôn dùng giá trị mặc định ở FE
   const page = 1;
   const pageSize = PAGE_SIZE;
 
@@ -152,79 +151,53 @@ const StorefrontProductListPage = () => {
     loadVariants(q);
   }, [location.search, loadVariants]);
 
-  // Khi cart thay đổi (Add/Update/Remove/Clear) -> reload list hiện tại
+  // Khi cart thay đổi -> reload list hiện tại
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const handleCartUpdated = () => {
       const baseQuery = buildQueryFromSearch(location.search);
-      const queryWithPage = {
-        ...baseQuery,
-        page,
-        pageSize: PAGE_SIZE,
-      };
+      const queryWithPage = { ...baseQuery, page, pageSize: PAGE_SIZE };
       loadVariants(queryWithPage);
     };
 
     window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
-    return () => {
-      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
-    };
+    return () => window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
   }, [location.search, page, loadVariants]);
 
   // ====== Handlers ======
   const handleChangeField = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   // Bấm nút "Lọc" -> cập nhật URL
   const handleApplyFilter = () => {
     const params = new URLSearchParams(location.search);
 
-    // clear page / pageSize khỏi URL (nếu có từ link cũ)
     params.delete("page");
     params.delete("pageSize");
 
-    if (form.categoryId) {
-      params.set("categoryId", form.categoryId);
-    } else {
-      params.delete("categoryId");
-    }
+    if (form.categoryId) params.set("categoryId", form.categoryId);
+    else params.delete("categoryId");
 
-    if (form.productType) {
-      params.set("productType", form.productType);
-    } else {
-      params.delete("productType");
-    }
+    if (form.productType) params.set("productType", form.productType);
+    else params.delete("productType");
 
-    if (form.minPrice) {
-      params.set("minPrice", form.minPrice);
-    } else {
-      params.delete("minPrice");
-    }
+    if (form.minPrice) params.set("minPrice", form.minPrice);
+    else params.delete("minPrice");
 
-    if (form.maxPrice) {
-      params.set("maxPrice", form.maxPrice);
-    } else {
-      params.delete("maxPrice");
-    }
+    if (form.maxPrice) params.set("maxPrice", form.maxPrice);
+    else params.delete("maxPrice");
 
-    if (form.sort && form.sort !== "default") {
-      params.set("sort", form.sort);
-    } else {
-      params.delete("sort");
-    }
+    if (form.sort && form.sort !== "default") params.set("sort", form.sort);
+    else params.delete("sort");
 
     const search = params.toString();
     setPage(1);
     navigate(`${location.pathname}${search ? `?${search}` : ""}`);
   };
 
-  // Bấm "Khôi phục" -> clear filter + URL sạch
   const handleResetFilter = () => {
     setForm({
       categoryId: "",
@@ -238,16 +211,11 @@ const StorefrontProductListPage = () => {
     navigate(location.pathname);
   };
 
-  // Chuyển trang -> chỉ đổi page ở FE, không đổi URL
   const handleChangePage = (newPage) => {
     if (newPage < 1 || newPage > totalPages || newPage === page) return;
 
     const baseQuery = buildQueryFromSearch(location.search);
-    const queryWithPage = {
-      ...baseQuery,
-      page: newPage,
-      pageSize: PAGE_SIZE,
-    };
+    const queryWithPage = { ...baseQuery, page: newPage, pageSize: PAGE_SIZE };
 
     setPage(newPage);
     loadVariants(queryWithPage);
@@ -263,7 +231,6 @@ const StorefrontProductListPage = () => {
         <section className="sf-section">
           <div className="sf-filters">
             <div className="sf-filters-grid">
-              {/* Danh mục */}
               <div className="sf-field">
                 <label className="sf-label">Danh mục</label>
                 <select
@@ -281,7 +248,6 @@ const StorefrontProductListPage = () => {
                 </select>
               </div>
 
-              {/* Loại sản phẩm */}
               <div className="sf-field">
                 <label className="sf-label">Loại sản phẩm</label>
                 <select
@@ -299,7 +265,6 @@ const StorefrontProductListPage = () => {
                 </select>
               </div>
 
-              {/* Giá từ */}
               <div className="sf-field">
                 <label className="sf-label">Giá từ</label>
                 <input
@@ -313,7 +278,6 @@ const StorefrontProductListPage = () => {
                 />
               </div>
 
-              {/* Giá đến */}
               <div className="sf-field">
                 <label className="sf-label">Đến</label>
                 <input
@@ -327,7 +291,6 @@ const StorefrontProductListPage = () => {
                 />
               </div>
 
-              {/* Sắp xếp */}
               <div className="sf-field">
                 <label className="sf-label">Sắp xếp</label>
                 <select
@@ -354,18 +317,10 @@ const StorefrontProductListPage = () => {
                 )}
               </div>
               <div className="sf-filters-buttons">
-                <button
-                  type="button"
-                  className="sf-btn sf-btn-primary"
-                  onClick={handleApplyFilter}
-                >
+                <button type="button" className="sf-btn sf-btn-primary" onClick={handleApplyFilter}>
                   Lọc
                 </button>
-                <button
-                  type="button"
-                  className="sf-btn"
-                  onClick={handleResetFilter}
-                >
+                <button type="button" className="sf-btn" onClick={handleResetFilter}>
                   Khôi phục
                 </button>
               </div>
@@ -376,71 +331,41 @@ const StorefrontProductListPage = () => {
         {/* Danh sách sản phẩm */}
         <section className="sf-section sf-section-cards">
           <div className="sf-section-header">
-            <div>
-              <h2>Tất cả sản phẩm</h2>
-            </div>
+            <div><h2>Tất cả sản phẩm</h2></div>
           </div>
 
-          {loading && (
-            <div className="sf-loading">
-              Đang tải sản phẩm...
-            </div>
-          )}
-
-          {error && !loading && (
-            <div className="sf-error">
-              {error}
-            </div>
-          )}
+          {loading && <div className="sf-loading">Đang tải sản phẩm...</div>}
+          {error && !loading && <div className="sf-error">{error}</div>}
 
           {!loading && !error && (
             <>
               <div className="sf-grid sf-grid-responsive">
                 {items.map((item) => {
-                  const variantTitle =
-                    item.variantTitle || item.title || item.productName;
-                  const typeLabel =
-                    StorefrontProductApi.typeLabelOf(item.productType);
-                  const displayTitle = typeLabel
-                    ? `${variantTitle} - ${typeLabel}`
-                    : variantTitle;
+                  const variantTitle = item.variantTitle || item.title || item.productName;
+                  const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
+                  const displayTitle = typeLabel ? `${variantTitle} - ${typeLabel}` : variantTitle;
 
                   const sellPrice = item.sellPrice;
-                  const listPrice = item.listPrice; // lấy từ DTO list
+                  const listPrice = item.listPrice;
 
                   const priceNowText = formatCurrency(sellPrice);
 
-                  const hasOldPrice =
-                    listPrice != null &&
-                    listPrice > sellPrice;
-
-                  const priceOldText = hasOldPrice
-                    ? formatCurrency(listPrice)
-                    : null;
-
+                  const hasOldPrice = listPrice != null && listPrice > sellPrice;
+                  const priceOldText = hasOldPrice ? formatCurrency(listPrice) : null;
                   const discountPercent = hasOldPrice
                     ? Math.round(100 - (sellPrice / listPrice) * 100)
                     : null;
 
-                  const isOutOfStock =
-                    item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
+                  const isOutOfStock = item.isOutOfStock ?? item.status === "OUT_OF_STOCK";
 
                   return (
-                    <article
-                      key={item.variantId}
-                      className={`sf-card ${isOutOfStock ? "sf-card-out" : ""}`}
-                    >
-                      <Link
-                        className="sf-card-link"
-                        to={`/products/${item.productId}?variant=${item.variantId}`}
-                      >
+                    <article key={item.variantId} className={`sf-card ${isOutOfStock ? "sf-card-out" : ""}`}>
+                      <Link className="sf-card-link" to={`/products/${item.productId}?variant=${item.variantId}`}>
                         <div className="sf-media">
                           {item.thumbnail ? (
                             <img src={item.thumbnail} alt={displayTitle} />
                           ) : (
-                            <div className="sf-media-placeholder">
-                              {displayTitle?.[0] || "K"}
-                            </div>
+                            <div className="sf-media-placeholder">{displayTitle?.[0] || "K"}</div>
                           )}
 
                           {item.badges && item.badges.length > 0 && (
@@ -449,11 +374,7 @@ const StorefrontProductListPage = () => {
                                 <span
                                   key={b.badgeCode}
                                   className="sf-tag"
-                                  style={
-                                    b.colorHex
-                                      ? { backgroundColor: b.colorHex, color: "#fff" }
-                                      : undefined
-                                  }
+                                  style={b.colorHex ? { backgroundColor: b.colorHex, color: "#fff" } : undefined}
                                 >
                                   {b.displayName || b.badgeCode}
                                 </span>
@@ -461,9 +382,7 @@ const StorefrontProductListPage = () => {
                             </div>
                           )}
 
-                          {isOutOfStock && (
-                            <div className="sf-out-of-stock">Hết hàng</div>
-                          )}
+                          {isOutOfStock && <div className="sf-out-of-stock">Hết hàng</div>}
                         </div>
 
                         <div className="sf-body">
@@ -475,9 +394,7 @@ const StorefrontProductListPage = () => {
                               <>
                                 <div className="sf-price-old">{priceOldText}</div>
                                 {discountPercent > 0 && (
-                                  <div className="sf-price-off">
-                                    -{discountPercent}%
-                                  </div>
+                                  <div className="sf-price-off">-{discountPercent}%</div>
                                 )}
                               </>
                             )}
@@ -501,26 +418,17 @@ const StorefrontProductListPage = () => {
                   </button>
 
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter((p) => {
-                      if (p === 1 || p === totalPages) return true;
-                      return Math.abs(p - page) <= 1;
-                    })
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                     .map((p, idx, arr) => {
                       const isCurrent = p === page;
-                      const showEllipsis =
-                        idx > 0 &&
-                        p - arr[idx - 1] > 1;
+                      const showEllipsis = idx > 0 && p - arr[idx - 1] > 1;
 
                       return (
                         <React.Fragment key={p}>
-                          {showEllipsis && (
-                            <span className="sf-pager-ellipsis">…</span>
-                          )}
+                          {showEllipsis && <span className="sf-pager-ellipsis">…</span>}
                           <button
                             type="button"
-                            className={`sf-btn ${
-                              isCurrent ? "sf-btn-current" : ""
-                            }`}
+                            className={`sf-btn ${isCurrent ? "sf-btn-current" : ""}`}
                             onClick={() => handleChangePage(p)}
                           >
                             {p}
