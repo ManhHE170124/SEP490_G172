@@ -1,6 +1,6 @@
 /**
  * File: PostService.cs
- * Author: Keytietkiem Team
+ * Author: HieuNDHE173169
  * Created: 2025
  * Version: 1.0.0
  * Purpose: Service implementation for Post, PostComment, Tag, and PostType business logic.
@@ -62,7 +62,6 @@ public class PostService : IPostService
             throw new InvalidOperationException("Không tìm thấy bài viết");
         }
 
-        // Increment view count
         if (post.Status == "Published")
         {
             post.ViewCount = (post.ViewCount ?? 0) + 1;
@@ -78,7 +77,6 @@ public class PostService : IPostService
         
         if (excludeStaticContent)
         {
-            // Filter out static content posts
             posts = posts.Where(post =>
             {
                 if (!post.PostTypeId.HasValue) return true;
@@ -111,16 +109,14 @@ public class PostService : IPostService
                 throw new InvalidOperationException("Danh mục bài viết không được tìm thấy.");
             }
             
-            // Check if this is a static content PostType
             var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
             if (StaticContentTypes.IsStaticContent(postTypeSlug))
             {
-                // Check if PostType already has a Post
                 var existingPosts = await _postRepository.GetAllPostsAsync(includeRelations: false, cancellationToken);
                 var hasPost = existingPosts.Any(p => p.PostTypeId == createDto.PostTypeId.Value);
                 if (hasPost)
                 {
-                    throw new InvalidOperationException("PostType này chỉ được phép có 1 Post.");
+                    throw new InvalidOperationException("Danh mục này chỉ được phép có 1 bài viết.");
                 }
             }
         }
@@ -163,10 +159,10 @@ public class PostService : IPostService
             AuthorId = createDto.AuthorId,
             MetaTitle = createDto.MetaTitle,
             Status = postType != null && StaticContentTypes.IsStaticContent(StaticContentTypes.GenerateSlugFromName(postType.PostTypeName))
-                ? "Published" 
+                ? "Published"
                 : (createDto.Status ?? "Draft"),
             ViewCount = 0,
-            CreatedAt = _clock.UtcNow
+            CreatedAt = DateTime.Now
         };
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -228,7 +224,6 @@ public class PostService : IPostService
                 throw new InvalidOperationException("Không tìm thấy danh mục bài viết.");
             }
             
-            // If changing PostType to a static content type, check if it already has a Post
             if (updateDto.PostTypeId.Value != existing.PostTypeId)
             {
                 var newPostTypeSlug = StaticContentTypes.GenerateSlugFromName(newPostType.PostTypeName);
@@ -238,7 +233,7 @@ public class PostService : IPostService
                     var hasPost = existingPosts.Any(p => p.PostTypeId == updateDto.PostTypeId.Value && p.PostId != id);
                     if (hasPost)
                     {
-                        throw new InvalidOperationException("PostType này chỉ được phép có 1 Post.");
+                        throw new InvalidOperationException("Danh mục này chỉ được phép có 1 bài viết.");
                     }
                 }
             }
@@ -293,7 +288,7 @@ public class PostService : IPostService
             existing.Status = updateDto.Status;
         }
         
-        existing.UpdatedAt = _clock.UtcNow;
+        existing.UpdatedAt = DateTime.Now;
 
         // Update Tags
         if (updateDto.TagIds != null)
@@ -382,7 +377,6 @@ public class PostService : IPostService
             throw new ArgumentException("Type không được để trống.", nameof(type));
         }
 
-        // Normalize type to lowercase
         type = type.ToLower();
 
         // Validate type is a static content type
@@ -430,7 +424,7 @@ public class PostService : IPostService
         var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
         if (!StaticContentTypes.IsStaticContent(postTypeSlug))
         {
-            throw new InvalidOperationException("PostType này không phải là static content type.");
+            throw new InvalidOperationException("Danh mục này không phải là loại nội dung tĩnh.");
         }
 
         // Check if PostType already has a Post
@@ -438,7 +432,7 @@ public class PostService : IPostService
         var hasPost = existingPosts.Any(p => p.PostTypeId == createDto.PostTypeId);
         if (hasPost)
         {
-            throw new InvalidOperationException("PostType này chỉ được phép có 1 Post.");
+            throw new InvalidOperationException("Danh mục này chỉ được phép có 1 bài viết.");
         }
 
         // Validate Author exists
@@ -466,9 +460,9 @@ public class PostService : IPostService
             Thumbnail = createDto.Thumbnail,
             PostTypeId = createDto.PostTypeId,
             AuthorId = createDto.AuthorId,
-            Status = "Published", // Static content is always Published
+            Status = "Published", 
             ViewCount = 0,
-            CreatedAt = _clock.UtcNow
+            CreatedAt = DateTime.UtcNow
         };
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -519,7 +513,7 @@ public class PostService : IPostService
         var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
         if (!StaticContentTypes.IsStaticContent(postTypeSlug))
         {
-            throw new InvalidOperationException("PostType này không phải là static content type.");
+            throw new InvalidOperationException("Danh mục này không phải là loại nội dung tĩnh.");
         }
 
         // If changing PostType, ensure the new PostType doesn't already have a post
@@ -529,7 +523,7 @@ public class PostService : IPostService
             var hasPost = existingPosts.Any(p => p.PostTypeId == updateDto.PostTypeId && p.PostId != id);
             if (hasPost)
             {
-                throw new InvalidOperationException("PostType này chỉ được phép có 1 Post.");
+                throw new InvalidOperationException("Danh mục này chỉ được phép có 1 bài viết.");
             }
         }
 
@@ -546,7 +540,7 @@ public class PostService : IPostService
         existing.Content = updateDto.Content;
         existing.Thumbnail = updateDto.Thumbnail;
         existing.PostTypeId = updateDto.PostTypeId;
-        existing.Status = "Published"; // Static content is always Published
+        existing.Status = "Published"; 
         existing.UpdatedAt = _clock.UtcNow;
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -667,7 +661,7 @@ public class PostService : IPostService
         var comment = await _postRepository.GetCommentByIdAsync(id, includeRelations: true, cancellationToken);
         if (comment == null)
         {
-            throw new InvalidOperationException("Comment không được tìm thấy");
+            throw new InvalidOperationException("Phản hồi không được tìm thấy");
         }
 
         return MapToCommentDTO(comment);
@@ -688,9 +682,8 @@ public class PostService : IPostService
         // Load all comments for this post with their users
         var allComments = await _postRepository.GetCommentsByPostIdAsync(postId, includeReplies: false, cancellationToken);
 
-        // Build flat structure: group by root parent (top-level comment)
         var commentDict = allComments.ToDictionary(c => c.CommentId);
-        var rootCommentMap = new Dictionary<Guid, Guid>(); // Maps commentId to its root commentId
+        var rootCommentMap = new Dictionary<Guid, Guid>(); 
 
         // Helper to find root for each comment
         Guid? GetRootCommentId(Guid commentId)
@@ -700,11 +693,11 @@ public class PostService : IPostService
 
             var comment = commentDict[commentId];
             if (comment.ParentCommentId == null)
-                return commentId; // This is a root
+                return commentId; 
 
             // Traverse up to find root
             var current = comment;
-            var visited = new HashSet<Guid>(); // Prevent infinite loops
+            var visited = new HashSet<Guid>(); 
 
             while (current.ParentCommentId.HasValue && !visited.Contains(current.CommentId))
             {
@@ -739,7 +732,6 @@ public class PostService : IPostService
         {
             var thread = new List<PostComment> { root };
 
-            // Add all children of this root (direct and indirect) in chronological order
             var children = allComments
                 .Where(c =>
                 {
@@ -753,14 +745,12 @@ public class PostService : IPostService
             threads.Add(thread);
         }
 
-        // Apply pagination on threads (not individual comments)
         var totalComments = threads.Sum(t => t.Count);
 
         var pagedThreads = new List<List<PostComment>>();
         var currentPageCount = 0;
         var targetStartIndex = (page - 1) * pageSize;
 
-        // Find the starting thread by counting comments
         var commentCount = 0;
         var startThreadIndex = 0;
         foreach (var thread in threads)
@@ -776,7 +766,6 @@ public class PostService : IPostService
             commentCount += thread.Count;
         }
 
-        // Continue adding complete threads until we reach pageSize
         for (int i = startThreadIndex; i < threads.Count; i++)
         {
             var thread = threads[i];
@@ -866,7 +855,7 @@ public class PostService : IPostService
         var parentComment = await _postRepository.GetCommentByIdAsync(parentCommentId, includeRelations: false, cancellationToken);
         if (parentComment == null)
         {
-            throw new InvalidOperationException("Comment không được tìm thấy");
+            throw new InvalidOperationException("Phản hồi không được tìm thấy");
         }
 
         var replies = await _postRepository.GetCommentRepliesAsync(parentCommentId, cancellationToken);
@@ -877,7 +866,7 @@ public class PostService : IPostService
     {
         if (createDto == null || string.IsNullOrWhiteSpace(createDto.Content))
         {
-            throw new InvalidOperationException("Nội dung comment không được để trống.");
+            throw new InvalidOperationException("Nội dung phản hồi không được để trống.");
         }
 
         // Validate Post exists
@@ -901,22 +890,19 @@ public class PostService : IPostService
             var parentComment = await _postRepository.GetCommentByIdAsync(createDto.ParentCommentId.Value, includeRelations: false, cancellationToken);
             if (parentComment == null)
             {
-                throw new InvalidOperationException("Comment cha không được tìm thấy.");
+                throw new InvalidOperationException("Phản hồi cha không được tìm thấy.");
             }
 
-            // Validate that parent comment belongs to the same post
             if (parentComment.PostId != createDto.PostId)
             {
-                throw new InvalidOperationException("Comment cha phải thuộc cùng một bài viết.");
+                throw new InvalidOperationException("Phản hồi cha phải thuộc cùng một bài viết.");
             }
 
-            // Check if parent comment is hidden
             if (parentComment.IsApproved == false)
             {
                 throw new InvalidOperationException("Không thể trả lời bình luận đã bị ẩn.");
             }
 
-            // New logic: If parent is a child (has ParentCommentId), make this reply a child of parent's parent
             if (parentComment.ParentCommentId.HasValue)
             {
                 var grandParent = await _postRepository.GetCommentByIdAsync(parentComment.ParentCommentId.Value, includeRelations: false, cancellationToken);
@@ -940,13 +926,12 @@ public class PostService : IPostService
             ParentCommentId = actualParentId,
             Content = createDto.Content.Trim(),
             CreatedAt = _clock.UtcNow,
-            IsApproved = true // Default to visible
+            IsApproved = true 
         };
 
         _context.PostComments.Add(newComment);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Reload with relations
         var createdComment = await _postRepository.GetCommentByIdAsync(newComment.CommentId, includeRelations: true, cancellationToken);
         var commentDto = MapToCommentDTO(createdComment!);
 
@@ -962,13 +947,13 @@ public class PostService : IPostService
 
         if (string.IsNullOrWhiteSpace(updateDto.Content))
         {
-            throw new InvalidOperationException("Nội dung comment không được để trống.");
+            throw new InvalidOperationException("Nội dung phản hồi không được để trống.");
         }
 
         var existing = await _postRepository.GetCommentByIdAsync(id, includeRelations: false, cancellationToken);
         if (existing == null)
         {
-            throw new InvalidOperationException("Comment không được tìm thấy.");
+            throw new InvalidOperationException("Phản hồi không được tìm thấy.");
         }
 
         existing.Content = updateDto.Content.Trim();
@@ -989,7 +974,7 @@ public class PostService : IPostService
         var comment = await _postRepository.GetCommentByIdAsync(id, includeRelations: true, cancellationToken);
         if (comment == null)
         {
-            throw new InvalidOperationException("Comment không được tìm thấy.");
+            throw new InvalidOperationException("Phản hồi không được tìm thấy.");
         }
 
         // Recursively delete all replies
@@ -1004,7 +989,7 @@ public class PostService : IPostService
         var comment = await _postRepository.GetCommentByIdAsync(id, includeRelations: true, cancellationToken);
         if (comment == null)
         {
-            throw new InvalidOperationException("Comment không được tìm thấy.");
+            throw new InvalidOperationException("Phản hồi không được tìm thấy.");
         }
 
         // Check if comment has a parent and if parent is hidden
@@ -1013,7 +998,7 @@ public class PostService : IPostService
             var parent = await _postRepository.GetCommentByIdAsync(comment.ParentCommentId.Value, includeRelations: false, cancellationToken);
             if (parent != null && parent.IsApproved == false)
             {
-                throw new InvalidOperationException("Không thể hiển thị bình luận con khi bình luận cha đang bị ẩn.");
+                throw new InvalidOperationException("Không thể hiển thị phản hồi này khi phản hồi cha đang bị ẩn.");
             }
         }
 
@@ -1027,7 +1012,7 @@ public class PostService : IPostService
         var comment = await _postRepository.GetCommentByIdAsync(id, includeRelations: true, cancellationToken);
         if (comment == null)
         {
-            throw new InvalidOperationException("Comment không được tìm thấy.");
+            throw new InvalidOperationException("Phản hồi không được tìm thấy.");
         }
 
         // Hide comment and all its replies recursively
@@ -1248,7 +1233,7 @@ public class PostService : IPostService
     {
         if (comment.InverseParentComment != null && comment.InverseParentComment.Any())
         {
-            var replies = comment.InverseParentComment.ToList(); // Create a copy to avoid modification during iteration
+            var replies = comment.InverseParentComment.ToList(); 
             foreach (var reply in replies)
             {
                 var replyWithChildren = await _postRepository.GetCommentByIdAsync(reply.CommentId, includeRelations: true, cancellationToken);

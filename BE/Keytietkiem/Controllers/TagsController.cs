@@ -43,6 +43,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of tags
          */
         [HttpGet]
+        [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTags()
         {
@@ -64,6 +65,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with tag, 404 if not found
          */
         [HttpGet("{id}")]
+        [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTagById(Guid id)
         {

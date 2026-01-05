@@ -151,7 +151,7 @@ namespace Keytietkiem.Controllers
         {
             if (createCommentDto == null || string.IsNullOrWhiteSpace(createCommentDto.Content))
             {
-                return BadRequest(new { message = "Nội dung comment không được để trống." });
+                return BadRequest(new { message = "Nội dung phản hồi không được để trống." });
             }
 
             try
@@ -187,7 +187,7 @@ namespace Keytietkiem.Controllers
 
             if (string.IsNullOrWhiteSpace(updateCommentDto.Content))
             {
-                return BadRequest(new { message = "Nội dung comment không được để trống." });
+                return BadRequest(new { message = "Nội dung phản hổi không được để trống." });
             }
 
             try
@@ -248,7 +248,7 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 await _postService.ShowCommentAsync(id, actorId);
-                return Ok(new { message = "Comment đã được hiển thị.", commentId = id });
+                return Ok(new { message = "Phản hồi đã được hiển thị.", commentId = id });
             }
             catch (InvalidOperationException ex)
             {
@@ -273,7 +273,7 @@ namespace Keytietkiem.Controllers
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 await _postService.HideCommentAsync(id, actorId);
-                return Ok(new { message = "Comment đã bị ẩn.", commentId = id });
+                return Ok(new { message = "Phản hồi đã bị ẩn.", commentId = id });
             }
             catch (InvalidOperationException ex)
             {

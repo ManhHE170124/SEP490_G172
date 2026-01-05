@@ -418,11 +418,11 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/support-priority-loyalty-rules"
-        element={renderAdminPage(<SupportPriorityLoyaltyRulesPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<SupportPriorityLoyaltyRulesPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/support-plans"
-        element={renderAdminPage(<SupportPlansAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<SupportPlansAdminPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/sla-rules"
@@ -430,7 +430,7 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/ticket-subject-templates"
-        element={renderAdminPage(<TicketSubjectTemplatesAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<TicketSubjectTemplatesAdminPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/audit-logs"

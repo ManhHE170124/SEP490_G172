@@ -2,7 +2,6 @@
  * File: PostsController.cs
  * Author: HieuNDHE173169
  * Created: 21/10/2025
- * Last Updated: 24/10/2025
  * Version: 1.0.0
  * Purpose: Manage blog posts (CRUD). Handles post creation, updates, and deletion
  *          with proper relationships to authors, post types, tags, and post images.
@@ -49,7 +48,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of posts
          */
         [HttpGet]
-        [Authorize]
+        [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosts([FromQuery] bool excludeStaticContent = false)
         {
@@ -71,7 +70,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post, 404 if not found
          */
         [HttpGet("{id}")]
-        [Authorize]
+        [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPostById(Guid id)
         {
@@ -209,7 +208,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of post types
          */
         [HttpGet("posttypes")]
-        [Authorize]
+        [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosttypes()
         {
@@ -321,7 +320,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post detail, 404 if not found
          */
         [HttpGet("slug/{slug}")]
-        [AllowAnonymous] // Public endpoint - không cần auth
+        [AllowAnonymous] 
         public async Task<IActionResult> GetPostBySlug(string slug)
         {
             try
@@ -456,7 +455,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post detail, 404 if not found
          */
         [HttpGet("static/{type}")]
-        [AllowAnonymous] // Public endpoint
+        [AllowAnonymous] 
         public async Task<IActionResult> GetStaticContent(string type)
         {
             try

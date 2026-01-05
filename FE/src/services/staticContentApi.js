@@ -6,7 +6,6 @@
  * Purpose: REST client for Static Content management endpoints (Policy, UserGuide, AboutUs).
  */
 import axiosClient from "../api/axiosClient";
-import { postsApi } from "./postsApi";
 
 const END = {
   STATIC: "posts/static"

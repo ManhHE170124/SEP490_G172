@@ -211,8 +211,7 @@ const Sidebar = () => {
           to: "/admin/payments",
           allowedRoles: [ROLE_ADMIN],
           isActive:
-            currentPage === "admin/payments" ||
-            currentPage.startsWith("admin/payments/"),
+            currentPage === "admin/payments",
           icon: (
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -253,8 +252,7 @@ const Sidebar = () => {
           to: "/admin/payments/dashboard",
           allowedRoles: [ROLE_ADMIN],
           isActive:
-            currentPage === "admin/payments/dashboard" ||
-            currentPage.startsWith("admin/payments/dashboard/"),
+            currentPage === "admin/payments/dashboard",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -949,7 +947,7 @@ const Sidebar = () => {
           id: "support-priority-loyalty-rules",
           label: "Cấu hình quy tắc hỗ trợ",
           to: "/admin/support-priority-loyalty-rules",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/support-priority-loyalty-rules",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -970,7 +968,7 @@ const Sidebar = () => {
           id: "support-plans-admin",
           label: "Cấu hình gói hỗ trợ",
           to: "/admin/support-plans",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/support-plans",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
@@ -1014,7 +1012,7 @@ const Sidebar = () => {
           id: "ticket-subject-templates",
           label: "Cấu hình mẫu chủ đề ticket",
           to: "/admin/ticket-subject-templates",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/ticket-subject-templates",
           icon: (
             <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
