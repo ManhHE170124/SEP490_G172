@@ -506,7 +506,7 @@ const Sidebar = () => {
           id: "user-dashboard",
           label: "Dashboard người dùng",
           to: "/admin/user-dashboard",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive:
             currentPage === "admin/user-dashboard" ||
             currentPage.startsWith("admin/user-dashboard/"),
@@ -577,7 +577,7 @@ const Sidebar = () => {
           id: "dashboard",
           label: "Dashboard Hỗ trợ",
           to: "/admin/support-dashboard",
-          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          allowedRoles: [ROLE_ADMIN],
           isActive: currentPage === "admin/support-dashboard",
           icon: (
             <svg viewBox="0 0 24 24" fill="none">
