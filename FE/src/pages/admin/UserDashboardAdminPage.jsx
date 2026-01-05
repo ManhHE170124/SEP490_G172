@@ -25,6 +25,21 @@ function getCurrentMonthYyyyMm() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
+function formatMonthMmYyyy(yyyyMm) {
+  // "YYYY-MM" => "MM/YYYY"
+  const parts = String(yyyyMm || "").split("-");
+  if (parts.length === 2) return `${parts[1]}/${parts[0]}`;
+  return yyyyMm || "";
+}
+
+function formatYmdToDmy(ymd) {
+  // "YYYY-MM-DD" => "DD/MM/YYYY"
+  const parts = String(ymd || "").split("-");
+  if (parts.length !== 3) return ymd || "";
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+
 function formatBucketLabel(bucketYmd, groupBy) {
   // bucketYmd: "YYYY-MM-DD"
   if (!bucketYmd) return "";
@@ -47,12 +62,11 @@ function pick(obj, camel, pascal, fallback) {
   return fallback;
 }
 
-function KpiCard({ label, value, sub }) {
+function KpiCard({ label, value }) {
   return (
     <div className="udg-kpi">
       <div className="udg-kpi-label">{label}</div>
       <div className="udg-kpi-value">{value}</div>
-      {sub ? <div className="udg-kpi-sub">{sub}</div> : null}
     </div>
   );
 }
@@ -108,8 +122,9 @@ export default function UserDashboardAdminPage() {
     0
   );
 
+  // BE trả asOfDate theo local date (UTC+7). FE chỉ format hiển thị.
   const asOfDate = pick(filter, "asOfDate", "AsOfDate", "");
-  const tz = pick(filter, "timeZone", "TimeZone", "Asia/Bangkok");
+  const asOfDateText = asOfDate ? formatYmdToDmy(asOfDate) : "";
 
   const chartData = useMemo(() => {
     return series.map((p) => {
@@ -129,35 +144,31 @@ export default function UserDashboardAdminPage() {
     return `${sign}${v.toLocaleString()}`;
   }, [changeVsPrevMonth]);
 
-  const titleRange = useMemo(() => {
-    // month: YYYY-MM -> show as "MM/YYYY"
-    const parts = String(month).split("-");
-    if (parts.length === 2) {
-      return `${parts[1]}/${parts[0]}`;
-    }
-    return month;
-  }, [month]);
+  const titleRange = useMemo(() => formatMonthMmYyyy(month), [month]);
 
   return (
     <div className="udg-page">
       <div className="udg-head">
         <div>
-          <h1 className="udg-title">User Growth Dashboard</h1>
+          <h1 className="udg-title">Dashboard tăng trưởng người dùng</h1>
           <div className="udg-sub">
-            Month: <b>{titleRange}</b>
-            {asOfDate ? (
+            Tháng: <b>{titleRange}</b>
+            {asOfDateText ? (
               <>
                 {" "}
-                · As-of: <b>{asOfDate}</b>
+                · Tính đến: <b>{asOfDateText}</b>
               </>
             ) : null}
-            {tz ? <span className="udg-subhint">({tz})</span> : null}
           </div>
         </div>
 
         <div className="udg-actions">
-          <button className="udg-btn" onClick={() => setRefreshTick((x) => x + 1)} disabled={loading}>
-            Refresh
+          <button
+            className="udg-btn"
+            onClick={() => setRefreshTick((x) => x + 1)}
+            disabled={loading}
+          >
+            Làm mới
           </button>
         </div>
       </div>
@@ -165,7 +176,7 @@ export default function UserDashboardAdminPage() {
       {/* Filters */}
       <div className="udg-filters">
         <div className="udg-filter">
-          <div className="udg-filter-label">Month</div>
+          <div className="udg-filter-label">Tháng</div>
           <input
             type="month"
             value={month}
@@ -175,10 +186,10 @@ export default function UserDashboardAdminPage() {
         </div>
 
         <div className="udg-filter">
-          <div className="udg-filter-label">Group by</div>
+          <div className="udg-filter-label">Gom theo</div>
           <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} disabled={loading}>
-            <option value="day">Day</option>
-            <option value="week">Week</option>
+            <option value="day">Ngày</option>
+            <option value="week">Tuần</option>
           </select>
         </div>
       </div>
@@ -188,32 +199,29 @@ export default function UserDashboardAdminPage() {
       {/* KPIs */}
       <div className="udg-kpis">
         <KpiCard
-          label="New users (this month)"
+          label="Người dùng mới trong tháng"
           value={loading ? "…" : Number(newUsersInMonth || 0).toLocaleString()}
-          sub="(isTemp = false)"
         />
         <KpiCard
-          label="Total users (as-of)"
+          label="Tổng người dùng (tính đến ngày chọn)"
           value={loading ? "…" : Number(totalUsersAsOf || 0).toLocaleString()}
-          sub="(isTemp = false)"
         />
         <KpiCard
-          label="Change vs previous month"
+          label="Tăng so với tháng trước"
           value={loading ? "…" : changeText}
-          sub="(Total as-of - End of prev month)"
         />
       </div>
 
       {/* Chart */}
       <div className="udg-card">
         <div className="udg-card-title">
-          New users trend ({groupBy === "week" ? "Weekly" : "Daily"})
+          Biểu đồ người dùng mới ({groupBy === "week" ? "theo tuần" : "theo ngày"})
         </div>
 
         {loading ? (
-          <div className="udg-empty">Loading…</div>
+          <div className="udg-empty">Đang tải…</div>
         ) : chartData.length === 0 ? (
-          <div className="udg-empty">No data.</div>
+          <div className="udg-empty">Không có dữ liệu.</div>
         ) : (
           <div className="udg-chart">
             {/* Bạn thích Bar hay Line thì dùng cái đó. Mình để cả 2, comment cái không dùng
@@ -224,12 +232,11 @@ export default function UserDashboardAdminPage() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="newUsers" name="New users" />
+                <Bar dataKey="newUsers" name="Người dùng mới" />
               </BarChart>
             </ResponsiveContainer> */}
 
             {/* Nếu muốn dạng line, uncomment khối này và comment BarChart ở trên */}
-            
             <ResponsiveContainer width="100%" height={320}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -237,10 +244,9 @@ export default function UserDashboardAdminPage() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="newUsers" name="New users" />
+                <Line type="monotone" dataKey="newUsers" name="Người dùng mới" />
               </LineChart>
             </ResponsiveContainer>
-           
           </div>
         )}
       </div>
