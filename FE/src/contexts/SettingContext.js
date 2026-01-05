@@ -68,7 +68,7 @@ export const SettingsProvider = ({ children }) => {
         try {
             console.log('🔧 Loading website settings...');
             // support both: axiosClient wrapper returning response.data or returning response
-            const resp = await settingsApi.getSettings();
+            const resp = await settingsApi.getPublicSettings();
             const data = resp && resp.data !== undefined ? resp.data : resp;
 
             console.log('✅ Settings loaded:', data);

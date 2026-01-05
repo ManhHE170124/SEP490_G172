@@ -59,8 +59,8 @@ const Sidebar = () => {
         const roles = Array.isArray(parsedUser?.roles)
           ? parsedUser.roles
           : parsedUser?.role
-          ? [parsedUser.role]
-          : [];
+            ? [parsedUser.role]
+            : [];
         return roles
           .map((r) => {
             if (typeof r === "string") return r.toUpperCase();
@@ -502,6 +502,34 @@ const Sidebar = () => {
       id: "user",
       title: "Quản lý người dùng",
       items: [
+        {
+          id: "user-dashboard",
+          label: "Dashboard người dùng",
+          to: "/admin/user-dashboard",
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
+          isActive:
+            currentPage === "admin/user-dashboard" ||
+            currentPage.startsWith("admin/user-dashboard/"),
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 19V5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M4 19H20"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <rect x="7" y="11" width="2.5" height="6" rx="0.6" fill="currentColor" />
+              <rect x="11" y="8" width="2.5" height="9" rx="0.6" fill="currentColor" />
+              <rect x="15" y="6" width="2.5" height="11" rx="0.6" fill="currentColor" />
+            </svg>
+          ),
+        },
         {
           id: "users",
           label: "Quản lý người dùng",

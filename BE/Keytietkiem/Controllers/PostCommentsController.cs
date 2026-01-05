@@ -96,6 +96,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of top-level comments and their replies
          */
         [HttpGet("posts/{postId}/comments")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetPostComments(
             Guid postId,
             [FromQuery] int page = 1,
@@ -123,6 +124,7 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of replies, 404 if parent comment not found
          */
         [HttpGet("{id}/replies")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetCommentReplies(Guid id)
         {
             try

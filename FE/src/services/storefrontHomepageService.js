@@ -66,6 +66,8 @@ const normalizeHomepageProducts = (res = {}) => ({
   newlyUpdated: (res.newlyUpdated ?? res.NewlyUpdated ?? []).map(
     normalizeVariantItem
   ),
+  // ✅ BE mới: LowStock block
+  lowStock: (res.lowStock ?? res.LowStock ?? []).map(normalizeVariantItem),
 });
 
 export const StorefrontHomepageApi = {

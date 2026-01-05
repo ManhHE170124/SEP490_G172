@@ -476,5 +476,70 @@ namespace Keytietkiem.Controllers
                 return StatusCode(500, new { message = ex.Message });
             }
         }
+
+
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicPosts()
+        {
+            var posts = await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.Author)
+                .Include(p => p.PostType)
+                .Include(p => p.Tags)
+                .Where(p => p.Status == "Published")
+                .OrderByDescending(p => p.CreatedAt)
+                .Select(p => new PostListItemDTO
+                {
+                    PostId = p.PostId,
+                    Title = p.Title,
+                    Slug = p.Slug,
+                    ShortDescription = p.ShortDescription,
+                    Thumbnail = p.Thumbnail,
+                    PostTypeId = p.PostTypeId,
+                    AuthorId = p.AuthorId,
+                    Status = p.Status,
+                    ViewCount = p.ViewCount,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt,
+                    AuthorName = p.Author != null
+                        ? (p.Author.FullName ?? $"{p.Author.FirstName} {p.Author.LastName}".Trim())
+                        : null,
+                    PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null,
+                    Tags = p.Tags.Select(t => new TagDTO
+                    {
+                        TagId = t.TagId,
+                        TagName = t.TagName,
+                        Slug = t.Slug,
+                        CreatedAt = t.CreatedAt,
+                        UpdatedAt = t.UpdatedAt
+                    }).ToList()
+                })
+                .ToListAsync();
+
+            return Ok(posts);
+        }
+
+        [HttpGet("posttypes/public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicPostTypes()
+        {
+            var postTypes = await _context.PostTypes
+                .AsNoTracking()
+                .OrderBy(pt => pt.PostTypeName)
+                .Select(pt => new PostTypeDTO
+                {
+                    PostTypeId = pt.PostTypeId,
+                    PostTypeName = pt.PostTypeName,
+                    Description = pt.Description,
+                    CreatedAt = pt.CreatedAt,
+                    UpdatedAt = pt.UpdatedAt
+                })
+                .ToListAsync();
+
+            return Ok(postTypes);
+        }
+
+
     }
 }

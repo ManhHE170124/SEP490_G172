@@ -51,12 +51,13 @@ const DEFAULT_SIDE_SLIDES = [
 ];
 
 const PRICE_FILTERS = [
-  { label: "20.000đ", minPrice: 20000 },
-  { label: "50.000đ", minPrice: 50000 },
-  { label: "100.000đ", minPrice: 100000 },
-  { label: "200.000đ", minPrice: 200000 },
-  { label: "500.000đ", minPrice: 500000 },
-  { label: "1.000.000đ", minPrice: 1000000 },
+  // NOTE: Đây là "giá tối đa" (<=), không phải giá tối thiểu.
+  { label: "20.000đ", maxPrice: 20000 },
+  { label: "50.000đ", maxPrice: 50000 },
+  { label: "100.000đ", maxPrice: 100000 },
+  { label: "200.000đ", maxPrice: 200000 },
+  { label: "500.000đ", maxPrice: 500000 },
+  { label: "1.000.000đ", maxPrice: 1000000 },
 ];
 
 const formatCurrency = (value) => {
@@ -95,6 +96,7 @@ const StorefrontHomepagePage = () => {
     bestSellers: [],
     weeklyTrends: [],
     newlyUpdated: [],
+    lowStock: [],
   });
 
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -197,7 +199,8 @@ const StorefrontHomepagePage = () => {
     if (typeof window === "undefined") return;
     const handleCartUpdated = () => loadHomepageProducts();
     window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
-    return () => window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    return () =>
+      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
   }, [loadHomepageProducts]);
 
   const goToProductList = (params = {}) => {
@@ -212,8 +215,9 @@ const StorefrontHomepagePage = () => {
     navigate(`/products${search ? `?${search}` : ""}`);
   };
 
-  const handlePriceFilterClick = (minPrice) =>
-    goToProductList({ minPrice, sort: "price-asc" });
+  // NOTE: Price filter trên homepage là "giá tối đa" (<=)
+  const handlePriceFilterClick = (maxPrice) =>
+    goToProductList({ maxPrice, sort: "price-asc" });
 
   const openBannerLink = (banner) => {
     let url = banner?.linkUrl;
@@ -257,7 +261,9 @@ const StorefrontHomepagePage = () => {
   const goPrev = (e) => {
     e?.stopPropagation?.();
     if (!canSlide) return;
-    setMainSlideIndex((prev) => (prev - 1 + mainSlides.length) % mainSlides.length);
+    setMainSlideIndex(
+      (prev) => (prev - 1 + mainSlides.length) % mainSlides.length
+    );
   };
 
   const goNext = (e) => {
@@ -266,15 +272,22 @@ const StorefrontHomepagePage = () => {
     setMainSlideIndex((prev) => (prev + 1) % mainSlides.length);
   };
 
-  const handleViewAllTodayDeals = () => goToProductList({ sort: "default" });
+  // NOTE: sort keys dựa trên StorefrontProductsController hiện tại.
+  // - sold: (đang là best-seller; BE list sẽ được bạn chỉnh lại sold theo đơn thành công sau)
+  // - views: sort fallback theo ViewCount desc
+  // - updated: UpdatedAt/CreatedAt desc
+const handleViewAllTodayDeals = () => goToProductList({ sort: "deals" });
   const handleViewAllBestSellers = () => goToProductList({ sort: "sold" });
-  const handleViewAllWeeklyTrends = () => goToProductList({ sort: "default" });
-  const handleViewAllNewlyUpdated = () => goToProductList({ sort: "updated" });
+  const handleViewAllTrending = () => goToProductList({ sort: "views" });
+  const handleViewAllNewArrivals = () => goToProductList({ sort: "updated" });
+const handleViewAllLowStock = () => goToProductList({ sort: "low-stock" });
 
   const renderProductCard = (item) => {
     const variantTitle = item.variantTitle || item.title || item.productName;
     const typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
-    const displayTitle = typeLabel ? `${variantTitle} - ${typeLabel}` : variantTitle;
+    const displayTitle = typeLabel
+      ? `${variantTitle} - ${typeLabel}`
+      : variantTitle;
 
     const sellPrice = item.sellPrice ?? item.SellPrice ?? null;
     const listPrice = item.listPrice ?? item.ListPrice ?? null;
@@ -311,7 +324,9 @@ const StorefrontHomepagePage = () => {
             {item.thumbnail ? (
               <img src={item.thumbnail} alt={displayTitle} />
             ) : (
-              <div className="sf-media-placeholder">{displayTitle?.[0] || "K"}</div>
+              <div className="sf-media-placeholder">
+                {displayTitle?.[0] || "K"}
+              </div>
             )}
 
             {item.badges && item.badges.length > 0 && (
@@ -321,7 +336,9 @@ const StorefrontHomepagePage = () => {
                     key={b.badgeCode}
                     className="sf-tag"
                     style={
-                      b.colorHex ? { backgroundColor: b.colorHex, color: "#fff" } : undefined
+                      b.colorHex
+                        ? { backgroundColor: b.colorHex, color: "#fff" }
+                        : undefined
                     }
                   >
                     {b.displayName || b.badgeCode}
@@ -378,7 +395,9 @@ const StorefrontHomepagePage = () => {
       )}
 
       {!loadingProducts && !errorProducts && items.length > 0 && (
-        <div className="sf-grid sf-grid-responsive">{items.map(renderProductCard)}</div>
+        <div className="sf-grid sf-grid-responsive">
+          {items.map(renderProductCard)}
+        </div>
       )}
 
       {!loadingProducts && !errorProducts && items.length === 0 && (
@@ -406,7 +425,8 @@ const StorefrontHomepagePage = () => {
                 }}
               >
                 {(mainSlides || []).map((slide, idx) => {
-                  const showText = hasText(slide) || !!slide?.badge || loadingBanners;
+                  const showText =
+                    hasText(slide) || !!slide?.badge || loadingBanners;
                   const bg = slide?.mediaUrl
                     ? showText
                       ? `linear-gradient(135deg, rgba(15,23,42,.45), rgba(15,23,42,.15)), url("${slide.mediaUrl}")`
@@ -431,7 +451,9 @@ const StorefrontHomepagePage = () => {
                       {(showText || !slide?.mediaUrl) && (
                         <div className="sf-home-main-slide">
                           {!!slide?.badge && (
-                            <div className="sf-home-main-badge">{slide.badge}</div>
+                            <div className="sf-home-main-badge">
+                              {slide.badge}
+                            </div>
                           )}
 
                           {!!slide?.title && (
@@ -439,11 +461,15 @@ const StorefrontHomepagePage = () => {
                           )}
 
                           {!!slide?.subtitle && (
-                            <p className="sf-home-main-subtitle">{slide.subtitle}</p>
+                            <p className="sf-home-main-subtitle">
+                              {slide.subtitle}
+                            </p>
                           )}
 
                           {loadingBanners && idx === mainSlideIndex && (
-                            <div className="sf-home-banner-loading">Đang tải banner…</div>
+                            <div className="sf-home-banner-loading">
+                              Đang tải banner…
+                            </div>
                           )}
                         </div>
                       )}
@@ -486,7 +512,9 @@ const StorefrontHomepagePage = () => {
                 return (
                   <div
                     key={s.id}
-                    className={`sf-home-side-card ${showText ? "sf-banner-has-text" : "sf-banner-no-text"}`}
+                    className={`sf-home-side-card ${
+                      showText ? "sf-banner-has-text" : "sf-banner-no-text"
+                    }`}
                     style={bg ? { backgroundImage: bg } : undefined}
                     role="button"
                     tabIndex={0}
@@ -524,15 +552,18 @@ const StorefrontHomepagePage = () => {
         <section className="sf-home-price-section">
           <div className="sf-home-price-header">
             <h3>Giá phù hợp</h3>
-            <p>Chọn khoảng giá bạn thấy hợp lý để lọc nhanh.</p>
+            <p>
+              Chọn mức giá tối đa để lọc nhanh (tất cả sản phẩm có giá ≤ mức bạn
+              chọn).
+            </p>
           </div>
           <div className="sf-home-price-pills">
             {PRICE_FILTERS.map((p) => (
               <button
-                key={p.minPrice}
+                key={p.maxPrice}
                 type="button"
                 className="sf-home-price-pill"
-                onClick={() => handlePriceFilterClick(p.minPrice)}
+                onClick={() => handlePriceFilterClick(p.maxPrice)}
               >
                 {p.label}
               </button>
@@ -540,102 +571,37 @@ const StorefrontHomepagePage = () => {
           </div>
         </section>
 
-        {/* Sản phẩm bán chạy */}
+        {/* Bán chạy nhất */}
         {renderProductBlock(
-          "Sản phẩm bán chạy",
-          "Được mua nhiều nhất tuần qua.",
+          "Bán chạy nhất",
+          "Được mua nhiều nhất (ưu tiên 30 ngày gần đây).",
           products.bestSellers,
           handleViewAllBestSellers
         )}
 
-        {/* Xu hướng tuần này */}
+        {/* Đang thịnh hành */}
         {renderProductBlock(
-          "Xu hướng tuần này",
-          "Sản phẩm nổi bật theo lượt xem và tương tác.",
+          "Đang thịnh hành",
+          "Nổi bật theo lượt xem.",
           products.weeklyTrends,
-          handleViewAllWeeklyTrends
+          handleViewAllTrending
         )}
 
-        {/* Mới cập nhật */}
+        {/* Mới ra mắt */}
         {renderProductBlock(
-          "Mới cập nhật",
-          "Sản phẩm mới thêm hoặc vừa cập nhật nội dung.",
+          "Mới ra mắt",
+          "Sản phẩm mới đăng gần đây.",
           products.newlyUpdated,
-          handleViewAllNewlyUpdated
+          handleViewAllNewArrivals
         )}
 
-        {/* Dịch vụ hỗ trợ */}
-        <section className="sf-home-services">
-          <div className="sf-section-header">
-            <div>
-              <h2>Dịch vụ hỗ trợ</h2>
-              <p>Click vào dịch vụ để xem chi tiết hoặc đặt lịch hỗ trợ.</p>
-            </div>
-          </div>
-
-          <div className="sf-home-services-grid">
-            <div
-              className="sf-home-service-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate("/support-service")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  navigate("/support-service");
-                }
-              }}
-            >
-              <div className="sf-home-service-icon">🖥️</div>
-              <h3>Cài đặt từ xa</h3>
-              <p>Hỗ trợ cài Windows / Office, phần mềm qua TeamViewer / AnyDesk.</p>
-            </div>
-
-            <div
-              className="sf-home-service-card"
-              role="button"
-              tabIndex={0}
-              onClick={() =>
-                window.open(
-                  "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
-                  "_blank",
-                  "noopener,noreferrer"
-                )
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  window.open(
-                    "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
-                    "_blank",
-                    "noopener,noreferrer"
-                  );
-                }
-              }}
-            >
-              <div className="sf-home-service-icon">📘</div>
-              <h3>Hướng dẫn sử dụng</h3>
-              <p>Video + bài viết hướng dẫn, giải đáp thắc mắc trong quá trình sử dụng.</p>
-            </div>
-
-            <div
-              className="sf-home-service-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate("/support-service")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  navigate("/support-service");
-                }
-              }}
-            >
-              <div className="sf-home-service-icon">🛠️</div>
-              <h3>Fix lỗi phần mềm đã mua</h3>
-              <p>Xử lý lỗi kích hoạt, lỗi bản quyền, tư vấn nâng cấp cấu hình phù hợp.</p>
-            </div>
-          </div>
-        </section>
+        {/* Sắp hết hàng */}
+        {renderProductBlock(
+          "Sắp hết hàng",
+          "Số lượng có hạn — tranh thủ trước khi hết.",
+          products.lowStock,
+          handleViewAllLowStock
+        )}
       </div>
     </main>
   );
