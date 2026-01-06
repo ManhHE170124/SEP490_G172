@@ -15,7 +15,7 @@ using Keytietkiem.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
-using Keytietkiem.Attributes;
+using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
@@ -58,8 +58,7 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception)
             {
-                // Có thể log lỗi bằng ILogger nếu cần
-                return StatusCode(500, new { message = "Error uploading file." });
+                return StatusCode(500, new { message = "Đã xảy ra lỗi hệ thống khi upload ảnh." });
             }
         }
 
@@ -75,18 +74,17 @@ namespace Keytietkiem.Controllers
         {
             if (string.IsNullOrWhiteSpace(request.PublicId))
             {
-                return BadRequest(new { message = "PublicId is required." });
+                return BadRequest(new { message = "Id ảnh không đúng hoặc không tìm thấy." });
             }
 
             try
             {
                 await _photoService.DeletePhotoAsync(request.PublicId);
-                return Ok(new { message = "Image deleted successfully." });
+                return Ok(new { message = "Hình ảnh đã được gỡ thành công." });
             }
             catch (Exception ex)
             {
-                // Có thể log lỗi bằng ILogger nếu cần
-                return StatusCode(500, new { message = $"Error deleting image: {ex.Message}" });
+                return StatusCode(500, new { message = $"Đã xảy ra lỗi hệ thống khi gỡ ảnh" });
             }
         }
     }

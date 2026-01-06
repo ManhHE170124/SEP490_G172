@@ -1,5 +1,5 @@
 ﻿// File: Controllers/PaymentsController.cs
-using Keytietkiem.Attributes;
+using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Payments;
@@ -79,6 +79,53 @@ namespace Keytietkiem.Controllers
             var claim = User.FindFirst("uid") ?? User.FindFirst(ClaimTypes.NameIdentifier);
             if (claim == null) return null;
             return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
+        }
+
+        // ================== AUDIT HELPERS (Dashboard Payments) ==================
+        private void SetAuditSystemActor(string source)
+        {
+            // AuditLogger có đọc override từ HttpContext.Items
+            HttpContext.Items["Audit:ActorEmail"] = source; // ví dụ: "PayOSWebhook", "PayOSReturnCancel"
+            HttpContext.Items["Audit:ActorRole"] = "System";
+        }
+
+        private Task AuditPaymentStatusChangeAsync(string action, Payment payment, string? prevStatus, object? meta = null)
+        {
+            var before = new
+            {
+                payment.PaymentId,
+                Status = prevStatus,
+                payment.Amount,
+                payment.Provider,
+                payment.ProviderOrderCode,
+                payment.PaymentLinkId,
+                payment.Email,
+                payment.TargetType,
+                payment.TargetId
+            };
+
+            var after = new
+            {
+                payment.PaymentId,
+                payment.Status,
+                payment.Amount,
+                payment.Provider,
+                payment.ProviderOrderCode,
+                payment.PaymentLinkId,
+                payment.Email,
+                payment.TargetType,
+                payment.TargetId,
+                Meta = meta
+            };
+
+            return _auditLogger.LogAsync(
+                HttpContext,
+                action: action,
+                entityType: "Payment",
+                entityId: payment.PaymentId.ToString(),
+                before: before,
+                after: after
+            );
         }
 
         // ================== ADMIN LIST/DETAIL ==================
@@ -300,7 +347,7 @@ namespace Keytietkiem.Controllers
                     IsExpired = isExpired,
                     IsLatestAttemptForTarget = isLatest,
 
-                    // ✅ List API: không trả target snapshot để tránh “quick compare/reconcile”
+                    // ✅ List API: không trả target snapshot để tránh “quick compare/reconcile”/join target info
                     OrderId = null,
                     OrderStatus = null,
                     TargetUserId = null,
@@ -725,6 +772,9 @@ namespace Keytietkiem.Controllers
                 return Unauthorized(new { message = "Invalid signature." });
             }
 
+            // ✅ Audit actor = System (PayOS)
+            SetAuditSystemActor("PayOSWebhook");
+
             var orderCode = payload.Data.OrderCode;
             if (orderCode <= 0)
                 return BadRequest(new { message = "orderCode không hợp lệ." });
@@ -748,18 +798,34 @@ namespace Keytietkiem.Controllers
                 _logger.LogWarning("PayOS webhook paymentLinkId mismatch. orderCode={OrderCode}, db={DbLink}, payload={PayloadLink}",
                     orderCode, payment.PaymentLinkId, payload.Data.PaymentLinkId);
 
+                var prevStatus = payment.Status;
+
                 // đánh dấu NeedReview + nếu Order thì NeedsManualAction
                 if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                     && Guid.TryParse(payment.TargetId, out var oid))
-            {
+                {
                     var o = await db.Orders.FirstOrDefaultAsync(x => x.OrderId == oid);
                     if (o != null) o.Status = "NeedsManualAction";
-            }
+                }
 
                 payment.Status = PaymentStatusNeedReview;
                 await db.SaveChangesAsync();
+
+                // ✅ Audit: Payment status changed (NeedReview)
+                await AuditPaymentStatusChangeAsync(
+                    "PaymentStatusChanged",
+                    payment,
+                    prevStatus,
+                    new
+                    {
+                        reason = "PaymentLinkIdMismatch",
+                        orderCode,
+                        dbLink = payment.PaymentLinkId,
+                        payloadLink = payload.Data.PaymentLinkId
+                    });
+
                 return Ok(new { message = "Webhook processed - paymentLinkId mismatch (NeedReview)." });
-        }
+            }
 
             var topCode = payload.Code ?? "";
             var dataCode = !string.IsNullOrWhiteSpace(payload.Data.Code) ? payload.Data.Code : topCode;
@@ -777,6 +843,8 @@ namespace Keytietkiem.Controllers
                 _logger.LogWarning("PayOS webhook amount mismatch. orderCode={OrderCode}, expected={Expected}, gateway={Gateway}",
                     orderCode, expectedAmount, gatewayAmount);
 
+                var prevStatus = payment.Status;
+
                 payment.Status = PaymentStatusNeedReview;
 
                 if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
@@ -788,6 +856,20 @@ namespace Keytietkiem.Controllers
                 }
 
                 await db.SaveChangesAsync();
+
+                // ✅ Audit: Payment status changed (NeedReview)
+                await AuditPaymentStatusChangeAsync(
+                    "PaymentStatusChanged",
+                    payment,
+                    prevStatus,
+                    new
+                    {
+                        reason = "AmountMismatch",
+                        orderCode,
+                        expectedAmount,
+                        gatewayAmount
+                    });
+
                 return Ok(new { message = "Webhook processed - amount mismatch (NeedReview)." });
             }
 
@@ -813,11 +895,13 @@ namespace Keytietkiem.Controllers
                         return Ok(new { message = "Already paid." });
                     }
 
-            if (isSuccess)
-            {
+                    if (isSuccess)
+                    {
                         // ===== 1) SUPPORT PLAN PAID => APPLY SUBSCRIPTION =====
                         if (string.Equals(payment.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase))
                         {
+                            var prevStatus = payment.Status;
+
                             await ApplySupportPlanPurchaseAsync(db, payment, nowUtc, HttpContext.RequestAborted);
 
                             payment.Status = PaymentStatusPaid;
@@ -843,6 +927,13 @@ namespace Keytietkiem.Controllers
                             await db.SaveChangesAsync();
                             await tx.CommitAsync();
 
+                            // ✅ Audit: Payment status changed (Paid)
+                            await AuditPaymentStatusChangeAsync(
+                                "PaymentStatusChanged",
+                                payment,
+                                prevStatus,
+                                new { reason = "WebhookPaid", targetType = payment.TargetType, orderCode, topCode, dataCode });
+
                             // ✅ Cancel QR/link của các attempt bị DupCancelled (best-effort, sau commit)
                             await CancelPayOSLinksBestEffortAsync(linksToCancel, "DupCancelled");
                             return Ok(new { message = "Webhook processed - SupportPlan Paid." });
@@ -864,15 +955,27 @@ namespace Keytietkiem.Controllers
                                 string.Equals(order.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(order.Status, "CancelledByTimeout", StringComparison.OrdinalIgnoreCase)))
                         {
+                            var prevStatus = payment.Status;
+
                             payment.Status = PaymentStatusPaid;
                             order.Status = "NeedsManualAction";
                             await db.SaveChangesAsync();
                             await tx.CommitAsync();
+
+                            // ✅ Audit: Payment status changed (Paid late)
+                            await AuditPaymentStatusChangeAsync(
+                                "PaymentStatusChanged",
+                                payment,
+                                prevStatus,
+                                new { reason = "PaidLate", orderCode, topCode, dataCode, orderStatus = order.Status });
+
                             return Ok(new { message = "Webhook processed - Paid late (NeedsManualAction)." });
                         }
 
                         if (order != null && string.Equals(order.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
                         {
+                            var prevStatus = payment.Status;
+
                             var lines = await db.OrderDetails
                                 .AsNoTracking()
                                 .Where(od => od.OrderId == orderId)
@@ -919,9 +1022,15 @@ namespace Keytietkiem.Controllers
                             await db.SaveChangesAsync();
                             await tx.CommitAsync();
 
+                            // ✅ Audit: Payment status changed (Paid)
+                            await AuditPaymentStatusChangeAsync(
+                                "PaymentStatusChanged",
+                                payment,
+                                prevStatus,
+                                new { reason = "WebhookPaid", targetType = payment.TargetType, orderCode, topCode, dataCode, orderStatus = order.Status });
+
                             // ✅ Cancel QR/link của các attempt bị DupCancelled (best-effort, sau commit)
                             await CancelPayOSLinksBestEffortAsync(linksToCancel, "DupCancelled");
-
 
                             // ✅ sau khi commit: fulfill order (gắn key/account + gửi mail)
                             if (orderId != Guid.Empty)
@@ -931,15 +1040,29 @@ namespace Keytietkiem.Controllers
                         }
 
                         // Order không ở PendingPayment => vẫn set Paid nhưng order/manual để staff xử lý
-                        payment.Status = PaymentStatusPaid;
-                        if (order != null) order.Status = "NeedsManualAction";
-                        await db.SaveChangesAsync();
-                        await tx.CommitAsync();
-                        return Ok(new { message = "Webhook processed - Paid (NeedsManualAction)." });
+                        {
+                            var prevStatus = payment.Status;
+
+                            payment.Status = PaymentStatusPaid;
+                            if (order != null) order.Status = "NeedsManualAction";
+                            await db.SaveChangesAsync();
+                            await tx.CommitAsync();
+
+                            // ✅ Audit: Payment status changed (Paid but manual)
+                            await AuditPaymentStatusChangeAsync(
+                                "PaymentStatusChanged",
+                                payment,
+                                prevStatus,
+                                new { reason = "WebhookPaidNeedsManualAction", orderCode, topCode, dataCode, orderStatus = order?.Status });
+
+                            return Ok(new { message = "Webhook processed - Paid (NeedsManualAction)." });
+                        }
                     }
                     else
                     {
                         // ===== CANCEL / FAIL =====
+                        var prevStatus = payment.Status;
+
                         payment.Status = PaymentStatusCancelled;
 
                         if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
@@ -963,7 +1086,15 @@ namespace Keytietkiem.Controllers
                         }
 
                         await db.SaveChangesAsync();
-                await tx.CommitAsync();
+                        await tx.CommitAsync();
+
+                        // ✅ Audit: Payment status changed (Cancelled/Fail)
+                        await AuditPaymentStatusChangeAsync(
+                            "PaymentStatusChanged",
+                            payment,
+                            prevStatus,
+                            new { reason = "WebhookCancelledOrFailed", orderCode, topCode, dataCode });
+
                         return Ok(new { message = "Webhook processed - Cancelled." });
                     }
                 }
@@ -976,6 +1107,8 @@ namespace Keytietkiem.Controllers
                     // cố gắng set NeedReview để reconcile
                     try
                     {
+                        var prevStatus = payment.Status;
+
                         payment.Status = PaymentStatusNeedReview;
 
                         if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
@@ -986,6 +1119,13 @@ namespace Keytietkiem.Controllers
                         }
 
                         await db.SaveChangesAsync();
+
+                        // ✅ Audit: Payment status changed (NeedReview - Exception)
+                        await AuditPaymentStatusChangeAsync(
+                            "PaymentStatusChanged",
+                            payment,
+                            prevStatus,
+                            new { reason = "WebhookExceptionNeedReview", orderCode, error = ex.Message });
                     }
                     catch { }
 
@@ -998,20 +1138,54 @@ namespace Keytietkiem.Controllers
             {
                 if (string.Equals(payment.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase))
                 {
+                    var prevStatus = payment.Status;
+
                     await ApplySupportPlanPurchaseAsync(db, payment, nowUtc, HttpContext.RequestAborted);
                     payment.Status = PaymentStatusPaid;
                     await db.SaveChangesAsync();
+
+                    // ✅ Audit: Payment status changed (Paid)
+                    await AuditPaymentStatusChangeAsync(
+                        "PaymentStatusChanged",
+                        payment,
+                        prevStatus,
+                        new { reason = "WebhookPaid_NonRelational", orderCode, topCode, dataCode });
+
                     return Ok(new { message = "Webhook processed - SupportPlan Paid." });
                 }
 
-                payment.Status = PaymentStatusPaid;
-                await db.SaveChangesAsync();
-                return Ok(new { message = "Webhook processed - Paid." });
+                {
+                    var prevStatus = payment.Status;
+
+                    payment.Status = PaymentStatusPaid;
+                    await db.SaveChangesAsync();
+
+                    // ✅ Audit: Payment status changed (Paid)
+                    await AuditPaymentStatusChangeAsync(
+                        "PaymentStatusChanged",
+                        payment,
+                        prevStatus,
+                        new { reason = "WebhookPaid_NonRelational", orderCode, topCode, dataCode });
+
+                    return Ok(new { message = "Webhook processed - Paid." });
+                }
             }
 
-            payment.Status = PaymentStatusCancelled;
-            await db.SaveChangesAsync();
-            return Ok(new { message = "Webhook processed - Cancelled." });
+            {
+                var prevStatus = payment.Status;
+
+                payment.Status = PaymentStatusCancelled;
+                await db.SaveChangesAsync();
+
+                // ✅ Audit: Payment status changed (Cancelled)
+                await AuditPaymentStatusChangeAsync(
+                    "PaymentStatusChanged",
+                    payment,
+                    prevStatus,
+                    new { reason = "WebhookCancelledOrFailed_NonRelational", orderCode, topCode, dataCode });
+
+                return Ok(new { message = "Webhook processed - Cancelled." });
+            }
         }
 
         // ================== CONFIRM/CANCEL FROM RETURN ==================
@@ -1052,6 +1226,11 @@ namespace Keytietkiem.Controllers
             if (!string.Equals(payment.Status ?? "", PaymentStatusPending, StringComparison.OrdinalIgnoreCase))
                 return Ok(new { message = "Payment status", status = payment.Status });
 
+            // ✅ Audit actor = System (PayOS return cancel)
+            SetAuditSystemActor("PayOSReturnCancel");
+
+            var prevStatus = payment.Status;
+
             payment.Status = PaymentStatusCancelled;
 
             var nowUtc = DateTime.UtcNow;
@@ -1077,6 +1256,14 @@ namespace Keytietkiem.Controllers
             }
 
             await db.SaveChangesAsync();
+
+            // ✅ Audit: Payment status changed (Cancelled from return)
+            await AuditPaymentStatusChangeAsync(
+                "PaymentStatusChanged",
+                payment,
+                prevStatus,
+                new { reason = "CancelFromReturn" });
+
             return Ok(new { message = "Payment status", status = payment.Status });
         }
 
@@ -1117,8 +1304,21 @@ namespace Keytietkiem.Controllers
             if (!string.Equals(payment.Status ?? "", PaymentStatusPending, StringComparison.OrdinalIgnoreCase))
                 return Ok(new { message = "Payment status", status = payment.Status });
 
+            // ✅ Audit actor = System (PayOS return cancel)
+            SetAuditSystemActor("PayOSReturnCancel");
+
+            var prevStatus = payment.Status;
+
             payment.Status = PaymentStatusCancelled;
             await db.SaveChangesAsync();
+
+            // ✅ Audit: Payment status changed (Cancelled from return)
+            await AuditPaymentStatusChangeAsync(
+                "PaymentStatusChanged",
+                payment,
+                prevStatus,
+                new { reason = "CancelFromReturn" });
+
             return Ok(new { message = "Support plan payment status", status = payment.Status });
         }
 
@@ -1399,6 +1599,7 @@ namespace Keytietkiem.Controllers
                 catch { }
             }
         }
+
         private async Task CancelPayOSLinksBestEffortAsync(IEnumerable<string?> paymentLinkIds, string reason)
         {
             if (paymentLinkIds == null) return;

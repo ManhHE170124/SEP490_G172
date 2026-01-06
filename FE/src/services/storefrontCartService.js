@@ -5,15 +5,28 @@ export const CART_UPDATED_EVENT = "storefront_cart_updated";
 
 /* ====================== GUEST ANON ID (MUST MATCH BE) ====================== */
 /**
- * BE đang dùng AnonymousId để lookup cart khi guest checkout【:contentReference[oaicite:5]{index=5}】
- * FE đã lưu ổn định key này trong axiosClient: "ktk_guest_cart_id"
- * => reuse đúng key để body /orders/checkout có anonymousId.
+ * BE nhận diện guest cart ưu tiên bằng:
+ * - header X-Guest-Cart-Id (FE gửi), hoặc
+ * - cookie HttpOnly (BE set).
+ *
+ * FE lưu ổn định id trong localStorage và axiosClient sẽ luôn gửi header theo key này.
+ * Khi checkout guest, cũng gửi anonymousId trong body để BE có thể resolve cart chắc chắn.
  */
 const GUEST_CART_STORAGE_KEY = "ktk_guest_cart_id";
-function getGuestAnonymousId() {
+
+function getOrInitGuestAnonymousId() {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(GUEST_CART_STORAGE_KEY);
+    let id = window.localStorage.getItem(GUEST_CART_STORAGE_KEY);
+    if (!id) {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        id = window.crypto.randomUUID();
+      } else {
+        id = `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+      }
+      window.localStorage.setItem(GUEST_CART_STORAGE_KEY, id);
+    }
+    return id;
   } catch {
     return null;
   }
@@ -141,7 +154,6 @@ const normalizeCheckoutResult = (res = {}) => {
   const email = res.email ?? res.Email ?? null;
   const createdAt = res.createdAt ?? res.CreatedAt ?? null;
 
-  // BE mới trả CheckoutUrl【:contentReference[oaicite:6]{index=6}】
   const paymentUrl =
     res.paymentUrl ??
     res.PaymentUrl ??
@@ -232,20 +244,20 @@ export const StorefrontCartApi = {
   },
 
   /**
-   * ✅ NEW: Checkout theo BE mới:
+   * Checkout:
    * POST /api/orders/checkout
-   * - guest: cần anonymousId + deliveryEmail【:contentReference[oaicite:7]{index=7}】【:contentReference[oaicite:8]{index=8}】
-   * - trả: { OrderId, PaymentId, CheckoutUrl, ExpiresAtUtc }【:contentReference[oaicite:9]{index=9}】
+   * - guest: cần anonymousId + deliveryEmail
+   * - trả: { OrderId, PaymentId, CheckoutUrl, ExpiresAtUtc, ... }
    */
   checkout: async (payload = {}) => {
-    const anonymousId = payload.anonymousId ?? getGuestAnonymousId();
+    const anonymousId = payload.anonymousId ?? getOrInitGuestAnonymousId();
 
     const dto = {
       anonymousId,
       deliveryEmail: payload.deliveryEmail ?? payload.email ?? null,
       buyerName: payload.buyerName ?? null,
       buyerPhone: payload.buyerPhone ?? null,
-      // returnUrl/cancelUrl: để BE tự default /checkout/return & /checkout/cancel【:contentReference[oaicite:10]{index=10}】
+      // returnUrl/cancelUrl: để BE tự default nếu null
       returnUrl: payload.returnUrl ?? null,
       cancelUrl: payload.cancelUrl ?? null,
     };

@@ -1,14 +1,15 @@
 // File: Controllers/ProductAccountController.cs
-using Keytietkiem.Attributes;
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
 using Keytietkiem.Infrastructure;
+using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Security.Claims;
@@ -25,18 +26,21 @@ public class ProductAccountController : ControllerBase
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
     private readonly IConfiguration _config;
+    private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
 
 
     public ProductAccountController(
         IProductAccountService productAccountService,
         IAuditLogger auditLogger,
         INotificationSystemService notificationSystemService,
-        IConfiguration config)
+        IConfiguration config,
+        IDbContextFactory<KeytietkiemDbContext> dbFactory)
     {
         _productAccountService = productAccountService;
         _auditLogger = auditLogger;
         _notificationSystemService = notificationSystemService;
         _config = config;
+        _dbFactory = dbFactory;
     }
 
     /// <summary>
@@ -122,6 +126,16 @@ public class ProductAccountController : ControllerBase
                 before: null,
                 after: response);
 
+            // ✅ Sync stock to DB for variant + product (computed stock types)
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    createDto.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
             return CreatedAtAction(nameof(GetById), new { id = response.ProductAccountId }, response);
         }
         catch (ValidationException ex)
@@ -175,6 +189,16 @@ public class ProductAccountController : ControllerBase
                 before: existingAccount,
                 after: response);
 
+            // ✅ Sync stock
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    existingAccount.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
             return Ok(response);
         }
         catch (ValidationException ex)
@@ -191,6 +215,9 @@ public class ProductAccountController : ControllerBase
     [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Delete(Guid id)
     {
+        // Lấy trước để biết VariantId (sync stock)
+        var existing = await _productAccountService.GetByIdAsync(id, includePassword: false);
+
         // Nếu có lỗi khi DeleteAsync sẽ bubble lên (500/4xx tuỳ service),
         // không audit lỗi theo yêu cầu.
         await _productAccountService.DeleteAsync(id);
@@ -208,6 +235,16 @@ public class ProductAccountController : ControllerBase
                 Deleted = true
             });
 
+        // ✅ Sync stock
+        await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+        {
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                db,
+                existing.VariantId,
+                DateTime.UtcNow,
+                HttpContext.RequestAborted);
+        }
+
         return Ok(new { message = "Xóa tài khoản sản phẩm thành công" });
     }
 
@@ -223,6 +260,9 @@ public class ProductAccountController : ControllerBase
             // Id mismatch 4xx – không audit
             return BadRequest("ID không khớp");
         }
+
+        // Lấy trước để biết VariantId (sync stock)
+        var existing = await _productAccountService.GetByIdAsync(id, includePassword: false);
 
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
         var response = await _productAccountService.AddCustomerAsync(addDto, accountId);
@@ -240,6 +280,16 @@ public class ProductAccountController : ControllerBase
             },
             after: response);
 
+        // ✅ Sync stock
+        await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+        {
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                db,
+                existing.VariantId,
+                DateTime.UtcNow,
+                HttpContext.RequestAborted);
+        }
+
         return Ok(response);
     }
 
@@ -255,6 +305,9 @@ public class ProductAccountController : ControllerBase
             // Id mismatch 4xx – không audit
             return BadRequest("ID không khớp");
         }
+
+        // Lấy trước để biết VariantId (sync stock)
+        var existing = await _productAccountService.GetByIdAsync(id, includePassword: false);
 
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
         await _productAccountService.RemoveCustomerAsync(removeDto, accountId);
@@ -308,6 +361,15 @@ public class ProductAccountController : ControllerBase
         }
         catch { }
 
+        // ✅ Sync stock
+        await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+        {
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                db,
+                existing.VariantId,
+                DateTime.UtcNow,
+                HttpContext.RequestAborted);
+        }
 
         return Ok(new { message = "Xóa khách hàng khỏi tài khoản thành công" });
     }
@@ -353,6 +415,16 @@ public class ProductAccountController : ControllerBase
                 },
                 after: response);
 
+            // ✅ Sync stock
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    response.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
             return Ok(response);
         }
         catch (KeyNotFoundException ex)
@@ -384,13 +456,4 @@ public class ProductAccountController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
-    
-    [HttpGet("expired")]
-    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
-    public async Task<IActionResult> GetExpiredAccounts([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
-    {
-        var response = await _productAccountService.GetExpiredAccountsAsync(pageNumber, pageSize);
-        return Ok(response);
-    }
 }
-

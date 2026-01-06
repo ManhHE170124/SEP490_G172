@@ -1,0 +1,354 @@
+/* File: src/pages/admin/AdminPaymentsDashboardPage.css */
+/* Unique prefix: apd- */
+
+.apd-page {
+  padding: 16px 18px 28px;
+  color: var(--ink, #0b1220);
+}
+
+/* Header */
+.apd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.apd-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+.apd-sub {
+  margin-top: 6px;
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+}
+.apd-subrange { font-weight: 900; }
+.apd-subhint { margin-left: 6px; font-weight: 800; color: #6b7280; }
+
+.apd-actions { display: flex; gap: 10px; align-items: center; }
+.apd-link {
+  font-size: 13px;
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 800;
+}
+.apd-btn {
+  border: 1px solid var(--line, #e5e7eb);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.apd-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Sections */
+.apd-section {
+  background: transparent;
+  margin-bottom: 14px;
+}
+.apd-section-title {
+  font-weight: 950;
+  font-size: 14px;
+  margin: 10px 0 10px;
+  color: #111827;
+}
+
+/* Filters (✅ không rớt dòng, màn hẹp thì cuộn ngang) */
+.apd-filters{
+  display: grid;
+  grid-template-columns: minmax(560px, 2.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 14px;
+  background: #fff;
+  align-items: start;
+  overflow-x: auto;
+}
+
+.apd-filter{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.apd-filter-wide{
+  min-width: 0;
+}
+
+.apd-label {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-weight: 900;
+}
+.apd-label-mini {
+  font-weight: 900;
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+}
+
+.apd-input {
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+}
+.apd-date { width: 100%; }
+
+.apd-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-weight: 700;
+}
+
+/* Seg buttons */
+.apd-seg {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.apd-segbtn {
+  border: 1px solid var(--line, #e5e7eb);
+  background: #fff;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-weight: 950;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.apd-segbtn.is-on {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+/* ✅ Preset row: buttons + Apply cùng hàng */
+.apd-time-row{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.apd-time-seg{ flex: 1 1 auto; }
+.apd-apply-inline{
+  margin-left: auto;      /* ✅ đẩy ra cuối hàng */
+}
+
+/* ✅ Custom row: Kiểu lọc + Từ + Đến cùng hàng */
+.apd-range-extra{
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 10px;
+  align-items: end;
+  overflow-x: auto;        /* nếu màn hẹp vẫn không “mất” field */
+}
+.apd-range-item{ min-width: 0; }
+
+/* react-datepicker */
+.react-datepicker-wrapper{ width: 100%; }
+.react-datepicker-popper{ z-index: 50; }
+
+.apd-error {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  color: #9f1239;
+  font-weight: 900;
+}
+
+/* KPI */
+.apd-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.apd-card {
+  background: #fff;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 14px;
+  padding: 12px 12px 10px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+}
+.apd-card-label {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-weight: 950;
+  margin-bottom: 6px;
+}
+.apd-card-val {
+  font-size: 18px;
+  font-weight: 950;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.apd-card-foot {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-weight: 800;
+}
+.apd-badge {
+  font-size: 11px;
+  font-weight: 950;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e5e7eb);
+}
+.apd-badge-ok { background: #ecfdf5; border-color: #a7f3d0; }
+.apd-badge-warn { background: #fffbeb; border-color: #fde68a; }
+.apd-badge-mute { background: #f3f4f6; border-color: #e5e7eb; }
+
+/* Alerts */
+.apd-alerts { display: grid; gap: 8px; margin-top: 10px; }
+.apd-alert {
+  background: #fff;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.apd-alert-code { font-weight: 950; font-size: 12px; white-space: nowrap; }
+.apd-alert-msg { font-size: 13px; color: var(--ink, #0b1220); font-weight: 800; }
+.apd-alert-warning { border-color: #fde68a; background: #fffbeb; }
+.apd-alert-error { border-color: #fecdd3; background: #fff1f2; }
+.apd-alert-info { border-color: #e5e7eb; background: #f9fafb; }
+
+/* Panels / Grid */
+.apd-grid-3 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 10px;
+}
+.apd-grid-4 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 10px;
+}
+.apd-grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+
+/* ✅ Bottom row: Heatmap + Pie cùng hàng */
+.apd-grid-2{
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+
+.apd-panel {
+  background: #fff;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 14px;
+  padding: 12px;
+}
+.apd-panel-full { width: 100%; }
+
+.apd-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.apd-panel-title { font-weight: 950; font-size: 13px; }
+.apd-panel-sub { font-size: 12px; color: var(--muted, #6b7280); font-weight: 900; }
+.apd-unit { white-space: nowrap; }
+
+.apd-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-weight: 800;
+}
+
+.apd-metric-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.apd-big { font-size: 18px; font-weight: 950; }
+
+.apd-chart { width: 100%; margin-top: 8px; }
+.apd-rechart { border-radius: 12px; }
+
+/* Heatmap */
+.apd-heatmap {
+  overflow: auto;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  padding: 8px;
+}
+.apd-heatmap-head,
+.apd-heatmap-row {
+  display: grid;
+  grid-template-columns: 46px repeat(24, 18px);
+  gap: 4px;
+  align-items: center;
+}
+.apd-heatmap-spacer { height: 18px; }
+.apd-heatmap-hour {
+  font-size: 10px;
+  color: var(--muted, #6b7280);
+  font-weight: 900;
+  text-align: center;
+}
+.apd-heatmap-day { font-size: 11px; color: var(--muted, #6b7280); font-weight: 950; }
+.apd-heatmap-cell {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+}
+
+/* ✅ Recharts Tooltip đẹp hơn */
+.apd-tooltip {
+  background: rgba(255,255,255,0.96);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.08);
+  min-width: 180px;
+}
+.apd-tooltip-title {
+  font-weight: 950;
+  font-size: 12px;
+  color: #111827;
+  margin-bottom: 6px;
+}
+.apd-tooltip-body { display: grid; gap: 4px; }
+.apd-tooltip-row { display: flex; justify-content: space-between; gap: 10px; }
+.apd-tooltip-k { color: #6b7280; font-weight: 800; font-size: 12px; }
+.apd-tooltip-v { color: #111827; font-weight: 950; font-size: 12px; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .apd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .apd-grid-3 { grid-template-columns: 1fr; }
+  .apd-grid-4 { grid-template-columns: 1fr; }
+  .apd-grid-2 { grid-template-columns: 1fr; }
+
+  .apd-filters{
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+
+  .apd-time-row{
+    flex-wrap: wrap;   /* màn hẹp: vẫn thấy nút Apply */
+  }
+  .apd-apply-inline{
+    margin-left: 0;    /* tránh bị đẩy “mất” khi wrap */
+  }
+
+  .apd-range-extra{
+    grid-template-columns: 1fr; /* custom xuống cột */
+    overflow-x: visible;
+  }
+}

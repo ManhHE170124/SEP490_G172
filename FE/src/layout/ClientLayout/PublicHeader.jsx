@@ -1,12 +1,10 @@
 // File: src/layout/ClientLayout/PublicHeader.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CategoryApi } from "../../services/categories";
 import { AuthService } from "../../services/authService";
-import StorefrontCartApi, {
-  CART_UPDATED_EVENT,
-} from "../../services/storefrontCartService";
+import StorefrontCartApi, { CART_UPDATED_EVENT } from "../../services/storefrontCartService";
 import { NotificationsApi } from "../../services/notifications";
+import StorefrontProductApi from "../../services/storefrontProductService";
 import axiosClient from "../../api/axiosClient";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 import "./PublicHeader.css";
@@ -24,7 +22,7 @@ const BASE_NAV_ITEMS = [
   {
     label: "Danh mục sản phẩm",
     anchor: "product-list",
-    path: "/product-list",
+    path: "/products",
     dropdown: FALLBACK_PRODUCT_LINKS,
   },
   {
@@ -44,11 +42,6 @@ const BASE_NAV_ITEMS = [
     label: "Bài viết",
     anchor: "blog",
     path: "/blogs",
-    // dropdown: [
-    //   { label: "Mẹo vặt", path: "/blog/tips" },
-    //   { label: "Tin tức", path: "/blog/news" },
-    //   { label: "Hướng dẫn nhanh", path: "/blog/quick-guides" },
-    // ],
   },
   {
     label: "Hướng dẫn",
@@ -58,15 +51,11 @@ const BASE_NAV_ITEMS = [
 ];
 
 const readCustomerFromStorage = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
+  if (typeof window === "undefined") return null;
   try {
     const token = window.localStorage.getItem("access_token");
     const storedUser = window.localStorage.getItem("user");
-    if (!token || !storedUser) {
-      return null;
-    }
+    if (!token || !storedUser) return null;
     const parsed = JSON.parse(storedUser);
     return parsed?.profile ?? parsed;
   } catch (error) {
@@ -79,9 +68,7 @@ const getInitials = (name) => {
   if (!name) return "U";
   const chunks = name.trim().split(" ").filter(Boolean);
   if (!chunks.length) return "U";
-  if (chunks.length === 1) {
-    return chunks[0].charAt(0).toUpperCase();
-  }
+  if (chunks.length === 1) return chunks[0].charAt(0).toUpperCase();
   return (
     chunks[0].charAt(0).toUpperCase() +
     chunks[chunks.length - 1].charAt(0).toUpperCase()
@@ -98,50 +85,35 @@ const slugify = (value = "") =>
     .replace(/^-+|-+$/g, "");
 
 const buildCategoryLink = (category) => {
+  const id = category?.categoryId ?? category?.CategoryId ?? category?.id ?? category?.Id;
   const label =
-    category?.displayName ||
-    category?.categoryName ||
-    category?.name ||
-    category?.CategoryName ||
+    category?.categoryName ??
+    category?.CategoryName ??
+    category?.displayName ??
+    category?.name ??
     "";
 
-  if (!label?.trim()) {
-    return null;
-  }
-
-  const slug = slugify(category?.slug || label);
-  const id = category?.categoryId ?? category?.id ?? slug;
-  const path =
-    category?.categoryId || category?.id
-      ? `/product-list?category=${encodeURIComponent(
-        category?.categoryId ?? category?.id
-      )}`
-      : `/product-list/${slug}`;
+  if (!id || !String(label || "").trim()) return null;
 
   return {
     label,
-    anchor: `category-${slug}`,
-    path,
+    anchor: `category-${slugify(label)}`,
+    // ✅ storefront list route + filter đúng param
+    path: `/products?categoryId=${encodeURIComponent(String(id))}`,
     id,
   };
 };
 
 const getNavHref = (item) => {
-  if (item?.path) {
-    return item.path;
-  }
-  if (item?.anchor) {
-    return `#${item.anchor}`;
-  }
+  if (item?.path) return item.path;
+  if (item?.anchor) return `#${item.anchor}`;
   return "#";
 };
 
-// ===== Helpers cho Notifications (giống Admin Header) =====
+// ===== Helpers cho Notifications =====
 const normalizeNotificationResponse = (res) => {
   const data = res && res.data !== undefined ? res.data : res;
-  if (!data) {
-    return { items: [], total: 0 };
-  }
+  if (!data) return { items: [], total: 0 };
 
   const items = data.items || data.Items || [];
   const total =
@@ -164,14 +136,10 @@ const extractNotificationId = (n) =>
 
 const getNotifSeverityLabel = (sev) => {
   switch (sev) {
-    case 1:
-      return "Thành công";
-    case 2:
-      return "Cảnh báo";
-    case 3:
-      return "Lỗi";
-    default:
-      return "Thông tin";
+    case 1: return "Thành công";
+    case 2: return "Cảnh báo";
+    case 3: return "Lỗi";
+    default: return "Thông tin";
   }
 };
 
@@ -184,12 +152,66 @@ const formatNotificationTime = (value) => {
   }
 };
 
+// Helper function to get user roles from localStorage
+const getUserRoles = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      const roles = Array.isArray(parsedUser?.roles) 
+        ? parsedUser.roles 
+        : parsedUser?.role 
+          ? [parsedUser.role] 
+          : [];
+      return roles.map(r => {
+        if (typeof r === "string") return r.toUpperCase();
+        if (typeof r === "object") return (r.code || r.roleCode || r.name || "").toUpperCase();
+        return "";
+      }).filter(Boolean);
+    }
+  } catch (error) {
+    console.warn("Không thể đọc roles từ localStorage", error);
+  }
+  return [];
+};
+
+// Helper function to get dashboard route based on user roles
+const getDashboardRoute = (userRoles) => {
+  if (!userRoles || userRoles.length === 0) return null;
+  
+  // Check roles in priority order
+  if (userRoles.includes("ADMIN")) {
+    return "/admin/home";
+  }
+  if (userRoles.includes("CONTENT_CREATOR")) {
+    return "/post-dashboard";
+  }
+  if (userRoles.includes("STORAGE_STAFF")) {
+    return "/key-monitor";
+  }
+  if (userRoles.includes("CUSTOMER_CARE")) {
+    return "/admin/support-dashboard";
+  }
+  
+  // Customer or no matching role - return null (don't show button)
+  return null;
+};
+
 const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const navigate = useNavigate();
+
+  // ===== SEARCH + SUGGEST =====
   const [searchQuery, setSearchQuery] = useState("");
+  const [suggestItems, setSuggestItems] = useState([]);
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
+  const [activeSuggestIndex, setActiveSuggestIndex] = useState(-1);
+  const searchWrapRef = useRef(null);
+
   const [customer, setCustomer] = useState(() =>
     profile ? profile : readCustomerFromStorage()
   );
+
   const [categories, setCategories] = useState([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [categoriesError, setCategoriesError] = useState("");
@@ -197,17 +219,13 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
 
-  // ===== NOTIFICATIONS (customer) =====
+  // ===== NOTIFICATIONS =====
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotifWidgetOpen, setIsNotifWidgetOpen] = useState(false);
   const [isNotifLoading, setIsNotifLoading] = useState(false);
   const [hasMoreNotifications, setHasMoreNotifications] = useState(true);
-  const notifPagingRef = useRef({
-    pageNumber: 0,
-    pageSize: 5,
-    hasMore: true,
-  });
+  const notifPagingRef = useRef({ pageNumber: 0, pageSize: 5, hasMore: true });
   const notifWidgetRef = useRef(null);
   const notifBodyRef = useRef(null);
   const notifSentinelRef = useRef(null);
@@ -216,7 +234,6 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const [toastQueue, setToastQueue] = useState([]);
   const [activeToast, setActiveToast] = useState(null);
 
-  // keep ref in sync for IntersectionObserver callback
   useEffect(() => {
     isNotifLoadingRef.current = isNotifLoading;
   }, [isNotifLoading]);
@@ -225,13 +242,14 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   const [cartCount, setCartCount] = useState(0);
 
   const isCustomerMode = Boolean(customer);
-  const displayName =
-    customer?.fullName || customer?.username || customer?.displayName || "";
-  const displayEmail =
-    customer?.email || customer?.emailAddress || customer?.mail || "";
-  const avatarUrl =
-    customer?.avatarUrl || customer?.avatar || customer?.avatarURL || "";
+  const displayName = customer?.fullName || customer?.username || customer?.displayName || "";
+  const displayEmail = customer?.email || customer?.emailAddress || customer?.mail || "";
+  const avatarUrl = customer?.avatarUrl || customer?.avatar || customer?.avatarURL || "";
   const customerInitials = getInitials(displayName);
+
+  // Get user roles and dashboard route
+  const userRoles = useMemo(() => getUserRoles(), [customer]);
+  const dashboardRoute = useMemo(() => getDashboardRoute(userRoles), [userRoles]);
 
   // ===== Fetch categories =====
   useEffect(() => {
@@ -240,42 +258,27 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       setIsLoadingCategories(true);
       setCategoriesError("");
       try {
-        const result = await CategoryApi.list({
-          pageSize: 6,
-          active: true,
-          sort: "displayorder",
-          direction: "asc",
-        });
+        const filters = await StorefrontProductApi.filters();
+        const cats = Array.isArray(filters?.categories) ? filters.categories : [];
+        const mapped = cats.map((c) => buildCategoryLink(c)).filter(Boolean);
         if (!isMounted) return;
-        const mapped = (result || [])
-          .map((category) => buildCategoryLink(category))
-          .filter(Boolean);
         setCategories(mapped);
       } catch (error) {
         console.error("Cannot fetch categories for header", error);
-        if (isMounted) {
-          setCategoriesError("Không thể tải danh mục");
-        }
+        if (isMounted) setCategoriesError("Không thể tải danh mục");
       } finally {
-        if (isMounted) {
-          setIsLoadingCategories(false);
-        }
+        if (isMounted) setIsLoadingCategories(false);
       }
     };
 
     fetchCategories();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
-  // ===== Sync customer từ localStorage / props =====
+  // ===== Sync customer from storage / props =====
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
-    const syncCustomer = () => {
-      setCustomer(readCustomerFromStorage());
-    };
+    const syncCustomer = () => setCustomer(readCustomerFromStorage());
     syncCustomer();
     window.addEventListener("storage", syncCustomer);
     return () => window.removeEventListener("storage", syncCustomer);
@@ -289,13 +292,10 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     }
   }, [profile, profileLoading]);
 
-  // ===== Click outside: account menu + notif widget =====
+  // ===== Click outside: account menu + notif + suggest =====
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        accountMenuRef.current &&
-        !accountMenuRef.current.contains(event.target)
-      ) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target)) {
         setIsAccountMenuOpen(false);
       }
 
@@ -306,19 +306,22 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       ) {
         setIsNotifWidgetOpen(false);
       }
+
+      if (searchWrapRef.current && !searchWrapRef.current.contains(event.target)) {
+        setIsSuggestOpen(false);
+        setActiveSuggestIndex(-1);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ===== CART: load ban đầu + lắng nghe event =====
+  // ===== CART load + listen =====
   useEffect(() => {
     let isMounted = true;
 
     const initCartCount = async () => {
-      // Nếu chưa đăng nhập thì coi như 0, vì cart server-side cần login
       if (!customer) {
         if (isMounted) setCartCount(0);
         return;
@@ -356,32 +359,39 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
   }, [customer]);
 
   const productDropdown = useMemo(() => {
-    if (categories.length > 0) {
-      return categories;
-    }
+    if (categories.length > 0) return categories;
     return FALLBACK_PRODUCT_LINKS;
   }, [categories]);
 
   const navItems = useMemo(() => {
     return [
-      {
-        ...BASE_NAV_ITEMS[0],
-        dropdown: productDropdown,
-      },
+      { ...BASE_NAV_ITEMS[0], dropdown: productDropdown },
       ...BASE_NAV_ITEMS.slice(1),
     ];
   }, [productDropdown]);
 
   const closeDropdown = () => setOpenDropdown(null);
 
+  // ✅ SEARCH: submit => về /products?q=
   const handleSearch = (event) => {
     event.preventDefault();
-    const query = searchQuery.trim();
-    if (!query) {
+
+    // nếu đang chọn suggestion bằng phím
+    if (isSuggestOpen && activeSuggestIndex >= 0 && suggestItems[activeSuggestIndex]) {
+      const it = suggestItems[activeSuggestIndex];
+      setIsSuggestOpen(false);
+      setActiveSuggestIndex(-1);
+      navigate(`/products/${it.productId}?variant=${it.variantId}`);
       return;
     }
-    const params = new URLSearchParams({ q: query });
-    navigate(`/search?${params.toString()}`);
+
+    const q = searchQuery.trim();
+    if (!q) return;
+
+    setIsSuggestOpen(false);
+    setActiveSuggestIndex(-1);
+    const sp = new URLSearchParams({ q });
+    navigate(`/products?${sp.toString()}`);
   };
 
   const handleNavigation = (event, path) => {
@@ -416,27 +426,16 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     }
   };
 
-  const toggleAccountMenu = () => {
-    setIsAccountMenuOpen((open) => !open);
-  };
+  const toggleAccountMenu = () => setIsAccountMenuOpen((open) => !open);
 
   const handleAccountAction = (action) => {
     setIsAccountMenuOpen(false);
     switch (action) {
-      case "profile":
-        navigate("/profile");
-        break;
-      case "orders":
-        navigate("/orders");
-        break;
-      case "support":
-        navigate("/support");
-        break;
-      case "logout":
-        handleLogout();
-        break;
-      default:
-        break;
+      case "profile": navigate("/profile"); break;
+      case "orders": navigate("/orders"); break;
+      case "support": navigate("/support"); break;
+      case "logout": handleLogout(); break;
+      default: break;
     }
   };
 
@@ -450,7 +449,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user");
       setCustomer(null);
-      setCartCount(0); // clear luôn badge cart
+      setCartCount(0);
       setIsAccountMenuOpen(false);
       navigate("/login");
     }
@@ -458,7 +457,91 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
 
   const siteName = settings?.name || "Keytietkiem";
 
-  // ====== Notifications: poll unread count định kỳ ======
+  // ✅ Autocomplete: debounce gọi /storefront/products/variants?q=... để gợi ý
+  useEffect(() => {
+    let alive = true;
+    const q = searchQuery.trim();
+
+    if (!q || q.length < 2) {
+      setSuggestItems([]);
+      setIsSuggestOpen(false);
+      setActiveSuggestIndex(-1);
+      return;
+    }
+
+    setIsSuggestLoading(true);
+
+    const t = setTimeout(async () => {
+      try {
+        const res = await StorefrontProductApi.listVariants({
+          q,
+          page: 1,
+          pageSize: 6,
+          sort: "default",
+        });
+
+        if (!alive) return;
+
+        const items = Array.isArray(res?.items) ? res.items : [];
+        setSuggestItems(
+          items.map((it) => ({
+            variantId: it.variantId,
+            productId: it.productId,
+            title: it.variantTitle || it.title || it.productName,
+            productName: it.productName,
+            productType: it.productType,
+            thumbnail: it.thumbnail,
+            status: it.status,
+          }))
+        );
+        setIsSuggestOpen(true);
+        setActiveSuggestIndex(-1);
+      } catch (e) {
+        console.error("Suggest search failed:", e);
+        if (!alive) return;
+        setSuggestItems([]);
+        setIsSuggestOpen(false);
+        setActiveSuggestIndex(-1);
+      } finally {
+        if (alive) setIsSuggestLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [searchQuery]);
+
+  const onSearchKeyDown = (e) => {
+    if (!isSuggestOpen) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveSuggestIndex((idx) => {
+        const next = idx + 1;
+        return next >= suggestItems.length ? 0 : next;
+      });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveSuggestIndex((idx) => {
+        const next = idx - 1;
+        return next < 0 ? suggestItems.length - 1 : next;
+      });
+    } else if (e.key === "Escape") {
+      setIsSuggestOpen(false);
+      setActiveSuggestIndex(-1);
+    }
+  };
+
+  const handleSuggestClick = (it) => {
+    setIsSuggestOpen(false);
+    setActiveSuggestIndex(-1);
+    setSearchQuery(it.title || "");
+    navigate(`/products/${it.productId}?variant=${it.variantId}`);
+  };
+
+  // ===== Notifications poll unread count =====
   useEffect(() => {
     let isMounted = true;
     let timerId = null;
@@ -466,29 +549,21 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     const fetchUnreadNotifications = async () => {
       const token = localStorage.getItem("access_token");
       if (!token || !customer) {
-        if (isMounted) {
-          setUnreadCount(0);
-        }
+        if (isMounted) setUnreadCount(0);
         return;
       }
 
       try {
         const total = await NotificationsApi.getMyUnreadCount();
-
         if (!isMounted) return;
         setUnreadCount(typeof total === "number" ? total : 0);
       } catch (error) {
-        console.error(
-          "Failed to fetch unread notifications (public header):",
-          error
-        );
+        console.error("Failed to fetch unread notifications (public header):", error);
       }
     };
 
     const scheduleNext = () => {
       if (!isMounted) return;
-
-      // Nếu SignalR đang Connected thì giảm polling (vì realtime sẽ push)
       const conn = notifConnectionRef.current;
       const isConnected = conn && conn.state === HubConnectionState.Connected;
       const intervalMs = isConnected ? 120000 : 60000;
@@ -508,7 +583,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     };
   }, [customer]);
 
-  // ====== Lấy lịch sử thông báo khi mở widget ======
+  // ===== Notification history =====
   const fetchNotificationHistory = async ({ append = false } = {}) => {
     const token = localStorage.getItem("access_token");
     if (!token || !customer) {
@@ -540,9 +615,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       setNotifications((prev) => {
         if (!append) return items;
 
-        const existingIds = new Set(
-          prev.map((x) => extractNotificationId(x)).filter(Boolean)
-        );
+        const existingIds = new Set(prev.map((x) => extractNotificationId(x)).filter(Boolean));
         const merged = [...prev];
         items.forEach((it) => {
           const id = extractNotificationId(it);
@@ -553,11 +626,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       });
 
       const hasMore = nextPageNumber * pageSize < total;
-      notifPagingRef.current = {
-        pageNumber: nextPageNumber,
-        pageSize,
-        hasMore,
-      };
+      notifPagingRef.current = { pageNumber: nextPageNumber, pageSize, hasMore };
       setHasMoreNotifications(hasMore);
     } catch (error) {
       console.error("Failed to fetch notification history (public header):", error);
@@ -566,7 +635,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     }
   };
 
-  // ====== Load more khi scroll xuống cuối widget (IntersectionObserver) ======
+  // ===== Load more notif on scroll =====
   useEffect(() => {
     if (!isNotifWidgetOpen) return;
 
@@ -587,20 +656,13 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     );
 
     observer.observe(sentinelEl);
-
-    return () => {
-      try {
-        observer.disconnect();
-      } catch {}
-    };
+    return () => { try { observer.disconnect(); } catch {} };
   }, [isNotifWidgetOpen]);
 
-// ====== SignalR: nhận "ReceiveNotification" realtime ======
+  // ===== SignalR notifications =====
   useEffect(() => {
     const getToken = () => localStorage.getItem("access_token") || "";
-    if (!getToken() || !customer) {
-      return;
-    }
+    if (!getToken() || !customer) return;
 
     const apiBase = axiosClient.defaults.baseURL || "";
     const hubUrl = apiBase
@@ -608,9 +670,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       : "https://localhost:7292/hubs/notifications";
 
     const connection = new HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => localStorage.getItem("access_token") || "",
-      })
+      .withUrl(hubUrl, { accessTokenFactory: () => localStorage.getItem("access_token") || "" })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
       .build();
@@ -624,18 +684,12 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       const isRead = n.isRead ?? n.IsRead ?? false;
 
       setNotifications((prev) => {
-        const existingIds = new Set(
-          prev.map((x) => extractNotificationId(x)).filter(Boolean)
-        );
-        if (existingIds.has(id)) {
-          return prev;
-        }
+        const existingIds = new Set(prev.map((x) => extractNotificationId(x)).filter(Boolean));
+        if (existingIds.has(id)) return prev;
         return [n, ...prev];
       });
 
-      if (!isRead) {
-        setUnreadCount((prev) => prev + 1);
-      }
+      if (!isRead) setUnreadCount((prev) => prev + 1);
 
       setToastQueue((prev) => [
         ...prev,
@@ -649,26 +703,16 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       ]);
     });
 
-
     connection.on("ReceiveGlobalNotification", async (n) => {
-      // Global notifications may not include NotificationUserId; fallback to refresh if needed
-      const id =
-        extractNotificationId(n) || `global-${Date.now()}-${Math.random()}`;
+      const id = extractNotificationId(n) || `global-${Date.now()}-${Math.random()}`;
       const title = n.title || n.Title;
       const message = n.message || n.Message;
 
       setToastQueue((prev) => [
         ...prev,
-        {
-          id,
-          title,
-          message,
-          severity: n.severity ?? n.Severity ?? 0,
-          createdAt: n.createdAtUtc || n.CreatedAtUtc,
-        },
+        { id, title, message, severity: n.severity ?? n.Severity ?? 0, createdAt: n.createdAtUtc || n.CreatedAtUtc },
       ]);
 
-      // best-effort sync unread count + refresh first page
       try {
         const total = await NotificationsApi.getMyUnreadCount();
         setUnreadCount(typeof total === "number" ? total : 0);
@@ -677,11 +721,9 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       fetchNotificationHistory({ append: false });
     });
 
-    connection
-      .start()
-      .catch((err) =>
-        console.error("Failed to connect NotificationHub (public header):", err)
-      );
+    connection.start().catch((err) =>
+      console.error("Failed to connect NotificationHub (public header):", err)
+    );
 
     return () => {
       if (notifConnectionRef.current) {
@@ -693,7 +735,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     };
   }, [customer]);
 
-  // ===== Toast queue (giống admin) =====
+  // ===== Toast queue =====
   useEffect(() => {
     if (activeToast || toastQueue.length === 0) return;
     setActiveToast(toastQueue[0]);
@@ -706,11 +748,8 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     return () => clearTimeout(timer);
   }, [activeToast]);
 
-  const handleToastClose = () => {
-    setActiveToast(null);
-  };
+  const handleToastClose = () => setActiveToast(null);
 
-  // ===== Click item => mark read + điều hướng (tránh mark-read khi hover) =====
   const markNotificationReadOptimistic = (notifUserId) => {
     setNotifications((prev) =>
       prev.map((n) => {
@@ -721,7 +760,6 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     );
     setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
 
-    // rollback fn
     return () => {
       setNotifications((prev) =>
         prev.map((n) => {
@@ -744,10 +782,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       try {
         await NotificationsApi.markMyNotificationRead(notifUserId);
       } catch (err) {
-        console.error(
-          "Failed to mark notification as read (public header)",
-          err
-        );
+        console.error("Failed to mark notification as read (public header)", err);
         if (rollback) rollback();
       }
     }
@@ -764,16 +799,11 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     }
   };
 
-  // ===== Bấm chuông => mở / đóng widget =====
   const handleNotifBellClick = () => {
     setIsNotifWidgetOpen((prev) => {
       const next = !prev;
       if (!prev && next) {
-        notifPagingRef.current = {
-          pageNumber: 0,
-          pageSize: 5,
-          hasMore: true,
-        };
+        notifPagingRef.current = { pageNumber: 0, pageSize: 5, hasMore: true };
         setHasMoreNotifications(true);
         fetchNotificationHistory({ append: false });
       }
@@ -783,17 +813,9 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
 
   return (
     <>
-      <div
-        className="topbar"
-        data-mode={isCustomerMode ? "customer" : "guest"}
-        role="banner"
-      >
+      <div className="topbar" data-mode={isCustomerMode ? "customer" : "guest"} role="banner">
         <div className="container header-public">
-          <a
-            className="logo"
-            href="/"
-            onClick={(event) => handleNavigation(event, "/")}
-          >
+          <a className="logo" href="/" onClick={(event) => handleNavigation(event, "/")}>
             {settings?.logoUrl ? (
               <img
                 src={settings.logoUrl}
@@ -806,80 +828,90 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
             <span>{loading ? "Keytietkiem" : siteName}</span>
           </a>
 
-          <form className="searchbar" onSubmit={handleSearch} role="search">
-            <input
-              type="search"
-              placeholder="Tìm: Office 365, Windows 11 Pro, ChatGPT Plus, Adobe..."
-              aria-label="Tìm kiếm sản phẩm"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-            <button className="btn" type="submit">
-              Tìm kiếm
-            </button>
-          </form>
+          {/* ✅ Search with suggestions */}
+          <div className="ph-search-wrap" ref={searchWrapRef}>
+            <form className="searchbar" onSubmit={handleSearch} role="search">
+              <input
+                type="search"
+                placeholder="Tìm: Office 365, Windows 11 Pro, ChatGPT Plus, Adobe..."
+                aria-label="Tìm kiếm sản phẩm"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onFocus={() => {
+                  if (suggestItems.length > 0) setIsSuggestOpen(true);
+                }}
+                onKeyDown={onSearchKeyDown}
+              />
+              <button className="btn" type="submit">
+                Tìm kiếm
+              </button>
+            </form>
 
-          {/* Guest mode: giữ nguyên */}
+            {isSuggestOpen && (
+              <div className="ph-suggest">
+                {isSuggestLoading && (
+                  <div className="ph-suggest-item ph-suggest-muted">Đang tìm…</div>
+                )}
+
+                {!isSuggestLoading && suggestItems.length === 0 && searchQuery.trim().length >= 2 && (
+                  <div className="ph-suggest-item ph-suggest-muted">Không có sản phẩm phù hợp.</div>
+                )}
+
+                {!isSuggestLoading &&
+                  suggestItems.map((it, idx) => {
+                    const typeLabel = StorefrontProductApi.typeLabelOf(it.productType);
+                    const title = it.title || it.productName || "Sản phẩm";
+                    const sub = typeLabel ? `${it.productName || ""} · ${typeLabel}` : (it.productName || "");
+
+                    return (
+                      <button
+                        key={`${it.variantId}-${idx}`}
+                        type="button"
+                        className={`ph-suggest-item ${idx === activeSuggestIndex ? "active" : ""}`}
+                        onMouseEnter={() => setActiveSuggestIndex(idx)}
+                        onClick={() => handleSuggestClick(it)}
+                      >
+                        <span className="ph-suggest-title">{title}</span>
+                        {!!sub && <span className="ph-suggest-sub">{sub}</span>}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
           {!isCustomerMode && (
             <div className="account guest-only">
-              <a
-                className="btn cart-btn"
-                href="/cart"
-                onClick={(event) => handleNavigation(event, "/cart")}
-              >
-                <span className="cart-icon" aria-hidden="true">
-                  🛒
-                </span>
+              <a className="btn cart-btn" href="/cart" onClick={(event) => handleNavigation(event, "/cart")}>
+                <span className="cart-icon" aria-hidden="true">🛒</span>
                 <span className="cart-label">Giỏ hàng</span>
                 {cartCount > 0 && (
-                  <span
-                    className="cart-badge"
-                    aria-label={`${cartCount} sản phẩm trong giỏ hàng`}
-                  >
+                  <span className="cart-badge" aria-label={`${cartCount} sản phẩm trong giỏ hàng`}>
                     {cartCount}
                   </span>
                 )}
               </a>
-              <a
-                className="btn"
-                href="/login"
-                onClick={(event) => handleNavigation(event, "/login")}
-              >
+              <a className="btn" href="/login" onClick={(event) => handleNavigation(event, "/login")}>
                 Đăng nhập
               </a>
-              <a
-                className="btn primary"
-                href="/register"
-                onClick={(event) => handleNavigation(event, "/register")}
-              >
+              <a className="btn primary" href="/register" onClick={(event) => handleNavigation(event, "/register")}>
                 Đăng ký
               </a>
             </div>
           )}
 
-          {/* Customer mode: BỎ nút "Đơn hàng" -> thêm icon chuông thông báo */}
           {isCustomerMode && (
             <div className="account customer-only" ref={accountMenuRef}>
-              <a
-                className="btn cart-btn"
-                href="/cart"
-                onClick={(event) => handleNavigation(event, "/cart")}
-              >
-                <span className="cart-icon" aria-hidden="true">
-                  🛒
-                </span>
+              <a className="btn cart-btn" href="/cart" onClick={(event) => handleNavigation(event, "/cart")}>
+                <span className="cart-icon" aria-hidden="true">🛒</span>
                 <span className="cart-label">Giỏ hàng</span>
                 {cartCount > 0 && (
-                  <span
-                    className="cart-badge"
-                    aria-label={`${cartCount} sản phẩm trong giỏ hàng`}
-                  >
+                  <span className="cart-badge" aria-label={`${cartCount} sản phẩm trong giỏ hàng`}>
                     {cartCount}
                   </span>
                 )}
               </a>
 
-              {/* 🔔 Chuông thông báo giống admin header */}
               <div className="alh-notif-wrapper">
                 <button
                   type="button"
@@ -905,23 +937,13 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                 aria-expanded={isAccountMenuOpen}
               >
                 <div className="avatar" aria-hidden="true">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Ảnh đại diện" />
-                  ) : (
-                    customerInitials
-                  )}
+                  {avatarUrl ? <img src={avatarUrl} alt="Ảnh đại diện" /> : customerInitials}
                 </div>
                 <div className="account-labels">
                   <span>{displayName || "Tài khoản"}</span>
                   {displayEmail && <small>{displayEmail}</small>}
                 </div>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path
                     d="M6 9l6 6 6-6"
                     stroke="currentColor"
@@ -934,12 +956,20 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
 
               {isAccountMenuOpen && (
                 <div className="account-dropdown" role="menu">
-                  <button
-                    className="account-dropdown-item"
-                    onClick={() => handleAccountAction("profile")}
-                  >
+                  <button className="account-dropdown-item" onClick={() => handleAccountAction("profile")}>
                     Hồ sơ của tôi
                   </button>
+                  {dashboardRoute && (
+                    <button
+                      className="account-dropdown-item"
+                      onClick={() => {
+                        setIsAccountMenuOpen(false);
+                        navigate(dashboardRoute);
+                      }}
+                    >
+                      Dashboard
+                    </button>
+                  )}
                   <button
                     className="account-dropdown-item"
                     onClick={() => handleAccountAction("support")}
@@ -947,10 +977,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                     Liên hệ hỗ trợ
                   </button>
                   <div className="account-dropdown-divider" />
-                  <button
-                    className="account-dropdown-item logout"
-                    onClick={() => handleAccountAction("logout")}
-                  >
+                  <button className="account-dropdown-item logout" onClick={() => handleAccountAction("logout")}>
                     Đăng xuất
                   </button>
                 </div>
@@ -967,21 +994,9 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                 <div
                   className={`nav-item${isOpen ? " open" : ""}`}
                   key={item.label}
-                  onMouseEnter={() => {
-                    if (hasDropdown) {
-                      setOpenDropdown(item.label);
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    if (hasDropdown) {
-                      closeDropdown();
-                    }
-                  }}
-                  onFocus={() => {
-                    if (hasDropdown) {
-                      setOpenDropdown(item.label);
-                    }
-                  }}
+                  onMouseEnter={() => { if (hasDropdown) setOpenDropdown(item.label); }}
+                  onMouseLeave={() => { if (hasDropdown) closeDropdown(); }}
+                  onFocus={() => { if (hasDropdown) setOpenDropdown(item.label); }}
                   onBlur={hasDropdown ? handleMenuBlur : undefined}
                 >
                   <a
@@ -989,9 +1004,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                     href={getNavHref(item)}
                     aria-haspopup={hasDropdown ? "true" : undefined}
                     aria-expanded={hasDropdown ? isOpen : undefined}
-                    onClick={(event) =>
-                      handleTopItemClick(event, item, isOpen)
-                    }
+                    onClick={(event) => handleTopItemClick(event, item, isOpen)}
                   >
                     <strong>
                       {item.label}
@@ -1001,36 +1014,22 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
 
                   {hasDropdown && (
                     <div className="dropdown">
-                      {item.label === "Danh mục sản phẩm" &&
-                        isLoadingCategories && (
-                          <div className="dropdown-status">Đang tải...</div>
-                        )}
-                      {item.label === "Danh mục sản phẩm" &&
-                        categoriesError && (
-                          <div className="dropdown-status error">
-                            {categoriesError}
-                          </div>
-                        )}
+                      {item.label === "Danh mục sản phẩm" && isLoadingCategories && (
+                        <div className="dropdown-status">Đang tải...</div>
+                      )}
+                      {item.label === "Danh mục sản phẩm" && categoriesError && (
+                        <div className="dropdown-status error">{categoriesError}</div>
+                      )}
+
                       {item.dropdown.map((subItem) => (
                         <a
                           key={subItem.label}
                           href={getNavHref(subItem)}
-                          target={
-                            subItem.path?.startsWith("http")
-                              ? "_blank"
-                              : undefined
-                          }
-                          rel={
-                            subItem.path?.startsWith("http")
-                              ? "noopener noreferrer"
-                              : undefined
-                          }
+                          target={subItem.path?.startsWith("http") ? "_blank" : undefined}
+                          rel={subItem.path?.startsWith("http") ? "noopener noreferrer" : undefined}
                           onClick={(event) => {
                             if (subItem.path) {
-                              if (
-                                subItem.path.startsWith("http://") ||
-                                subItem.path.startsWith("https://")
-                              ) {
+                              if (subItem.path.startsWith("http://") || subItem.path.startsWith("https://")) {
                                 closeDropdown();
                                 return;
                               }
@@ -1051,7 +1050,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
         </div>
       </div>
 
-      {/* ====== Widget thông báo giống admin header ====== */}
+      {/* ====== Widget thông báo ====== */}
       {isCustomerMode && isNotifWidgetOpen && (
         <div className="alh-notif-widget">
           <div className="alh-notif-widget-panel" ref={notifWidgetRef}>
@@ -1059,9 +1058,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
               <div className="alh-notif-header-left">
                 <div className="alh-notif-title">Thông báo</div>
                 <div className="alh-notif-subtitle">
-                  {unreadCount > 0
-                    ? `${unreadCount} thông báo chưa đọc`
-                    : "Không có thông báo chưa đọc"}
+                  {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Không có thông báo chưa đọc"}
                 </div>
               </div>
               <button
@@ -1080,16 +1077,13 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
               )}
 
               {!isNotifLoading && notifications.length === 0 && (
-                <div className="alh-notif-empty">
-                  Chưa có thông báo nào.
-                </div>
+                <div className="alh-notif-empty">Chưa có thông báo nào.</div>
               )}
 
               {!isNotifLoading &&
                 notifications.map((n) => {
                   const id = extractNotificationId(n);
-                  const title =
-                    n.title || n.Title || "(Không có tiêu đề)";
+                  const title = n.title || n.Title || "(Không có tiêu đề)";
                   const message = n.message || n.Message || "";
                   const severity = n.severity ?? n.Severity ?? 0;
                   const createdAt = n.createdAtUtc || n.CreatedAtUtc;
@@ -1098,35 +1092,23 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                   return (
                     <div
                       key={id}
-                      className={
-                        "alh-notif-item" + (isRead ? " read" : " unread")
-                      }
+                      className={"alh-notif-item" + (isRead ? " read" : " unread")}
                       onClick={() => handleNotificationItemClick(n)}
                     >
                       <div className="alh-notif-left">
-                        {!isRead && (
-                          <span className="alh-notif-unread-dot" />
-                        )}
+                        {!isRead && <span className="alh-notif-unread-dot" />}
                       </div>
                       <div className="alh-notif-content">
                         <div className="alh-notif-line">
-                          <span className="alh-notif-item-title">
-                            {title}
-                          </span>
+                          <span className="alh-notif-item-title">{title}</span>
                         </div>
                         <div className="alh-notif-message">
-                          {message.length > 80
-                            ? message.slice(0, 80) + "..."
-                            : message}
+                          {message.length > 80 ? message.slice(0, 80) + "..." : message}
                         </div>
                         <div className="alh-notif-meta">
-                          <span className="alh-notif-severity">
-                            {getNotifSeverityLabel(severity)}
-                          </span>
+                          <span className="alh-notif-severity">{getNotifSeverityLabel(severity)}</span>
                           <span className="alh-notif-dot-sep">•</span>
-                          <span className="alh-notif-time">
-                            {formatNotificationTime(createdAt)}
-                          </span>
+                          <span className="alh-notif-time">{formatNotificationTime(createdAt)}</span>
                         </div>
                       </div>
                     </div>
@@ -1143,7 +1125,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
         </div>
       )}
 
-      {/* ====== Toast thông báo mới giống admin header ====== */}
+      {/* ====== Toast ====== */}
       {isCustomerMode && activeToast && (
         <div className="alh-toast" role="status" aria-live="polite">
           <div className="alh-toast-inner">
@@ -1160,12 +1142,10 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
             </div>
             <div className="alh-toast-content">
               <div className="alh-toast-title">
-                {getNotifSeverityLabel(activeToast.severity)} ·{" "}
-                {activeToast.title}
+                {getNotifSeverityLabel(activeToast.severity)} · {activeToast.title}
               </div>
               <div className="alh-toast-message">
-                {activeToast.message &&
-                  activeToast.message.length > 100
+                {activeToast.message && activeToast.message.length > 100
                   ? activeToast.message.slice(0, 100) + "..."
                   : activeToast.message}
               </div>

@@ -54,18 +54,22 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getAllPosts(),
+                postsApi.getAllPosts(true), // Exclude static content posts
                 postsApi.getPosttypes(),
                 postsApi.getTags()
             ]);
 
+            // Additional frontend filtering as backup
+            const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
+            const filteredPosts = filterStaticContentPosts(Array.isArray(postsRes) ? postsRes : []);
+
             console.log("✅ Data loaded:", {
-                posts: postsRes.length,
+                posts: filteredPosts.length,
                 categories: categoriesRes.length,
                 tags: tagsRes.length
             });
 
-            setPosts(Array.isArray(postsRes) ? postsRes : []);
+            setPosts(filteredPosts);
             setCategories(Array.isArray(categoriesRes) ? categoriesRes : []);
             setTags(Array.isArray(tagsRes) ? tagsRes : []);
         } catch (err) {
@@ -102,6 +106,10 @@ const BlogList = () => {
     const filteredPosts = useMemo(() => {
         let result = posts;
 
+        // Additional static content filtering as backup
+        const { isStaticContentPost } = require('../../utils/staticContentHelper');
+        result = result.filter(p => !isStaticContentPost(p));
+
         // Search filter
         if (search.trim()) {
             const lowerSearch = search.toLowerCase();
@@ -113,7 +121,8 @@ const BlogList = () => {
 
         // Category filter (by postTypeId)
         if (categoryId !== "all") {
-            result = result.filter(p => p.postTypeId === categoryId);
+            result = result.filter(p => p.postTypeId?.toString() === categoryId);
+
         }
 
         // Tag filter (by slug)
@@ -160,7 +169,7 @@ const BlogList = () => {
     }, [search]);
 
     // Get active filter labels
-    const activeCategory = categories.find(c => c.postTypeId === categoryId);
+    const activeCategory = categories.find(c => c.postTypeId?.toString() === categoryId);
     const activeTag = tags.find(t => t.slug === tagSlug);
 
     return (

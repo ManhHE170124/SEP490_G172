@@ -22,14 +22,20 @@ const formatDateTime = (iso) => {
   return `${hh}:${mi}:${ss}  ${dd}/${mm}/${yyyy}`;
 };
 
+/**
+ * ✅ Order statuses đúng theo BE:
+ * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction
+ */
 const ORDER_STATUS_OPTIONS = [
   { value: "", label: "Tất cả trạng thái" },
-  { value: "Pending", label: "Chờ thanh toán" },
+  { value: "PendingPayment", label: "Chờ thanh toán" },
   { value: "Paid", label: "Đã thanh toán" },
-  { value: "Cancelled", label: "Đã hủy" },
+  { value: "NeedsManualAction", label: "Cần xử lý thủ công" },
   { value: "CancelledByTimeout", label: "Đã hủy do quá hạn" },
-  { value: "Failed", label: "Thất bại" },
+  { value: "Cancelled", label: "Đã hủy" },
 ];
+
+const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
 const getOrderStatusLabel = (statusRaw) => {
   const s = String(statusRaw || "").trim();
@@ -38,12 +44,16 @@ const getOrderStatusLabel = (statusRaw) => {
 };
 
 const statusPillClass = (statusRaw) => {
-  const s = String(statusRaw || "").toLowerCase();
-  if (s.includes("paid") || s.includes("success") || s.includes("completed")) return "payment-paid";
-  if (s.includes("pending")) return "payment-pending";
-  if (s.includes("refund")) return "payment-refunded";
-  if (s.includes("cancel")) return "payment-cancelled";
-  if (s.includes("fail")) return "payment-failed";
+  const v = normalizeStatusKey(statusRaw);
+
+  if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED") return "payment-paid";
+
+  if (v === "PENDINGPAYMENT" || v === "PENDING") return "payment-pending";
+  if (v === "NEEDSMANUALACTION") return "payment-pending";
+
+  if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "payment-timeout";
+  if (v === "CANCELLED") return "payment-cancelled";
+
   return "payment-unknown";
 };
 
@@ -170,7 +180,7 @@ export default function AdminOrderListPage() {
   }, [load]);
 
   const applyFilters = () => {
-    setPaged((p) => ({ ...p, pageIndex: 1 })); // ✅ FIX .p
+    setPaged((p) => ({ ...p, pageIndex: 1 }));
     setFilters({
       ...draft,
       search: String(draft.search || "").trim(),
@@ -179,13 +189,13 @@ export default function AdminOrderListPage() {
 
   const resetFilters = () => {
     setSort({ sortBy: "createdat", sortDir: "desc" });
-    setPaged((p) => ({ ...p, pageIndex: 1, pageSize: 10 })); // reset size về 10 (nếu muốn giữ size thì bỏ pageSize)
+    setPaged((p) => ({ ...p, pageIndex: 1, pageSize: 10 }));
     setDraft(DEFAULT_FILTERS);
     setFilters(DEFAULT_FILTERS);
   };
 
   const onDraftChange = (key, val) => {
-    setDraft((f) => ({ ...f, [key]: val })); // ✅ FIX .f
+    setDraft((f) => ({ ...f, [key]: val }));
   };
 
   const toggleSort = (sortBy) => {

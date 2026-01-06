@@ -22,6 +22,7 @@ import AdminPostList from "../pages/PostManage/AdminPostList";
 import PostCreateEdit from "../pages/PostManage/CreateEditPost";
 import TagPostTypeManage from "../pages/PostManage/TagAndPostTypeManage";
 import PostDashboardPage from "../pages/PostManage/PostDashboardPage";
+import AdminPaymentsDashboardPage from "../pages/admin/AdminPaymentsDashboardPage";
 
 // Admin pages
 import CategoryPage from "../pages/admin/CategoryPage.jsx";
@@ -37,6 +38,10 @@ import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
 import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
+import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
+import PolicyPage from "../pages/admin/PolicyPage.jsx";
+import UserGuidePage from "../pages/admin/UserGuidePage.jsx";
+import AboutUsPage from "../pages/admin/AboutUsPage.jsx";
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -95,6 +100,8 @@ import SlaRulesAdminPage from "../pages/admin/SlaRulesAdminPage.jsx";
 import AuditLogsPage from "../pages/admin/AuditLogsPage.jsx";
 
 import SupportDashboardAdminPage from "../pages/admin/SupportDashboardAdminPage";
+import UserDashboardAdminPage from "../pages/admin/UserDashboardAdminPage.jsx";
+
 
 // Lazy admin ticket detail
 const AdminTicketDetail = lazy(() =>
@@ -103,8 +110,8 @@ const AdminTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.AdminTicketDetail === "function"
-        ? m.AdminTicketDetail
-        : () => null,
+          ? m.AdminTicketDetail
+          : () => null,
   }))
 );
 
@@ -115,8 +122,8 @@ const StaffTicketDetail = lazy(() =>
       typeof m.default === "function"
         ? m.default
         : typeof m.StaffTicketDetail === "function"
-        ? m.StaffTicketDetail
-        : () => null,
+          ? m.StaffTicketDetail
+          : () => null,
   }))
 );
 
@@ -168,6 +175,12 @@ export default function AppRoutes() {
       {/* Admin Profile */}
       <Route path="/admin/profile" element={renderAdminPage(<AdminProfilePage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF, ROLES.CUSTOMER_CARE, ROLES.CONTENT_CREATOR))} />
       <Route path="/staff/profile" element={renderAdminPage(<AdminProfilePage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF, ROLES.CUSTOMER_CARE, ROLES.CONTENT_CREATOR))} />
+
+      {/* Admin Home Dashboard */}
+      <Route
+        path="/admin/home"
+        element={renderAdminPage(<AdminHomePage />, role(ROLES.ADMIN))}
+      />
 
       {/* Admin Tickets */}
       <Route
@@ -250,24 +263,24 @@ export default function AppRoutes() {
       {/* Products */}
       <Route
         path="/admin/products"
-        element={renderAdminPage(<ProductsPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<ProductsPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/products/add"
-        element={renderAdminPage(<ProductAdd />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<ProductAdd />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/products/:id"
-        element={renderAdminPage(<ProductDetail />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<ProductDetail />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/products/:id/variants/:variantId"
-        element={renderAdminPage(<VariantDetail />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<VariantDetail />, role(ROLES.ADMIN))}
       />
 
       <Route
         path="/admin/categories"
-        element={renderAdminPage(<CategoryPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<CategoryPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/orders"
@@ -277,7 +290,12 @@ export default function AppRoutes() {
         path="/admin/payments"
         element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN))}
       />
-<Route
+      <Route
+        path="/admin/payments/dashboard"
+        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+      />
+
+      <Route
         path="/admin/orders/:id"
         element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN))}
       />
@@ -295,6 +313,10 @@ export default function AppRoutes() {
       <Route
         path="/admin/users"
         element={renderAdminPage(<AdminUserManagement />, role(ROLES.ADMIN))}
+      />
+      <Route
+        path="/admin/user-dashboard"
+        element={renderAdminPage(<UserDashboardAdminPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/role-manage"
@@ -320,6 +342,19 @@ export default function AppRoutes() {
       <Route
         path="/tag-post-type-manage"
         element={renderAdminPage(<TagPostTypeManage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+      />
+      {/* Static Content Routes */}
+      <Route
+        path="/admin/policy"
+        element={renderAdminPage(<PolicyPage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+      />
+      <Route
+        path="/admin/user-guide"
+        element={renderAdminPage(<UserGuidePage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+      />
+      <Route
+        path="/admin/about-us"
+        element={renderAdminPage(<AboutUsPage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
       />
       {/* Suppliers */}
       <Route
@@ -362,7 +397,7 @@ export default function AppRoutes() {
 
       {/* Settings */}
       <Route path="/admin/website-config" element={renderAdminPage(<WebsiteConfig />, role(ROLES.ADMIN))} />
-       <Route
+      <Route
         path="/admin/notifications"
         element={renderAdminPage(<AdminNotificationsPage />, role(ROLES.ADMIN))}
       />
@@ -389,11 +424,11 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/support-priority-loyalty-rules"
-        element={renderAdminPage(<SupportPriorityLoyaltyRulesPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<SupportPriorityLoyaltyRulesPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/support-plans"
-        element={renderAdminPage(<SupportPlansAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<SupportPlansAdminPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/sla-rules"
@@ -401,7 +436,7 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/ticket-subject-templates"
-        element={renderAdminPage(<TicketSubjectTemplatesAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<TicketSubjectTemplatesAdminPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/audit-logs"

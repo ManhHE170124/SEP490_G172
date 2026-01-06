@@ -1,5 +1,4 @@
-﻿using Keytietkiem.Authorization;
-using Keytietkiem.Hubs;
+﻿using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Options;
@@ -58,6 +57,7 @@ builder.Services.AddHttpClient<PayOSService>();
 
 // ===== Repositories =====
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IPostRepository, PostRepository>();
 
 // ===== Services =====
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -79,6 +79,8 @@ builder.Services.AddHostedService<CartCleanupService>();
 builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddHostedService<StartupStockSyncHostedService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
 {

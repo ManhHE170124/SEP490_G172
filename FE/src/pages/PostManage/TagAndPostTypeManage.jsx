@@ -656,7 +656,6 @@ export default function TagAndPosttypeManage() {
                 onRemove={removeToast}
                 confirmDialog={confirmDialog}
             />
-            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </div>
     );
 }

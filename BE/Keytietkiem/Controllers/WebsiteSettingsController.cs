@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.Attributes;
+using Keytietkiem.Utils;
 using Keytietkiem.Constants;
 using System.Text.Json;
 
@@ -227,6 +227,21 @@ namespace Keytietkiem.Controllers
                     inner = ex.InnerException?.Message
                 });
             }
+        }
+
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublic()
+        {
+            var setting = await _settingService.GetOrCreateAsync();
+            return Ok(new
+            {
+                contact = new { address = setting.CompanyAddress, phone = setting.Phone, email = setting.Email },
+                social = new { facebook = setting.Facebook, instagram = setting.Instagram, zalo = setting.Zalo, tiktok = setting.TikTok },
+                logoUrl = setting.LogoUrl,
+                name = setting.SiteName,
+                slogan = setting.Slogan
+            });
         }
     }
 }

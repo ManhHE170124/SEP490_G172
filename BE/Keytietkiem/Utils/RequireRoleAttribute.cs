@@ -12,7 +12,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 
-namespace Keytietkiem.Attributes
+namespace Keytietkiem.Utils
 {
     /// <summary>
     /// Authorization attribute that requires the user to have at least one of the specified roles.

@@ -36,7 +36,8 @@ const END = {
 
 export const postsApi = {
   // Post CRUD
-  getAllPosts: () => axiosClient.get(END.POSTS),
+  getAllPosts: (excludeStaticContent = false) => 
+    axiosClient.get(END.POSTS, { params: { excludeStaticContent } }),
   getPostById: (id) => axiosClient.get(`${END.POSTS}/${id}`),
   createPost: (data) => axiosClient.post(END.POSTS, data),
   updatePost: (id, data) => axiosClient.put(`${END.POSTS}/${id}`, data),
@@ -52,12 +53,18 @@ export const postsApi = {
   updateTag: (id, data) => axiosClient.put(`${END.TAGS}/${id}`, data),
   deleteTag: (id) => axiosClient.delete(`${END.TAGS}/${id}`),
 
+  //Public (Storefront)
+  getPublicPosts: () => axiosClient.get(`${END.POSTS}/public`),
+  getPublicPosttypes: () => axiosClient.get(`${END.POSTS}/posttypes/public`),
+  getPublicTags: () => axiosClient.get(`${END.TAGS}/public`),
+
   // PostType 
   getPosttypes: () => axiosClient.get(`${END.POSTS}/posttypes`),
   getPosttypeById: (id) => axiosClient.get(`${END.POSTS}/posttypes/${id}`),
   createPosttype: (data) => axiosClient.post(`${END.POSTS}/posttypes`, data),
   updatePosttype: (id, data) => axiosClient.put(`${END.POSTS}/posttypes/${id}`, data),
   deletePosttype: (id) => axiosClient.delete(`${END.POSTS}/posttypes/${id}`),
+
   // PostImage 
   uploadImage: (file) => {
     const form = new FormData();

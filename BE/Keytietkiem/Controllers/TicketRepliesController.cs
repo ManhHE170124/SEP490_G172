@@ -31,6 +31,7 @@ public class TicketRepliesController : ControllerBase
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService; // ✅ NEW
     private readonly IConfiguration _config;
+    private readonly IClock _clock;
 
     public TicketRepliesController(
         KeytietkiemDbContext db,
@@ -108,7 +109,7 @@ public class TicketRepliesController : ControllerBase
                 new { message = "Người dùng không có quyền hạn để phản hồi." });
         }
 
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
 
         // Staff = assignee hoặc admin (không phải chủ ticket)
         var isStaffReply = !isTicketOwner;
