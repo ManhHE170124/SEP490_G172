@@ -38,6 +38,7 @@ import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
 import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
+import AdminOrdersDashboardPage from "../pages/admin/AdminOrdersDashboardPage";
 import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
 import PolicyPage from "../pages/admin/PolicyPage.jsx";
 import UserGuidePage from "../pages/admin/UserGuidePage.jsx";
@@ -292,8 +293,11 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/payments/dashboard"
-        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN))}
       />
+<Route path="/admin/orders/dashboard"         
+element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
+ />
 
       <Route
         path="/admin/orders/:id"
