@@ -624,7 +624,6 @@ namespace Keytietkiem.Controllers
             });
         }
 
-
         [HttpGet("{paymentId:guid}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN)]
@@ -969,6 +968,9 @@ namespace Keytietkiem.Controllers
                                 prevStatus,
                                 new { reason = "PaidLate", orderCode, topCode, dataCode, orderStatus = order.Status });
 
+                            // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
+                            await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, order);
+
                             return Ok(new { message = "Webhook processed - Paid late (NeedsManualAction)." });
                         }
 
@@ -1029,6 +1031,9 @@ namespace Keytietkiem.Controllers
                                 prevStatus,
                                 new { reason = "WebhookPaid", targetType = payment.TargetType, orderCode, topCode, dataCode, orderStatus = order.Status });
 
+                            // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
+                            await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, order);
+
                             // ✅ Cancel QR/link của các attempt bị DupCancelled (best-effort, sau commit)
                             await CancelPayOSLinksBestEffortAsync(linksToCancel, "DupCancelled");
 
@@ -1054,6 +1059,9 @@ namespace Keytietkiem.Controllers
                                 payment,
                                 prevStatus,
                                 new { reason = "WebhookPaidNeedsManualAction", orderCode, topCode, dataCode, orderStatus = order?.Status });
+
+                            // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
+                            await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, order);
 
                             return Ok(new { message = "Webhook processed - Paid (NeedsManualAction)." });
                         }
@@ -1166,6 +1174,9 @@ namespace Keytietkiem.Controllers
                         payment,
                         prevStatus,
                         new { reason = "WebhookPaid_NonRelational", orderCode, topCode, dataCode });
+
+                    // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
+                    await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, null);
 
                     return Ok(new { message = "Webhook processed - Paid." });
                 }
@@ -1506,6 +1517,38 @@ namespace Keytietkiem.Controllers
         }
 
         // ================== HELPERS ==================
+
+        // ✅ NEW: tự động cập nhật tổng chi tiêu + priority sau khi ORDER Paid (best-effort)
+        private async Task BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(
+            KeytietkiemDbContext db,
+            Payment payment,
+            Order? order)
+        {
+            try
+            {
+                if (!string.Equals(payment.TargetType ?? "", "Order", StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                if (!string.Equals(payment.Status ?? "", PaymentStatusPaid, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                var email = payment.Email;
+                if (string.IsNullOrWhiteSpace(email) && order != null)
+                    email = order.Email;
+
+                if (string.IsNullOrWhiteSpace(email))
+                    return;
+
+                await SupportPriorityLoyaltyRulesController
+                    .RecalculateUserSupportPriorityLevelAsync(db, email);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "RecalculateUserSupportPriorityLevelAsync failed. PaymentId={PaymentId}, TargetType={TargetType}, TargetId={TargetId}, Email={Email}, OrderId={OrderId}",
+                    payment.PaymentId, payment.TargetType, payment.TargetId, payment.Email, order?.OrderId);
+            }
+        }
 
         private async Task ApplySupportPlanPurchaseAsync(KeytietkiemDbContext db, Payment payment, DateTime nowUtc, CancellationToken ct)
         {

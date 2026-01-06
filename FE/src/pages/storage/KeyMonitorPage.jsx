@@ -19,6 +19,7 @@ import { ProductReportApi } from "../../services/productReportApi";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
+import "../../pages/PostManage/TagAndPostTypeManage.css";
 
 const DEFAULT_LOW_STOCK_THRESHOLD = 20;
 
@@ -401,35 +402,15 @@ export default function KeyMonitorPage() {
           {/* Header & Tabs */}
           <div>
             <h1 style={{ marginBottom: 16 }}>Theo dõi tình trạng</h1>
-            <div className="tabs-header" style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+            <div className="tag-pt-tabs">
                 <button 
-                    className={`tab-btn ${activeTab === 'keys' ? 'active' : ''}`}
-                    style={{
-                        padding: '10px 20px',
-                        border: 'none',
-                        background: 'none',
-                        borderBottom: activeTab === 'keys' ? '2px solid #2563eb' : 'none',
-                        color: activeTab === 'keys' ? '#2563eb' : '#374151',
-                        fontWeight: activeTab === 'keys' ? 600 : 400,
-                        cursor: 'pointer',
-                        fontSize: 16
-                    }}
+                    className={`tag-pt-tab-button ${activeTab === 'keys' ? 'active' : ''}`}
                     onClick={() => setActiveTab('keys')}
                 >
                     Keys
                 </button>
                 <button 
-                    className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`}
-                    style={{
-                        padding: '10px 20px',
-                        border: 'none',
-                        background: 'none',
-                        borderBottom: activeTab === 'accounts' ? '2px solid #2563eb' : 'none',
-                        color: activeTab === 'accounts' ? '#2563eb' : '#374151',
-                        fontWeight: activeTab === 'accounts' ? 600 : 400,
-                        cursor: 'pointer',
-                        fontSize: 16
-                    }}
+                    className={`tag-pt-tab-button ${activeTab === 'accounts' ? 'active' : ''}`}
                     onClick={() => setActiveTab('accounts')}
                 >
                     Tài khoản

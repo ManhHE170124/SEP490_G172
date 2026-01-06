@@ -320,7 +320,7 @@ element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/user-dashboard"
-        element={renderAdminPage(<UserDashboardAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<UserDashboardAdminPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/role-manage"
