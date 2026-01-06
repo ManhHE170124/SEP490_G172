@@ -30,9 +30,14 @@ public static class StaticContentTypes
     public const string ABOUT_US = "about-us";
     
     /// <summary>
+    /// SpecificDocumentation PostType slug
+    /// </summary>
+    public const string SPECIFIC_DOCUMENTATION = "specific-documentation";
+    
+    /// <summary>
     /// All static content type slugs
     /// </summary>
-    public static readonly string[] All = { POLICY, USER_GUIDE, ABOUT_US };
+    public static readonly string[] All = { POLICY, USER_GUIDE, ABOUT_US, SPECIFIC_DOCUMENTATION };
     
     /// <summary>
     /// Check if a slug is a static content type

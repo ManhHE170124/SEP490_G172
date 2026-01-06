@@ -53,11 +53,6 @@ export const postsApi = {
   updateTag: (id, data) => axiosClient.put(`${END.TAGS}/${id}`, data),
   deleteTag: (id) => axiosClient.delete(`${END.TAGS}/${id}`),
 
-  //Public (Storefront)
-  getPublicPosts: () => axiosClient.get(`${END.POSTS}/public`),
-  getPublicPosttypes: () => axiosClient.get(`${END.POSTS}/posttypes/public`),
-  getPublicTags: () => axiosClient.get(`${END.TAGS}/public`),
-
   // PostType 
   getPosttypes: () => axiosClient.get(`${END.POSTS}/posttypes`),
   getPosttypeById: (id) => axiosClient.get(`${END.POSTS}/posttypes/${id}`),

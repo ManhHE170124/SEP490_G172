@@ -63,14 +63,21 @@ const BlogList = () => {
             const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
             const filteredPosts = filterStaticContentPosts(Array.isArray(postsRes) ? postsRes : []);
 
+            // Filter out SpecificDocumentation post type from categories
+            const filteredCategories = (Array.isArray(categoriesRes) ? categoriesRes : []).filter(pt => {
+                const name = (pt.postTypeName || pt.PostTypeName || pt.posttypeName || pt.PosttypeName || '').toLowerCase();
+                const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+            });
+
             console.log("✅ Data loaded:", {
                 posts: filteredPosts.length,
-                categories: categoriesRes.length,
+                categories: filteredCategories.length,
                 tags: tagsRes.length
             });
 
             setPosts(filteredPosts);
-            setCategories(Array.isArray(categoriesRes) ? categoriesRes : []);
+            setCategories(filteredCategories);
             setTags(Array.isArray(tagsRes) ? tagsRes : []);
         } catch (err) {
             console.error("❌ Load data error:", err);
@@ -106,9 +113,24 @@ const BlogList = () => {
     const filteredPosts = useMemo(() => {
         let result = posts;
 
-        // Additional static content filtering as backup
+        // Additional static content filtering as backup - ensure SpecificDocumentation is excluded
         const { isStaticContentPost } = require('../../utils/staticContentHelper');
-        result = result.filter(p => !isStaticContentPost(p));
+        result = result.filter(p => {
+            // Check using utility function
+            if (isStaticContentPost(p)) return false;
+            
+            // Additional check by postTypeName to be safe
+            const postTypeName = p.postTypeName || p.posttypeName || p.PostTypeName || p.PosttypeName || '';
+            if (postTypeName) {
+                const name = postTypeName.toLowerCase();
+                const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                if (slug === 'specific-documentation' || name === 'specificdocumentation') {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
 
         // Search filter
         if (search.trim()) {

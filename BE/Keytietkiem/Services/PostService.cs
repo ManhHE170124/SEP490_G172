@@ -77,16 +77,19 @@ public class PostService : IPostService
         
         if (excludeStaticContent)
         {
-            posts = posts.Where(post =>
-            {
-                if (!post.PostTypeId.HasValue) return true;
-                
-                var postType = post.PostType;
-                if (postType == null) return true;
-                
-                var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
-                return !StaticContentTypes.IsStaticContent(postTypeSlug);
-            });
+            var allPostTypes = await _postRepository.GetAllPostTypesAsync(cancellationToken);
+            var staticContentPostTypeIds = allPostTypes
+                .Where(pt => 
+                {
+                    var slug = StaticContentTypes.GenerateSlugFromName(pt.PostTypeName).ToLower();
+                    return StaticContentTypes.IsStaticContent(slug);
+                })
+                .Select(pt => pt.PostTypeId)
+                .ToList();
+            
+            posts = posts.Where(post => 
+                !post.PostTypeId.HasValue || 
+                !staticContentPostTypeIds.Contains(post.PostTypeId.Value));
         }
         
         return posts.Select(MapToPostListItemDTO);
@@ -162,7 +165,7 @@ public class PostService : IPostService
                 ? "Published"
                 : (createDto.Status ?? "Draft"),
             ViewCount = 0,
-            CreatedAt = DateTime.Now
+            CreatedAt = _clock.UtcNow
         };
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -288,7 +291,7 @@ public class PostService : IPostService
             existing.Status = updateDto.Status;
         }
         
-        existing.UpdatedAt = DateTime.Now;
+        existing.UpdatedAt = _clock.UtcNow;
 
         // Update Tags
         if (updateDto.TagIds != null)
@@ -342,6 +345,17 @@ public class PostService : IPostService
             }
         }
 
+        // Delete all comments first (cascade delete) to avoid foreign key constraint violation
+        var comments = await _context.PostComments
+            .Where(c => c.PostId == id)
+            .ToListAsync(cancellationToken);
+        if (comments.Any())
+        {
+            _context.PostComments.RemoveRange(comments);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // Then delete the post
         _context.Posts.Remove(existingPost);
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -370,198 +384,57 @@ public class PostService : IPostService
         }
     }
 
-    public async Task<PostDTO> GetStaticContentAsync(string type, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<PostListItemDTO>> GetAllSpecificDocumentationAsync(CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(type))
-        {
-            throw new ArgumentException("Type không được để trống.", nameof(type));
-        }
-
-        type = type.ToLower();
-
-        // Validate type is a static content type
-        if (!StaticContentTypes.IsStaticContent(type))
-        {
-            throw new InvalidOperationException($"Type '{type}' không phải là static content type hợp lệ.");
-        }
-
-        // Find PostType by matching slug
         var allPostTypes = await _postRepository.GetAllPostTypesAsync(cancellationToken);
-        var postType = allPostTypes.FirstOrDefault(pt => 
-            StaticContentTypes.GenerateSlugFromName(pt.PostTypeName).ToLower() == type);
+        var specificDocPostType = allPostTypes.FirstOrDefault(pt => 
+            pt.PostTypeName.Equals("SpecificDocumentation", StringComparison.OrdinalIgnoreCase) ||
+            StaticContentTypes.GenerateSlugFromName(pt.PostTypeName).ToLower() == StaticContentTypes.SPECIFIC_DOCUMENTATION);
 
-        if (postType == null)
+        if (specificDocPostType == null)
         {
-            throw new InvalidOperationException($"Không tìm thấy PostType với type '{type}'.");
+            return Enumerable.Empty<PostListItemDTO>();
         }
 
-        // Get all posts for this PostType
         var allPosts = await _postRepository.GetAllPostsAsync(includeRelations: true, cancellationToken);
-        var post = allPosts.FirstOrDefault(p => p.PostTypeId == postType.PostTypeId);
+        var specificDocPosts = allPosts.Where(p => p.PostTypeId == specificDocPostType.PostTypeId);
 
+        return specificDocPosts.Select(MapToPostListItemDTO);
+    }
+
+    public async Task<PostDTO> GetSpecificDocumentationBySlugAsync(string slug, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            throw new ArgumentException("Slug không được để trống.", nameof(slug));
+        }
+
+        var allPostTypes = await _postRepository.GetAllPostTypesAsync(cancellationToken);
+        var specificDocPostType = allPostTypes.FirstOrDefault(pt => 
+            pt.PostTypeName.Equals("SpecificDocumentation", StringComparison.OrdinalIgnoreCase) ||
+            StaticContentTypes.GenerateSlugFromName(pt.PostTypeName).ToLower() == StaticContentTypes.SPECIFIC_DOCUMENTATION);
+
+        if (specificDocPostType == null)
+        {
+            throw new InvalidOperationException("Không tìm thấy PostType 'SpecificDocumentation'.");
+        }
+
+        var post = await _postRepository.GetPostBySlugAsync(slug, includeRelations: true, cancellationToken);
         if (post == null)
         {
-            throw new InvalidOperationException($"Không tìm thấy Post cho type '{type}'.");
+            throw new InvalidOperationException("Không tìm thấy bài viết với slug này.");
         }
+
+        if (post.PostTypeId != specificDocPostType.PostTypeId)
+        {
+            throw new InvalidOperationException("Bài viết này không phải là SpecificDocumentation.");
+        }
+
+        // Increment view count
+        post.ViewCount = (post.ViewCount ?? 0) + 1;
+        await _context.SaveChangesAsync(cancellationToken);
 
         return MapToPostDTO(post);
-    }
-
-    public async Task<PostDTO> CreateStaticContentAsync(CreateStaticContentDTO createDto, Guid actorId, CancellationToken cancellationToken = default)
-    {
-        if (createDto == null)
-        {
-            throw new ArgumentNullException(nameof(createDto));
-        }
-
-        // Validate PostType exists and is a static content type
-        var postType = await _postRepository.GetPostTypeByIdAsync(createDto.PostTypeId, cancellationToken);
-        if (postType == null)
-        {
-            throw new InvalidOperationException("Danh mục bài viết không được tìm thấy.");
-        }
-
-        var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
-        if (!StaticContentTypes.IsStaticContent(postTypeSlug))
-        {
-            throw new InvalidOperationException("Danh mục này không phải là loại nội dung tĩnh.");
-        }
-
-        // Check if PostType already has a Post
-        var existingPosts = await _postRepository.GetAllPostsAsync(includeRelations: false, cancellationToken);
-        var hasPost = existingPosts.Any(p => p.PostTypeId == createDto.PostTypeId);
-        if (hasPost)
-        {
-            throw new InvalidOperationException("Danh mục này chỉ được phép có 1 bài viết.");
-        }
-
-        // Validate Author exists
-        if (createDto.AuthorId.HasValue)
-        {
-            var author = await _context.Users.FindAsync(new object[] { createDto.AuthorId.Value }, cancellationToken);
-            if (author == null)
-            {
-                throw new InvalidOperationException("Không tìm thấy thông tin tác giả.");
-            }
-        }
-
-        // Check if Slug is unique
-        if (await _postRepository.SlugExistsAsync(createDto.Slug, null, cancellationToken))
-        {
-            throw new InvalidOperationException("Slug đã tồn tại. Vui lòng chọn slug khác.");
-        }
-
-        var newPost = new Post
-        {
-            Title = createDto.Title,
-            Slug = createDto.Slug,
-            ShortDescription = createDto.ShortDescription,
-            Content = createDto.Content,
-            Thumbnail = createDto.Thumbnail,
-            PostTypeId = createDto.PostTypeId,
-            AuthorId = createDto.AuthorId,
-            Status = "Published", 
-            ViewCount = 0,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            _context.Posts.Add(newPost);
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            _logger.LogInformation("Static content Post {PostId} created by {ActorId}", newPost.PostId, actorId);
-
-            // Reload with relations
-            var createdPost = await _postRepository.GetPostByIdAsync(newPost.PostId, includeRelations: true, cancellationToken);
-            return MapToPostDTO(createdPost!);
-        }
-        catch (DbUpdateException ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
-                ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
-            {
-                throw new InvalidOperationException("Slug đã tồn tại. Vui lòng chọn slug khác.");
-            }
-            throw;
-        }
-    }
-
-    public async Task UpdateStaticContentAsync(Guid id, UpdateStaticContentDTO updateDto, Guid actorId, CancellationToken cancellationToken = default)
-    {
-        if (updateDto == null)
-        {
-            throw new ArgumentNullException(nameof(updateDto));
-        }
-
-        var existing = await _postRepository.GetPostByIdAsync(id, includeRelations: true, cancellationToken);
-        if (existing == null)
-        {
-            throw new InvalidOperationException("Bài viết không được tìm thấy.");
-        }
-
-        // Validate PostType exists and is a static content type
-        var postType = await _postRepository.GetPostTypeByIdAsync(updateDto.PostTypeId, cancellationToken);
-        if (postType == null)
-        {
-            throw new InvalidOperationException("Danh mục bài viết không được tìm thấy.");
-        }
-
-        var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
-        if (!StaticContentTypes.IsStaticContent(postTypeSlug))
-        {
-            throw new InvalidOperationException("Danh mục này không phải là loại nội dung tĩnh.");
-        }
-
-        // If changing PostType, ensure the new PostType doesn't already have a post
-        if (existing.PostTypeId != updateDto.PostTypeId)
-        {
-            var existingPosts = await _postRepository.GetAllPostsAsync(includeRelations: false, cancellationToken);
-            var hasPost = existingPosts.Any(p => p.PostTypeId == updateDto.PostTypeId && p.PostId != id);
-            if (hasPost)
-            {
-                throw new InvalidOperationException("Danh mục này chỉ được phép có 1 bài viết.");
-            }
-        }
-
-        // Check if Slug is unique (excluding current post)
-        if (await _postRepository.SlugExistsAsync(updateDto.Slug, id, cancellationToken))
-        {
-            throw new InvalidOperationException("Slug đã tồn tại. Vui lòng chọn slug khác.");
-        }
-
-        // Update fields
-        existing.Title = updateDto.Title;
-        existing.Slug = updateDto.Slug;
-        existing.ShortDescription = updateDto.ShortDescription;
-        existing.Content = updateDto.Content;
-        existing.Thumbnail = updateDto.Thumbnail;
-        existing.PostTypeId = updateDto.PostTypeId;
-        existing.Status = "Published"; 
-        existing.UpdatedAt = _clock.UtcNow;
-
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            _context.Posts.Update(existing);
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            _logger.LogInformation("Static content Post {PostId} updated by {ActorId}", id, actorId);
-        }
-        catch (DbUpdateException ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            if (ex.InnerException?.Message?.Contains("duplicate key") == true ||
-                ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
-            {
-                throw new InvalidOperationException("Slug đã tồn tại. Vui lòng chọn slug khác.");
-            }
-            throw;
-        }
     }
 
     // ===== PostType Operations =====
@@ -600,9 +473,15 @@ public class PostService : IPostService
         _context.PostTypes.Add(newPostType);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Query entity from database to get accurate CreatedAt value
+        var savedPostType = await _context.PostTypes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(pt => pt.PostTypeId == newPostType.PostTypeId, cancellationToken);
+
         _logger.LogInformation("PostType {PostTypeId} created by {ActorId}", newPostType.PostTypeId, actorId);
 
-        return MapToPostTypeDTO(newPostType);
+        // Use saved entity from database to ensure CreatedAt is accurate
+        return MapToPostTypeDTO(savedPostType ?? newPostType);
     }
 
     public async Task UpdatePostTypeAsync(Guid id, UpdatePostTypeDTO updateDto, Guid actorId, CancellationToken cancellationToken = default)
@@ -623,6 +502,8 @@ public class PostService : IPostService
         existing.UpdatedAt = _clock.UtcNow;
 
         _context.PostTypes.Update(existing);
+        // Prevent CreatedAt from being modified during update
+        _context.Entry(existing).Property(pt => pt.CreatedAt).IsModified = false;
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("PostType {PostTypeId} updated by {ActorId}", id, actorId);
@@ -1066,9 +947,15 @@ public class PostService : IPostService
         _context.Tags.Add(newTag);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Query entity from database to get accurate CreatedAt value
+        var savedTag = await _context.Tags
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TagId == newTag.TagId, cancellationToken);
+
         _logger.LogInformation("Tag {TagId} created by {ActorId}", newTag.TagId, actorId);
 
-        return MapToTagDTO(newTag);
+        // Use saved entity from database to ensure CreatedAt is accurate
+        return MapToTagDTO(savedTag ?? newTag);
     }
 
     public async Task UpdateTagAsync(Guid id, UpdateTagDTO updateDto, Guid actorId, CancellationToken cancellationToken = default)
@@ -1097,8 +984,8 @@ public class PostService : IPostService
         existing.TagName = updateDto.TagName;
         existing.Slug = updateDto.Slug;
         existing.UpdatedAt = _clock.UtcNow;
-
         _context.Tags.Update(existing);
+        _context.Entry(existing).Property(t => t.CreatedAt).IsModified = false;
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Tag {TagId} updated by {ActorId}", id, actorId);

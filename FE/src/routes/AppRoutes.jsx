@@ -39,9 +39,8 @@ import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
 import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
-import PolicyPage from "../pages/admin/PolicyPage.jsx";
-import UserGuidePage from "../pages/admin/UserGuidePage.jsx";
-import AboutUsPage from "../pages/admin/AboutUsPage.jsx";
+import SpecificDocumentationManage from "../pages/PostManage/SpecificDocumentationManage.jsx";
+import DocumentationViewPage from "../pages/documentation/DocumentationViewPage.jsx";
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -343,18 +342,10 @@ export default function AppRoutes() {
         path="/tag-post-type-manage"
         element={renderAdminPage(<TagPostTypeManage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
       />
-      {/* Static Content Routes */}
+      {/* SpecificDocumentation Routes */}
       <Route
-        path="/admin/policy"
-        element={renderAdminPage(<PolicyPage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
-      />
-      <Route
-        path="/admin/user-guide"
-        element={renderAdminPage(<UserGuidePage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
-      />
-      <Route
-        path="/admin/about-us"
-        element={renderAdminPage(<AboutUsPage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
+        path="/admin/specific-documentation"
+        element={renderAdminPage(<SpecificDocumentationManage />, role(ROLES.ADMIN, ROLES.CONTENT_CREATOR))}
       />
       {/* Suppliers */}
       <Route
@@ -446,6 +437,9 @@ export default function AppRoutes() {
       {/* Blogs / Products / Cart */}
       <Route path="/blogs" element={<ClientLayout><BlogList /></ClientLayout>} />
       <Route path="/blog/:slug" element={<ClientLayout><BlogDetail /></ClientLayout>} />
+      {/* Documentation Routes */}
+      <Route path="/tai-lieu/:slug" element={<ClientLayout><DocumentationViewPage /></ClientLayout>} />
+      <Route path="/tai-lieu" element={<ClientLayout><DocumentationViewPage /></ClientLayout>} />
       <Route path="/products" element={<ClientLayout><StorefrontProductListPage /></ClientLayout>} />
       <Route path="/products/:productId" element={<ClientLayout><StorefrontProductDetailPage /></ClientLayout>} />
       <Route path="/cart" element={<ClientLayout><StorefrontCartPage /></ClientLayout>} />
@@ -461,6 +455,9 @@ export default function AppRoutes() {
       <Route path="/homepage" element={<ClientLayout><StorefrontHomepagePage /></ClientLayout>} />
 
       <Route path="/access-denied" element={<ClientLayout><AccessDenied /></ClientLayout>} />
+
+      {/* 404 Not Found */}
+      <Route path="/404" element={<ClientLayout><Page404 /></ClientLayout>} />
 
       {/* Fallback */}
       <Route path="*" element={<Page404 />} />

@@ -137,7 +137,13 @@ const CreateEditPost = () => {
       try {
         setLoading(true);
         const types = await postsApi.getPosttypes();
-        setPosttypes(types || []);
+        // Filter out SpecificDocumentation post type
+        const filteredTypes = (types || []).filter(pt => {
+          const name = (pt.postTypeName || pt.PostTypeName || pt.posttypeName || pt.PosttypeName || '').toLowerCase();
+          const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+          return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+        });
+        setPosttypes(filteredTypes);
       } catch (err) {
         console.error('Failed to fetch post types:', err);
         // Handle network errors globally - only show one toast
@@ -277,11 +283,16 @@ const CreateEditPost = () => {
     };
   }, [openDropdown]);
 
-  // Format date helper
+  // Format date helper - treat as UTC if no timezone indicator
   const formatDateTime = (value) => {
     if (!value) return "-";
     try {
-      const date = new Date(value);
+      // Ensure the date string is treated as UTC by appending 'Z' if not present
+      const dateString = typeof value === 'string' ? value : value.toString();
+      const utcDateString = dateString.endsWith("Z") || dateString.includes("+") || dateString.includes("-", 10)
+        ? dateString
+        : `${dateString}Z`;
+      const date = new Date(utcDateString);
       if (Number.isNaN(date.getTime())) return "-";
       return date.toLocaleString("vi-VN", {
         year: "numeric",

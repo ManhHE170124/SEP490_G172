@@ -363,16 +363,66 @@ namespace Keytietkiem.Controllers
             }
         }
 
+
         /**
-         * Summary: Create static content (Policy, UserGuide, AboutUs)
-         * Route: POST /api/posts/static
-         * Body: CreateStaticContentDTO
-         * Returns: 201 Created with created post, 400 on validation errors
+         * Summary: Get all SpecificDocumentation posts
+         * Route: GET /api/posts/specific-documentation
+         * Returns: 200 OK with list of SpecificDocumentation posts
          */
-        [HttpPost("static")]
+        [HttpGet("specific-documentation")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAllSpecificDocumentation()
+        {
+            try
+            {
+                var posts = await _postService.GetAllSpecificDocumentationAsync();
+                return Ok(posts);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        /**
+         * Summary: Get SpecificDocumentation post by slug
+         * Route: GET /api/posts/specific-documentation/{slug}
+         * Params: slug (string) - post slug
+         * Returns: 200 OK with post detail, 404 if not found
+         */
+        [HttpGet("specific-documentation/{slug}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSpecificDocumentationBySlug(string slug)
+        {
+            try
+            {
+                var post = await _postService.GetSpecificDocumentationBySlugAsync(slug);
+                return Ok(post);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        /**
+         * Summary: Create new SpecificDocumentation post
+         * Route: POST /api/posts/specific-documentation
+         * Body: CreatePostDTO (with PostTypeId set to SpecificDocumentation)
+         * Returns: 201 Created with post detail, 400 on errors
+         */
+        [HttpPost("specific-documentation")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
-        public async Task<IActionResult> CreateStaticContent([FromBody] CreateStaticContentDTO createDto)
+        public async Task<IActionResult> CreateSpecificDocumentation([FromBody] CreatePostDTO createDto)
         {
             if (createDto == null)
             {
@@ -388,8 +438,8 @@ namespace Keytietkiem.Controllers
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                var post = await _postService.CreateStaticContentAsync(createDto, actorId);
-                return CreatedAtAction(nameof(GetStaticContent), new { type = createDto.Slug }, post);
+                var post = await _postService.CreatePostAsync(createDto, actorId);
+                return CreatedAtAction(nameof(GetSpecificDocumentationBySlug), new { slug = post.Slug }, post);
             }
             catch (ArgumentNullException ex)
             {
@@ -406,16 +456,16 @@ namespace Keytietkiem.Controllers
         }
 
         /**
-         * Summary: Update static content (Policy, UserGuide, AboutUs)
-         * Route: PUT /api/posts/static/{id}
+         * Summary: Update SpecificDocumentation post
+         * Route: PUT /api/posts/specific-documentation/{id}
          * Params: id (Guid) - post identifier
-         * Body: UpdateStaticContentDTO
+         * Body: UpdatePostDTO
          * Returns: 204 No Content, 400/404 on errors
          */
-        [HttpPut("static/{id}")]
+        [HttpPut("specific-documentation/{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
-        public async Task<IActionResult> UpdateStaticContent(Guid id, [FromBody] UpdateStaticContentDTO updateDto)
+        public async Task<IActionResult> UpdateSpecificDocumentation(Guid id, [FromBody] UpdatePostDTO updateDto)
         {
             if (updateDto == null)
             {
@@ -431,7 +481,7 @@ namespace Keytietkiem.Controllers
             try
             {
                 var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                await _postService.UpdateStaticContentAsync(id, updateDto, actorId);
+                await _postService.UpdatePostAsync(id, updateDto, actorId);
                 return NoContent();
             }
             catch (ArgumentNullException ex)
@@ -449,23 +499,21 @@ namespace Keytietkiem.Controllers
         }
 
         /**
-         * Summary: Get static content by type (policy, user-guide, about-us)
-         * Route: GET /api/posts/static/{type}
-         * Params: type (string) - static content type (policy, user-guide, about-us)
-         * Returns: 200 OK with post detail, 404 if not found
+         * Summary: Delete SpecificDocumentation post
+         * Route: DELETE /api/posts/specific-documentation/{id}
+         * Params: id (Guid) - post identifier
+         * Returns: 204 No Content, 404 if not found
          */
-        [HttpGet("static/{type}")]
-        [AllowAnonymous] 
-        public async Task<IActionResult> GetStaticContent(string type)
+        [HttpDelete("specific-documentation/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+        public async Task<IActionResult> DeleteSpecificDocumentation(Guid id)
         {
             try
             {
-                var post = await _postService.GetStaticContentAsync(type);
-                return Ok(post);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.DeletePostAsync(id, actorId);
+                return NoContent();
             }
             catch (InvalidOperationException ex)
             {
@@ -476,70 +524,6 @@ namespace Keytietkiem.Controllers
                 return StatusCode(500, new { message = ex.Message });
             }
         }
-
-
-        [HttpGet("public")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetPublicPosts()
-        {
-            var posts = await _context.Posts
-                .AsNoTracking()
-                .Include(p => p.Author)
-                .Include(p => p.PostType)
-                .Include(p => p.Tags)
-                .Where(p => p.Status == "Published")
-                .OrderByDescending(p => p.CreatedAt)
-                .Select(p => new PostListItemDTO
-                {
-                    PostId = p.PostId,
-                    Title = p.Title,
-                    Slug = p.Slug,
-                    ShortDescription = p.ShortDescription,
-                    Thumbnail = p.Thumbnail,
-                    PostTypeId = p.PostTypeId,
-                    AuthorId = p.AuthorId,
-                    Status = p.Status,
-                    ViewCount = p.ViewCount,
-                    CreatedAt = p.CreatedAt,
-                    UpdatedAt = p.UpdatedAt,
-                    AuthorName = p.Author != null
-                        ? (p.Author.FullName ?? $"{p.Author.FirstName} {p.Author.LastName}".Trim())
-                        : null,
-                    PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null,
-                    Tags = p.Tags.Select(t => new TagDTO
-                    {
-                        TagId = t.TagId,
-                        TagName = t.TagName,
-                        Slug = t.Slug,
-                        CreatedAt = t.CreatedAt,
-                        UpdatedAt = t.UpdatedAt
-                    }).ToList()
-                })
-                .ToListAsync();
-
-            return Ok(posts);
-        }
-
-        [HttpGet("posttypes/public")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetPublicPostTypes()
-        {
-            var postTypes = await _context.PostTypes
-                .AsNoTracking()
-                .OrderBy(pt => pt.PostTypeName)
-                .Select(pt => new PostTypeDTO
-                {
-                    PostTypeId = pt.PostTypeId,
-                    PostTypeName = pt.PostTypeName,
-                    Description = pt.Description,
-                    CreatedAt = pt.CreatedAt,
-                    UpdatedAt = pt.UpdatedAt
-                })
-                .ToListAsync();
-
-            return Ok(postTypes);
-        }
-
 
     }
 }

@@ -197,25 +197,6 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        
-        [HttpGet("public")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetPublicTags()
-        {
-            var tags = await _context.Tags
-                .AsNoTracking()
-                .Select(t => new TagDTO
-                {
-                    TagId = t.TagId,
-                    TagName = t.TagName,
-                    Slug = t.Slug,
-                    CreatedAt = t.CreatedAt,
-                    UpdatedAt = t.UpdatedAt
-                })
-                .ToListAsync();
-
-            return Ok(tags);
-        }
 
     }
 }

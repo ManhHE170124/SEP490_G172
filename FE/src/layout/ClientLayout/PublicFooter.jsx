@@ -11,12 +11,12 @@ export default function PublicFooter() {
 
   const footer = settings?.footer;
 
-  const aboutPath = footer?.company?.aboutPath || "/about-us";
+  const aboutPath = "/tai-lieu/ve-chung-toi";
 
   const helpCenterPath = footer?.support?.helpCenterPath || "/tickets/create";
 
   const cartPath = footer?.account?.cartPath || "/cart";
-  const orderHistoryPath = footer?.account?.ordersPath || "/orderhistory";
+  const orderHistoryPath = footer?.account?.ordersPath || "/profile";
 
   const registerPath = footer?.account?.registerPath || "/register";
   const loginPath = footer?.account?.loginPath || "/login";
@@ -42,6 +42,7 @@ export default function PublicFooter() {
               Hướng dẫn kích hoạt
             </a>
             <Link to={helpCenterPath} onClick={() => window.scrollTo(0, 0)}>Trung tâm trợ giúp</Link>
+            <Link to="/tai-lieu/dieu-khoan-dich-vu" onClick={() => window.scrollTo(0, 0)}>Điều khoản & dịch vụ</Link>
 
             {settings.contact.email && (
               <a style={{ pointerEvents: "none", color: "inherit" }} href={`mailto:${settings.contact.email}`}>✉️ {settings.contact.email}</a>
