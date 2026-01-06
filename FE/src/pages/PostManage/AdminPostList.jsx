@@ -58,10 +58,10 @@ export default function AdminPostList() {
     setLoading(true);
     setError("");
     
-    // Exclude static content posts from the list
+    // Get all posts, filter specific-documentation on frontend
     try {
       const [postsData, posttypesData] = await Promise.all([
-        postsApi.getAllPosts(true), // Exclude static content posts
+        postsApi.getAllPosts(false), // Get all posts, filter specific-documentation on frontend
         postsApi.getPosttypes()
       ]);
       // Additional frontend filtering as backup

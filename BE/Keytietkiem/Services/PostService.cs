@@ -331,14 +331,14 @@ public class PostService : IPostService
             throw new InvalidOperationException("Bài viết không được tìm thấy.");
         }
 
-        // Check if this Post belongs to a static content PostType
+        // Check if this Post belongs to SpecificDocumentation PostType (only this one cannot be deleted)
         if (existingPost.PostTypeId.HasValue)
         {
             var postType = await _postRepository.GetPostTypeByIdAsync(existingPost.PostTypeId.Value, cancellationToken);
             if (postType != null)
             {
                 var postTypeSlug = StaticContentTypes.GenerateSlugFromName(postType.PostTypeName);
-                if (StaticContentTypes.IsStaticContent(postTypeSlug))
+                if (postTypeSlug.ToLower() == StaticContentTypes.SPECIFIC_DOCUMENTATION)
                 {
                     throw new InvalidOperationException("Không thể xóa Post này.");
                 }
@@ -517,16 +517,16 @@ public class PostService : IPostService
             throw new InvalidOperationException("Danh mục bài viết không được tìm thấy.");
         }
 
-        // Check if this is a static content PostType
+        // Check if this is SpecificDocumentation PostType (only this one cannot be deleted)
         var postTypeSlug = StaticContentTypes.GenerateSlugFromName(existing.PostTypeName);
-        if (StaticContentTypes.IsStaticContent(postTypeSlug))
+        if (postTypeSlug.ToLower() == StaticContentTypes.SPECIFIC_DOCUMENTATION)
         {
             throw new InvalidOperationException("Không thể xóa PostType này.");
         }
 
         if (await _postRepository.PostTypeHasPostsAsync(id, cancellationToken))
         {
-            throw new InvalidOperationException("Không thể xóa danh mục này.");
+            throw new InvalidOperationException("Không thể xóa danh mục đã được sử dụng trong ít nhất 1 bài viết.");
         }
 
         _context.PostTypes.Remove(existing);

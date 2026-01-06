@@ -51,9 +51,9 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getPublicPosts(),
-                postsApi.getPublicPosttypes(),
-                postsApi.getPublicTags()
+               postsApi.getAllPosts(true), 
+                postsApi.getPosttypes(),
+                postsApi.getTags()
             ]);
 
             // Additional frontend filtering as backup
@@ -128,6 +128,9 @@ const BlogList = () => {
             
             return true;
         });
+
+        // Status filter - only show Published posts
+        result = result.filter(p => p.status === "Published");
 
         // Search filter
         if (search.trim()) {
