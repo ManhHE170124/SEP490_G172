@@ -636,7 +636,7 @@ public class TicketsController : ControllerBase
             });
         }
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         // Sinh TicketCode mới kiểu TCK-0001, TCK-0002...
         var ticketCode = await GenerateNextTicketCodeAsync();
@@ -799,7 +799,7 @@ public class TicketsController : ControllerBase
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
-        t.UpdatedAt = _clock.UtcNow;
+        t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         var after = new
@@ -917,7 +917,7 @@ public class TicketsController : ControllerBase
             ticket.Status = "InProgress";
         }
 
-        ticket.UpdatedAt = _clock.UtcNow;
+        ticket.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
@@ -1016,7 +1016,7 @@ public class TicketsController : ControllerBase
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
-        t.UpdatedAt = _clock.UtcNow;
+        t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         var after = new
@@ -1126,7 +1126,7 @@ public class TicketsController : ControllerBase
             t.ResolvedAt
         };
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         t.Status = "Completed";
 
@@ -1208,7 +1208,7 @@ public class TicketsController : ControllerBase
             t.ResolvedAt
         };
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         t.Status = "Closed";
 
