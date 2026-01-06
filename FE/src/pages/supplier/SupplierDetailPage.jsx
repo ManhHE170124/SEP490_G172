@@ -1128,12 +1128,13 @@ export default function SupplierDetailPage() {
               <span>Giá/gói</span>
               <input
                 className="input"
-                type="number"
-                placeholder="VD: 120000"
-                value={packageForm.pricePerUnit}
-                onChange={(e) =>
-                  handlePackageFormChange("pricePerUnit", e.target.value)
-                }
+                type="text"
+                placeholder="VD: 120.000"
+                value={packageForm.pricePerUnit ? Number(packageForm.pricePerUnit).toLocaleString('vi-VN') : ''}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                  handlePackageFormChange("pricePerUnit", val);
+                }}
                 disabled={supplierInfo?.status !== "Active"}
               />
             </div>

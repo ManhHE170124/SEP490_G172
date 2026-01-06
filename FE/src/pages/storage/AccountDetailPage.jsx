@@ -1043,11 +1043,13 @@ export default function AccountDetailPage() {
               <div>
                 <input
                   className="input"
-                  type="number"
-                  step="0.01"
+                  type="text"
                   min="0"
-                  value={formData.cogsPrice}
-                  onChange={(e) => handleChange("cogsPrice", e.target.value)}
+                  value={formData.cogsPrice ? Number(formData.cogsPrice).toLocaleString('vi-VN') : ''}
+                  onChange={(e) => {
+                      const val = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
+                      handleChange("cogsPrice", val);
+                  }}
                   placeholder="Nhập giá vốn (COGS)"
                   disabled={!isNew}
                   required={isNew}
