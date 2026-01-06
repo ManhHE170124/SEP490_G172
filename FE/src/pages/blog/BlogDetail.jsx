@@ -179,12 +179,6 @@ const BlogDetail = () => {
             facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
                 url
             )}`,
-            twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(
-                url
-            )}&text=${encodeURIComponent(title)}`,
-            linkedin: `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(
-                url
-            )}&title=${encodeURIComponent(title)}`,
             copy: url,
         };
 
@@ -416,20 +410,6 @@ const BlogDetail = () => {
                     </button>
                     <button
                         className="share-btn"
-                        onClick={() => sharePost("twitter")}
-                        title="Share on Twitter"
-                    >
-                        🐦
-                    </button>
-                    <button
-                        className="share-btn"
-                        onClick={() => sharePost("linkedin")}
-                        title="Share on LinkedIn"
-                    >
-                        💼
-                    </button>
-                    <button
-                        className="share-btn"
                         onClick={() => sharePost("copy")}
                         title="Copy link"
                     >
@@ -573,7 +553,7 @@ const BlogDetail = () => {
                                 </strong>
                             </div>
 
-                            {/* Preview comment đang rep (kiểu Zalo) */}
+
                             {replyTargetComment && (
                                 <div className="reply-preview">
                                     <div className="reply-preview-header">
@@ -657,22 +637,10 @@ const BlogDetail = () => {
 
                                 <h4 className="related-title">{relatedPost.title}</h4>
 
-                                {relatedPost.shortDescription && (
-                                    <p className="related-desc">
-                                        {relatedPost.shortDescription}
-                                    </p>
-                                )}
-
                                 <div className="related-meta-row">
                                     <span className="related-date">
                                         {formatDate(relatedPost.createdAt)}
                                     </span>
-
-                                    {typeof relatedPost.viewCount === "number" && (
-                                        <span className="related-views">
-                                            {relatedPost.viewCount}
-                                        </span>
-                                    )}
                                 </div>
                             </Link>
                         ))}

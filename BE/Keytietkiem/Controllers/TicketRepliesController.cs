@@ -109,7 +109,7 @@ public class TicketRepliesController : ControllerBase
                 new { message = "Người dùng không có quyền hạn để phản hồi." });
         }
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         // Staff = assignee hoặc admin (không phải chủ ticket)
         var isStaffReply = !isTicketOwner;

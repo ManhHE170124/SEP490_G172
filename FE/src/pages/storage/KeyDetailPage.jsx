@@ -507,11 +507,13 @@ export default function KeyDetailPage() {
                 <div>
                   <input
                     className="input"
-                    type="number"
+                    type="text"
                     min="0"
-                    step="0.01"
-                    value={formData.cogsPrice}
-                    onChange={(e) => handleChange("cogsPrice", e.target.value)}
+                    value={formData.cogsPrice ? Number(formData.cogsPrice).toLocaleString('vi-VN') : ''}
+                    onChange={(e) => {
+                        const val = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
+                        handleChange("cogsPrice", val);
+                    }}
                     placeholder="Nhập giá vốn (COGS)"
                   />
                   {errors.cogsPrice && (

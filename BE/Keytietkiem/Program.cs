@@ -242,9 +242,8 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, RolePolicyProvider>(
 builder.Services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 
 // ===== Stats service + background job =====
-// (ISupportStatsUpdateService đã đăng ký phía trên => KHÔNG lặp lại)
 // ✅ Job thống kê support hằng ngày
-//builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
+builder.Services.AddSingleton<IBackgroundJob, SupportStatsBackgroundJob>();
 
 // ✅ Job SLA ticket mỗi 5 phút
 builder.Services.AddSingleton<IBackgroundJob, TicketSlaBackgroundJob>();

@@ -5,25 +5,22 @@ import { Link, useSearchParams } from "react-router-dom"; // ✅ Import useSearc
 import "../../styles/Bloglist.css";
 import { postsApi } from "../../services/postsApi";
 
-const pageSize = 4;
+const pageSize = 8;
 
-// Tạo dải số trang: 1, 2, 3, ..., last
 const createPaginationRange = (page, pageCount) => {
     if (pageCount <= 5) {
         return Array.from({ length: pageCount }, (_, i) => i + 1);
     }
 
-    // Đầu danh sách (giống screenshot: 1 2 3 ... 44)
     if (page <= 2) {
         return [1, 2, 3, "...", pageCount];
     }
 
-    // Cuối danh sách: 1 ... 42 43 44
+
     if (page >= pageCount - 1) {
         return [1, "...", pageCount - 2, pageCount - 1, pageCount];
     }
 
-    // Ở giữa: 1 ... (page-1) page (page+1) ... last
     return [1, "...", page - 1, page, page + 1, "...", pageCount];
 };
 
@@ -54,9 +51,9 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getAllPosts(true), // Exclude static content posts
-                postsApi.getPosttypes(),
-                postsApi.getTags()
+                postsApi.getPublicPosts(),
+                postsApi.getPublicPosttypes(),
+                postsApi.getPublicTags()
             ]);
 
             // Additional frontend filtering as backup
@@ -474,8 +471,6 @@ const BlogList = () => {
                                                 ? new Date(post.createdAt).toLocaleDateString("vi-VN")
                                                 : ""}
                                         </span>
-
-                                        <span className="bloglist-post-comment-count">0</span>
                                     </div>
                                 </Link>
                             ))

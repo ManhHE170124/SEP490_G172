@@ -50,6 +50,14 @@ const formatCurrency = (value) => {
   }
 };
 
+// ====== NEW: input money display helpers (UI only) ======
+const digitsOnly = (v) => String(v ?? "").replace(/\D+/g, "");
+const formatVndDigits = (v) => {
+  const d = digitsOnly(v);
+  if (!d) return "";
+  return d.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+
 const priorityLabel = (level) => {
   const n = Number(level);
   if (Number.isNaN(n)) return `Level ${level}`;
@@ -199,6 +207,12 @@ function RuleModal({
     }
   };
 
+  // ====== NEW: money input change handler (store digits only) ======
+  const handleMinSpendChange = (e) => {
+    const d = digitsOnly(e.target.value);
+    set("minTotalSpend", d);
+  };
+
   if (!open) return null;
 
   return (
@@ -262,14 +276,26 @@ function RuleModal({
                 <span>
                   Tổng chi tiêu tối thiểu (TotalProductSpend) <RequiredMark />
                 </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={form.minTotalSpend}
-                  onChange={(e) => set("minTotalSpend", e.target.value)}
-                  placeholder="VD: 500000"
-                />
+
+                {/* ====== CHANGED: show 100.000.000 + suffix VND (UI only) ====== */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={formatVndDigits(form.minTotalSpend)}
+                    onChange={handleMinSpendChange}
+                    placeholder="VD: 500000"
+                    style={{ flex: 1 }}
+                  />
+                  <span
+                    className="splr-muted"
+                    style={{ fontWeight: 800, whiteSpace: "nowrap" }}
+                  >
+                    VND
+                  </span>
+                </div>
+
                 <FieldError message={errors.minTotalSpend} />
               </div>
 

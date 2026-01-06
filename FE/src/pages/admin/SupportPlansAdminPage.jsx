@@ -51,6 +51,14 @@ const formatCurrency = (value) => {
   }
 };
 
+// ====== NEW: input money display helpers (UI only) ======
+const digitsOnly = (v) => String(v ?? "").replace(/\D+/g, "");
+const formatVndDigits = (v) => {
+  const d = digitsOnly(v);
+  if (!d) return "";
+  return d.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+
 const priorityLabel = (level) => {
   const n = Number(level);
   if (Number.isNaN(n)) return `Level ${level}`;
@@ -241,6 +249,12 @@ function SupportPlanModal({
     }
   };
 
+  // ====== NEW: money input change handler (store digits only) ======
+  const handlePriceChange = (e) => {
+    const d = digitsOnly(e.target.value);
+    set("price", d);
+  };
+
   if (!open) return null;
 
   return (
@@ -313,14 +327,26 @@ function SupportPlanModal({
                 <span>
                   Giá gói (VNĐ) <RequiredMark />
                 </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={form.price}
-                  onChange={(e) => set("price", e.target.value)}
-                  placeholder="VD: 100000"
-                />
+
+                {/* ====== CHANGED: show 100.000.000 + suffix VND (UI only) ====== */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={formatVndDigits(form.price)}
+                    onChange={handlePriceChange}
+                    placeholder="VD: 100000"
+                    style={{ flex: 1 }}
+                  />
+                  <span
+                    className="ktk-spa-muted"
+                    style={{ fontWeight: 800, whiteSpace: "nowrap" }}
+                  >
+                    VND
+                  </span>
+                </div>
+
                 <FieldError message={errors.price} />
               </div>
             </div>
