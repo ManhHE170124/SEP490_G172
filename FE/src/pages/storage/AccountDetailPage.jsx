@@ -719,7 +719,7 @@ export default function AccountDetailPage() {
           }}
         >
           <h1 style={{ margin: 0 }}>
-            {isNew ? "Tạo tài khoản mới" : "Chi tiết Tài khoản"}
+            {isNew ? "Thêm tài khoản mới" : "Chi tiết Tài khoản"}
           </h1>
           <Link className="btn" to="/accounts">
             ← Quay lại

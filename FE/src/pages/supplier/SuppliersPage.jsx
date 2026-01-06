@@ -161,7 +161,7 @@ export default function SuppliersPage() {
     return (
       <div className="page">
         <div className="card">
-          <h1 style={{ margin: 0 }}>Nhà cung cấp Key</h1>
+          <h1 style={{ margin: 0 }}>Nhà cung cấp</h1>
           <div style={{ padding: "20px", textAlign: "center" }}>
             Đang kiểm tra quyền truy cập...
           </div>
@@ -175,7 +175,7 @@ export default function SuppliersPage() {
     return (
       <div className="page">
         <div className="card">
-          <h1 style={{ margin: 0 }}>Nhà cung cấp Key</h1>
+          <h1 style={{ margin: 0 }}>Nhà cung cấp</h1>
           <div style={{ padding: "20px" }}>
             <h2>Không có quyền truy cập</h2>
             <p>Bạn không có quyền xem danh sách nhà cung cấp. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
@@ -206,7 +206,7 @@ export default function SuppliersPage() {
             alignItems: "center",
           }}
         >
-          <h1 style={{ margin: 0 }}>Nhà cung cấp Key</h1>
+          <h1 style={{ margin: 0 }}>Nhà cung cấp</h1>
           <Link 
             className="btn primary" 
             to="/suppliers/add"

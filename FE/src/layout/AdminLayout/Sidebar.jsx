@@ -392,8 +392,25 @@ const Sidebar = () => {
       title: "Kho & Nhà cung cấp",
       items: [
         {
+          id: "key-monitor-main",
+          label: "Theo dõi tình trạng",
+          to: "/key-monitor",
+          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
+          isActive: currentPage === "key-monitor",
+          icon: (
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M3 12h18M12 3v18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          ),
+        },
+        {
           id: "suppliers-main",
-          label: "Nhà cung cấp & License",
+          label: "Quản lý nhà cung cấp",
           to: "/suppliers",
           allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
           isActive:
@@ -427,23 +444,7 @@ const Sidebar = () => {
             </svg>
           ),
         },
-        {
-          id: "key-monitor-main",
-          label: "Theo dõi tình trạng",
-          to: "/key-monitor",
-          allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
-          isActive: currentPage === "key-monitor",
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 12h18M12 3v18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          ),
-        },
+        
         {
           id: "keys-main",
           label: "Quản lý kho Key",
@@ -464,7 +465,7 @@ const Sidebar = () => {
         },
         {
           id: "accounts-main",
-          label: "Tài khoản chia sẻ",
+          label: "Quản lý kho tài khoản",
           to: "/accounts",
           allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
           isActive:
