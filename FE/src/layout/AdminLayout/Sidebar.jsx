@@ -1135,6 +1135,43 @@ const Sidebar = () => {
             </svg>
           ),
         },
+        {
+  id: "system-insights-dashboard",
+  label: "System Insights",
+  allowedRoles: [ROLE_ADMIN],
+  to: "/admin/system-insights",
+  isActive:
+    currentPage === "admin/system-insights" ||
+    currentPage.startsWith("admin/system-insights/"),
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path
+        d="M4 19V5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4 19H20"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 15l2-3 3 2 3-5 2 3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="15" r="1" fill="currentColor" />
+      <circle cx="10" cy="12" r="1" fill="currentColor" />
+      <circle cx="13" cy="14" r="1" fill="currentColor" />
+      <circle cx="16" cy="9" r="1" fill="currentColor" />
+      <circle cx="18" cy="12" r="1" fill="currentColor" />
+    </svg>
+  ),
+},
       ],
     },
   ];

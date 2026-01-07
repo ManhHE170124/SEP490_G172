@@ -43,6 +43,8 @@ import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
 import PolicyPage from "../pages/admin/PolicyPage.jsx";
 import UserGuidePage from "../pages/admin/UserGuidePage.jsx";
 import AboutUsPage from "../pages/admin/AboutUsPage.jsx";
+import SystemInsightsDashboardPage from "../pages/admin/SystemInsightsDashboardPage.jsx";
+
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -409,6 +411,12 @@ element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
         path="/admin/support-dashboard"
         element={renderAdminPage(<SupportDashboardAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
+<Route
+  path="/admin/system-insights"
+  element={renderAdminPage(<SystemInsightsDashboardPage />, role(ROLES.ADMIN))}
+/>
+
+
       <Route
         path="/admin/support-chats"
         element={renderAdminPage(<AdminSupportChatPage />, role(ROLES.ADMIN))}

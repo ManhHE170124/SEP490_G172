@@ -546,7 +546,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateUser",
                 entityType: "User",
                 entityId: user.UserId.ToString(),
                 before: null,
@@ -735,7 +735,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateUser",
                 entityType: "User",
                 entityId: u.UserId.ToString(),
                 before: before,

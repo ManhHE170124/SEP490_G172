@@ -550,7 +550,7 @@ namespace Keytietkiem.Controllers
             // === AUDIT LOG: CREATE SUCCESS ===
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateProductVariant",
                 entityType: "ProductVariant",
                 entityId: v.VariantId.ToString(),
                 before: null,
@@ -724,7 +724,7 @@ namespace Keytietkiem.Controllers
             // === AUDIT LOG: UPDATE SUCCESS ===
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateProductVariant",
                 entityType: "ProductVariant",
                 entityId: v.VariantId.ToString(),
                 before: before,
@@ -783,7 +783,7 @@ namespace Keytietkiem.Controllers
             // === AUDIT LOG: DELETE SUCCESS ===
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteProductVariant",
                 entityType: "ProductVariant",
                 entityId: v.VariantId.ToString(),
                 before: before,
@@ -831,7 +831,7 @@ namespace Keytietkiem.Controllers
                 // === AUDIT LOG: TOGGLE SUCCESS ===
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Toggle",
+                    action: "ToggleProductVariantStatus",
                     entityType: "ProductVariant",
                     entityId: v.VariantId.ToString(),
                     before: before,

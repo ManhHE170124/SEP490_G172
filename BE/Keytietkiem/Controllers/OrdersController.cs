@@ -1111,7 +1111,7 @@ namespace Keytietkiem.Controllers
             {
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: includesCredentials ? "OrderDetail.ViewWithCredentials" : "OrderDetail.View",
+                    action: includesCredentials ? "ViewOrderDetailWithCredentials" : "ViewOrderDetail",
                     entityType: "Order",
                     entityId: order.OrderId.ToString(),
                     before: null,

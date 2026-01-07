@@ -81,6 +81,8 @@ builder.Services.AddScoped<IInventoryReservationService, InventoryReservationSer
 builder.Services.AddScoped<IBannerService, BannerService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddHostedService<StartupStockSyncHostedService>();
+builder.Services.AddScoped<ISystemInsightsDashboardService, SystemInsightsDashboardService>();
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
 {

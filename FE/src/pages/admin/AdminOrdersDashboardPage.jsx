@@ -113,9 +113,10 @@ const sortIcon = (isOn, dir) => {
   return dir === "asc" ? "▲" : "▼";
 };
 
-function TopTable({ kind, items }) {
+function TopTable({ kind, items, limit = 5 }) {
   const list = Array.isArray(items) ? items : [];
   const [sort, setSort] = useState({ key: "quantitySold", dir: "desc" }); // default: SL desc
+  const [expanded, setExpanded] = useState(false);
 
   const onSort = useCallback((key) => {
     setSort((prev) => {
@@ -136,7 +137,7 @@ function TopTable({ kind, items }) {
       return dir === "asc" ? av - bv : bv - av;
     });
 
-    return arr.slice(0, 5);
+    return arr;
   }, [list, sort]);
 
   if (!sorted.length) return <div className="aod-empty">Chưa có dữ liệu</div>;
@@ -148,12 +149,12 @@ function TopTable({ kind, items }) {
       <table className="aod-table">
         {/* ✅ ép độ rộng cột để fit panel (không bị “mất cột”) */}
         <colgroup>
-          {/* Ratio 1:6:2:2:4 => percentages of total (1+6+2+2+4 = 15) */}
-          <col style={{ width: '6.6667%' }} />
-          <col style={{ width: '40%' }} />
-          <col style={{ width: '13.3333%' }} />
-          <col style={{ width: '13.3333%' }} />
-          <col style={{ width: '26.6667%' }} />
+          {/* Further reduce first columns so revenue column can show */}
+          <col style={{ width: '4%' }} />
+          <col style={{ width: '26%' }} />
+          <col style={{ width: '10%' }} />
+          <col style={{ width: '10%' }} />
+          <col style={{ width: '50%' }} />
         </colgroup>
 
 
@@ -168,8 +169,8 @@ function TopTable({ kind, items }) {
             </th>
 
             <th className="aod-th-num">
-              <button className="aod-thbtn" onClick={() => onSort("quantitySold")} type="button">
-                <span>Số lượng</span>
+              <button title="Số lượng" className="aod-thbtn" onClick={() => onSort("quantitySold")} type="button">
+                <span>SL</span>
                 <span className={`aod-sort ${sort.key === "quantitySold" ? "is-on" : ""}`}>
                   {sortIcon(sort.key === "quantitySold", sort.dir)}
                 </span>
@@ -197,7 +198,7 @@ function TopTable({ kind, items }) {
         </thead>
 
         <tbody>
-          {sorted.map((x, idx) => {
+          {(expanded ? sorted : sorted.slice(0, limit)).map((x, idx) => {
             const main = isVariant ? x.variantTitle : x.productName;
             const sub = null; // ✅ theo yêu cầu: biến thể không show sub
 
@@ -223,6 +224,21 @@ function TopTable({ kind, items }) {
             );
           })}
         </tbody>
+        {sorted.length > limit ? (
+          <tfoot>
+            <tr>
+              <td colSpan={5} style={{ padding: 8, textAlign: "center" }}>
+                <button
+                  className="aod-btn aod-btn-ghost"
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                >
+                  {expanded ? `Thu gọn` : `Xem thêm ${sorted.length - limit} mục`}
+                </button>
+              </td>
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );
@@ -502,7 +518,7 @@ export default function AdminOrdersDashboardPage() {
                     >
                       ›
                     </button>
-                    <span className="aod-compact-label">{monthText}</span>
+                    
                   </div>
                 ) : null}
 
@@ -531,7 +547,7 @@ export default function AdminOrdersDashboardPage() {
                     >
                       ›
                     </button>
-                    <span className="aod-compact-label">{yearText}</span>
+                    
                   </div>
                 ) : null}
 
@@ -726,7 +742,7 @@ export default function AdminOrdersDashboardPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="aod-note">Gợi ý: tập trung xử lý “Chờ thanh toán / Cần xử lý”.</div>
+            
           </div>
 
           {/* Status list */}
