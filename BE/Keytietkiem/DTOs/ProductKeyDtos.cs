@@ -93,6 +93,7 @@ namespace Keytietkiem.DTOs
         public Guid? AssignToOrder { get; set; }
         public DateTime? ImportedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public DateTime? ExpiryDate { get; set; }
     }
 
     /// <summary>

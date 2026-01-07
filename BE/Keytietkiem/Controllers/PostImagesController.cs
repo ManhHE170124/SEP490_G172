@@ -9,28 +9,32 @@
  *   - POST    /api/postimages/uploadImage              : Upload image to Cloudinary cloud storage and return the image URL.
  *   - DELETE  /api/postimages/deleteImage              : Delete image from Cloudinary using public ID.
  */
-using Azure.Core;
 using Keytietkiem.DTOs.Post;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Utils;
+using Keytietkiem.Constants;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PostImagesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
         private readonly IPhotoService _photoService;
-        public PostImagesController(KeytietkiemDbContext context, IPhotoService photoService)
+
+        public PostImagesController(
+            KeytietkiemDbContext context,
+            IPhotoService photoService)
         {
             _context = context;
             _photoService = photoService;
         }
-
 
         /**
          * Summary: Upload an image file.
@@ -40,6 +44,7 @@ namespace Keytietkiem.Controllers
          */
         [HttpPost("uploadImage")]
         [Consumes("multipart/form-data")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UploadImage([FromForm] ImageUploadRequest request)
         {
             try
@@ -51,10 +56,9 @@ namespace Keytietkiem.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log error
-                return StatusCode(500, new { message = "Error uploading file." });
+                return StatusCode(500, new { message = "Đã xảy ra lỗi hệ thống khi upload ảnh." });
             }
         }
 
@@ -65,24 +69,23 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK on success, 400 or 500 on error.
          */
         [HttpDelete("deleteImage")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteImage([FromBody] ImageDeleteRequest request)
         {
-            if (string.IsNullOrEmpty(request.PublicId))
+            if (string.IsNullOrWhiteSpace(request.PublicId))
             {
-                return BadRequest(new { message = "PublicId is required." });
+                return BadRequest(new { message = "Id ảnh không đúng hoặc không tìm thấy." });
             }
 
             try
             {
                 await _photoService.DeletePhotoAsync(request.PublicId);
-                return Ok(new { message = "Image deleted successfully." });
+                return Ok(new { message = "Hình ảnh đã được gỡ thành công." });
             }
             catch (Exception ex)
             {
-                // Bạn có thể log lỗi ở đây nếu cần
-                return StatusCode(500, new { message = $"Error deleting image: {ex.Message}" });
+                return StatusCode(500, new { message = $"Đã xảy ra lỗi hệ thống khi gỡ ảnh" });
             }
         }
-
     }
 }

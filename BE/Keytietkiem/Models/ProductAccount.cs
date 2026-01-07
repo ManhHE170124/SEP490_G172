@@ -33,11 +33,15 @@ public partial class ProductAccount
 
     public Guid VariantId { get; set; }
 
+    public int SupplierId { get; set; }
+
     public virtual ICollection<ProductAccountCustomer> ProductAccountCustomers { get; set; } = new List<ProductAccountCustomer>();
 
     public virtual ICollection<ProductAccountHistory> ProductAccountHistories { get; set; } = new List<ProductAccountHistory>();
 
     public virtual ICollection<ProductReport> ProductReports { get; set; } = new List<ProductReport>();
+
+    public virtual Supplier Supplier { get; set; } = null!;
 
     public virtual ProductVariant Variant { get; set; } = null!;
 }

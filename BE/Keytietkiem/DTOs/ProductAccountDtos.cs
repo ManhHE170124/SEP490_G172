@@ -10,6 +10,9 @@ public class CreateProductAccountDto
     [Required(ErrorMessage = "ID biến thể sản phẩm là bắt buộc")]
     public Guid VariantId { get; set; }
 
+    [Required(ErrorMessage = "ID nhà cung cấp là bắt buộc")]
+    public int SupplierId { get; set; }
+
     [Required(ErrorMessage = "Email tài khoản là bắt buộc")]
     [EmailAddress(ErrorMessage = "Email không hợp lệ")]
     [StringLength(254, ErrorMessage = "Email không được vượt quá 254 ký tự")]
@@ -46,6 +49,8 @@ public class UpdateProductAccountDto
     [Required(ErrorMessage = "ID tài khoản là bắt buộc")]
     public Guid ProductAccountId { get; set; }
 
+    public int? SupplierId { get; set; }
+
     [EmailAddress(ErrorMessage = "Email không hợp lệ")]
     [StringLength(254, ErrorMessage = "Email không được vượt quá 254 ký tự")]
     public string? AccountEmail { get; set; }
@@ -78,6 +83,8 @@ public class ProductAccountResponseDto
     public Guid VariantId { get; set; }
     public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public int SupplierId { get; set; }
+    public string SupplierName { get; set; } = string.Empty;
     public string AccountEmail { get; set; } = string.Empty;
     public string? AccountUsername { get; set; }
     public string AccountPassword { get; set; } = string.Empty;
@@ -104,6 +111,8 @@ public class ProductAccountListDto
     public Guid VariantId { get; set; }
     public string VariantTitle { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public int SupplierId { get; set; }
+    public string SupplierName { get; set; } = string.Empty;
     public string AccountEmail { get; set; } = string.Empty;
     public string? AccountUsername { get; set; }
     public int MaxUsers { get; set; }
@@ -172,8 +181,8 @@ public class ProductAccountHistoryDto
 {
     public long HistoryId { get; set; }
     public Guid ProductAccountId { get; set; }
-    public Guid UserId { get; set; }
-    public string UserEmail { get; set; } = string.Empty;
+    public Guid? UserId { get; set; }
+    public string? UserEmail { get; set; }
     public string? UserFullName { get; set; }
     public string Action { get; set; } = string.Empty;
     public Guid ActionBy { get; set; }
@@ -202,6 +211,7 @@ public class ProductAccountFilterDto
     public string? SearchTerm { get; set; }
     public Guid? VariantId { get; set; }
     public Guid? ProductId { get; set; }
+    public int? SupplierId { get; set; }
     public string? Status { get; set; }
     // Filter by product type of the linked Product (e.g., SHARED_ACCOUNT, PERSONAL_ACCOUNT)
     public string? ProductType { get; set; }
@@ -234,4 +244,21 @@ public class AssignAccountToOrderDto
 
     [Required(ErrorMessage = "ID người dùng là bắt buộc")]
     public Guid UserId { get; set; }
+}
+
+/// <summary>
+/// DTO for extending expiry date of product account
+/// </summary>
+public class ExtendExpiryDateDto
+{
+    [Required(ErrorMessage = "ID tài khoản sản phẩm là bắt buộc")]
+    public Guid ProductAccountId { get; set; }
+
+    /// <summary>
+    /// Number of days to extend (optional). If not provided, will use DurationDays from ProductVariant.
+    /// </summary>
+    [Range(1, 3650, ErrorMessage = "Số ngày gia hạn phải từ 1 đến 3650 (10 năm)")]
+    public int? DaysToExtend { get; set; }
+
+    public string? Notes { get; set; }
 }

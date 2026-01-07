@@ -2,7 +2,6 @@
  * File: PostsController.cs
  * Author: HieuNDHE173169
  * Created: 21/10/2025
- * Last Updated: 24/10/2025
  * Version: 1.0.0
  * Purpose: Manage blog posts (CRUD). Handles post creation, updates, and deletion
  *          with proper relationships to authors, post types, tags, and post images.
@@ -21,13 +20,14 @@
  */
 
 using Microsoft.AspNetCore.Mvc;
-using Keytietkiem.Models;
-using Keytietkiem.DTOs;
-using Microsoft.EntityFrameworkCore;
-using System.Text.RegularExpressions;
-using Keytietkiem.Services;
 using Keytietkiem.DTOs.Post;
+using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.Utils;
+using Keytietkiem.Constants;
+using System.Security.Claims;
+using Keytietkiem.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
@@ -35,51 +35,35 @@ namespace Keytietkiem.Controllers
     [ApiController]
     public class PostsController : ControllerBase
     {
+        private readonly IPostService _postService;
         private readonly KeytietkiemDbContext _context;
-        private readonly IPhotoService _photoService;
-        public PostsController(KeytietkiemDbContext context, IPhotoService photoService)
+        public PostsController(
+            IPostService postService, KeytietkiemDbContext keytietkiemDbContext)
         {
-            _context = context;
-            _photoService = photoService;
+            _postService = postService ?? throw new ArgumentNullException(nameof(postService));
+            _context = keytietkiemDbContext;
         }
 
         /**
          * Summary: Retrieve all posts.
          * Route: GET /api/posts
-         * Params: none
+         * Params: excludeStaticContent (bool, optional) - If true, excludes static content posts
          * Returns: 200 OK with list of posts
          */
         [HttpGet]
-        public async Task<IActionResult> GetPosts()
+        [AllowAnonymous]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+        public async Task<IActionResult> GetPosts([FromQuery] bool excludeStaticContent = false)
         {
-            var posts = await _context.Posts
-                .Include(p => p.Author)
-                .Include(p => p.PostType)
-                .Include(p => p.Tags)
-                .Select(p => new PostListItemDTO
-                {
-                    PostId = p.PostId,
-                    Title = p.Title,
-                    Slug = p.Slug,
-                    ShortDescription = p.ShortDescription,
-                    Thumbnail = p.Thumbnail,
-                    PostTypeId = p.PostTypeId,
-                    AuthorId = p.AuthorId,
-                    Status = p.Status,
-                    ViewCount = p.ViewCount,
-                    CreatedAt = p.CreatedAt,
-                    UpdatedAt = p.UpdatedAt,
-                    AuthorName = p.Author != null ? (p.Author.FullName ?? $"{p.Author.FirstName} {p.Author.LastName}".Trim()) : null,
-                    PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null,
-                    Tags = p.Tags.Select(t => new TagDTO
-                    {
-                        TagId = t.TagId,
-                        TagName = t.TagName,
-                        Slug = t.Slug
-                    }).ToList()
-                })
-                .ToListAsync();
-            return Ok(posts);
+            try
+            {
+                var posts = await _postService.GetAllPostsAsync(excludeStaticContent);
+                return Ok(posts);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -89,46 +73,23 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post, 404 if not found
          */
         [HttpGet("{id}")]
+        [AllowAnonymous]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPostById(Guid id)
         {
-            var post = await _context.Posts
-                .Include(p => p.Author)
-                .Include(p => p.PostType)
-                .Include(p => p.Tags)
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (post == null)
+            try
             {
-                return NotFound();
+                var post = await _postService.GetPostByIdAsync(id);
+                return Ok(post);
             }
-
-            var postDto = new PostDTO
+            catch (InvalidOperationException ex)
             {
-                PostId = post.PostId,
-                Title = post.Title,
-                Slug = post.Slug,
-                ShortDescription = post.ShortDescription,
-                Content = post.Content,
-                Thumbnail = post.Thumbnail,
-                PostTypeId = post.PostTypeId,
-                AuthorId = post.AuthorId,
-                MetaTitle = post.MetaTitle,
-                MetaDescription = post.MetaDescription,
-                Status = post.Status,
-                ViewCount = post.ViewCount,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorName = post.Author != null ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim()) : null,
-                PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
-                Tags = post.Tags.Select(t => new TagDTO
-                {
-                    TagId = t.TagId,
-                    TagName = t.TagName,
-                    Slug = t.Slug
-                }).ToList()
-            };
-
-            return Ok(postDto);
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -138,6 +99,8 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created post, 400/404 on validation errors
          */
         [HttpPost]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreatePost([FromBody] CreatePostDTO createPostDto)
         {
             if (createPostDto == null)
@@ -151,131 +114,24 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            // Validate PostType exists
-            if (createPostDto.PostTypeId.HasValue)
-            {
-                var postType = await _context.PostTypes
-                    .FirstOrDefaultAsync(pt => pt.PostTypeId == createPostDto.PostTypeId.Value);
-                if (postType == null)
-                {
-                    return NotFound(new { message = "Danh mục bài viết không được tìm thấy." });
-                }
-            }
-
-            // Validate Author exists
-            if (createPostDto.AuthorId.HasValue)
-            {
-                var author = await _context.Users
-                    .FirstOrDefaultAsync(u => u.UserId == createPostDto.AuthorId.Value);
-                if (author == null)
-                {
-                    return NotFound(new { message = "Không tìm thấy thông tin tác giả." });
-                }
-            }
-
-            // Validate Tags exist
-            if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
-            {
-                var tagCount = await _context.Tags
-                    .CountAsync(t => createPostDto.TagIds.Contains(t.TagId));
-                if (tagCount != createPostDto.TagIds.Count)
-                {
-                    return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
-                }
-            }
-
-
-            var newPost = new Post
-            {
-                Title = createPostDto.Title,
-                Slug = createPostDto.Slug,
-                ShortDescription = createPostDto.ShortDescription,
-                Content = createPostDto.Content,
-                Thumbnail = createPostDto.Thumbnail,
-                PostTypeId = createPostDto.PostTypeId,
-                AuthorId = createPostDto.AuthorId,
-                MetaTitle = createPostDto.MetaTitle,
-                MetaDescription = createPostDto.MetaDescription,
-                Status = createPostDto.Status ?? "Draft",
-                ViewCount = 0,
-                CreatedAt = DateTime.Now
-            };
-
-            _context.Posts.Add(newPost);
             try
             {
-                await _context.SaveChangesAsync();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var post = await _postService.CreatePostAsync(createPostDto, actorId);
+                return CreatedAtAction(nameof(GetPostById), new { id = post.PostId }, post);
             }
-            catch (DbUpdateException ex)
+            catch (ArgumentNullException ex)
             {
-                // Kiểm tra unique constraint violation trên Slug
-                if (
-                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
-                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
-                {
-                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
-                }
-                throw; // Re-throw nếu không phải lỗi unique constraint
+                return BadRequest(new { message = ex.Message });
             }
-
-            // Add Tags
-            if (createPostDto.TagIds != null && createPostDto.TagIds.Any())
+            catch (InvalidOperationException ex)
             {
-                var tags = await _context.Tags
-                    .Where(t => createPostDto.TagIds.Contains(t.TagId))
-                    .ToListAsync();
-                newPost.Tags = tags;
-                try
-                {
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateException ex)
-                {
-                    // Kiểm tra unique constraint violation trên Slug
-                    if (
-                        ex.InnerException?.Message?.Contains("duplicate key") == true ||
-                        ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
-                    {
-                        return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
-                    }
-                    throw; // Re-throw nếu không phải lỗi unique constraint
-                }
+                return BadRequest(new { message = ex.Message });
             }
-
-            // Reload post with relations
-            var createdPost = await _context.Posts
-                .Include(p => p.Author)
-                .Include(p => p.PostType)
-                .Include(p => p.Tags)
-                .FirstOrDefaultAsync(p => p.PostId == newPost.PostId);
-
-            var postDto = new PostDTO
+            catch (Exception ex)
             {
-                PostId = createdPost!.PostId,
-                Title = createdPost.Title,
-                Slug = createdPost.Slug,
-                ShortDescription = createdPost.ShortDescription,
-                Content = createdPost.Content,
-                Thumbnail = createdPost.Thumbnail,
-                PostTypeId = createdPost.PostTypeId,
-                AuthorId = createdPost.AuthorId,
-                MetaTitle = createdPost.MetaTitle,
-                MetaDescription = createdPost.MetaDescription,
-                Status = createdPost.Status,
-                ViewCount = createdPost.ViewCount,
-                CreatedAt = createdPost.CreatedAt,
-                UpdatedAt = createdPost.UpdatedAt,
-                AuthorName = createdPost.Author != null ? (createdPost.Author.FullName ?? $"{createdPost.Author.FirstName} {createdPost.Author.LastName}".Trim()) : null,
-                PostTypeName = createdPost.PostType != null ? createdPost.PostType.PostTypeName : null,
-                Tags = createdPost.Tags.Select(t => new TagDTO
-                {
-                    TagId = t.TagId,
-                    TagName = t.TagName,
-                    Slug = t.Slug
-                }).ToList()
-            };
-
-            return CreatedAtAction(nameof(GetPostById), new { id = createdPost.PostId }, postDto);
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -286,6 +142,8 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404 on errors
          */
         [HttpPut("{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdatePost(Guid id, [FromBody] UpdatePostDTO updatePostDto)
         {
             if (updatePostDto == null)
@@ -299,75 +157,24 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            var existing = await _context.Posts
-                .Include(p => p.Tags)
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (existing == null)
-            {
-                return NotFound();
-            }
-
-            // Validate PostType exists
-            if (updatePostDto.PostTypeId.HasValue)
-            {
-                var postType = await _context.PostTypes
-                    .FirstOrDefaultAsync(pt => pt.PostTypeId == updatePostDto.PostTypeId.Value);
-                if (postType == null)
-                {
-                    return NotFound(new { message = "Không tìm thấy danh mục bài viết." });
-                }
-            }
-
-            // Validate Tags exist
-            if (updatePostDto.TagIds != null && updatePostDto.TagIds.Any())
-            {
-                var tagCount = await _context.Tags
-                    .CountAsync(t => updatePostDto.TagIds.Contains(t.TagId));
-                if (tagCount != updatePostDto.TagIds.Count)
-                {
-                    return BadRequest(new { message = "Không tìm thấy thẻ nào được gán cho bài viết này." });
-                }
-            }
-
-            existing.Title = updatePostDto.Title;
-            existing.Slug = updatePostDto.Slug;
-            existing.ShortDescription = updatePostDto.ShortDescription;
-            existing.Content = updatePostDto.Content;
-            existing.Thumbnail = updatePostDto.Thumbnail;
-            existing.PostTypeId = updatePostDto.PostTypeId;
-            existing.MetaTitle = updatePostDto.MetaTitle;
-            existing.MetaDescription = updatePostDto.MetaDescription;
-            existing.Status = updatePostDto.Status;
-            existing.UpdatedAt = DateTime.Now;
-
-            // Update Tags
-            if (updatePostDto.TagIds != null)
-            {
-                var tags = await _context.Tags
-                    .Where(t => updatePostDto.TagIds.Contains(t.TagId))
-                    .ToListAsync();
-                existing.Tags = tags;
-            }
-
-            _context.Posts.Update(existing);
             try
             {
-                await _context.SaveChangesAsync();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.UpdatePostAsync(id, updatePostDto, actorId);
+                return NoContent();
             }
-            catch (DbUpdateException ex)
+            catch (ArgumentNullException ex)
             {
-                // Kiểm tra unique constraint violation trên Slug
-                if (
-                    ex.InnerException?.Message?.Contains("duplicate key") == true ||
-                    ex.InnerException?.Message?.Contains("UNIQUE KEY") == true)
-                {
-                    return BadRequest(new { message = "Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác." });
-                }
-                throw; // Re-throw nếu không phải lỗi unique constraint
+                return BadRequest(new { message = ex.Message });
             }
-
-            return NoContent();
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -377,21 +184,24 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePost(Guid id)
         {
-            var existingPost = await _context.Posts
-
-                .FirstOrDefaultAsync(p => p.PostId == id);
-
-            if (existingPost == null)
+            try
             {
-                return NotFound();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.DeletePostAsync(id, actorId);
+                return NoContent();
             }
-
-            _context.Posts.Remove(existingPost);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -401,21 +211,24 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of post types
          */
         [HttpGet("posttypes")]
+        [AllowAnonymous]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetPosttypes()
         {
-            var postTypes = await _context.PostTypes
-                .Select(pt => new PostTypeDTO
-                {
-                    PostTypeId = pt.PostTypeId,
-                    PostTypeName = pt.PostTypeName,
-                    Slug = pt.Slug,
-                    Description = pt.Description
-                })
-                .ToListAsync();
+            try
+            {
+                var postTypes = await _postService.GetAllPostTypesAsync();
             return Ok(postTypes);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         [HttpPost("posttypes")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreatePosttype([FromBody] CreatePostTypeDTO createPostTypeDto)
         {
             if (createPostTypeDto == null)
@@ -428,26 +241,26 @@ namespace Keytietkiem.Controllers
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
-            var newPostType = new PostType
+
+            try
             {
-                PostTypeName = createPostTypeDto.PostTypeName,
-                Description = createPostTypeDto.Description,
-                Slug = createPostTypeDto.Slug,
-                CreatedAt = DateTime.Now
-            };
-            _context.PostTypes.Add(newPostType);
-            await _context.SaveChangesAsync();
-            var postTypeDto = new PostTypeDTO
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var postType = await _postService.CreatePostTypeAsync(createPostTypeDto, actorId);
+                return CreatedAtAction(nameof(GetPosttypes), new { id = postType.PostTypeId }, postType);
+            }
+            catch (ArgumentNullException ex)
             {
-                PostTypeId = newPostType.PostTypeId,
-                PostTypeName = newPostType.PostTypeName,
-                Slug = newPostType.Slug,
-                Description = newPostType.Description
-            };
-            return CreatedAtAction(nameof(GetPosttypes), new { id = newPostType.PostTypeId }, postTypeDto);
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         [HttpPut("posttypes/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdatePosttype(Guid id, [FromBody] UpdatePostTypeDTO updatePostTypeDto)
         {
             if (updatePostTypeDto == null)
@@ -460,39 +273,47 @@ namespace Keytietkiem.Controllers
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
-            var existing = await _context.PostTypes
-                .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
-            if (existing == null)
-            {
-                return NotFound();
-            }
-            existing.PostTypeName = updatePostTypeDto.PostTypeName;
-            existing.Description = updatePostTypeDto.Description;
-            existing.Slug = updatePostTypeDto.Slug;
-            _context.PostTypes.Update(existing);
-            await _context.SaveChangesAsync();
-            return NoContent();
 
+            try
+            {
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.UpdatePostTypeAsync(id, updatePostTypeDto, actorId);
+                return NoContent();
+            }
+            catch (ArgumentNullException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
 
         [HttpDelete("posttypes/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeletePosttype(Guid id)
         {
-            var existing = await _context.PostTypes
-                .Include(pt => pt.Posts)
-                .FirstOrDefaultAsync(pt => pt.PostTypeId == id);
-            if (existing == null)
+            try
             {
-                return NotFound();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.DeletePostTypeAsync(id, actorId);
+                return NoContent();
             }
-            if (existing.Posts != null && existing.Posts.Any())
+            catch (InvalidOperationException ex)
             {
-                return BadRequest("Không thể xóa danh mục này.");
+                return BadRequest(new { message = ex.Message });
             }
-            _context.PostTypes.Remove(existing);
-            await _context.SaveChangesAsync();
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -502,52 +323,22 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with post detail, 404 if not found
          */
         [HttpGet("slug/{slug}")]
-        [AllowAnonymous] // Public endpoint - không cần auth
+        [AllowAnonymous] 
         public async Task<IActionResult> GetPostBySlug(string slug)
         {
-            var post = await _context.Posts
-                .Include(p => p.Author)
-                .Include(p => p.PostType)
-                .Include(p => p.Tags)
-                .Where(p => p.Slug == slug && p.Status == "Published") 
-                .FirstOrDefaultAsync();
-
-            if (post == null)
+            try
             {
-                return NotFound(new { message = "Không tìm thấy bài viết" });
+                var post = await _postService.GetPostBySlugAsync(slug);
+                return Ok(post);
             }
-            post.ViewCount = (post.ViewCount ?? 0) + 1;
-            await _context.SaveChangesAsync();
-
-            var postDto = new PostDTO
+            catch (InvalidOperationException ex)
             {
-                PostId = post.PostId,
-                Title = post.Title,
-                Slug = post.Slug,
-                ShortDescription = post.ShortDescription,
-                Content = post.Content,
-                Thumbnail = post.Thumbnail,
-                PostTypeId = post.PostTypeId,
-                AuthorId = post.AuthorId,
-                MetaTitle = post.MetaTitle,
-                MetaDescription = post.MetaDescription,
-                Status = post.Status,
-                ViewCount = post.ViewCount,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorName = post.Author != null
-                    ? (post.Author.FullName ?? $"{post.Author.FirstName} {post.Author.LastName}".Trim())
-                    : null,
-                PostTypeName = post.PostType != null ? post.PostType.PostTypeName : null,
-                Tags = post.Tags.Select(t => new TagDTO
-                {
-                    TagId = t.TagId,
-                    TagName = t.TagName,
-                    Slug = t.Slug
-                }).ToList()
-            };
-
-            return Ok(postDto);
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -560,36 +351,182 @@ namespace Keytietkiem.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetRelatedPosts(Guid id, [FromQuery] int limit = 3)
         {
-            var currentPost = await _context.Posts.FindAsync(id);
-            if (currentPost == null)
+            try
             {
-                return NotFound();
+                var relatedPosts = await _postService.GetRelatedPostsAsync(id, limit);
+                return Ok(relatedPosts);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+
+        /**
+         * Summary: Get all SpecificDocumentation posts
+         * Route: GET /api/posts/specific-documentation
+         * Returns: 200 OK with list of SpecificDocumentation posts
+         */
+        [HttpGet("specific-documentation")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAllSpecificDocumentation()
+        {
+            try
+            {
+                var posts = await _postService.GetAllSpecificDocumentationAsync();
+                return Ok(posts);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        /**
+         * Summary: Get SpecificDocumentation post by slug
+         * Route: GET /api/posts/specific-documentation/{slug}
+         * Params: slug (string) - post slug
+         * Returns: 200 OK with post detail, 404 if not found
+         */
+        [HttpGet("specific-documentation/{slug}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSpecificDocumentationBySlug(string slug)
+        {
+            try
+            {
+                var post = await _postService.GetSpecificDocumentationBySlugAsync(slug);
+                return Ok(post);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        /**
+         * Summary: Create new SpecificDocumentation post
+         * Route: POST /api/posts/specific-documentation
+         * Body: CreatePostDTO (with PostTypeId set to SpecificDocumentation)
+         * Returns: 201 Created with post detail, 400 on errors
+         */
+        [HttpPost("specific-documentation")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+        public async Task<IActionResult> CreateSpecificDocumentation([FromBody] CreatePostDTO createDto)
+        {
+            if (createDto == null)
+            {
+                return BadRequest("Dữ liệu không hợp lệ.");
             }
 
-            var relatedPosts = await _context.Posts
-                .Include(p => p.PostType)
-                .Where(p =>
-                    p.PostId != id &&
-                    p.PostTypeId == currentPost.PostTypeId &&
-                    p.Status == "Published"
-                )
-                .OrderByDescending(p => p.CreatedAt)
-                .Take(limit)
-                .Select(p => new PostListItemDTO
-                {
-                    PostId = p.PostId,
-                    Title = p.Title,
-                    Slug = p.Slug,
-                    ShortDescription = p.ShortDescription,
-                    Thumbnail = p.Thumbnail,
-                    PostTypeId = p.PostTypeId,
-                    ViewCount = p.ViewCount,
-                    CreatedAt = p.CreatedAt,
-                    PostTypeName = p.PostType != null ? p.PostType.PostTypeName : null
-                })
-                .ToListAsync();
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
+            }
 
-            return Ok(relatedPosts);
+            try
+            {
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var post = await _postService.CreatePostAsync(createDto, actorId);
+                return CreatedAtAction(nameof(GetSpecificDocumentationBySlug), new { slug = post.Slug }, post);
+            }
+            catch (ArgumentNullException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
+
+        /**
+         * Summary: Update SpecificDocumentation post
+         * Route: PUT /api/posts/specific-documentation/{id}
+         * Params: id (Guid) - post identifier
+         * Body: UpdatePostDTO
+         * Returns: 204 No Content, 400/404 on errors
+         */
+        [HttpPut("specific-documentation/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+        public async Task<IActionResult> UpdateSpecificDocumentation(Guid id, [FromBody] UpdatePostDTO updateDto)
+        {
+            if (updateDto == null)
+            {
+                return BadRequest("Dữ liệu không hợp lệ.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { message = string.Join(" ", errors) });
+            }
+
+            try
+            {
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.UpdatePostAsync(id, updateDto, actorId);
+                return NoContent();
+            }
+            catch (ArgumentNullException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        /**
+         * Summary: Delete SpecificDocumentation post
+         * Route: DELETE /api/posts/specific-documentation/{id}
+         * Params: id (Guid) - post identifier
+         * Returns: 204 No Content, 404 if not found
+         */
+        [HttpDelete("specific-documentation/{id}")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
+        public async Task<IActionResult> DeleteSpecificDocumentation(Guid id)
+        {
+            try
+            {
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.DeletePostAsync(id, actorId);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
     }
 }

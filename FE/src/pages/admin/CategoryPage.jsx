@@ -1004,7 +1004,7 @@ export default function CategoryPage() {
           >
             <h2>Danh mục sản phẩm</h2>
             <div className="row" style={{ gap: 8 }}>
-              <label className="btn">
+              {/* <label className="btn">
                 ⬆ Nhập CSV
                 <input
                   type="file"
@@ -1012,10 +1012,10 @@ export default function CategoryPage() {
                   style={{ display: "none" }}
                   onChange={catImportCsv}
                 />
-              </label>
-              <button className="btn" onClick={catExportCsv}>
+              </label> */}
+              {/* <button className="btn" onClick={catExportCsv}>
                 ⬇ Xuất CSV
-              </button>
+              </button> */}
               <button className="btn primary" onClick={openAddCategory}>
                 + Thêm danh mục
               </button>

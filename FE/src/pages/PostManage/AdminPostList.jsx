@@ -20,9 +20,12 @@ export default function AdminPostList() {
   
   // Global network error handler - only show one toast for network errors
   const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
   useEffect(() => {
-    // Reset the flag when component mounts
+    // Reset the flags when component mounts
     networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
   }, []);
 
   // Data state
@@ -54,12 +57,28 @@ export default function AdminPostList() {
   const loadData = async () => {
     setLoading(true);
     setError("");
+    
+    // Get all posts, filter specific-documentation on frontend
     try {
       const [postsData, posttypesData] = await Promise.all([
-        postsApi.getAllPosts(),
+        postsApi.getAllPosts(false), // Get all posts, filter specific-documentation on frontend
         postsApi.getPosttypes()
       ]);
-      setPosts(Array.isArray(postsData) ? postsData : []);
+      // Additional frontend filtering as backup
+      const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
+      const filteredPosts = filterStaticContentPosts(Array.isArray(postsData) ? postsData : []);
+      
+      // Additional filtering to ensure SpecificDocumentation is excluded
+      const finalFiltered = filteredPosts.filter(post => {
+        const postTypeName = post.postTypeName || post.posttypeName || post.PostTypeName || post.PosttypeName || '';
+        if (!postTypeName) return true; // Keep posts without postType
+        
+        const name = postTypeName.toLowerCase();
+        const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+        return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+      });
+      
+      setPosts(finalFiltered);
       setPosttypes(Array.isArray(posttypesData) ? posttypesData : []);
     } catch (err) {
       setError(err.message || "Không thể tải dữ liệu");
@@ -70,18 +89,32 @@ export default function AdminPostList() {
           showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
         }
       } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          showError("Lỗi tải dữ liệu", err.message || "Bạn không có quyền truy cập chức năng này.");
+        } else if (!isPermissionError) {
         showError("Lỗi", err.message || "Không thể tải danh sách bài viết");
+        }
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Format date helper
+  // Format date helper - treat as UTC if no timezone indicator
   const formatDate = (value) => {
     if (!value) return "";
     try {
-      const d = new Date(value);
+      // Ensure the date string is treated as UTC by appending 'Z' if not present
+      const dateString = typeof value === 'string' ? value : value.toString();
+      const utcDateString = dateString.endsWith("Z") || dateString.includes("+") || dateString.includes("-", 10)
+        ? dateString
+        : `${dateString}Z`;
+      const d = new Date(utcDateString);
       if (Number.isNaN(d.getTime())) return "";
       return d.toLocaleString("vi-VN", {
         year: "numeric",
@@ -207,11 +240,16 @@ export default function AdminPostList() {
   };
 
   const handleEdit = (postId) => {
-      navigate(`/post-create-edit/${postId}`);
+    navigate(`/post-create-edit/${postId}`);
   };
 
   const handlePreview = (post) => {
-    showInfo("Preview", "Chức năng xem trước đang được phát triển.");
+    if (!post.slug) {
+      showError("Lỗi", "Bài viết chưa có slug. Vui lòng cập nhật bài viết trước.");
+      return;
+    }
+    // Open preview in new tab
+    window.open(`/blog/${post.slug}`, '_blank');
   };
 
   const handleDelete = (postId) => {
@@ -286,7 +324,6 @@ export default function AdminPostList() {
         posttypeId: postTypeId,
         status: newStatus,
         metaTitle: post.metaTitle || "",
-        metaDescription: post.metaDescription || "",
         tagIds: post.tags?.map(t => t.tagId) || []
       });
 
@@ -310,49 +347,6 @@ export default function AdminPostList() {
     }
   };
 
-  // Export CSV function
-  const handleExportCSV = () => {
-    try {
-      const headers = ["Tiêu đề", "Danh mục", "Người phụ trách", "Trạng thái", "Lượt xem", "Ngày tạo", "Ngày cập nhật"];
-      const csvRows = [headers.join(",")];
-
-      filteredSorted.forEach(post => {
-        const row = [
-          `"${(post.title || "").replace(/"/g, '""')}"`,
-          `"${((post.posttypeName || post.postTypeName || post.PosttypeName) || "").replace(/"/g, '""')}"`,
-          `"${(post.authorName || "").replace(/"/g, '""')}"`,
-          `"${getStatusLabel(post.status).replace(/"/g, '""')}"`,
-          post.viewCount || 0,
-          `"${formatDate(post.createdAt)}"`,
-          `"${formatDate(post.updatedAt)}"`
-        ];
-        csvRows.push(row.join(","));
-      });
-
-      const csvContent = csvRows.join("\n");
-      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `danh-sach-bai-viet-${new Date().toISOString().split("T")[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showSuccess("Thành công", "Đã xuất file CSV");
-    } catch (err) {
-      console.log("Lỗi khi xuất file CSV:", err);
-      // Handle network errors globally - only show one toast
-      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
-        if (!networkErrorShownRef.current) {
-          networkErrorShownRef.current = true;
-          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
-        }
-      } else {
-        showError("Lỗi khi xuất file CSV", err.message || "Không thể xuất file CSV");
-      }
-    }
-  };
 
   // Get status label
   const getStatusLabel = (status) => {
@@ -429,11 +423,15 @@ export default function AdminPostList() {
           <p className="apl-post-list-subtitle">Quản lý, chỉnh sửa và xóa bài viết</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button className="apl-btn-secondary" onClick={handleExportCSV} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          <button 
+            className="apl-btn-secondary" 
+            onClick={() => navigate("/post-dashboard")}
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
             </svg>
-            Xuất CSV
+            Dashboard
           </button>
           <button className="apl-add-button" onClick={handleCreate}>
             + Tạo bài viết mới
@@ -838,41 +836,63 @@ export default function AdminPostList() {
       </div>
 
       {/* Pagination */}
-      <div className="apl-post-list-pagination">
-        <div className="apl-pagination-controls">
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(1)}
-            disabled={currentPage === 0 || currentPage === 1}
-          >
-            «
-          </button>
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 0 || currentPage === 1}
-          >
-            ‹
-          </button>
-          <span className="apl-pagination-page">
-            Trang {currentPage}/{totalPages} ({total} bài viết)
-          </span>
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === 0 || currentPage >= totalPages}
-          >
-            ›
-          </button>
-          <button
-            className="apl-btn-secondary"
-            onClick={() => setPage(totalPages)}
-            disabled={currentPage === 0 || currentPage >= totalPages}
-          >
-            »
-          </button>
+      {!loading && !error && (
+        <div className="apl-pagination">
+          <div className="apl-pagination-info">
+            Hiển thị {total === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, total)}/{total} bài viết
+          </div>
+          <div className="apl-pagination-controls">
+            <button
+              className="apl-pagination-btn"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+              title="Trang trước"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              Trước
+            </button>
+            
+            <div className="apl-pagination-numbers">
+              {[...Array(totalPages)].map((_, idx) => {
+                const pageNum = idx + 1;
+                // Show first, last, current, and ±1 around current
+                if (
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= page - 1 && pageNum <= page + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      className={`apl-pagination-number ${page === pageNum ? "active" : ""}`}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (pageNum === page - 2 || pageNum === page + 2) {
+                  return <span key={pageNum} className="apl-pagination-ellipsis">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <button
+              className="apl-pagination-btn"
+              onClick={() => setPage(page + 1)}
+              disabled={page >= totalPages}
+              title="Trang sau"
+            >
+              Sau
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

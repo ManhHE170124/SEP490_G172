@@ -1,4 +1,6 @@
 import React from "react";
+import { LicensePackageApi } from "../../services/licensePackages"; // relative path from components/Modal
+import useToast from "../../hooks/useToast";
 
 export default function CsvUploadModal({
   isOpen,
@@ -13,6 +15,29 @@ export default function CsvUploadModal({
   keyType,
   onKeyTypeChange,
 }) {
+  const { showError } = useToast();
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await LicensePackageApi.downloadCsvTemplate();
+      // response might be the blob directly or response.data depending on axios setup.
+      // Usually axiosClient returns response.data if interceptor is set? 
+      // Safe check: usually blob is in data.
+      const blob = new Blob([response.data || response], { type: 'text/csv' }); 
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'import_keys_template.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download template:", err);
+      showError("Lỗi", "Không thể tải file mẫu. Vui lòng thử lại.");
+    }
+  };
+
   if (!isOpen) return null;
 
   const variantTitle =
@@ -78,15 +103,31 @@ export default function CsvUploadModal({
         )}
 
         <div style={{ marginBottom: "16px" }}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: "8px",
-              fontWeight: "500",
-            }}
-          >
-            Chọn file CSV
-          </label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <label
+              style={{
+                fontWeight: "500",
+                display: "block",
+              }}
+            >
+              Chọn file CSV
+            </label>
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#2563eb",
+                textDecoration: "underline",
+                cursor: "pointer",
+                padding: 0,
+                fontSize: "14px",
+              }}
+            >
+              Tải file mẫu
+            </button>
+          </div>
           <input
             type="file"
             accept=".csv"

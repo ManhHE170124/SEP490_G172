@@ -10,15 +10,18 @@ public class EmailService : IEmailService
 {
     private readonly MailConfig _mailConfig;
     private readonly ClientConfig _clientConfig;
+    private readonly ISendPulseService _sendPulseService;
     private readonly ILogger<EmailService> _logger;
 
     public EmailService(
         IOptions<MailConfig> mailOptions,
         IOptions<ClientConfig> clientOptions,
+        ISendPulseService sendPulseService,
         ILogger<EmailService> logger)
     {
         _mailConfig = mailOptions?.Value ?? throw new ArgumentNullException(nameof(mailOptions));
         _clientConfig = clientOptions?.Value ?? throw new ArgumentNullException(nameof(clientOptions));
+        _sendPulseService = sendPulseService ?? throw new ArgumentNullException(nameof(sendPulseService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -160,6 +163,7 @@ public class EmailService : IEmailService
         string? accountUsername,
         string accountPassword,
         DateTime? expiryDate = null,
+        string? notes = null,
         CancellationToken cancellationToken = default)
     {
         var subject = $"Account Credentials - {productName}";
@@ -168,6 +172,11 @@ public class EmailService : IEmailService
             : "";
         var expiryInfo = expiryDate.HasValue
             ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {expiryDate.Value:dd/MM/yyyy}</p>"
+            : "";
+        var notesInfo = !string.IsNullOrWhiteSpace(notes)
+            ? $@"<div style='background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #ffc107;'>
+                    <p style='color: #856404; font-size: 13px; margin: 0;'><strong>📌 Ghi chú:</strong> {notes}</p>
+                 </div>"
             : "";
 
         var body = $@"
@@ -193,6 +202,7 @@ public class EmailService : IEmailService
                                 <code style='color: #28a745; font-size: 16px; font-weight: bold; word-break: break-all;'>{accountPassword}</code>
                             </div>
                             {expiryInfo}
+                            {notesInfo}
                         </div>
                         <p style='color: #dc3545; font-size: 14px; line-height: 1.6; background-color: #fff3cd; padding: 10px; border-radius: 5px;'>
                             <strong>⚠️ Lưu ý:</strong> Vui lòng không chia sẻ thông tin đăng nhập này với người khác để đảm bảo an toàn tài khoản.
@@ -252,18 +262,68 @@ public class EmailService : IEmailService
 
                 productSections.Add(keySection);
             }
-            else if (product.ProductType == "ACCOUNT")
+            else if (product.ProductType == "ACCOUNT" || product.ProductType == "SHARED_ACCOUNT")
             {
-                var usernameInfo = !string.IsNullOrWhiteSpace(product.AccountUsername)
-                    ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Username:</strong> {product.AccountUsername}</p>"
-                    : "";
-                var expiryInfo = product.ExpiryDate.HasValue
-                    ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {product.ExpiryDate.Value:dd/MM/yyyy}</p>"
-                    : "";
+                var isShared = product.ProductType == "SHARED_ACCOUNT";
+                var borderColor = isShared ? "#ff9800" : "#28a745";
+                var accountTypeLabel = isShared ? "Shared Account" : "Account Credentials";
 
-                var accountSection = $@"
-                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;'>
-                        <h3 style='color: #28a745; font-size: 16px; margin: 0 0 15px 0;'>#{productNumber} - Account Credentials</h3>
+                string accountSection;
+
+                if (isShared)
+                {
+                    // For shared accounts: show thank you and instructions to create ticket
+                    var expiryInfo = product.ExpiryDate.HasValue
+                        ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {product.ExpiryDate.Value:dd/MM/yyyy}</p>"
+                        : "";
+                    var notesInfo = !string.IsNullOrWhiteSpace(product.Notes)
+                        ? $@"<div style='background-color: #e7f3ff; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #2196F3;'>
+                                <p style='color: #0d47a1; font-size: 13px; margin: 0;'><strong>ℹ️ Thông tin:</strong> {product.Notes}</p>
+                             </div>"
+                        : "";
+
+                    accountSection = $@"
+                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid {borderColor};'>
+                        <h3 style='color: {borderColor}; font-size: 16px; margin: 0 0 15px 0;'>#{productNumber} - {accountTypeLabel}</h3>
+                        <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Sản phẩm:</strong> {product.ProductName}</p>
+                        <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Gói:</strong> {product.VariantTitle}</p>
+                        {expiryInfo}
+                        {notesInfo}
+                        <hr style='border: none; border-top: 1px solid #ddd; margin: 15px 0;'>
+                        <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 3px solid #ff9800;'>
+                            <h4 style='color: #ff9800; font-size: 15px; margin: 0 0 10px 0;'>🙏 Cảm ơn bạn đã đặt hàng!</h4>
+                            <p style='color: #856404; font-size: 14px; line-height: 1.6; margin: 10px 0;'>
+                                Để hoàn tất việc thêm bạn vào tài khoản chia sẻ, vui lòng làm theo các bước sau:
+                            </p>
+                            <ol style='color: #856404; font-size: 14px; line-height: 1.8; margin: 10px 0; padding-left: 20px;'>
+                                <li><strong>Tạo ticket</strong> hỗ trợ trên hệ thống của chúng tôi</li>
+                                <li><strong>Cung cấp thông tin tài khoản</strong> của bạn (email/username) để chúng tôi có thể thêm bạn vào family/shared account</li>
+                                <li>Đội ngũ hỗ trợ sẽ xử lý yêu cầu của bạn trong thời gian sớm nhất</li>
+                            </ol>
+                            <p style='color: #856404; font-size: 13px; margin: 10px 0 0 0;'>
+                                <strong>📌 Lưu ý:</strong> Bạn cần có tài khoản riêng của mình để chúng tôi thêm vào family/shared plan.
+                            </p>
+                        </div>
+                    </div>";
+                }
+                else
+                {
+                    // For personal accounts: show credentials as before
+                    var usernameInfo = !string.IsNullOrWhiteSpace(product.AccountUsername)
+                        ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Username:</strong> {product.AccountUsername}</p>"
+                        : "";
+                    var expiryInfo = product.ExpiryDate.HasValue
+                        ? $"<p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Ngày hết hạn:</strong> {product.ExpiryDate.Value:dd/MM/yyyy}</p>"
+                        : "";
+                    var notesInfo = !string.IsNullOrWhiteSpace(product.Notes)
+                        ? $@"<div style='background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #ffc107;'>
+                                <p style='color: #856404; font-size: 13px; margin: 0;'><strong>📌 Ghi chú:</strong> {product.Notes}</p>
+                             </div>"
+                        : "";
+
+                    accountSection = $@"
+                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid {borderColor};'>
+                        <h3 style='color: {borderColor}; font-size: 16px; margin: 0 0 15px 0;'>#{productNumber} - {accountTypeLabel}</h3>
                         <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Sản phẩm:</strong> {product.ProductName}</p>
                         <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Gói:</strong> {product.VariantTitle}</p>
                         <hr style='border: none; border-top: 1px solid #ddd; margin: 15px 0;'>
@@ -271,10 +331,12 @@ public class EmailService : IEmailService
                         {usernameInfo}
                         <p style='color: #333; font-size: 14px; margin: 10px 0;'><strong>Mật khẩu:</strong></p>
                         <div style='background-color: white; padding: 15px; border-radius: 5px; margin-top: 10px;'>
-                            <code style='color: #28a745; font-size: 16px; font-weight: bold; word-break: break-all;'>{product.AccountPassword}</code>
+                            <code style='color: {borderColor}; font-size: 16px; font-weight: bold; word-break: break-all;'>{product.AccountPassword}</code>
                         </div>
                         {expiryInfo}
+                        {notesInfo}
                     </div>";
+                }
 
                 productSections.Add(accountSection);
             }
@@ -322,24 +384,12 @@ public class EmailService : IEmailService
     {
         try
         {
-            using var message = new MailMessage
+            var success = await _sendPulseService.SendEmailAsync(toEmail, subject, body);
+            if (!success)
             {
-                From = new MailAddress(_mailConfig.Mail, "Keytietkiem"),
-                Subject = subject,
-                Body = body,
-                IsBodyHtml = true
-            };
-
-            message.To.Add(toEmail);
-
-            using var smtpClient = new SmtpClient(_mailConfig.Smtp, _mailConfig.Port)
-            {
-                EnableSsl = true,
-                Credentials = new NetworkCredential(_mailConfig.Mail, _mailConfig.Password)
-            };
-
-            await smtpClient.SendMailAsync(message, cancellationToken);
-
+                throw new Exception("SendPulse service returned failure.");
+            }
+            
             _logger.LogInformation("Email sent successfully to {Email}", toEmail);
         }
         catch (Exception ex)

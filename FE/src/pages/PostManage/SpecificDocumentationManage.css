@@ -1,0 +1,332 @@
+/**
+ * File: SpecificDocumentationManage.css
+ * Author: Keytietkiem Team
+ * Created: 2025
+ * Version: 1.0.0
+ * Purpose: Styles for SpecificDocumentation management page
+ */
+
+.sdm-container {
+  padding: 2rem;
+  background: var(--page, #f5f5f5);
+  min-height: calc(100vh - 80px);
+}
+
+/* Header */
+.sdm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.sdm-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink, #111827);
+  margin: 0 0 0.5rem 0;
+}
+
+.sdm-subtitle {
+  font-size: 1.1rem;
+  color: var(--muted, #6b7280);
+  margin: 0;
+}
+
+.sdm-header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Buttons */
+.sdm-btn-primary {
+  padding: 10px 24px;
+  background-color: var(--primary, #3b82f6);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sdm-btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover, #2563eb);
+}
+
+.sdm-btn-primary:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.sdm-btn-secondary {
+  padding: 10px 24px;
+  background-color: var(--card, #ffffff);
+  color: var(--ink, #111827);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sdm-btn-secondary:hover {
+  background-color: var(--page, #f5f5f5);
+  border-color: var(--primary, #3b82f6);
+}
+
+.sdm-btn-danger {
+  padding: 10px 24px;
+  background-color: var(--danger, #ef4444);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sdm-btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.sdm-btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Form */
+.sdm-form {
+  background: var(--card, #ffffff);
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.sdm-form-group {
+  margin-bottom: 24px;
+}
+
+.sdm-form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink, #374151);
+  margin-bottom: 8px;
+}
+
+.sdm-required {
+  color: var(--danger, #dc2626);
+}
+
+.sdm-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #d1d5db);
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.sdm-input:focus {
+  outline: none;
+  border-color: var(--primary, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.sdm-input-error {
+  border-color: var(--danger, #dc2626);
+}
+
+.sdm-error-message {
+  display: block;
+  color: var(--danger, #dc2626);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.sdm-hint {
+  display: block;
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.sdm-content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* Quill Editor */
+.sdm-quill-editor {
+  min-height: 400px;
+  background: white;
+}
+
+.sdm-quill-editor .quill-mount .ql-toolbar,
+.sdm-quill-editor .ql-toolbar {
+  border: 1px solid var(--line, #d1d5db);
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  border-bottom: none;
+  background: #f9fafb;
+  padding: 8px;
+}
+
+.sdm-quill-editor .quill-mount .ql-container,
+.sdm-quill-editor .ql-container {
+  border: 1px solid var(--line, #d1d5db);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-top: none;
+  min-height: 350px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.sdm-quill-editor .quill-mount .ql-editor,
+.sdm-quill-editor .ql-editor {
+  min-height: 350px;
+  padding: 12px;
+}
+
+.sdm-quill-editor .quill-mount .ql-editor.ql-blank::before,
+.sdm-quill-editor .ql-editor.ql-blank::before {
+  color: #9ca3af;
+  font-style: normal;
+}
+
+/* Image Upload */
+.sdm-image-upload-area {
+  margin-top: 8px;
+}
+
+.sdm-image-upload-placeholder {
+  width: 100%;
+  min-height: 200px;
+  border: 2px dashed var(--line, #d1d5db);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+  background: transparent;
+  padding: 0;
+}
+
+.sdm-image-upload-placeholder:hover {
+  border-color: var(--primary, #3b82f6);
+  background-color: #f9fafb;
+}
+
+.sdm-image-upload-placeholder span {
+  color: var(--muted, #6b7280);
+  font-size: 14px;
+}
+
+.sdm-image-preview {
+  position: relative;
+  display: inline-block;
+}
+
+.sdm-image-preview img {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.sdm-image-preview .sdm-btn-danger {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+/* Content Area */
+.sdm-content {
+  margin-top: 20px;
+}
+
+.sdm-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+  font-size: 18px;
+  color: var(--muted, #6b7280);
+}
+
+.sdm-empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted, #666);
+}
+
+/* Table */
+.sdm-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--card, #ffffff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sdm-table thead {
+  background-color: #f3f4f6;
+}
+
+.sdm-table th {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--line, #d1d5db);
+  font-weight: 600;
+  color: var(--ink, #111827);
+  font-size: 14px;
+}
+
+.sdm-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line, #e5e7eb);
+  color: var(--ink, #111827);
+  font-size: 14px;
+}
+
+.sdm-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.sdm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sdm-slug-cell {
+  color: var(--muted, #666);
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.sdm-date-cell {
+  color: var(--muted, #666);
+  font-size: 13px;
+}
+
+.sdm-actions-cell {
+  text-align: center;
+}
+
+.sdm-actions-cell button {
+  margin-right: 8px;
+}
+
+.sdm-actions-cell button:last-child {
+  margin-right: 0;
+}
+

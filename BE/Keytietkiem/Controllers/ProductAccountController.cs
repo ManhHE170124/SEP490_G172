@@ -1,28 +1,53 @@
-using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
+// File: Controllers/ProductAccountController.cs
+using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Models;
+using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
+using System.Security.Claims;
+using System.Text.Json;
 
 namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Storage Staff,Admin")]
+[Authorize]
 public class ProductAccountController : ControllerBase
 {
     private readonly IProductAccountService _productAccountService;
+    private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
+    private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
 
-    public ProductAccountController(IProductAccountService productAccountService)
+
+    public ProductAccountController(
+        IProductAccountService productAccountService,
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService,
+        IConfiguration config,
+        IDbContextFactory<KeytietkiemDbContext> dbFactory)
     {
         _productAccountService = productAccountService;
+        _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService;
+        _config = config;
+        _dbFactory = dbFactory;
     }
 
     /// <summary>
     /// Get paginated list of product accounts with filters
     /// </summary>
     [HttpGet]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetList([FromQuery] ProductAccountFilterDto filterDto)
     {
         var response = await _productAccountService.GetListAsync(filterDto);
@@ -33,6 +58,7 @@ public class ProductAccountController : ControllerBase
     /// Get a single product account by ID (password masked)
     /// </summary>
     [HttpGet("{id}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var response = await _productAccountService.GetByIdAsync(id, includePassword: false);
@@ -43,9 +69,26 @@ public class ProductAccountController : ControllerBase
     /// Get decrypted password for a product account (requires authorization)
     /// </summary>
     [HttpGet("{id}/password")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetPassword(Guid id)
     {
+        // Nếu có lỗi sẽ bubble lên 500 – không audit lỗi để tránh spam,
+        // chỉ audit thành công vì lý do bảo mật.
         var password = await _productAccountService.GetDecryptedPasswordAsync(id);
+
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "GetProductAccountPassword",
+            entityType: "ProductAccount",
+            entityId: id.ToString(),
+            before: null,
+            after: new
+            {
+                ProductAccountId = id,
+                Operation = "GetPassword",
+                RetrievedPassword = true
+            });
+
         return Ok(new { password });
     }
 
@@ -53,23 +96,51 @@ public class ProductAccountController : ControllerBase
     /// Create a new product account
     /// </summary>
     [HttpPost]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Create([FromBody] CreateProductAccountDto createDto)
     {
         try
         {
             var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+
             var exist =
-                await _productAccountService.CheckAccountEmailOrUsernameExists(createDto.VariantId, createDto.AccountEmail,
+                await _productAccountService.CheckAccountEmailOrUsernameExists(
+                    createDto.VariantId,
+                    createDto.AccountEmail,
                     createDto.AccountUsername);
+
+            // Nếu trùng email/username → trả 400 nhưng không audit (tránh spam)
             if (exist.Item1 != null && exist.Item2)
             {
                 return BadRequest(new { message = "Tên đăng nhập hoặc email đã tồn tại" });
             }
+
             var response = await _productAccountService.CreateAsync(createDto, accountId);
+
+            // Log success (CUD)
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreateProductAccount",
+                entityType: "ProductAccount",
+                entityId: response.ProductAccountId.ToString(),
+                before: null,
+                after: response);
+
+            // ✅ Sync stock to DB for variant + product (computed stock types)
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    createDto.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
             return CreatedAtAction(nameof(GetById), new { id = response.ProductAccountId }, response);
         }
         catch (ValidationException ex)
         {
+            // Validation 4xx có thể xảy ra rất nhiều → không audit để tránh spam
             return BadRequest(new { message = ex.Message });
         }
     }
@@ -78,10 +149,12 @@ public class ProductAccountController : ControllerBase
     /// Update an existing product account
     /// </summary>
     [HttpPut("{id}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductAccountDto updateDto)
     {
         if (id != updateDto.ProductAccountId)
         {
+            // Id mismatch là lỗi 4xx, không quan trọng về bảo mật → không audit
             return BadRequest("ID không khớp");
         }
 
@@ -94,17 +167,43 @@ public class ProductAccountController : ControllerBase
             var existingAccount = await _productAccountService.GetByIdAsync(id, includePassword: false);
 
             var exist =
-                await _productAccountService.CheckAccountEmailOrUsernameExists(existingAccount.VariantId, updateDto.AccountEmail,
+                await _productAccountService.CheckAccountEmailOrUsernameExists(
+                    existingAccount.VariantId,
+                    updateDto.AccountEmail,
                     updateDto.AccountUsername);
+
+            // Trùng email/username → trả 400, không audit
             if (exist.Item1 != id && exist.Item2)
             {
                 return BadRequest(new { message = "Tên đăng nhập hoặc email đã tồn tại" });
             }
+
             var response = await _productAccountService.UpdateAsync(updateDto, accountId, userId);
+
+            // Log success (CUD)
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdateProductAccount",
+                entityType: "ProductAccount",
+                entityId: id.ToString(),
+                before: existingAccount,
+                after: response);
+
+            // ✅ Sync stock
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    existingAccount.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
             return Ok(response);
         }
         catch (ValidationException ex)
         {
+            // Validation 4xx → không audit
             return BadRequest(new { message = ex.Message });
         }
     }
@@ -113,9 +212,39 @@ public class ProductAccountController : ControllerBase
     /// Delete a product account
     /// </summary>
     [HttpDelete("{id}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> Delete(Guid id)
     {
+        // Lấy trước để biết VariantId (sync stock)
+        var existing = await _productAccountService.GetByIdAsync(id, includePassword: false);
+
+        // Nếu có lỗi khi DeleteAsync sẽ bubble lên (500/4xx tuỳ service),
+        // không audit lỗi theo yêu cầu.
         await _productAccountService.DeleteAsync(id);
+
+        // Log success – quan trọng cho trace xoá tài khoản
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "DeleteProductAccount",
+            entityType: "ProductAccount",
+            entityId: id.ToString(),
+            before: null,
+            after: new
+            {
+                ProductAccountId = id,
+                Deleted = true
+            });
+
+        // ✅ Sync stock
+        await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+        {
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                db,
+                existing.VariantId,
+                DateTime.UtcNow,
+                HttpContext.RequestAborted);
+        }
+
         return Ok(new { message = "Xóa tài khoản sản phẩm thành công" });
     }
 
@@ -123,15 +252,44 @@ public class ProductAccountController : ControllerBase
     /// Add a customer to a product account
     /// </summary>
     [HttpPost("{id}/customers")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> AddCustomer(Guid id, [FromBody] AddCustomerToAccountDto addDto)
     {
         if (id != addDto.ProductAccountId)
         {
+            // Id mismatch 4xx – không audit
             return BadRequest("ID không khớp");
         }
 
+        // Lấy trước để biết VariantId (sync stock)
+        var existing = await _productAccountService.GetByIdAsync(id, includePassword: false);
+
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
         var response = await _productAccountService.AddCustomerAsync(addDto, accountId);
+
+        // Log success – quan trọng vì thay đổi quyền truy cập account
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "AddCustomerToProductAccount",
+            entityType: "ProductAccountCustomer",
+            entityId: addDto.ProductAccountId.ToString(),
+            before: new
+            {
+                addDto.ProductAccountId,
+                addDto.UserId
+            },
+            after: response);
+
+        // ✅ Sync stock
+        await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+        {
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                db,
+                existing.VariantId,
+                DateTime.UtcNow,
+                HttpContext.RequestAborted);
+        }
+
         return Ok(response);
     }
 
@@ -139,15 +297,80 @@ public class ProductAccountController : ControllerBase
     /// Remove a customer from a product account
     /// </summary>
     [HttpPost("{id}/customers/remove")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> RemoveCustomer(Guid id, [FromBody] RemoveCustomerFromAccountDto removeDto)
     {
         if (id != removeDto.ProductAccountId)
         {
+            // Id mismatch 4xx – không audit
             return BadRequest("ID không khớp");
         }
 
+        // Lấy trước để biết VariantId (sync stock)
+        var existing = await _productAccountService.GetByIdAsync(id, includePassword: false);
+
         var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
         await _productAccountService.RemoveCustomerAsync(removeDto, accountId);
+
+        // Log success – thay đổi quyền truy cập account, nên giữ
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "RemoveCustomerFromProductAccount",
+            entityType: "ProductAccountCustomer",
+            entityId: removeDto.ProductAccountId.ToString(),
+            before: new
+            {
+                removeDto.ProductAccountId,
+                removeDto.UserId
+            },
+            after: new
+            {
+                removeDto.ProductAccountId,
+                removeDto.UserId,
+                Removed = true
+            });
+
+        // ✅ System notification: thu hồi customer khỏi account -> notify đúng customer đó
+        try
+        {
+            var actorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Guid? actorUserId = Guid.TryParse(actorIdStr, out var tmp) ? tmp : null;
+            var actorEmail = User.FindFirstValue(ClaimTypes.Email) ?? "(unknown)";
+            var actorName = User.FindFirstValue(ClaimTypes.Name) ?? "(unknown)";
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/profile";
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Quyền truy cập tài khoản đã bị thu hồi",
+                Message =
+                    $"Quyền truy cập vào tài khoản sản phẩm của bạn đã bị thu hồi bởi {actorName}.\n" +
+                    $"- ProductAccountId: {removeDto.ProductAccountId}",
+                Severity = 2, // Warning
+                CreatedByUserId = actorUserId,
+                CreatedByEmail = actorEmail,
+                Type = "ProductAccount.CustomerRevoked",
+
+                RelatedEntityType = "ProductAccount",
+                RelatedEntityId = removeDto.ProductAccountId.ToString(),
+
+                // ✅ bạn đổi route FE trang customer xem account
+                RelatedUrl = relatedUrl,
+
+                TargetUserIds = new List<Guid> { removeDto.UserId }
+            });
+        }
+        catch { }
+
+        // ✅ Sync stock
+        await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+        {
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                db,
+                existing.VariantId,
+                DateTime.UtcNow,
+                HttpContext.RequestAborted);
+        }
+
         return Ok(new { message = "Xóa khách hàng khỏi tài khoản thành công" });
     }
 
@@ -155,9 +378,82 @@ public class ProductAccountController : ControllerBase
     /// Get history of a product account
     /// </summary>
     [HttpGet("{id}/history")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> GetHistory(Guid id)
     {
         var response = await _productAccountService.GetHistoryAsync(id);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Extend expiry date of a product account
+    /// </summary>
+    [HttpPost("{id}/extend-expiry")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+    public async Task<IActionResult> ExtendExpiryDate(Guid id, [FromBody] ExtendExpiryDateDto extendDto)
+    {
+        if (id != extendDto.ProductAccountId)
+        {
+            // Id mismatch 4xx – không audit để tránh rác
+            return BadRequest(new { message = "ID không khớp" });
+        }
+
+        try
+        {
+            var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+            var response = await _productAccountService.ExtendExpiryDateAsync(extendDto, accountId);
+
+            // Log success – thay đổi hạn account, nên giữ
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "ExtendProductAccountExpiry",
+                entityType: "ProductAccount",
+                entityId: extendDto.ProductAccountId.ToString(),
+                before: new
+                {
+                    extendDto.ProductAccountId
+                },
+                after: response);
+
+            // ✅ Sync stock
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    response.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
+            return Ok(response);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            // 404 business – có thể xảy ra nhiều, không audit
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            // 400 business / lỗi khác – không audit để tránh spam
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get product accounts expiring within specified days (default 5)
+    /// </summary>
+    [HttpGet("expiring-soon")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+    public async Task<IActionResult> GetAccountsExpiringSoon([FromQuery] int days = 5)
+    {
+        try
+        {
+            var response = await _productAccountService.GetAccountsExpiringSoonAsync(days);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

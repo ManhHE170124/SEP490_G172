@@ -8,6 +8,8 @@
 
 .sf-home-hero {
   padding: 16px 0 8px;
+  --sf-hero-h: 260px;
+  --sf-side-gap: 12px;
 }
 
 .sf-home-hero-inner {
@@ -23,30 +25,6 @@
 }
 
 /* Slider chính */
-
-.sf-home-main-slider {
-  position: relative;
-  border-radius: 24px;
-  padding: 26px 28px;
-  background: radial-gradient(circle at top left, #4f46e5, #0f172a);
-  color: #f9fafb;
-  overflow: hidden;
-  min-height: 170px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.32);
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.sf-home-main-slider:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.4);
-}
-
-.sf-home-main-slide {
-  max-width: 520px;
-  position: relative;
-  z-index: 1;
-}
 
 .sf-home-main-badge {
   display: inline-flex;
@@ -75,48 +53,7 @@
   opacity: 0.9;
 }
 
-.sf-home-main-slider::after {
-  content: "";
-  position: absolute;
-  right: -40px;
-  top: -40px;
-  width: 260px;
-  height: 260px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(248, 250, 252, 0.2), transparent);
-  opacity: 0.65;
-}
-
 /* Slider nhỏ bên cạnh */
-
-.sf-home-side-sliders {
-  display: grid;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sf-home-side-card {
-  border-radius: 18px;
-  padding: 16px 16px 14px;
-  background: #0f172a;
-  color: #e5e7eb;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35);
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.sf-home-side-card:nth-child(2) {
-  background: linear-gradient(135deg, #111827, #1e293b);
-}
-
-.sf-home-side-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.5);
-}
-
 
 .sf-home-side-content h3 {
   margin: 0 0 6px;
@@ -254,71 +191,231 @@
   transform: translateY(-1px);
 }
 
-/* Dịch vụ hỗ trợ */
-
-.sf-home-services {
-  margin: 0 0 40px;
-  background: transparent;
-  border-radius: 0;
-  padding: 24px 0 8px;
+/* ===== Banner media support ===== */
+.sf-banner-has-media {
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
 }
 
-.sf-home-services-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+.sf-home-main-slider {
+  position: relative;
 }
 
-@media (max-width: 960px) {
-  .sf-home-services-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.sf-home-main-slider::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.25), rgba(15, 23, 42, 0.55));
+  z-index: 0;
 }
 
-@media (max-width: 640px) {
-  .sf-home-services-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* bubble ::after của bạn vẫn giữ, chỉ set layer cho đúng */
+.sf-home-main-slider::after {
+  z-index: 1;
 }
 
-/* card dịch vụ: click cả card + hiệu ứng giống card sản phẩm */
-.sf-home-service-card {
-  background: #ffffff;
-  border-radius: 18px;
-  border: 1px solid #e5e7eb;
-  padding: 16px 16px 14px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease,
-    border-color 0.12s ease;
+.sf-home-main-slide {
+  position: relative;
+  z-index: 2;
 }
 
-.sf-home-service-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  border-color: #cbd5f5;
+.sf-home-side-card {
+  position: relative;
+  overflow: hidden;
 }
 
-.sf-home-service-icon {
-  width: 40px;
-  height: 40px;
+.sf-home-side-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.35), rgba(15, 23, 42, 0.65));
+  z-index: 0;
+}
+
+.sf-home-side-content {
+  position: relative;
+  z-index: 1;
+}
+
+.sf-home-banner-loading {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.sf-home-side-card.sf-banner-no-text::before {
+  background: transparent !important;
+}
+
+/* Smooth slide track */
+.sf-home-main-slider {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Track trượt ngang */
+.sf-home-main-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 600ms ease;
+  will-change: transform;
+}
+
+/* Mỗi slide chiếm 100% khung */
+.sf-home-main-slide-item {
+  min-width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  border-radius: inherit;
+}
+
+/* Arrow: ẩn mặc định, hiện khi hover */
+.sf-home-main-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  z-index: 5;
+
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #eef2ff;
-  color: #4f46e5;
-  font-size: 20px;
-  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(15, 23, 42, 0.45);
+  color: #fff;
+  font-size: 26px;
+  line-height: 36px;
+  cursor: pointer;
 }
 
-.sf-home-service-card h3 {
+.sf-home-main-slider:hover .sf-home-main-arrow {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sf-home-main-arrow-left { left: 12px; }
+.sf-home-main-arrow-right { right: 12px; }
+
+/* HERO layout */
+.sf-home-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(260px, 1.2fr);
+  gap: 16px;
+  align-items: stretch; /* ✅ để 2 cột stretch theo chiều cao */
+}
+
+/* ✅ Slider chính: bỏ padding để ảnh kín full */
+.sf-home-main-slider {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  height: var(--sf-hero-h);          /* ✅ cao hơn */
+  min-height: var(--sf-hero-h);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.32);
+  cursor: pointer;
+  background: #0f172a;              /* fallback */
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sf-home-main-slider:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.4);
+}
+
+/* ✅ bỏ “vòng tròn” trang trí vì dễ làm cảm giác có lớp nền */
+.sf-home-main-slider::after {
+  display: none;
+}
+
+/* ✅ Track trượt mượt */
+.sf-home-main-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.sf-home-main-slide-item {
+  min-width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  /* text overlay nằm dưới */
+  display: flex;
+  align-items: flex-end;
+}
+
+/* ✅ text overlay (không tạo viền, chỉ là lớp nội dung) */
+.sf-home-main-slide {
+  width: min(560px, 90%);
+  padding: 22px 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.sf-home-main-title {
   margin: 0 0 6px;
-  font-size: 15px;
+  font-size: 26px;
+  line-height: 1.2;
 }
 
-.sf-home-service-card p {
-  margin: 0 0 10px;
+.sf-home-main-subtitle {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.92;
+}
+
+/* ✅ CỘT BANNER PHẢI: tổng cao bằng slider */
+.sf-home-side-sliders {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--sf-side-gap);
+  height: var(--sf-hero-h);          /* ✅ tổng cao bằng slider */
+}
+
+/* ✅ Banner phải: ảnh full kín, không bị “lùn/khuyết” */
+.sf-home-side-card {
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  display: flex;
+  align-items: flex-end;
+}
+
+.sf-home-side-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.5);
+}
+
+/* content banner phải */
+.sf-home-side-content {
+  padding: 14px 14px 12px;
+  width: 100%;
+}
+
+.sf-home-side-content h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.sf-home-side-content p {
+  margin: 0;
   font-size: 13px;
-  color: #6b7280;
+  opacity: 0.9;
 }

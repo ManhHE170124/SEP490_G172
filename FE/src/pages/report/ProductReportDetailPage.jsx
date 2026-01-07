@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import formatDateTime from "../../utils/formatDatetime";
 import { ProductReportApi } from "../../services/productReportApi";
 import { ProductApi } from "../../services/products";
 import { ProductVariantsApi } from "../../services/productVariants";
@@ -48,6 +49,7 @@ export default function ProductReportDetailPage() {
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [showProductList, setShowProductList] = useState(false);
 
   const filteredProducts = useMemo(() => {
     if (!productSearchTerm) return products;
@@ -309,7 +311,7 @@ export default function ProductReportDetailPage() {
               <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 600 }}>Thông tin sản phẩm</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Product Selection */}
-              <div className="form-row">
+                <div className="form-row">
                 <label>
                   Sản phẩm <span style={{ color: "red" }}>*</span>
                 </label>
@@ -317,38 +319,80 @@ export default function ProductReportDetailPage() {
                   className="input"
                   placeholder="Tìm kiếm sản phẩm..."
                   value={productSearchTerm}
-                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setProductSearchTerm(e.target.value);
+                    setShowProductList(true);
+                  }}
+                  onFocus={() => setShowProductList(true)}
                   style={{ marginBottom: 8 }}
                 />
-                <select
-                  className="input"
-                  value={formData.productId}
-                  onChange={(e) => {
-                    setFormData({
-                      ...formData,
-                      productId: e.target.value,
-                      variantId: "",
-                      itemId: "",
-                    });
-                    setItemSearchResults([]);
-                  }}
-                  required
-                  style={{ minHeight: 120 }}
-                  size={5}
-                >
-                  <option value="">Chọn sản phẩm</option>
-                  {filteredProducts.map((p) => (
-                    <option key={p.productId} value={p.productId}>
-                      {p.productName}
-                    </option>
-                  ))}
-                </select>
+                
+                {formData.productId && (
+                   <div style={{
+                    marginBottom: 8,
+                    padding: "8px 12px",
+                    background: "#dcfce7",
+                    border: "1px solid #86efac",
+                    borderRadius: "6px",
+                    fontSize: 14,
+                    color: "#166534"
+                  }}>
+                    ✓ Đã chọn: {products.find(p => p.productId === formData.productId)?.productName || formData.productId}
+                  </div>
+                )}
+
+                {showProductList && (
+                  <div style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: "8px",
+                      maxHeight: "300px",
+                      overflowY: "auto",
+                      background: "var(--card)"
+                    }}>
+                    {filteredProducts.map((p) => {
+                      const isSelected = formData.productId === p.productId;
+                      return (
+                          <div key={p.productId} 
+                              onClick={() => {
+                                  setFormData({
+                                    ...formData,
+                                    productId: p.productId,
+                                    variantId: "",
+                                    itemId: "",
+                                  });
+                                  setItemSearchResults([]);
+                                  setShowProductList(false);
+                              }}
+                              style={{
+                              padding: "12px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid var(--line)",
+                              background: isSelected ? "#eff6ff" : "transparent",
+                              transition: "background 0.15s"
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) e.currentTarget.style.background = "#f9fafb";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) e.currentTarget.style.background = "transparent";
+                            }}
+                          >
+                          <div style={{ fontWeight: 600 }}>{p.productName}</div>
+                          <div style={{ fontSize: 13, color: "var(--muted)" }}>Type: {p.productType}</div>
+                          </div>
+                      );
+                    })}
+                    {filteredProducts.length === 0 && (
+                        <div style={{ padding: 12, color: "var(--muted)", textAlign: "center" }}>Không tìm thấy sản phẩm</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Variant Selection */}
-              <div className="form-row">
+              <div className="report-form-field">
                 <label>
-                  Biến thể <span style={{ color: "red" }}>*</span>
+                  Biến thể <span>*</span>
                 </label>
                 <select
                   className="input"
@@ -517,6 +561,26 @@ export default function ProductReportDetailPage() {
                     {userSearchLoading ? "Đang tìm..." : "Tìm"}
                   </button>
                 </div>
+                {formData.userId && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: "8px 12px",
+                    background: "#dcfce7",
+                    border: "1px solid #86efac",
+                    borderRadius: "6px",
+                    fontSize: 14,
+                    color: "#166534"
+                  }}>
+                    ✓ Đã chọn: {(() => {
+                        if (selectedUser && selectedUser.userId === formData.userId) {
+                             return selectedUser.fullName || selectedUser.email;
+                        }
+                        const found = userSearchResults.find(u => u.userId === formData.userId);
+                        if (found) return found.fullName || found.email;
+                        return formData.userId;
+                    })()}
+                  </div>
+                )}
                 {userSearchResults.length > 0 && (
                   <div style={{
                     marginTop: 12,
@@ -531,7 +595,10 @@ export default function ProductReportDetailPage() {
                       return (
                         <div
                           key={u.userId}
-                          onClick={() => setFormData({...formData, userId: u.userId})}
+                          onClick={() => {
+                            setFormData({...formData, userId: u.userId});
+                            setSelectedUser(u);
+                          }}
                           style={{
                             padding: "12px",
                             cursor: "pointer",
@@ -625,14 +692,14 @@ export default function ProductReportDetailPage() {
         ) : (
           /* Detail View */
           <div
-            className="grid"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              display: "flex",
+              flexWrap: "wrap",
               gap: 12,
             }}
           >
-            <div className="form-row">
-              <label>Tiêu đề</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Tiêu đề</span>
               <input
                 className="input"
                 value={report.name || ""}
@@ -641,8 +708,8 @@ export default function ProductReportDetailPage() {
               />
             </div>
 
-            <div className="form-row">
-              <label>Người báo cáo</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Người báo cáo</span>
               <input
                 className="input"
                 value={report.userEmail || "—"}
@@ -651,8 +718,8 @@ export default function ProductReportDetailPage() {
               />
             </div>
 
-             <div className="form-row">
-              <label>Sản phẩm/Biến thể</label>
+             <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Sản phẩm/Biến thể</span>
               <input
                 className="input"
                 value={`${report.productName || ""} - ${report.productVariantTitle || ""}`}
@@ -661,8 +728,8 @@ export default function ProductReportDetailPage() {
               />
             </div>
 
-             <div className="form-row">
-              <label>Item liên quan</label>
+             <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Item liên quan</span>
               <input
                 className="input"
                 value={report.productKeyString || report.productAccountUsername || "—"}
@@ -671,8 +738,18 @@ export default function ProductReportDetailPage() {
               />
             </div>
 
-            <div className="form-row">
-              <label>Ngày tạo</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Nhà cung cấp</span>
+              <input
+                className="input"
+                value={report.supplierName || "—"}
+                readOnly
+                disabled
+              />
+            </div>
+
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Ngày tạo</span>
               <input
                 className="input"
                 value={
@@ -685,8 +762,8 @@ export default function ProductReportDetailPage() {
               />
             </div>
 
-            <div className="form-row">
-              <label>Trạng thái</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Trạng thái</span>
               <div style={{ display: "flex", gap: 8 }}>
                 <select
                   className="input"
@@ -708,8 +785,8 @@ export default function ProductReportDetailPage() {
               </div>
             </div>
 
-            <div className="form-row" style={{ gridColumn: "1 / -1" }}>
-              <label>Nội dung báo cáo</label>
+            <div className="group" style={{ flex: "1 1 100%" }}>
+              <span>Nội dung báo cáo</span>
               <textarea
                 className="input"
                 rows={6}
@@ -721,7 +798,7 @@ export default function ProductReportDetailPage() {
             </div>
 
             {report.adminResponse && (
-              <div className="form-row" style={{ gridColumn: "1 / -1" }}>
+              <div className="form-row" style={{ flex: "1 1 100%" }}>
                 <label>Phản hồi từ Admin</label>
                 <textarea
                   className="input"

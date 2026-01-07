@@ -54,6 +54,7 @@ public class ProductReportResponseDto
     public Guid ProductVariantId { get; set; }
     public string ProductVariantTitle { get; set; } = null!;
     public string ProductName { get; set; } = null!;
+    public string? SupplierName { get; set; }
     public Guid UserId { get; set; }
     public string UserEmail { get; set; } = null!;
     public string UserFullName { get; set; } = null!;

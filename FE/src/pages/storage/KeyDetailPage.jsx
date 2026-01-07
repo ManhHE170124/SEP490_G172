@@ -250,6 +250,7 @@ export default function KeyDetailPage() {
         await ProductKeyApi.update(id, {
           keyId: id,
           notes: formData.notes,
+          status: formData.status,
         });
         showSuccess("Thành công", "Ghi chú đã được cập nhật thành công");
         loadProductKey();
@@ -362,16 +363,16 @@ export default function KeyDetailPage() {
           )}
 
           <div
-            className="grid"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              display: "flex",
+              flexWrap: "wrap",
               gap: 12,
             }}
           >
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Sản phẩm <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
@@ -392,10 +393,10 @@ export default function KeyDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Biến thể <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
@@ -422,10 +423,10 @@ export default function KeyDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 Nhà cung cấp <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <select
                   className="input"
@@ -449,10 +450,10 @@ export default function KeyDetailPage() {
               </div>
             </div>
 
-            <div className="form-row" style={{ gridColumn: "1 / -1" }}>
-              <label>
+            <div className="group" style={{ flex: "1 1 100%" }}>
+              <span style={{ whiteSpace: "nowrap" }}>
                 License Key <span style={{ color: "red" }}>*</span>
-              </label>
+              </span>
               <div>
                 <textarea
                   className="textarea"
@@ -469,8 +470,8 @@ export default function KeyDetailPage() {
               </div>
             </div>
 
-            <div className="form-row">
-              <label>Loại key</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Loại key</span>
               <select
                 className="input"
                 value={formData.type}
@@ -483,8 +484,8 @@ export default function KeyDetailPage() {
             </div>
 
             {!isNew && (
-              <div className="form-row">
-                <label>Trạng thái</label>
+              <div className="group" style={{ flex: "1 1 300px" }}>
+                <span>Trạng thái</span>
                 <select
                   className="input"
                   value={formData.status}
@@ -501,16 +502,18 @@ export default function KeyDetailPage() {
             )}
 
             {isNew && (
-              <div className="form-row">
-                <label>Giá vốn (COGS)</label>
+              <div className="group" style={{ flex: "1 1 300px" }}>
+                <span>Giá vốn (COGS)</span>
                 <div>
                   <input
                     className="input"
-                    type="number"
+                    type="text"
                     min="0"
-                    step="0.01"
-                    value={formData.cogsPrice}
-                    onChange={(e) => handleChange("cogsPrice", e.target.value)}
+                    value={formData.cogsPrice ? Number(formData.cogsPrice).toLocaleString('vi-VN') : ''}
+                    onChange={(e) => {
+                        const val = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
+                        handleChange("cogsPrice", val);
+                    }}
                     placeholder="Nhập giá vốn (COGS)"
                   />
                   {errors.cogsPrice && (
@@ -520,8 +523,8 @@ export default function KeyDetailPage() {
               </div>
             )}
 
-            <div className="form-row">
-              <label>Ngày hết hạn</label>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Ngày hết hạn</span>
               <div>
                 <input
                   className="input"
@@ -536,8 +539,8 @@ export default function KeyDetailPage() {
                 )}
               </div>
             </div>
-            <div className="form-row" style={{ gridColumn: "1 / -1" }}>
-              <label>Ghi chú</label>
+            <div className="group" style={{ flex: "1 1 100%" }}>
+              <span>Ghi chú</span>
               <div>
                 <textarea
                   className="textarea"

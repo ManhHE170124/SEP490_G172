@@ -3,6 +3,7 @@ using Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +21,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("filters")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontFiltersDto>> GetFilters()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -42,6 +44,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("variants")]
+        [AllowAnonymous]
         public async Task<ActionResult<PagedResult<StorefrontVariantListItemDto>>> ListVariants(
             [FromQuery] StorefrontVariantListQuery query)
         {
@@ -127,7 +130,7 @@ namespace Keytietkiem.Controllers
                     v.CreatedAt,
                     v.UpdatedAt,
                     v.SellPrice,
-                    v.ListPrice, // dùng ListPrice là giá niêm yết
+                    v.ListPrice,
                     v.Product.ProductBadges
                         .Select(pb => pb.Badge)
                         .ToList(),
@@ -143,7 +146,8 @@ namespace Keytietkiem.Controllers
                 var ranked = rawItems
                     .GroupBy(i => i.ProductId)
                     .SelectMany(g =>
-                        g.OrderByDescending(x => x.ViewCount)
+                        g.OrderByDescending(x => x.StockQty > 0) // ✅ ưu tiên còn hàng trong product
+                         .ThenByDescending(x => x.ViewCount)
                          .ThenByDescending(x => x.VariantId)
                          .Select((item, index) => new
                          {
@@ -163,29 +167,61 @@ namespace Keytietkiem.Controllers
             {
                 orderedItems = sortKey switch
                 {
+                    // ✅ NEW: Ưu đãi hôm nay (Deals)
+                    // Ưu tiên còn hàng -> có giảm giá -> % giảm desc -> view desc -> createdAt desc
+                    "deals" => rawItems
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenByDescending(i => ComputeDiscountPercent(i.SellPrice, i.ListPrice) > 0m)
+                        .ThenByDescending(i => ComputeDiscountPercent(i.SellPrice, i.ListPrice))
+                        .ThenByDescending(i => i.ViewCount)
+                        .ThenByDescending(i => i.CreatedAt),
+
+                    // ✅ NEW: Sắp hết hàng (Low stock)
+                    // Ưu tiên còn hàng -> stock asc -> view desc -> createdAt desc
+                    "low-stock" => rawItems
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenBy(i => i.StockQty <= 0 ? int.MaxValue : i.StockQty)
+                        .ThenByDescending(i => i.ViewCount)
+                        .ThenByDescending(i => i.CreatedAt),
+
                     "updated" => rawItems
-                        .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt),
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenByDescending(i => i.UpdatedAt ?? i.CreatedAt),
 
                     // sort đúng theo SellPrice
                     "price-asc" => rawItems
-                        .OrderBy(i => i.SellPrice)
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenBy(i => i.SellPrice)
                         .ThenByDescending(i => i.ViewCount),
 
                     "price-desc" => rawItems
-                        .OrderByDescending(i => i.SellPrice)
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenByDescending(i => i.SellPrice)
                         .ThenByDescending(i => i.ViewCount),
 
                     "name-asc" => rawItems
-                        .OrderBy(i => i.Title),
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenBy(i => i.Title),
 
                     "name-desc" => rawItems
-                        .OrderByDescending(i => i.Title),
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenByDescending(i => i.Title),
 
                     _ => rawItems
-                        .OrderByDescending(i => i.ViewCount)
+                        .OrderByDescending(i => i.StockQty > 0)
+                        .ThenByDescending(i => i.ViewCount)
                         .ThenByDescending(i => i.CreatedAt)
                 };
             }
+
+            // ✅ Ép "còn hàng trước" theo kiểu STABLE cho mọi sort (hết hàng dồn xuống cuối)
+            var orderedList = orderedItems.ToList();
+            orderedItems = orderedList
+                .Select((item, index) => new { item, index })
+                .OrderByDescending(x => x.item.StockQty > 0)
+                .ThenBy(x => x.index)
+                .Select(x => x.item)
+                .ToList();
 
             // ===== Phân trang sau khi order =====
             var pageItems = orderedItems
@@ -232,12 +268,8 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
-                    // Ép trạng thái OUT_OF_STOCK nếu tồn kho <= 0
-                    var outOfStock =
-                        string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                        || i.StockQty <= 0;
-
-                    var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+                    var outOfStock = i.StockQty <= 0;
+                    var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
@@ -260,9 +292,11 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{productId:guid}/variants/{variantId:guid}/detail")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontVariantDetailDto>> GetVariantDetail(
             Guid productId,
-            Guid variantId)
+            Guid variantId,
+            [FromQuery] bool countView = true)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -280,16 +314,15 @@ namespace Keytietkiem.Controllers
 
             if (v is null) return NotFound();
 
-            // ===== Tăng ViewCount mỗi lần vào trang chi tiết =====
-            v.ViewCount += 1;
-            await db.SaveChangesAsync();
+            // ===== Tăng ViewCount nếu countView=true =====
+            if (countView)
+            {
+                v.ViewCount += 1;
+                await db.SaveChangesAsync();
+            }
 
-            // Ép trạng thái hết hàng theo tồn kho
-            var detailOutOfStock =
-                string.Equals(v.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                || v.StockQty <= 0;
-
-            var detailStatus = detailOutOfStock ? "OUT_OF_STOCK" : (v.Status ?? "ACTIVE");
+            var detailOutOfStock = v.StockQty <= 0;
+            var detailStatus = detailOutOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
             var p = v.Product;
 
@@ -316,9 +349,8 @@ namespace Keytietkiem.Controllers
                 .Select(x => new StorefrontSiblingVariantDto(
                     x.VariantId,
                     x.Title,
-                    (x.Status == "OUT_OF_STOCK" || x.StockQty <= 0)
-                        ? "OUT_OF_STOCK"
-                        : (x.Status ?? "ACTIVE")
+                    x.StockQty <= 0 ? "OUT_OF_STOCK" : "ACTIVE"
+
                 ))
                 .ToListAsync();
 
@@ -397,6 +429,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{productId:guid}/variants/{variantId:guid}/related")]
+        [AllowAnonymous]
         public async Task<ActionResult<IReadOnlyCollection<StorefrontVariantListItemDto>>> GetRelatedVariants(
             Guid productId,
             Guid variantId)
@@ -564,11 +597,8 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
-                    var outOfStock =
-                        string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                        || i.StockQty <= 0;
-
-                    var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+                    var outOfStock = i.StockQty <= 0;
+                    var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
@@ -588,6 +618,15 @@ namespace Keytietkiem.Controllers
 
             return Ok(items);
         }
+
+
+        private static decimal ComputeDiscountPercent(decimal sellPrice, decimal listPrice)
+        {
+            if (sellPrice <= 0 || listPrice <= 0 || sellPrice >= listPrice) return 0m;
+            var percent = (listPrice - sellPrice) / listPrice * 100m;
+            return Math.Round(percent, 2);
+        }
+
 
         // ===== Raw record types =====
 

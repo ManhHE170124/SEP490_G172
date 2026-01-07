@@ -1,4 +1,4 @@
-// File: src/pages/admin/staff-ticket-detail.jsx
+// File: src/pages/staff/staff-ticket-detail.jsx
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import "../../styles/staff-ticket-detail.css";
@@ -63,10 +63,10 @@ function StatusBadge({ value }) {
     v === "New"
       ? "st st-new"
       : v === "InProgress"
-        ? "st st-processing"
-        : v === "Completed"
-          ? "st st-completed"
-          : "st st-closed";
+      ? "st st-processing"
+      : v === "Completed"
+      ? "st st-completed"
+      : "st st-closed";
   return <span className={cls}>{MAP_STATUS[v] || v}</span>;
 }
 
@@ -76,10 +76,10 @@ function SeverityTag({ value }) {
     v === "Low"
       ? "tag tag-low"
       : v === "Medium"
-        ? "tag tag-medium"
-        : v === "High"
-          ? "tag tag-high"
-          : "tag tag-critical";
+      ? "tag tag-medium"
+      : v === "High"
+      ? "tag tag-high"
+      : "tag tag-critical";
   return <span className={cls}>{MAP_SEV[v] || v}</span>;
 }
 
@@ -89,9 +89,83 @@ function SlaPill({ value }) {
     v === "OK"
       ? "sla sla-ok"
       : v === "Overdue"
-        ? "sla sla-breached"
-        : "sla sla-warning";
+      ? "sla sla-breached"
+      : "sla sla-warning";
   return <span className={cls}>{MAP_SLA[v] || v}</span>;
+}
+
+// ===== Avatar helpers (Ticket thread) =====
+function getApiRoot() {
+  // base URL giống axiosClient / SignalR setup
+  let apiBase = axiosClient?.defaults?.baseURL || "";
+  if (!apiBase) {
+    apiBase =
+      process.env.REACT_APP_API_URL ||
+      (typeof import.meta !== "undefined" &&
+        import.meta.env &&
+        import.meta.env.VITE_API_BASE_URL) ||
+      "https://localhost:7292/api";
+  }
+  return apiBase.replace(/\/api\/?$/i, "");
+}
+
+function resolveAvatarUrl(rawUrl) {
+  if (!rawUrl) return "";
+  const u = String(rawUrl).trim();
+  if (!u) return "";
+
+  // absolute URL / data URL
+  if (/^(https?:)?\/\//i.test(u) || /^data:/i.test(u) || /^blob:/i.test(u)) {
+    return u;
+  }
+
+  // relative -> prefix theo API root
+  const root = getApiRoot();
+  if (!root) return u;
+
+  if (u.startsWith("/")) return `${root}${u}`;
+  return `${root}/${u}`;
+}
+
+function ChatAvatar({ name, avatarUrl }) {
+  const letter = (String(name || "?").trim().substring(0, 1) || "?").toUpperCase();
+  const src = resolveAvatarUrl(avatarUrl);
+
+  return (
+    <div className="avatar" style={{ position: "relative", overflow: "hidden" }}>
+      {/* fallback chữ cái */}
+      <span
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {letter}
+      </span>
+
+      {/* ảnh avatar nếu có */}
+      {src && (
+        <img
+          src={src}
+          alt={String(name || "")}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+          onError={(e) => {
+            // lỗi ảnh -> ẩn img để fallback chữ cái hiện ra
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 // ⭐ Format PriorityLevel (0/1/2) → text tiếng Việt
@@ -101,8 +175,8 @@ function fmtPriority(level) {
     typeof level === "number"
       ? level
       : typeof level === "string" && level.trim() !== ""
-        ? Number(level)
-        : NaN;
+      ? Number(level)
+      : NaN;
   if (!Number.isFinite(num)) return "-";
   return MAP_PRIORITY[num] || "-";
 }
@@ -129,7 +203,10 @@ export default function AdminTicketDetail() {
   const [currentUser, setCurrentUser] = useState(null);
   const [replyError, setReplyError] = useState("");
 
-  // true nếu người dùng hiện tại là Customer (dựa vào roles trong localStorage)
+  // true nếu người dùng hiện tại là Customer (dựa vào roles trong localStorage).
+  // LƯU Ý:
+  // - Nếu user chỉ có role Customer        -> xem như customer view.
+  // - Nếu user có thêm role Staff/Admin    -> xem như màn staff/admin.
   const isCustomerView = useMemo(() => {
     if (!currentUser) return false;
 
@@ -144,12 +221,19 @@ export default function AdminTicketDetail() {
 
     const rolesArray = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
 
-    return rolesArray.some((r) =>
-      String(r || "")
-        .trim()
-        .toLowerCase()
-        .includes("customer")
+    const normalizedRoles = rolesArray
+      .map((r) => String(r || "").trim().toLowerCase())
+      .filter(Boolean);
+
+    const hasCustomerRole = normalizedRoles.some((r) => r.includes("customer"));
+
+    const hasStaffOrAdminRole = normalizedRoles.some(
+      (r) => r.includes("care") || r.includes("admin")
     );
+
+    // Nếu user vừa là Customer vừa là Staff/Admin (vd: "customer-care-staff")
+    // => coi là màn staff/admin, KHÔNG dùng layout customer.
+    return hasCustomerRole && !hasStaffOrAdminRole;
   }, [currentUser]);
 
   const draftKey = useMemo(() => `tk_reply_draft_${id}`, [id]);
@@ -225,9 +309,20 @@ export default function AdminTicketDetail() {
         const list = prev.replies || [];
         // tránh trùng khi chính mình gửi: check replyId
         if (list.some((x) => x.replyId === reply.replyId)) return prev;
+
+        // ✅ fallback avatar: nếu reply từ hub thiếu senderAvatarUrl,
+        // lấy avatar từ các message trước đó của cùng senderId (nếu có)
+        let incoming = reply;
+        if (incoming && !incoming.senderAvatarUrl && incoming.senderId) {
+          const cached = list.find(
+            (x) => x.senderId === incoming.senderId && x.senderAvatarUrl
+          )?.senderAvatarUrl;
+          if (cached) incoming = { ...incoming, senderAvatarUrl: cached };
+        }
+
         return {
           ...prev,
-          replies: [...list, reply],
+          replies: [...list, incoming],
         };
       });
     };
@@ -244,10 +339,10 @@ export default function AdminTicketDetail() {
     return () => {
       connection
         .invoke("LeaveTicketGroup", id)
-        .catch(() => { })
+        .catch(() => {})
         .finally(() => {
           connection.off("ReceiveReply", handleReceiveReply);
-          connection.stop().catch(() => { });
+          connection.stop().catch(() => {});
         });
     };
   }, [id]);
@@ -377,8 +472,8 @@ export default function AdminTicketDetail() {
     } catch (e) {
       setReplyError(
         e?.response?.data?.message ||
-        e.message ||
-        "Gửi phản hồi thất bại. Vui lòng thử lại."
+          e.message ||
+          "Gửi phản hồi thất bại. Vui lòng thử lại."
       );
     } finally {
       setSending(false);
@@ -504,16 +599,14 @@ export default function AdminTicketDetail() {
                     key={r.replyId || r.id}
                     className={`msg ${isRightSide ? "msg-me" : "msg-other"}`}
                   >
-                    <div className="avatar">
-                      {sender.substring(0, 1).toUpperCase()}
-                    </div>
+                    {/* ✅ Avatar theo đúng user gửi tin */}
+                    <ChatAvatar name={sender} avatarUrl={r.senderAvatarUrl} />
+
                     <div className="bubble">
                       <div className="head">
                         <span className="name">
                           {sender}
-                          {isStaff && (
-                            <span className="staff-tag">Staff</span>
-                          )}
+                          {isStaff && <span className="staff-tag">Staff</span>}
                         </span>
                         <span className="time">
                           {fmtDateTime(r.sentAt || r.createdAt)}

@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import '../../styles/WebsiteConfig.css';
 import { settingsApi } from '../../services/settings';
 import { useToast } from '../../contexts/ToastContext';
-import LayoutSectionsManager from './LayoutSectionsManager';
 import PaymentGatewaysManager from './PaymentGatewaysManager';
+import BannersManager from './BannersManager';
 
 const WebsiteConfig = () => {
     // Toast
@@ -303,150 +303,6 @@ const WebsiteConfig = () => {
     // Main render
     return (
         <main className="main">
-            {/* Thông tin chung */}
-            <details open className="card">
-                <summary>Thông tin chung</summary>
-                <div className="content">
-                    <div className="field">
-                        <label htmlFor="sitename">Tên website</label>
-                        <div className="control">
-                            <div className="input">
-                                <input
-                                    id="sitename"
-                                    value={config.name || ''}
-                                    onChange={e => update({ name: e.target.value })}
-                                    placeholder="Tên website..."
-                                    className={formErrors.name ? 'error' : ''}
-                                />
-                            </div>
-                            {formErrors.name && <div className="field-error">{formErrors.name}</div>}
-                            <div className="small">Hiển thị ở tiêu đề, email và SEO.</div>
-                        </div>
-                    </div>
-
-                    <div className="field">
-                        <label>Logo</label>
-                        <div className="control">
-                            <div className="file">
-                                <input
-                                    id="logo-file"
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={onLogoChange}
-                                />
-                            </div>
-                            <div className="small">Khuyến nghị PNG/SVG nền trong suốt, chiều cao ~48px.</div>
-                            <div style={{ marginTop: '8px' }}>
-                                {logoPreviewUrl ? (
-                                    <img
-                                        src={logoPreviewUrl}
-                                        alt="logo preview"
-                                        style={{
-                                            height: '40px',
-                                            borderRadius: '6px',
-                                            boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
-                                        }}
-                                    />
-                                ) : (
-                                    <span className="small">Chưa có logo</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="field">
-                        <label htmlFor="slogan">Slogan</label>
-                        <div className="control">
-                            <div className="textarea">
-                                <textarea
-                                    id="slogan"
-                                    value={config.slogan || ''}
-                                    onChange={e => update({ slogan: e.target.value })}
-                                    placeholder="Thông điệp ngắn gọn..."
-                                    rows={3}
-                                />
-                            </div>
-                            <div className="small">Dùng cho hero/banner & thẻ meta description.</div>
-                        </div>
-                    </div>
-                </div>
-            </details>
-
-            {/* Màu sắc & Giao diện */}
-            <details open className="card">
-                <summary>Màu sắc & Giao diện</summary>
-                <div className="content">
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                        <div className="field" style={{ display: 'block' }}>
-                            <label>Màu chủ đạo</label>
-                            <div className="control">
-                                <div className="color">
-                                    <input
-                                        type="color"
-                                        value={config.primaryColor}
-                                        onChange={e => update({ primaryColor: e.target.value })}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={config.primaryColor}
-                                        onChange={e => update({ primaryColor: e.target.value })}
-                                    />
-                                </div>
-                                <div className="small">Dùng cho CTA, link, badge chính.</div>
-                            </div>
-                        </div>
-
-                        <div className="field" style={{ display: 'block' }}>
-                            <label>Màu thứ cấp</label>
-                            <div className="control">
-                                <div className="color">
-                                    <input
-                                        type="color"
-                                        value={config.secondaryColor}
-                                        onChange={e => update({ secondaryColor: e.target.value })}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={config.secondaryColor}
-                                        onChange={e => update({ secondaryColor: e.target.value })}
-                                    />
-                                </div>
-                                <div className="small">Dùng cho tiêu đề, icon đậm.</div>
-                            </div>
-                        </div>
-
-                        <div className="field" style={{ display: 'block' }}>
-                            <label>Font chữ</label>
-                            <div className="control">
-                                <div className="select">
-                                    <select
-                                        value={config.font}
-                                        onChange={e => update({ font: e.target.value })}
-                                    >
-                                        <option>Inter (khuyên dùng)</option>
-                                        <option>Roboto</option>
-                                        <option>Nunito</option>
-                                        <option>Open Sans</option>
-                                    </select>
-                                </div>
-                                <div className="small">Áp dụng toàn site; hỗ trợ font Việt hoá.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="theme-demo" style={{ '--primary': config.primaryColor }}>
-                        <div className="h">Xem trước chủ đề</div>
-                        <div className="p">Tiêu đề và nút sử dụng màu chủ đạo để kiểm tra độ tương phản.</div>
-                        <button className="cta" style={{ background: config.primaryColor }}>
-                            Nút hành động
-                        </button>
-                    </div>
-                </div>
-            </details>
-
-            {/* Layout Sections - Component mới */}
-            <LayoutSectionsManager />
-
             {/* Thông tin liên hệ */}
             <details className="card">
                 <summary>Thông tin liên hệ</summary>
@@ -497,7 +353,7 @@ const WebsiteConfig = () => {
                 </div>
             </details>
 
-            {/* SMTP */}
+            {/* SMTP
             <details className="card">
                 <summary>Cấu hình SMTP</summary>
                 <div className="content">
@@ -585,51 +441,7 @@ const WebsiteConfig = () => {
                         </button>
                     </div>
                 </div>
-            </details>
-
-            {/* Media */}
-            <details className="card">
-                <summary>Cấu hình hình ảnh</summary>
-                <div className="content">
-                    <div className="field">
-                        <label>Giới hạn upload (MB)</label>
-                        <div className="control">
-                            <div className="number">
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={config.media.uploadLimitMB || 10}
-                                    onChange={e => updateNested('media.uploadLimitMB', parseInt(e.target.value) || 10)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="field">
-                        <label>Định dạng cho phép</label>
-                        <div className="control checkbox-row">
-                            {['jpg', 'png', 'webp', 'svg'].map(fmt => (
-                                <label key={fmt}>
-                                    <input
-                                        type="checkbox"
-                                        checked={config.media.formats?.includes(fmt)}
-                                        onChange={e => {
-                                            const formats = config.media.formats || [];
-                                            if (e.target.checked) {
-                                                updateNested('media.formats', [...formats, fmt]);
-                                            } else {
-                                                updateNested('media.formats', formats.filter(f => f !== fmt));
-                                            }
-                                        }}
-                                    />
-                                    {' '}{fmt}
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="small">Khuyên dùng WebP cho ảnh sản phẩm; cân nhắc CDN nếu lưu lượng lớn.</div>
-                </div>
-            </details>
+            </details> */}
 
             {/* Social Media */}
             <details className="card">
@@ -692,6 +504,14 @@ const WebsiteConfig = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            </details>
+
+            {/* Banner trang chủ */}
+            <details className="card">
+                <summary>Banner trang chủ</summary>
+                <div className="content">
+                    <BannersManager embedded />
                 </div>
             </details>
 

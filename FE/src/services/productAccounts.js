@@ -7,6 +7,7 @@ const PRODUCT_ACCOUNT_ENDPOINTS = {
   CUSTOMERS: (id) => `/ProductAccount/${id}/customers`,
   REMOVE_CUSTOMER: (id) => `/ProductAccount/${id}/customers/remove`,
   HISTORY: (id) => `/ProductAccount/${id}/history`,
+  EXTEND_EXPIRY: (id) => `/ProductAccount/${id}/extend-expiry`,
 };
 
 export const ProductAccountApi = {
@@ -39,4 +40,18 @@ export const ProductAccountApi = {
 
   // Get history of a product account
   getHistory: (id) => axiosClient.get(PRODUCT_ACCOUNT_ENDPOINTS.HISTORY(id)),
+
+  // Extend expiry date of a product account
+  extendExpiry: (id, data) =>
+    axiosClient.post(PRODUCT_ACCOUNT_ENDPOINTS.EXTEND_EXPIRY(id), data),
+
+  // Get product accounts expiring soon (within specified days)
+  getExpiringSoon: (days = 5) =>
+    axiosClient.get(`${PRODUCT_ACCOUNT_ENDPOINTS.ROOT}/expiring-soon`, {
+      params: { days },
+    }),
+
+  // Get expired product accounts
+  getExpired: (params) =>
+    axiosClient.get(`${PRODUCT_ACCOUNT_ENDPOINTS.ROOT}/expired`, { params }),
 };

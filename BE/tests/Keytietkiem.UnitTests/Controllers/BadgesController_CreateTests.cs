@@ -1,180 +1,242 @@
-﻿// File: tests/Keytietkiem.UnitTests/Controllers/BadgesController_CreateTests.cs
-using System;
+﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Keytietkiem.Controllers;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Keytietkiem.UnitTests.Controllers
 {
-    /// <summary>
-    /// Unit test WHITE-BOX cho logic Create badge (POST /api/badges).
-    /// Mapping 1-1 với các UTC trong sheet CreateBadge.
-    /// </summary>
     public class BadgesController_CreateTests
     {
-        private static BadgesController CreateController(
-            string databaseName,
-            Action<KeytietkiemDbContext>? seed = null)
+        // ========== Helpers chung ==========
+
+        private static DbContextOptions<KeytietkiemDbContext> CreateOptions()
         {
-            var options = new DbContextOptionsBuilder<KeytietkiemDbContext>()
-                .UseInMemoryDatabase(databaseName)
+            return new DbContextOptionsBuilder<KeytietkiemDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
+        }
 
+        private static BadgesController CreateController(
+            DbContextOptions<KeytietkiemDbContext> options)
+        {
             var factory = new TestDbContextFactory(options);
+            var auditLogger = new FakeAuditLogger();
 
-            using (var db = factory.CreateDbContext())
+            var controller = new BadgesController(factory, auditLogger)
             {
-                seed?.Invoke(db);
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = new DefaultHttpContext()
+                }
+            };
+
+            return controller;
+        }
+
+        private static string GetMessage(object resultValue)
+        {
+            var type = resultValue.GetType();
+            var prop = type.GetProperty("message");
+            return (string)(prop?.GetValue(resultValue) ?? string.Empty);
+        }
+
+        // ========== Test cases (UTC001 – UTC010) ==========
+
+        /// <summary>
+        /// UTC001 – Normal:
+        /// BadgeCode / DisplayName hợp lệ, ColorHex null/empty.
+        /// Kỳ vọng: 201 Created, dữ liệu được trim & lưu thành công.
+        /// </summary>
+        [Fact]
+        public async Task UTC001_Create_ValidWithoutColor_CreatesBadgeWithTrimmedFields()
+        {
+            var options = CreateOptions();
+            var controller = CreateController(options);
+
+            var dto = new BadgeCreateDto(
+                BadgeCode: "  VIP  ",           // leading/trailing spaces
+                DisplayName: "  Vip Badge  ",
+                ColorHex: null,
+                Icon: "  star  ",
+                IsActive: true
+            );
+
+            var result = await controller.Create(dto);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result);
+            Assert.Equal("Get", created.ActionName);
+
+            var body = Assert.IsType<BadgeListItemDto>(created.Value);
+            Assert.Equal("VIP", body.BadgeCode);
+            Assert.Equal("Vip Badge", body.DisplayName);
+            Assert.Null(body.ColorHex);
+            Assert.Equal("star", body.Icon);
+            Assert.True(body.IsActive);
+            Assert.Equal(0, body.ProductCount);
+
+            using var db = new KeytietkiemDbContext(options);
+            var entity = Assert.Single(db.Badges);
+            Assert.Equal("VIP", entity.BadgeCode);
+            Assert.Equal("Vip Badge", entity.DisplayName);
+            Assert.Null(entity.ColorHex);
+            Assert.Equal("star", entity.Icon);
+            Assert.True(entity.IsActive);
+        }
+
+        /// <summary>
+        /// UTC002 – Boundary (length):
+        /// BadgeCode dài 32 ký tự, DisplayName dài 64 ký tự, ColorHex hợp lệ (#RRGGBB).
+        /// Kỳ vọng: 201 Created.
+        /// </summary>
+        [Fact]
+        public async Task UTC002_Create_ValidMaxLengthWithColor_CreatesBadge()
+        {
+            var options = CreateOptions();
+            var controller = CreateController(options);
+
+            var badgeCode = new string('A', 32);  // = 32
+            var displayName = new string('B', 64); // = 64
+
+            var dto = new BadgeCreateDto(
+                BadgeCode: badgeCode,
+                DisplayName: displayName,
+                ColorHex: "#1e40af",   // valid #RRGGBB
+                Icon: null,
+                IsActive: true
+            );
+
+            var result = await controller.Create(dto);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result);
+            var body = Assert.IsType<BadgeListItemDto>(created.Value);
+
+            Assert.Equal(badgeCode, body.BadgeCode);
+            Assert.Equal(displayName, body.DisplayName);
+            Assert.Equal("#1e40af", body.ColorHex);
+
+            using var db = new KeytietkiemDbContext(options);
+            var entity = Assert.Single(db.Badges);
+            Assert.Equal(badgeCode, entity.BadgeCode);
+            Assert.Equal(displayName, entity.DisplayName);
+            Assert.Equal("#1e40af", entity.ColorHex);
+        }
+
+        /// <summary>
+        /// UTC003 – Abnormal:
+        /// BadgeCode null/empty/whitespace.
+        /// Kỳ vọng: 400 "BadgeCode is required".
+        /// </summary>
+        [Fact]
+        public async Task UTC003_Create_InvalidBadgeCode_IsRequired()
+        {
+            var options = CreateOptions();
+            var controller = CreateController(options);
+
+            var dto = new BadgeCreateDto(
+                BadgeCode: "   ",          // chỉ whitespace
+                DisplayName: "Some name",
+                ColorHex: null,
+                Icon: null,
+                IsActive: true
+            );
+
+            var result = await controller.Create(dto);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("BadgeCode is required", message);
+        }
+
+        /// <summary>
+        /// UTC004 – Abnormal:
+        /// BadgeCode chứa khoảng trắng.
+        /// Kỳ vọng: 400 "BadgeCode cannot contain spaces".
+        /// </summary>
+        [Fact]
+        public async Task UTC004_Create_InvalidBadgeCode_ContainsSpaces()
+        {
+            var options = CreateOptions();
+            var controller = CreateController(options);
+
+            var dto = new BadgeCreateDto(
+                BadgeCode: "VIP GOLD",
+                DisplayName: "Vip Gold",
+                ColorHex: null,
+                Icon: null,
+                IsActive: true
+            );
+
+            var result = await controller.Create(dto);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("BadgeCode cannot contain spaces", message);
+        }
+
+        /// <summary>
+        /// UTC005 – Boundary (abnormal):
+        /// BadgeCode dài &gt; 32.
+        /// Kỳ vọng: 400 "BadgeCode cannot exceed 32 characters".
+        /// </summary>
+        [Fact]
+        public async Task UTC005_Create_InvalidBadgeCode_TooLong()
+        {
+            var options = CreateOptions();
+            var controller = CreateController(options);
+
+            var longCode = new string('A', 33); // > 32
+            var dto = new BadgeCreateDto(
+                BadgeCode: longCode,
+                DisplayName: "Long Code Badge",
+                ColorHex: null,
+                Icon: null,
+                IsActive: true
+            );
+
+            var result = await controller.Create(dto);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("BadgeCode cannot exceed 32 characters", message);
+        }
+
+        /// <summary>
+        /// UTC006 – Abnormal:
+        /// BadgeCode đã tồn tại trong hệ thống.
+        /// Kỳ vọng: 409 "BadgeCode already exists".
+        /// </summary>
+        [Fact]
+        public async Task UTC006_Create_InvalidBadgeCode_AlreadyExists()
+        {
+            var options = CreateOptions();
+
+            // Seed 1 badge với code VIP
+            using (var db = new KeytietkiemDbContext(options))
+            {
+                db.Badges.Add(new Badge
+                {
+                    BadgeCode = "VIP",
+                    DisplayName = "Existing VIP",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                });
                 db.SaveChanges();
             }
 
-            return new BadgesController(factory);
-        }
-
-        private static string? GetMessage(ObjectResult result)
-        {
-            var value = result.Value;
-            var prop = value?.GetType().GetProperty("message");
-            return prop?.GetValue(value)?.ToString();
-        }
-
-        // ========== UTC01 ==========
-        [Fact]
-        public async Task Create_UTC01_ShouldReturnCreated_WhenBasicDataValid_NoColor()
-        {
-            var controller = CreateController("CreateBadge_UTC01");
+            var controller = CreateController(options);
 
             var dto = new BadgeCreateDto(
-                BadgeCode: "A",
-                DisplayName: "Name",
-                ColorHex: null,
-                Icon: null,
-                IsActive: true
-            );
-
-            var result = await controller.Create(dto);
-
-            var created = Assert.IsType<CreatedAtActionResult>(result);
-            Assert.Equal(nameof(BadgesController.Get), created.ActionName);
-
-            var body = Assert.IsType<BadgeListItemDto>(created.Value);
-            Assert.Equal("A", body.BadgeCode);
-            Assert.Equal("Name", body.DisplayName);
-            Assert.Null(body.ColorHex);
-            Assert.True(body.IsActive);
-        }
-
-        // ========== UTC02 ==========
-        [Fact]
-        public async Task Create_UTC02_ShouldReturnBadRequest_WhenBadgeCodeEmpty()
-        {
-            var controller = CreateController("CreateBadge_UTC02");
-
-            var dto = new BadgeCreateDto(
-                BadgeCode: "   ",
-                DisplayName: "Name",
-                ColorHex: null,
-                Icon: null,
-                IsActive: true
-            );
-
-            var result = await controller.Create(dto);
-
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("BadgeCode is required", GetMessage(bad));
-        }
-
-        // ========== UTC03 ==========
-        [Fact]
-        public async Task Create_UTC03_ShouldReturnBadRequest_WhenBadgeCodeContainsSpace()
-        {
-            var controller = CreateController("CreateBadge_UTC03");
-
-            var dto = new BadgeCreateDto(
-                BadgeCode: "CODE 1",
-                DisplayName: "Name",
-                ColorHex: null,
-                Icon: null,
-                IsActive: true
-            );
-
-            var result = await controller.Create(dto);
-
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("BadgeCode cannot contain spaces", GetMessage(bad));
-        }
-
-        // ========== UTC04 ==========
-        [Fact]
-        public async Task Create_UTC04_ShouldReturnBadRequest_WhenBadgeCodeTooLong()
-        {
-            var controller = CreateController("CreateBadge_UTC04");
-
-            var dto = new BadgeCreateDto(
-                BadgeCode: new string('C', 33),
-                DisplayName: "Name",
-                ColorHex: null,
-                Icon: null,
-                IsActive: true
-            );
-
-            var result = await controller.Create(dto);
-
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("BadgeCode cannot exceed 32 characters", GetMessage(bad));
-        }
-
-        // ========== UTC05 ==========
-        [Fact]
-        public async Task Create_UTC05_ShouldReturnCreated_WhenCodeAndNameAtMaxLength()
-        {
-            var controller = CreateController("CreateBadge_UTC05");
-
-            var dto = new BadgeCreateDto(
-                BadgeCode: new string('C', 32),
-                DisplayName: new string('D', 64),
-                ColorHex: null,
-                Icon: null,
-                IsActive: true
-            );
-
-            var result = await controller.Create(dto);
-
-            var created = Assert.IsType<CreatedAtActionResult>(result);
-            var body = Assert.IsType<BadgeListItemDto>(created.Value);
-
-            Assert.Equal(new string('C', 32), body.BadgeCode);
-            Assert.Equal(new string('D', 64), body.DisplayName);
-        }
-
-        // ========== UTC06 ==========
-        [Fact]
-        public async Task Create_UTC06_ShouldReturnConflict_WhenBadgeCodeAlreadyExists()
-        {
-            var dbName = "CreateBadge_UTC06";
-
-            var controller = CreateController(
-                dbName,
-                seed: db =>
-                {
-                    db.Badges.Add(new Badge
-                    {
-                        BadgeCode = "EXISTING",
-                        DisplayName = "Existing name",
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                });
-
-            var dto = new BadgeCreateDto(
-                BadgeCode: "EXISTING",
-                DisplayName: "New Name",
+                BadgeCode: "VIP",
+                DisplayName: "New VIP",
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
@@ -183,17 +245,23 @@ namespace Keytietkiem.UnitTests.Controllers
             var result = await controller.Create(dto);
 
             var conflict = Assert.IsType<ConflictObjectResult>(result);
-            Assert.Equal("BadgeCode already exists", GetMessage(conflict));
+            var message = GetMessage(conflict.Value!);
+            Assert.Equal("BadgeCode already exists", message);
         }
 
-        // ========== UTC07 ==========
+        /// <summary>
+        /// UTC007 – Abnormal:
+        /// DisplayName null/empty/whitespace.
+        /// Kỳ vọng: 400 "DisplayName is required".
+        /// </summary>
         [Fact]
-        public async Task Create_UTC07_ShouldReturnBadRequest_WhenDisplayNameEmpty()
+        public async Task UTC007_Create_InvalidDisplayName_IsRequired()
         {
-            var controller = CreateController("CreateBadge_UTC07");
+            var options = CreateOptions();
+            var controller = CreateController(options);
 
             var dto = new BadgeCreateDto(
-                BadgeCode: "NEW7",
+                BadgeCode: "VIP",
                 DisplayName: "   ",
                 ColorHex: null,
                 Icon: null,
@@ -202,19 +270,26 @@ namespace Keytietkiem.UnitTests.Controllers
 
             var result = await controller.Create(dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("DisplayName is required", GetMessage(bad));
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("DisplayName is required", message);
         }
 
-        // ========== UTC08 ==========
+        /// <summary>
+        /// UTC008 – Boundary (abnormal):
+        /// DisplayName dài &gt; 64.
+        /// Kỳ vọng: 400 "DisplayName cannot exceed 64 characters".
+        /// </summary>
         [Fact]
-        public async Task Create_UTC08_ShouldReturnBadRequest_WhenDisplayNameTooLong()
+        public async Task UTC008_Create_InvalidDisplayName_TooLong()
         {
-            var controller = CreateController("CreateBadge_UTC08");
+            var options = CreateOptions();
+            var controller = CreateController(options);
 
+            var longName = new string('B', 65); // > 64
             var dto = new BadgeCreateDto(
-                BadgeCode: "NEW8",
-                DisplayName: new string('D', 65),
+                BadgeCode: "VIP",
+                DisplayName: longName,
                 ColorHex: null,
                 Icon: null,
                 IsActive: true
@@ -222,42 +297,54 @@ namespace Keytietkiem.UnitTests.Controllers
 
             var result = await controller.Create(dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("DisplayName cannot exceed 64 characters", GetMessage(bad));
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("DisplayName cannot exceed 64 characters", message);
         }
 
-        // ========== UTC09 ==========
+        /// <summary>
+        /// UTC009 – Abnormal:
+        /// ColorHex có giá trị nhưng sai format (#RGB / #RRGGBB).
+        /// Kỳ vọng: 400 "ColorHex must be a valid hex color, e.g. #1e40af".
+        /// </summary>
         [Fact]
-        public async Task Create_UTC09_ShouldReturnBadRequest_WhenColorHexInvalid()
+        public async Task UTC009_Create_InvalidColorHex_ReturnsBadRequest()
         {
-            var controller = CreateController("CreateBadge_UTC09");
+            var options = CreateOptions();
+            var controller = CreateController(options);
 
             var dto = new BadgeCreateDto(
-                BadgeCode: "NEW9",
-                DisplayName: "Valid Name",
-                ColorHex: "123456", // không có '#', sai format
+                BadgeCode: "VIP",
+                DisplayName: "Vip Badge",
+                ColorHex: "#1234",    // sai định dạng (#RGB hoặc #RRGGBB)
                 Icon: null,
                 IsActive: true
             );
 
             var result = await controller.Create(dto);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal("ColorHex must be a valid hex color, e.g. #1e40af", GetMessage(bad));
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var message = GetMessage(badRequest.Value!);
+            Assert.Equal("ColorHex must be a valid hex color, e.g. #1e40af", message);
         }
 
-        // ========== UTC10 ==========
+        /// <summary>
+        /// UTC010 – Boundary (normal):
+        /// ColorHex có giá trị hợp lệ dạng #RGB.
+        /// Kỳ vọng: 201 Created, ColorHex được lưu.
+        /// </summary>
         [Fact]
-        public async Task Create_UTC10_ShouldReturnCreated_WhenColorHexValidAndIconTrimmed()
+        public async Task UTC010_Create_ValidRgbColorHex_CreatesBadge()
         {
-            var controller = CreateController("CreateBadge_UTC10");
+            var options = CreateOptions();
+            var controller = CreateController(options);
 
             var dto = new BadgeCreateDto(
-                BadgeCode: "NEW10",
-                DisplayName: "Valid Name",
-                ColorHex: "#1A2b3C",
-                Icon: "  fa-star  ",
-                IsActive: false
+                BadgeCode: "RGB",
+                DisplayName: "Rgb Color Badge",
+                ColorHex: "#fff",     // valid #RGB
+                Icon: null,
+                IsActive: true
             );
 
             var result = await controller.Create(dto);
@@ -265,12 +352,14 @@ namespace Keytietkiem.UnitTests.Controllers
             var created = Assert.IsType<CreatedAtActionResult>(result);
             var body = Assert.IsType<BadgeListItemDto>(created.Value);
 
-            Assert.Equal("NEW10", body.BadgeCode);
-            Assert.Equal("Valid Name", body.DisplayName);
-            Assert.Equal("#1A2b3C", body.ColorHex);
-            Assert.Equal("fa-star", body.Icon); // đã Trim()
-            Assert.False(body.IsActive);
+            Assert.Equal("#fff", body.ColorHex);
+
+            using var db = new KeytietkiemDbContext(options);
+            var entity = Assert.Single(db.Badges);
+            Assert.Equal("#fff", entity.ColorHex);
         }
+
+        // ========== Helper classes ==========
 
         private sealed class TestDbContextFactory : IDbContextFactory<KeytietkiemDbContext>
         {
@@ -282,14 +371,25 @@ namespace Keytietkiem.UnitTests.Controllers
             }
 
             public KeytietkiemDbContext CreateDbContext()
-            {
-                return new KeytietkiemDbContext(_options);
-            }
+                => new KeytietkiemDbContext(_options);
 
-            public ValueTask<KeytietkiemDbContext> CreateDbContextAsync(
+            public Task<KeytietkiemDbContext> CreateDbContextAsync(
                 CancellationToken cancellationToken = default)
+                => Task.FromResult(CreateDbContext());
+        }
+
+        private sealed class FakeAuditLogger : IAuditLogger
+        {
+            public Task LogAsync(
+                HttpContext httpContext,
+                string action,
+                string? entityType = null,
+                string? entityId = null,
+                object? before = null,
+                object? after = null)
             {
-                return new ValueTask<KeytietkiemDbContext>(CreateDbContext());
+                // Không ghi log trong unit test
+                return Task.CompletedTask;
             }
         }
     }

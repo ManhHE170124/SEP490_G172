@@ -94,7 +94,11 @@ export default function SignUpPage() {
     try {
       setIsSubmitting(true);
       const response = await AuthService.sendOtp(formData.email);
-      setSuccessMessage(response);
+      setSuccessMessage(
+        typeof response === "string" 
+          ? response 
+          : response?.message || "Mã OTP đã được gửi đến email của bạn."
+      );
       setCurrentStep("otp");
 
       // Start resend cooldown (60 seconds)
@@ -192,7 +196,11 @@ export default function SignUpPage() {
       setIsSubmitting(true);
       setErrorMessage("");
       const response = await AuthService.sendOtp(formData.email);
-      setSuccessMessage(response);
+      setSuccessMessage(
+        typeof response === "string" 
+          ? response 
+          : response?.message || "Mã OTP đã được gửi lại đến email của bạn."
+      );
 
       // Reset OTP inputs
       setFormData((prev) => ({ ...prev, otp: ["", "", "", "", "", ""] }));
@@ -240,11 +248,17 @@ export default function SignUpPage() {
     if (!formData.lastName.trim()) {
       return "Vui lòng nhập họ";
     }
+    if (formData.phone && !/^0(3|5|7|8|9)[0-9]{8}$/.test(formData.phone)) {
+       return "Số điện thoại không hợp lệ (phải là số VN 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)";
+    }
     if (!formData.password) {
       return "Vui lòng nhập mật khẩu";
     }
-    if (formData.password.length < 6) {
-      return "Mật khẩu phải có ít nhất 6 ký tự";
+    if (formData.password.length < 8) {
+      return "Mật khẩu phải có ít nhất 8 ký tự";
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.password)) {
+      return "Mật khẩu phải chứa ít nhất 1 chữ cái và 1 số";
     }
     if (formData.password !== formData.confirmPassword) {
       return "Mật khẩu không khớp";
@@ -556,15 +570,16 @@ export default function SignUpPage() {
         />
       </div>
 
-      <div className="row-inline" style={{ marginTop: 10 }}>
+      <label className="checkbox" style={{marginTop: 10 }}>
         <input
           id="agreedToTerms"
           type="checkbox"
           checked={formData.agreedToTerms}
           onChange={(e) => handleInputChange("agreedToTerms", e.target.checked)}
           required
+          style={{ width: '16px', height: '16px', flexShrink: 0 }}
         />
-        <label className="checkbox" htmlFor="agreedToTerms">
+        <span>
           Tôi đồng ý với{" "}
           <a href="/terms" onClick={(e) => e.preventDefault()}>
             Điều khoản dịch vụ
@@ -574,8 +589,8 @@ export default function SignUpPage() {
             Chính sách bảo mật
           </a>
           .
-        </label>
-      </div>
+        </span>
+      </label>
 
       <div className="form-row" style={{ marginTop: 12 }}>
         <button

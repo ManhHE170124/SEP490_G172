@@ -68,22 +68,37 @@ export default function LoginPage() {
         localStorage.removeItem("remembered_username");
       }
 
-      // Show success modal and redirect
+      // Show success modal
       await modal.showSuccess(
         `Chào mừng trở lại, ${response.user.fullName}!`,
         "Đăng nhập thành công"
       );
 
       // Redirect based on user role
+      // Backend returns Role.Code (e.g., "ADMIN", "STORAGE_STAFF", "CONTENT_CREATOR")
+      // Also check for legacy role names for backward compatibility
       const userRoles = response.user.roles || [];
-      switch (userRoles[0]) {
-        case "Admin":
-        case "Storage Staff":
-          navigate("/key-monitor");
-          break;
-        default:
+      const firstRole = userRoles[0]?.toUpperCase() || "";
+      
+      if (
+        firstRole === "ADMIN" || 
+        firstRole === "CUSTOMER_CARE"
+      ) {
+        navigate("/admin/support-dashboard");
+      } else if (
+        // Content Creator -> post dashboard
+        firstRole === "CONTENT_CREATOR" ||
+        firstRole === "CONTENT CREATOR" 
+      ) {
+        navigate("/post-dashboard");
+      }else if (
+        firstRole === "STORAGE_STAFF" ||
+        firstRole === "STORAGE STAFF" 
+      ) {
+        navigate("/key-monitor");
+      } else {
+        // Default: Customer or other roles -> homepage
           navigate("/");
-          break;
       }
     } catch (error) {
       const responseData = error?.response?.data;
@@ -160,26 +175,16 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="row-inline" style={{ marginTop: 8 }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={(e) =>
-                    handleInputChange("rememberMe", e.target.checked)
-                  }
-                />
-                Ghi nhớ tài khoản
-              </label>
-              <span></span>
-            </div>
+            <label className="checkbox" style={{ marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={formData.rememberMe}
+                onChange={(e) =>
+                  handleInputChange("rememberMe", e.target.checked)
+                }
+              />
+              Ghi nhớ tài khoản
+            </label>
 
             <div className="form-row" style={{ marginTop: 12 }}>
               <button

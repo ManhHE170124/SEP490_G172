@@ -1,14 +1,24 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Keytietkiem.DTOs.ProductClient;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Controllers
 {
     /// <summary>
-    /// API cho trang homepage ph�a ng??i d�ng (storefront)
-    /// Hi?n t?i ch? t?p trung v�o ph?n danh s�ch s?n ph?m.
+    /// API cho trang homepage phía người mua (storefront)
+    /// Trả về 5 khối sản phẩm:
+    /// 1) Ưu đãi hôm nay (Deals / On sale)
+    /// 2) Bán chạy nhất (Best sellers)
+    /// 3) Mới ra mắt (New arrivals)
+    /// 4) Đang thịnh hành (Trending)
+    /// 5) Sắp hết hàng (Low stock)
     /// </summary>
     [ApiController]
     [Route("api/storefront/homepage")]
@@ -21,20 +31,14 @@ namespace Keytietkiem.Controllers
             _dbFactory = dbFactory;
         }
 
-        /// <summary>
-        /// L?y danh s�ch s?n ph?m cho homepage:
-        /// - ?u ?�i h�m nay: 4 s?n ph?m c� % gi?m gi� cao nh?t
-        ///   (tie th� ViewCount nhi?u h?n, CreatedAt m?i h?n x?p tr??c)
-        /// - S?n ph?m b�n ch?y: sort gi?ng "sold/bestseller" ? trang list products
-        /// - Xu h??ng tu?n n�y: nhi?u ViewCount nh?t (?u ti�n trong 7 ng�y g?n nh?t)
-        /// - M?i c?p nh?t: sort theo UpdatedAt m?i nh?t
-        /// </summary>
         [HttpGet("products")]
+        [AllowAnonymous]
         public async Task<ActionResult<StorefrontHomepageProductsDto>> GetHomepageProducts()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // ====== Base query: ch? l?y variant c� tr?ng th�i hi?n th? ======
+            // ===== Base query: lấy variant còn "hiển thị" (ACTIVE/OUT_OF_STOCK),
+            // nhưng các khối bên dưới sẽ lọc "còn hàng" bằng StockQty > 0 đúng mục đích =====
             var baseQuery = db.ProductVariants
                 .AsNoTracking()
                 .Include(v => v.Product)
@@ -59,82 +63,176 @@ namespace Keytietkiem.Controllers
                     v.CreatedAt,
                     v.UpdatedAt,
                     v.SellPrice,
-                    v.ListPrice,   // d�ng ListPrice l�m gi� ni�m y?t
-                    0m,            // s? t�nh l?i b�n d??i
-                    v.Product.ProductBadges
-                        .Select(pb => pb.Badge)
-                        .ToList(),
+                    v.ListPrice,
+                    0m,   // DiscountPercent (compute below)
+                    0,    // Sold30d (compute below)
+                    0,    // SoldAllTime (optional fallback; compute only when needed)
+                    v.Product.ProductBadges.Select(pb => pb.Badge).ToList(),
                     v.StockQty
                 ))
                 .ToListAsync();
 
-            // N?u kh�ng c� s?n ph?m n�o th� tr? v? r?ng cho an to�n
             if (rawItems.Count == 0)
             {
                 var empty = new StorefrontHomepageProductsDto(
                     TodayBestDeals: Array.Empty<StorefrontVariantListItemDto>(),
                     BestSellers: Array.Empty<StorefrontVariantListItemDto>(),
                     WeeklyTrends: Array.Empty<StorefrontVariantListItemDto>(),
-                    NewlyUpdated: Array.Empty<StorefrontVariantListItemDto>()
+                    NewlyUpdated: Array.Empty<StorefrontVariantListItemDto>(),
+                    LowStock: Array.Empty<StorefrontVariantListItemDto>()
                 );
                 return Ok(empty);
             }
 
-            // ====== T�nh % gi?m gi� d?a tr�n SellPrice / ListPrice ======
+            // ===== DiscountPercent =====
+            rawItems = rawItems
+                .Select(i => i with { DiscountPercent = ComputeDiscountPercent(i.SellPrice, i.ListPrice) })
+                .ToList();
+
+            // ===== Sold30d / SoldAllTime (từ đơn thành công Status == "Paid") =====
+            var nowUtc = DateTime.UtcNow;
+            var thirtyDaysAgo = nowUtc.AddDays(-30);
+
+            var variantIds = rawItems.Select(i => i.VariantId).Distinct().ToList();
+            var sold30dLookup = await LoadSoldLookupAsync(db, variantIds, thirtyDaysAgo);
+
+            // Chỉ fallback SoldAllTime nếu 30d toàn 0 (tránh query nặng khi hệ thống đã có data 30d)
+            var hasAnySold30d = sold30dLookup.Values.Any(x => x > 0);
+            var soldAllTimeLookup = hasAnySold30d
+                ? new Dictionary<Guid, int>()
+                : await LoadSoldLookupAsync(db, variantIds, createdFromUtc: null);
+
             rawItems = rawItems
                 .Select(i =>
                 {
-                    var discount = ComputeDiscountPercent(i.SellPrice, i.ListPrice);
-                    return i with { DiscountPercent = discount };
+                    sold30dLookup.TryGetValue(i.VariantId, out var s30);
+                    soldAllTimeLookup.TryGetValue(i.VariantId, out var sall);
+                    return i with
+                    {
+                        Sold30d = s30,
+                        SoldAllTime = sall
+                    };
                 })
                 .ToList();
 
-            // ====== 1. ?U ?�I H�M NAY: % gi?m gi� cao nh?t ======
-            var todayDealsRaw = rawItems
+            // ===== Lọc “còn hàng” dùng StockQty =====
+            var inStockItems = rawItems.Where(i => i.StockQty > 0).ToList();
+
+            // Helper: chọn 1 variant tốt nhất per product (tránh homepage bị trùng nhiều variant cùng 1 product)
+            static List<HomepageVariantRawItem> PickTopVariantPerProduct(
+                IEnumerable<HomepageVariantRawItem> source,
+                Func<HomepageVariantRawItem, object?> primaryKey,
+                Func<HomepageVariantRawItem, object?>? secondaryKey = null,
+                Func<HomepageVariantRawItem, object?>? thirdKey = null,
+                Func<HomepageVariantRawItem, object?>? fourthKey = null)
+            {
+                // Group per ProductId → pick "best" inside group theo thứ tự keys (desc cho numeric/time)
+                // (trong LINQ, mình triển khai đúng từng section bên dưới cho rõ ràng)
+                return source.ToList();
+            }
+
+            // =========================
+            // 1) Ưu đãi hôm nay (Deals / On sale)
+            // Lấy còn hàng + DiscountPercent > 0
+            // Sort: DiscountPercent desc → Sold30d desc → ViewCount desc → CreatedAt desc
+            // =========================
+            var todayDealsRaw = inStockItems
+                .Where(i => i.DiscountPercent > 0)
+                .GroupBy(i => i.ProductId)
+                .Select(g => g
+                    .OrderByDescending(x => x.DiscountPercent)
+                    .ThenByDescending(x => x.Sold30d)
+                    .ThenByDescending(x => x.ViewCount)
+                    .ThenByDescending(x => x.CreatedAt)
+                    .First())
                 .OrderByDescending(i => i.DiscountPercent)
+                .ThenByDescending(i => i.Sold30d)
                 .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
 
-            // ====== 2. S?N PH?M B�N CH?Y: sort gi?ng "sold/bestseller" ? ListVariants ======
-            var bestSellerOrdered = OrderAsBestSeller(rawItems);
-            var bestSellersRaw = bestSellerOrdered
+            // =========================
+            // 2) Bán chạy nhất (Best sellers)
+            // Lấy còn hàng
+            // Sort theo SoldQuantity từ đơn thành công (ưu tiên 30 ngày gần nhất)
+            // =========================
+            var bestSellersRaw = inStockItems
+                .GroupBy(i => i.ProductId)
+                .Select(g => g
+                    .OrderByDescending(x => x.Sold30d)
+                    .ThenByDescending(x => x.SoldAllTime)
+                    .ThenByDescending(x => x.ViewCount)
+                    .ThenByDescending(x => x.CreatedAt)
+                    .First())
+                .OrderByDescending(i => i.Sold30d)
+                .ThenByDescending(i => i.SoldAllTime)
+                .ThenByDescending(i => i.ViewCount)
+                .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
 
-            // ====== 3. XU H??NG TU?N N�Y: ViewCount cao trong 7 ng�y g?n nh?t ======
-            var nowUtc = DateTime.UtcNow;
-            var sevenDaysAgo = nowUtc.AddDays(-7);
-
-            var weeklyCandidates = rawItems
-                .Where(i => i.CreatedAt >= sevenDaysAgo) // ?u ti�n s?n ph?m m?i 7 ng�y
+            // =========================
+            // 3) Mới ra mắt (New arrivals)
+            // Lấy còn hàng
+            // Sort: CreatedAt desc
+            // =========================
+            var newArrivalsRaw = inStockItems
+                .GroupBy(i => i.ProductId)
+                .Select(g => g
+                    .OrderByDescending(x => x.CreatedAt)
+                    .ThenByDescending(x => x.ViewCount)
+                    .First())
+                .OrderByDescending(i => i.CreatedAt)
+                .ThenByDescending(i => i.ViewCount)
+                .Take(4)
                 .ToList();
 
-            if (weeklyCandidates.Count == 0)
-            {
-                // n?u 7 ng�y g?n ?�y kh�ng c� s?n ph?m n�o, fallback d�ng to�n b?
-                weeklyCandidates = rawItems;
-            }
-
-            var weeklyTrendsRaw = weeklyCandidates
+            // =========================
+            // 4) Đang thịnh hành (Trending)
+            // Lấy còn hàng
+            // Sort: ViewCount desc
+            // =========================
+            var trendingRaw = inStockItems
+                .GroupBy(i => i.ProductId)
+                .Select(g => g
+                    .OrderByDescending(x => x.ViewCount)
+                    .ThenByDescending(x => x.CreatedAt)
+                    .First())
                 .OrderByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
 
-            // ====== 4. M?I C?P NH?T: UpdatedAt (ho?c CreatedAt) DESC ======
-            var newlyUpdatedRaw = rawItems
-                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt)
+            // =========================
+            // 5) Sắp hết hàng (Low stock)
+            // Lấy còn hàng + StockQty nhỏ (<= threshold)
+            // Sort: StockQty asc → Sold30d desc
+            // =========================
+            const int LowStockThreshold = 5;
+
+            var lowStockRaw = inStockItems
+                .Where(i => i.StockQty > 0 && i.StockQty <= LowStockThreshold)
+                .GroupBy(i => i.ProductId)
+                .Select(g => g
+                    .OrderBy(x => x.StockQty)
+                    .ThenByDescending(x => x.Sold30d)
+                    .ThenByDescending(x => x.ViewCount)
+                    .ThenByDescending(x => x.CreatedAt)
+                    .First())
+                .OrderBy(i => i.StockQty)
+                .ThenByDescending(i => i.Sold30d)
                 .ThenByDescending(i => i.ViewCount)
+                .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
 
-            // ====== Chu?n b? badge meta cho t?t c? section ======
+            // ===== Badge lookup (gộp tất cả section) =====
             var allBadgeCodes = todayDealsRaw
                 .Concat(bestSellersRaw)
-                .Concat(weeklyTrendsRaw)
-                .Concat(newlyUpdatedRaw)
+                .Concat(trendingRaw)
+                .Concat(newArrivalsRaw)
+                .Concat(lowStockRaw)
                 .SelectMany(i => i.BadgeCodes)
                 .Where(code => !string.IsNullOrWhiteSpace(code))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -146,7 +244,6 @@ namespace Keytietkiem.Controllers
                     .Where(b => allBadgeCodes.Contains(b.BadgeCode))
                     .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
 
-            // Helper map raw -> StorefrontVariantListItemDto (C� GI� + �p h?t h�ng theo t?n kho)
             StorefrontVariantListItemDto MapToDto(HomepageVariantRawItem i)
             {
                 var badges = i.BadgeCodes
@@ -163,7 +260,6 @@ namespace Keytietkiem.Controllers
                             );
                         }
 
-                        // Badge code c�n tr�n product nh?ng badge ?� xo�
                         return new StorefrontBadgeMiniDto(
                             code,
                             code,
@@ -173,12 +269,8 @@ namespace Keytietkiem.Controllers
                     })
                     .ToList();
 
-                // �p tr?ng th�i OUT_OF_STOCK n?u t?n kho <= 0
-                var outOfStock =
-                    string.Equals(i.Status, "OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
-                    || i.StockQty <= 0;
-
-                var status = outOfStock ? "OUT_OF_STOCK" : i.Status;
+                var outOfStock = i.StockQty <= 0;
+                var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
 
                 return new StorefrontVariantListItemDto(
                     VariantId: i.VariantId,
@@ -195,61 +287,74 @@ namespace Keytietkiem.Controllers
                 );
             }
 
+            // NOTE: Giữ tên field DTO để FE cũ không vỡ:
+            // - TodayBestDeals => Deals
+            // - BestSellers   => Best sellers
+            // - WeeklyTrends  => Trending
+            // - NewlyUpdated  => New arrivals
+            // + LowStock      => Low stock
             var dto = new StorefrontHomepageProductsDto(
                 TodayBestDeals: todayDealsRaw.Select(MapToDto).ToList(),
                 BestSellers: bestSellersRaw.Select(MapToDto).ToList(),
-                WeeklyTrends: weeklyTrendsRaw.Select(MapToDto).ToList(),
-                NewlyUpdated: newlyUpdatedRaw.Select(MapToDto).ToList()
+                WeeklyTrends: trendingRaw.Select(MapToDto).ToList(),
+                NewlyUpdated: newArrivalsRaw.Select(MapToDto).ToList(),
+                LowStock: lowStockRaw.Select(MapToDto).ToList()
             );
 
             return Ok(dto);
         }
 
         /// <summary>
-        /// Logic sort "b�n ch?y" gi?ng v?i ListVariants (default/sold/bestseller):
-        /// - G�n Rank = 1,2,3,... trong t?ng ProductId theo ViewCount DESC
-        /// - To�n b? list: Rank ?, r?i ViewCount ?
+        /// SoldQuantity từ các đơn thành công (Orders.Status == "Paid")
+        /// Nếu createdFromUtc != null thì chỉ tính trong khoảng thời gian đó (ví dụ 30 ngày gần nhất)
         /// </summary>
-        private static List<HomepageVariantRawItem> OrderAsBestSeller(
-            List<HomepageVariantRawItem> rawItems)
+        private static async Task<Dictionary<Guid, int>> LoadSoldLookupAsync(
+            KeytietkiemDbContext db,
+            List<Guid> variantIds,
+            DateTime? createdFromUtc)
         {
-            var ranked = rawItems
-                .GroupBy(i => i.ProductId)
-                .SelectMany(g =>
-                    g.OrderByDescending(x => x.ViewCount)
-                     .ThenByDescending(x => x.VariantId)
-                     .Select((item, index) => new
-                     {
-                         Item = item,
-                         Rank = index + 1
-                     })
-                )
-                .ToList();
+            if (variantIds == null || variantIds.Count == 0)
+                return new Dictionary<Guid, int>();
 
-            var ordered = ranked
-                .OrderBy(x => x.Rank)
-                .ThenByDescending(x => x.Item.ViewCount)
-                .Select(x => x.Item)
-                .ToList();
+            var q =
+                from od in db.OrderDetails.AsNoTracking()
+                join o in db.Orders.AsNoTracking() on od.OrderId equals o.OrderId
+                where o.Status == "Paid" && variantIds.Contains(od.VariantId)
+                select new
+                {
+                    od.VariantId,
+                    od.Quantity,
+                    o.CreatedAt
+                };
 
-            return ordered;
+            if (createdFromUtc.HasValue)
+            {
+                var fromUtc = createdFromUtc.Value;
+                q = q.Where(x => x.CreatedAt >= fromUtc);
+            }
+
+            var rows = await q
+                .GroupBy(x => x.VariantId)
+                .Select(g => new
+                {
+                    VariantId = g.Key,
+                    SoldQty = g.Sum(x => x.Quantity)
+                })
+                .ToListAsync();
+
+            return rows.ToDictionary(x => x.VariantId, x => x.SoldQty);
         }
 
         private static decimal ComputeDiscountPercent(decimal sellPrice, decimal listPrice)
         {
-            // listPrice = gi� ni�m y?t, sellPrice = gi� b�n th?c t?
+            // listPrice = giá niêm yết, sellPrice = giá bán thực tế
             if (sellPrice <= 0 || listPrice <= 0 || sellPrice >= listPrice)
-            {
                 return 0m;
-            }
 
             var percent = (listPrice - sellPrice) / listPrice * 100m;
             return Math.Round(percent, 2);
         }
 
-        /// <summary>
-        /// Raw item d�ng n?i b? cho homepage.
-        /// </summary>
         private sealed record HomepageVariantRawItem(
             Guid VariantId,
             Guid ProductId,
@@ -265,6 +370,8 @@ namespace Keytietkiem.Controllers
             decimal SellPrice,
             decimal ListPrice,
             decimal DiscountPercent,
+            int Sold30d,
+            int SoldAllTime,
             List<string> BadgeCodes,
             int StockQty
         );

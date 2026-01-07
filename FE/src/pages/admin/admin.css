@@ -4,6 +4,7 @@
   --line: #e5e7eb;
   --page: #f3f6fa;
   --card: #fff;
+  --hover: #f9fafb;
   --primary: #2563eb;
   --success: #10b981;
   --warning: #f59e0b;
@@ -125,6 +126,7 @@ textarea {
   border-radius: 12px;
   background: #fff;
 }
+
 .chunk-text {
   display: inline-block;
   max-width: 100%;
@@ -424,6 +426,7 @@ textarea {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
+   white-space: nowrap;
 }
 
 /* Input & Select: cùng chiều cao, bo góc, padding
@@ -475,12 +478,14 @@ table .row select {
   min-width: 160px;
 }
 
-/* ==== Action buttons (match style RBAC) ==== */
 .action-buttons {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;   /* luôn 1 hàng */
+  white-space: nowrap; /* tránh xuống dòng */
 }
+
 .action-btn {
   width: 32px;
   height: 32px;
@@ -959,4 +964,63 @@ label {
 .variants-table tbody td:last-child {
   border-right: 1px solid var(--line);
   border-radius: 0 10px 10px 0;
+}
+
+/* ====== Report Form Fields (ProductReportDetailPage) ====== */
+.report-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.report-form-field label {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.report-form-field label span {
+  color: red;
+  margin-left: 2px;
+}
+
+.report-form-field select,
+.report-form-field input,
+.report-form-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.report-form-field select:focus,
+.report-form-field input:focus,
+.report-form-field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* ====== Fix red asterisk for all .group fields ====== */
+.group > span {
+  white-space: nowrap !important;
+  display: inline-block !important;
+}
+
+.group > span > span {
+  color: red !important;
+  margin-left: 2px;
+  display: inline !important;
+}
+
+.main .group > span {
+  white-space: nowrap !important;
+  display: inline-block !important;
 }

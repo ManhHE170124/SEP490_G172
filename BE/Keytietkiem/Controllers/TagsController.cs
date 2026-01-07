@@ -15,21 +15,29 @@
 */
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Keytietkiem.DTOs.Post;
+using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
+using Keytietkiem.Constants;
+using System.Security.Claims;
 using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.DTOs.Post;
 
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class TagsController : ControllerBase
     {
+        private readonly IPostService _postService;
         private readonly KeytietkiemDbContext _context;
 
-        public TagsController(KeytietkiemDbContext context)
+        public TagsController(IPostService postService, KeytietkiemDbContext keytietkiemDbContext)
         {
-            _context = context;
+            _postService = postService ?? throw new ArgumentNullException(nameof(postService));
+            _context = keytietkiemDbContext;
         }
 
         /**
@@ -39,17 +47,19 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with list of tags
          */
         [HttpGet]
+        [AllowAnonymous]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTags()
         {
-            var tags = await _context.Tags
-                .Select(t => new TagDTO
-                {
-                    TagId = t.TagId,
-                    TagName = t.TagName,
-                    Slug = t.Slug
-                })
-                .ToListAsync();
-            return Ok(tags);
+            try
+            {
+                var tags = await _postService.GetAllTagsAsync();
+                return Ok(tags);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -59,23 +69,23 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK with tag, 404 if not found
          */
         [HttpGet("{id}")]
+        [AllowAnonymous]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> GetTagById(Guid id)
         {
-            var tag = await _context.Tags
-                .FirstOrDefaultAsync(t => t.TagId == id);
-            if (tag == null)
+            try
             {
-                return NotFound();
+                var tag = await _postService.GetTagByIdAsync(id);
+                return Ok(tag);
             }
-
-            var tagDto = new TagDTO
+            catch (InvalidOperationException ex)
             {
-                TagId = tag.TagId,
-                TagName = tag.TagName,
-                Slug = tag.Slug
-            };
-
-            return Ok(tagDto);
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -85,6 +95,7 @@ namespace Keytietkiem.Controllers
          * Returns: 201 Created with created tag, 400/409 on validation errors
          */
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreateTag([FromBody] CreateTagDTO createTagDto)
         {
             if (createTagDto == null)
@@ -98,37 +109,24 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            var existingByName = await _context.Tags
-                .FirstOrDefaultAsync(t => t.TagName == createTagDto.TagName);
-            if (existingByName != null)
+            try
             {
-                return Conflict(new { message = "Tên thẻ đã tồn tại." });
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var tag = await _postService.CreateTagAsync(createTagDto, actorId);
+                return CreatedAtAction(nameof(GetTagById), new { id = tag.TagId }, tag);
             }
-
-            var existingBySlug = await _context.Tags
-                .FirstOrDefaultAsync(t => t.Slug == createTagDto.Slug);
-            if (existingBySlug != null)
+            catch (ArgumentNullException ex)
             {
-                return Conflict(new { message = "Slug đã tồn tại." });
+                return BadRequest(new { message = ex.Message });
             }
-
-            var newTag = new Tag
+            catch (InvalidOperationException ex)
             {
-                TagName = createTagDto.TagName,
-                Slug = createTagDto.Slug
-            };
-
-            _context.Tags.Add(newTag);
-            await _context.SaveChangesAsync();
-
-            var tagDto = new TagDTO
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
             {
-                TagId = newTag.TagId,
-                TagName = newTag.TagName,
-                Slug = newTag.Slug
-            };
-
-            return CreatedAtAction(nameof(GetTagById), new { id = newTag.TagId }, tagDto);
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -139,6 +137,7 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 400/404/409 on errors
          */
         [HttpPut("{id}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdateTag(Guid id, [FromBody] UpdateTagDTO updateTagDto)
         {
             if (updateTagDto == null)
@@ -152,34 +151,28 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
 
-            var existing = await _context.Tags
-                .FirstOrDefaultAsync(t => t.TagId == id);
-            if (existing == null)
+            try
             {
-                return NotFound();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.UpdateTagAsync(id, updateTagDto, actorId);
+                return NoContent();
             }
-
-            var existingByName = await _context.Tags
-                .FirstOrDefaultAsync(t => t.TagName == updateTagDto.TagName && t.TagId != id);
-            if (existingByName != null)
+            catch (ArgumentNullException ex)
             {
-                return Conflict(new { message = "Tên thẻ đã tồn tại." });
+                return BadRequest(new { message = ex.Message });
             }
-
-            var existingBySlug = await _context.Tags
-                .FirstOrDefaultAsync(t => t.Slug == updateTagDto.Slug && t.TagId != id);
-            if (existingBySlug != null)
+            catch (InvalidOperationException ex)
             {
-                return Conflict(new { message = "Slug trùng với thẻ đã có sẵn." });
+                if (ex.Message.Contains("tồn tại") || ex.Message.Contains("trùng"))
+                {
+                    return Conflict(new { message = ex.Message });
+                }
+                return NotFound(new { message = ex.Message });
             }
-
-            existing.TagName = updateTagDto.TagName;
-            existing.Slug = updateTagDto.Slug;
-
-            _context.Tags.Update(existing);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
 
         /**
@@ -189,19 +182,25 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteTag(Guid id)
         {
-            var existingTag = await _context.Tags
-                .FirstOrDefaultAsync(t => t.TagId == id);
-            if (existingTag == null)
+            try
             {
-                return NotFound();
+                var actorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                await _postService.DeleteTagAsync(id, actorId);
+                return NoContent();
             }
-
-            _context.Tags.Remove(existingTag);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
         }
+
+
     }
 }

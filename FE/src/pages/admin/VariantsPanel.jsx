@@ -1,3 +1,4 @@
+// src/pages/admin/VariantsPanel.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import ProductVariantsApi from "../../services/productVariants";
@@ -75,7 +76,7 @@ export default function VariantsPanel({
   const [size, setSize] = React.useState(10);
 
   const [showModal, setShowModal] = React.useState(false);
-  const [editing, setEditing] = React.useState(null);
+  const [editing] = React.useState(null); // hiện tại modal chỉ dùng để tạo mới
   const [modalErrors, setModalErrors] = React.useState({});
   const fileInputRef = React.useRef(null);
 
@@ -117,8 +118,10 @@ export default function VariantsPanel({
     });
   }, []);
 
+  // Mapping status theo quy ước mới
   const statusBadgeClass = (s, stockQty) => {
     const upper = String(s || "").toUpperCase();
+    if (upper === "INACTIVE") return "badge gray";
     if (upper === "OUT_OF_STOCK" || (stockQty ?? 0) <= 0) return "badge warning";
     if (upper === "ACTIVE") return "badge green";
     return "badge gray";
@@ -126,6 +129,7 @@ export default function VariantsPanel({
 
   const statusLabel = (s, stockQty) => {
     const upper = String(s || "").toUpperCase();
+    if (upper === "INACTIVE") return "Ẩn";
     if (upper === "OUT_OF_STOCK" || (stockQty ?? 0) <= 0) return "Hết hàng";
     if (upper === "ACTIVE") return "Hiển thị";
     return "Ẩn";
@@ -152,17 +156,56 @@ export default function VariantsPanel({
           minPrice: priceMin || undefined,
           maxPrice: priceMax || undefined,
         });
+
         const list = res.items || [];
         setItems(list);
-        setTotal(res.totalItems || 0);
-        setTotalPages(res.totalPages || 1);
 
-        if (typeof onTotalChange === "function" && Array.isArray(list)) {
-          const sum = list.reduce(
-            (acc, v) => acc + (Number(v.stockQty) || 0),
-            0
-          );
-          onTotalChange(sum);
+        const totalItems =
+          typeof res.totalItems === "number"
+            ? res.totalItems
+            : Array.isArray(list)
+            ? list.length
+            : 0;
+
+        setTotal(totalItems);
+
+        const pageSizeFromRes =
+          typeof res.pageSize === "number" && res.pageSize > 0
+            ? res.pageSize
+            : size;
+
+        const totalPagesCalc = Math.max(
+          1,
+          Math.ceil(totalItems / pageSizeFromRes || 1)
+        );
+        setTotalPages(totalPagesCalc);
+
+        if (typeof onTotalChange === "function") {
+          // ưu tiên lấy tổng tồn kho & tổng biến thể từ response nếu BE có trả,
+          // fallback tính từ list trang hiện tại
+          const totalStockFromRes =
+            typeof res.totalStock === "number"
+              ? res.totalStock
+              : typeof res.TotalStock === "number"
+              ? res.TotalStock
+              : Array.isArray(list)
+              ? list.reduce(
+                  (acc, v) => acc + (Number(v.stockQty) || 0),
+                  0
+                )
+              : 0;
+
+          const variantCountFromRes =
+            typeof res.totalItems === "number"
+              ? res.totalItems
+              : Array.isArray(list)
+              ? list.length
+              : 0;
+
+          onTotalChange({
+            totalStock: totalStockFromRes,
+            variantCount: variantCountFromRes,
+          });
         }
       } catch (e) {
         console.error(e);
@@ -175,7 +218,20 @@ export default function VariantsPanel({
         setLoading(false);
       }
     },
-    [productId, q, status, dur, sort, dir, page, size, priceMin, priceMax, onTotalChange, addToast]
+    [
+      productId,
+      q,
+      status,
+      dur,
+      sort,
+      dir,
+      page,
+      size,
+      priceMin,
+      priceMax,
+      onTotalChange,
+      addToast,
+    ]
   );
 
   React.useEffect(() => {
@@ -199,15 +255,13 @@ export default function VariantsPanel({
   };
 
   const openCreate = () => {
-    setEditing(null);
+    // hiện chỉ dùng để tạo mới – editing = null
     setThumbPreview(null);
     setThumbUrl(null);
     setModalErrors({});
     setModalStatus("ACTIVE");
     setShowModal(true);
   };
-
-  const openEdit = (v) => goDetail(v);
 
   // Upload helpers
   const urlToFile = async (url) => {
@@ -305,7 +359,7 @@ export default function VariantsPanel({
         const f = await urlToFile(text);
         await uploadThumbnailFile(f);
       } catch {
-        addToast("error", "Không thể tải ảnh từ URL này");
+        addToast("error", "Không thể tải ảnh từ URL này", "");
       }
     }
   };
@@ -326,7 +380,7 @@ export default function VariantsPanel({
               const f = await urlToFile(text);
               await uploadThumbnailFile(f);
             } catch {
-              addToast("error", "Không thể tải ảnh từ URL này");
+              addToast("error", "Không thể tải ảnh từ URL này", "");
             }
           }
         });
@@ -385,7 +439,6 @@ export default function VariantsPanel({
     const lowerCode = variantCode.toLowerCase();
 
     items.forEach((v) => {
-      if (editing && v.variantId === editing.variantId) return;
       if ((v.title || "").trim().toLowerCase() === lowerTitle) {
         errors.title = "Tên biến thể đã tồn tại trong sản phẩm này.";
       }
@@ -395,12 +448,16 @@ export default function VariantsPanel({
     });
 
     // Thời lượng / Bảo hành
-    if (durationDays != null && durationDays < 0) {
+    if (durationDays == null) {
+      errors.durationDays = "Thời lượng (ngày) là bắt buộc.";
+    } else if (durationDays < 0) {
       errors.durationDays = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0.";
     }
+
     if (warrantyDays != null && warrantyDays < 0) {
       errors.warrantyDays = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0.";
     }
+
     if (
       durationDays != null &&
       warrantyDays != null &&
@@ -410,7 +467,7 @@ export default function VariantsPanel({
         "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
     }
 
-    // ===== Validate giá niêm yết / giá bán =====
+    // ===== Validate giá niêm yết / giá bán (khớp với decimal(18,2) + rule Sell <= List) =====
     if (!listRaw || listNum === null) {
       errors.listPrice = "Giá niêm yết là bắt buộc.";
     } else if (listNum < 0) {
@@ -457,9 +514,9 @@ export default function VariantsPanel({
         title,
         durationDays,
         warrantyDays,
-        status: modalStatus,
+        status: modalStatus, // controller sẽ resolve theo stockQty
         thumbnail: sanitizeThumbnail(thumbUrl) || null,
-        stockQty: 0,
+        stockQty: 0, // tạo mới luôn 0, controller sẽ set OUT_OF_STOCK hoặc INACTIVE
         listPrice: Number(listNum.toFixed(2)),
         sellPrice: Number(sellNum.toFixed(2)),
       };
@@ -540,32 +597,50 @@ export default function VariantsPanel({
   const sortMark = (key) =>
     sort === key ? (dir === "asc" ? " ▲" : " ▼") : "";
 
+  // Toggle theo controller mới: stock = 0 => OUT_OF_STOCK (vẫn hiển thị, không ẩn)
   const toggleVariantStatus = async (v) => {
-    if ((v.stockQty ?? 0) <= 0) {
-      addToast(
-        "warning",
-        "Không thể đổi trạng thái",
-        "Biến thể này đang hết hàng (tồn kho = 0). Vui lòng nhập thêm tồn kho trước khi bật hiển thị."
-      );
-      return;
-    }
-
     try {
       const payload = await ProductVariantsApi.toggle(productId, v.variantId);
-      const next = (payload?.Status || payload?.status || "").toUpperCase();
+      const nextRaw = payload?.Status ?? payload?.status;
+      const next = (nextRaw || "").toUpperCase();
+
       setItems((prev) =>
         prev.map((x) =>
           x.variantId === v.variantId ? { ...x, status: next || x.status } : x
         )
       );
-      addToast(
-        "success",
-        "Cập nhật trạng thái",
-        `Biến thể hiện đang ở trạng thái "${statusLabel(
-          next || v.status,
-          v.stockQty
-        )}".`
-      );
+
+      if (!next) {
+        addToast(
+          "success",
+          "Cập nhật trạng thái",
+          "Đã cập nhật trạng thái biến thể."
+        );
+        return;
+      }
+
+      if (next === "OUT_OF_STOCK" || (v.stockQty ?? 0) <= 0) {
+        addToast(
+          "info",
+          "Biến thể hết hàng",
+          "Biến thể hiện đang ở trạng thái 'Hết hàng' (khách vẫn có thể xem nhưng không thể mua cho đến khi nhập thêm tồn kho)."
+        );
+      } else if (next === "INACTIVE") {
+        addToast(
+          "info",
+          "Biến thể đã ẩn",
+          "Biến thể đã được ẩn khỏi trang bán."
+        );
+      } else {
+        addToast(
+          "success",
+          "Cập nhật trạng thái",
+          `Biến thể hiện đang ở trạng thái "${statusLabel(
+            next,
+            v.stockQty
+          )}".`
+        );
+      }
     } catch (e) {
       console.error(e);
       addToast(
@@ -676,15 +751,15 @@ export default function VariantsPanel({
               <div className="variants-scroller">
                 <table className="variants-table">
                   <colgroup>
-                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "20%" }} />
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "10%" }} />
-                    <col style={{ width: "12%" }} /> {/* Giá bán */}
-                    <col style={{ width: "12%" }} /> {/* Giá niêm yết */}
-                    <col style={{ width: "8%" }} />  {/* Trạng thái */}
-                    <col style={{ width: "7%" }} />  {/* Lượt xem */}
-                    <col style={{ width: "7%" }} />  {/* Thao tác */}
+                    <col style={{ width: "10%" }} /> {/* Giá bán */}
+                    <col style={{ width: "10%" }} /> {/* Giá niêm yết */}
+                    <col style={{ width: "8%" }} /> {/* Trạng thái */}
+                    <col style={{ width: "7%" }} /> {/* Lượt xem */}
+                    <col style={{ width: "15%" }} /> {/* Thao tác */}
                   </colgroup>
                   <thead>
                     <tr>
@@ -786,7 +861,7 @@ export default function VariantsPanel({
                         <td className="mono">{v.viewCount ?? 0}</td>
 
                         <td className="td-actions td-left">
-                          <div className="row" style={{ gap: 8 }}>
+                          <div className="action-buttons">
                             <button
                               className="action-btn edit-btn"
                               title="Xem chi tiết"
@@ -820,7 +895,7 @@ export default function VariantsPanel({
                               className="switch"
                               title={
                                 (v.stockQty ?? 0) <= 0
-                                  ? "Hết hàng – không thể bật"
+                                  ? "Hết hàng – bật/tắt chỉ chuyển giữa 'Hết hàng' và 'Ẩn'"
                                   : "Bật/Tắt hiển thị"
                               }
                             >
@@ -959,7 +1034,7 @@ export default function VariantsPanel({
         </div>
       </div>
 
-      {/* MODAL CREATE / EDIT */}
+      {/* MODAL CREATE */}
       {showModal && (
         <div className="modal-backdrop">
           <div
@@ -972,9 +1047,7 @@ export default function VariantsPanel({
             }}
           >
             <div className="modal-topbar">
-              <h3 style={{ margin: 0 }}>
-                {editing ? "Sửa biến thể" : "Thêm biến thể"}
-              </h3>
+              <h3 style={{ margin: 0 }}>Thêm biến thể</h3>
               <div className="row" style={{ gap: 8, alignItems: "center" }}>
                 <label className="switch" title="Bật/Tắt hiển thị">
                   <input
@@ -1009,7 +1082,7 @@ export default function VariantsPanel({
                   </span>
                   <input
                     name="title"
-                    defaultValue={editing?.title ?? productName ?? ""}
+                    defaultValue={productName ?? ""}
                     maxLength={TITLE_MAX}
                     className={modalErrors.title ? "input-error" : ""}
                   />
@@ -1023,7 +1096,7 @@ export default function VariantsPanel({
                   </span>
                   <input
                     name="variantCode"
-                    defaultValue={editing?.variantCode ?? productCode ?? ""}
+                    defaultValue={productCode ?? ""}
                     maxLength={CODE_MAX}
                     className={modalErrors.variantCode ? "input-error" : ""}
                   />
@@ -1046,7 +1119,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1}
                     name="durationDays"
-                    defaultValue={editing?.durationDays ?? 0}
+                    defaultValue={0}
                     className={modalErrors.durationDays ? "input-error" : ""}
                   />
                   {modalErrors.durationDays && (
@@ -1062,7 +1135,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1}
                     name="warrantyDays"
-                    defaultValue={editing?.warrantyDays ?? 0}
+                    defaultValue={0}
                     className={modalErrors.warrantyDays ? "input-error" : ""}
                   />
                   {modalErrors.warrantyDays && (
@@ -1084,7 +1157,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1000}
                     name="listPrice"
-                    defaultValue={editing?.listPrice ?? 0}
+                    defaultValue={0}
                     className={modalErrors.listPrice ? "input-error" : ""}
                   />
                   {modalErrors.listPrice && (
@@ -1100,7 +1173,7 @@ export default function VariantsPanel({
                     min={0}
                     step={1000}
                     name="sellPrice"
-                    defaultValue={editing?.sellPrice ?? 0}
+                    defaultValue={0}
                     className={modalErrors.sellPrice ? "input-error" : ""}
                   />
                   {modalErrors.sellPrice && (
@@ -1184,7 +1257,7 @@ export default function VariantsPanel({
                   Hủy
                 </button>
                 <button type="submit" className="btn primary">
-                  {editing ? "Lưu" : "Thêm"}
+                  Thêm
                 </button>
               </div>
             </form>

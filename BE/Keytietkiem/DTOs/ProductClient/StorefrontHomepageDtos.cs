@@ -1,19 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Keytietkiem.DTOs.ProductClient
 {
-    public record StorefrontHomepageProductsDto(
-        // Ưu đãi hôm nay: 4 sản phẩm có % giảm giá cao nhất
-        IReadOnlyCollection<StorefrontVariantListItemDto> TodayBestDeals,
-
-        // Sản phẩm bán chạy: sort theo "bán chạy" giống trang list products
-        IReadOnlyCollection<StorefrontVariantListItemDto> BestSellers,
-
-        // Xu hướng tuần này: sản phẩm có nhiều ViewCount nhất trong tuần
-        IReadOnlyCollection<StorefrontVariantListItemDto> WeeklyTrends,
-
-        // Mới cập nhật: sản phẩm sort theo UpdatedAt mới nhất
-        IReadOnlyCollection<StorefrontVariantListItemDto> NewlyUpdated
+    public sealed record StorefrontHomepageProductsDto(
+        IReadOnlyList<StorefrontVariantListItemDto> TodayBestDeals,
+        IReadOnlyList<StorefrontVariantListItemDto> BestSellers,
+        IReadOnlyList<StorefrontVariantListItemDto> WeeklyTrends,
+        IReadOnlyList<StorefrontVariantListItemDto> NewlyUpdated,
+        IReadOnlyList<StorefrontVariantListItemDto> LowStock
     );
 }

@@ -41,7 +41,7 @@ const profileService = {
    * @returns {Promise<object>}
    */
   getOrders: (params) =>
-    axiosClient.get("/account/orders", {
+    axiosClient.get("/orders/history", {
       params,
     }),
 

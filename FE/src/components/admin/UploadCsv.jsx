@@ -12,8 +12,27 @@ export default function UploadCsv({ onUpload, disabled }){
   }
   return (
     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-      <input type="file" accept=".csv,text/csv" onChange={onPick}/>
-      <button onClick={upload} disabled={!file || disabled}>Upload</button>
+      <input
+        type="file"
+        accept=".csv,text/csv"
+        onChange={onPick}
+        style={{
+          padding: "8px 12px",
+          border: "1px solid var(--line)",
+          borderRadius: "6px",
+          background: "var(--card)",
+          color: "var(--text)",
+          fontSize: "14px",
+          cursor: "pointer"
+        }}
+      />
+      <button
+        className="btn primary"
+        onClick={upload}
+        disabled={!file || disabled}
+      >
+        Upload
+      </button>
     </div>
   )
 }

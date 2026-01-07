@@ -15,6 +15,8 @@ public partial class OrderDetail
 
     public decimal UnitPrice { get; set; }
 
+    public string? ClaimToken { get; set; }
+
     public Guid? KeyId { get; set; }
 
     public virtual ProductKey? Key { get; set; }

@@ -1,0 +1,460 @@
+/* File: src/pages/admin/AdminOrderListPage.css
+ * Purpose: UI riêng cho AdminOrderListPage (không dùng naming auditlog)
+ * Style: card + filters + table hiện đại, thuần Việt
+ */
+
+.aol-page {
+  --aol-ink: #0b1220;
+  --aol-muted: #6b7280;
+  --aol-line: #e5e7eb;
+  --aol-card: #ffffff;
+  --aol-primary: #2563eb;
+  --aol-radius: 16px;
+  --aol-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --aol-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  padding: 18px;
+  max-width: 1240px;
+  margin: 0 auto;
+  color: var(--aol-ink);
+}
+
+.aol-page .mono {
+  font-family: var(--aol-mono);
+}
+
+/* ===== Header ===== */
+.aol-page .order-payment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.aol-page .order-payment-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* ===== Card wrapper ===== */
+.aol-card {
+  background: var(--aol-card);
+  border-radius: var(--aol-radius);
+  box-shadow: var(--aol-shadow);
+  border: 1px solid var(--aol-line);
+  padding: 16px 18px 18px;
+}
+
+/* ===== Filters ===== */
+.aol-page .op-toolbar {
+  margin-top: 10px;
+}
+
+/* ✅ Thu nhỏ cột Tìm kiếm + kéo rộng Trạng thái */
+.aol-page .op-filters {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1.15fr 1.6fr 0.62fr; /* search nhỏ hơn, status rộng hơn, actions hẹp vì icon */
+  gap: 12px;
+  align-items: end;
+}
+
+.aol-page .op-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aol-page .op-group span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--aol-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.aol-page .op-group input,
+.aol-page .op-group select {
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--aol-line);
+  padding: 0 12px;
+  outline: none;
+  background: #f9fafb;
+  color: var(--aol-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.aol-page .op-group input::placeholder {
+  color: #9ca3af;
+}
+
+.aol-page .op-group input:focus,
+.aol-page .op-group select:focus {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  background: #ffffff;
+}
+
+/* ✅ Tổng tiền: 2 ô sát hơn */
+.aol-amountRange {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ✅ Cụm icon Lọc / Đặt lại */
+.aol-filterActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.aol-iconActionBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--aol-line);
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.aol-iconActionBtn:hover {
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  background: #f9fafb;
+}
+
+.aol-iconActionBtn:active {
+  transform: translateY(1px);
+}
+
+.aol-iconActionBtn.primary {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.aol-iconActionBtn.primary:hover {
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.12);
+}
+
+/* ===== Top info line ===== */
+.aol-topInfo {
+  margin-top: 10px;
+  text-align: right;
+  color: var(--aol-muted);
+  font-size: 13px;
+}
+
+/* ===== Table ===== */
+.aol-tableWrap {
+  margin-top: 10px;
+  border: 1px solid var(--aol-line);
+  border-radius: 14px;
+  overflow: auto;
+  background: #fff;
+}
+
+.aol-page .op-table.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 980px;
+}
+
+.aol-page .op-table.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fafafa;
+  border-bottom: 1px solid var(--aol-line);
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 12px 12px;
+  white-space: nowrap;
+}
+
+.aol-page .op-table.table tbody td {
+  padding: 12px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.aol-page .op-table.table tbody tr:hover {
+  background: #f3f4ff;
+}
+
+.aol-page .op-th-actions,
+.aol-page .op-td-actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* sort header */
+.aol-page .table-sort-header {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+}
+
+.aol-page .table-sort-header:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* primary cell */
+.aol-page .op-cell-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aol-page .op-cell-title {
+  font-weight: 800;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.aol-page .op-cell-sub {
+  color: var(--aol-muted);
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ✅ Mã đơn: 1 dòng OrderId full, đậm + to hơn */
+.aol-orderId {
+  display: inline-block;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  word-break: break-all;
+}
+
+/* ✅ Giá kiểu homepage: giá cũ mờ + gạch */
+.aol-price {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.2;
+}
+
+.aol-price-new {
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.aol-price-old {
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--aol-muted);
+  opacity: 0.75;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+/* Action button (Xem chi tiết) */
+.aol-page .op-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--aol-ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.05s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.aol-page .op-icon-btn:hover {
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.aol-page .op-icon-btn:active {
+  transform: translateY(1px);
+}
+
+/* Status pills */
+.aol-page .status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid var(--aol-line);
+  background: #fff;
+}
+
+.aol-page .status-pill.payment-pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.aol-page .status-pill.payment-paid {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.aol-page .status-pill.payment-cancelled,
+.aol-page .status-pill.payment-failed,
+.aol-page .status-pill.payment-timeout {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.aol-page .status-pill.payment-refunded {
+  background: rgba(2, 132, 199, 0.1);
+  color: #075985;
+  border-color: rgba(2, 132, 199, 0.2);
+}
+
+.aol-page .status-pill.payment-unknown {
+  background: rgba(107, 114, 128, 0.1);
+  color: #374151;
+  border-color: rgba(107, 114, 128, 0.2);
+}
+
+/* ===== Pager: Trước/Sau cạnh cụm số trang + page size ở góc ===== */
+.aol-pager {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--aol-line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.aol-pager-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.aol-pager-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-left: auto;
+}
+
+.aol-navBtn {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--aol-line);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.aol-navBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.aol-pageBtn {
+  height: 38px;
+  min-width: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid var(--aol-line);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.aol-pageBtn.active {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--aol-primary);
+}
+
+.aol-dots {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 6px;
+  color: var(--aol-muted);
+  font-weight: 900;
+}
+
+/* ✅ Page size: chỉ dropdown */
+.aol-pageSizeSelect {
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--aol-line);
+  background: #fff;
+  padding: 0 10px;
+  color: var(--aol-ink);
+  font-weight: 900;
+  min-width: 80px;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .aol-page .op-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .aol-filterActions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .aol-page {
+    padding: 12px;
+  }
+  .aol-page .op-filters {
+    grid-template-columns: 1fr;
+  }
+  .aol-amountRange {
+    grid-template-columns: 1fr;
+  }
+  .aol-pager {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .aol-pager-right {
+    justify-content: center;
+    margin-left: 0;
+  }
+}

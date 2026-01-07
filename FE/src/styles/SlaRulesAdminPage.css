@@ -1,0 +1,640 @@
+/* File: src/styles/SlaRulesAdminPage.css */
+:root {
+  --ink: #3c4b6b;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --page: #f3f6fa;
+  --card: #ffffff;
+  --primary: #2563eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Arial, sans-serif;
+}
+
+/* ===== Text helpers ===== */
+.sla-rules-page .muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ===== Layout & card ===== */
+.sla-rules-page {
+  min-height: 100vh;
+  padding: 24px 16px 40px;
+  background: var(--page);
+}
+
+.sla-rules-page > .card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  padding: 20px 20px 24px;
+  margin: 0 auto;
+  max-width: 1120px;
+}
+
+.sla-rules-page .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.sla-rules-page .card-header .left h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.sla-rules-page .card-header .left p {
+  margin: 0;
+}
+
+/* ===== SLA rules helper note ===== */
+.sla-rules-page .sla-rules-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  font-size: 12px;
+  color: #1e3a8a;
+}
+
+.sla-rules-page .sla-rules-note-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sla-rules-page .sla-rules-note ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.sla-rules-page .sla-rules-note li {
+  margin-bottom: 2px;
+}
+
+/* ===== Flex helpers ===== */
+
+.sla-rules-page .row,
+.sla-modal-card .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sla-rules-page .col,
+.sla-modal-card .col {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Một group field (label + input) */
+.sla-rules-page .group,
+.sla-modal-card .group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.sla-rules-page .group > span,
+.sla-modal-card .group > span {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ===== Form controls ===== */
+
+.sla-rules-page input,
+.sla-rules-page select,
+.sla-rules-page textarea,
+.sla-modal-card input,
+.sla-modal-card select,
+.sla-modal-card textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.sla-rules-page input::placeholder,
+.sla-rules-page textarea::placeholder,
+.sla-modal-card input::placeholder,
+.sla-modal-card textarea::placeholder {
+  color: #9ca3af;
+}
+
+.sla-rules-page input:focus,
+.sla-rules-page select:focus,
+.sla-rules-page textarea:focus,
+.sla-modal-card input:focus,
+.sla-modal-card select:focus,
+.sla-modal-card textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.sla-rules-page textarea,
+.sla-modal-card textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.sla-rules-page .mono,
+.sla-modal-card .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* ===== Buttons ===== */
+
+.sla-rules-page .btn,
+.sla-modal-card .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.02s ease;
+}
+
+.sla-rules-page .btn:hover:not(:disabled),
+.sla-modal-card .btn:hover:not(:disabled) {
+  background: #f3f4ff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  transform: translateY(-0.5px);
+}
+
+.sla-rules-page .btn:active:not(:disabled),
+.sla-modal-card .btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.sla-rules-page .btn:disabled,
+.sla-modal-card .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Variants */
+.sla-rules-page .btn.primary,
+.sla-modal-card .btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.sla-rules-page .btn.primary:hover:not(:disabled),
+.sla-modal-card .btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.sla-rules-page .btn.secondary,
+.sla-modal-card .btn.secondary {
+  background: #eff6ff;
+  border-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sla-rules-page .btn.secondary:hover:not(:disabled),
+.sla-modal-card .btn.secondary:hover:not(:disabled) {
+  background: #e0ebff;
+}
+
+.sla-rules-page .btn.danger,
+.sla-modal-card .btn.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.sla-rules-page .btn.danger:hover:not(:disabled),
+.sla-modal-card .btn.danger:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.sla-rules-page .btn.ghost,
+.sla-modal-card .btn.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.sla-rules-page .btn.ghost:hover:not(:disabled),
+.sla-modal-card .btn.ghost:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.sla-rules-page .btn.status-btn,
+.sla-modal-card .btn.status-btn {
+  padding: 2px 8px;
+}
+
+/* ===== Badge ===== */
+
+.sla-rules-page .badge,
+.sla-modal-card .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.sla-rules-page .badge.green,
+.sla-modal-card .badge.green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.sla-rules-page .badge.gray,
+.sla-modal-card .badge.gray {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.sla-rules-page .badge.level-priority,
+.sla-modal-card .badge.level-priority {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.sla-rules-page .badge.level-vip,
+.sla-modal-card .badge.level-vip {
+  background: rgba(129, 140, 248, 0.16);
+  color: #4c1d95;
+}
+
+.sla-rules-page .badge.level-other,
+.sla-modal-card .badge.level-other {
+  background: rgba(55, 65, 81, 0.12);
+  color: #111827;
+}
+
+/* Severity colors */
+.sla-rules-page .badge.sev-low,
+.sla-modal-card .badge.sev-low {
+  background: rgba(16, 185, 129, 0.12);
+  color: #15803d;
+}
+
+.sla-rules-page .badge.sev-medium,
+.sla-modal-card .badge.sev-medium {
+  background: rgba(234, 179, 8, 0.18);
+  color: #92400e;
+}
+
+.sla-rules-page .badge.sev-high,
+.sla-modal-card .badge.sev-high {
+  background: rgba(249, 115, 22, 0.18);
+  color: #b45309;
+}
+
+.sla-rules-page .badge.sev-critical,
+.sla-modal-card .badge.sev-critical {
+  background: #7f1d1d;
+  color: #fee2e2;
+}
+
+/* ===== Table ===== */
+
+.sla-rules-page .table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.sla-rules-page .table th,
+.sla-rules-page .table td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.sla-rules-page .table thead th {
+  background: #f9fafb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ===== Pager ===== */
+
+.sla-rules-page .pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.sla-rules-page .pager-left,
+.sla-rules-page .pager-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sla-rules-page .pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  font-size: 13px;
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.sla-rules-page .pager-btn:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: #e0e7ff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.sla-rules-page .pager-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+.sla-rules-page .pager-info {
+  white-space: nowrap;
+}
+
+/* ===== Modal (sla-modal-*) ===== */
+
+.sla-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.sla-modal-card {
+  width: 100%;
+  max-width: 720px;
+  background: #ffffff;
+  border-radius: var(--radius);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.sla-modal-header {
+  padding: 16px 20px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sla-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.sla-modal-body {
+  padding: 16px 20px 20px;
+}
+
+.sla-modal-body.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sla-modal-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Ghi chú trong modal */
+.sla-modal-card .sla-modal-note {
+  font-size: 11.5px;
+  line-height: 1.4;
+  max-width: 480px;
+}
+
+.sla-modal-card .sla-modal-note strong {
+  font-weight: 600;
+}
+
+/* ===== Toggle switch – giống danh mục sản phẩm ===== */
+
+/* Switch trong modal SLA */
+.sla-modal-card .switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+}
+
+.sla-modal-card .switch input {
+  display: none;
+}
+
+.sla-modal-card .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #d1d5db;
+  border-radius: 999px;
+  transition: background 0.18s ease;
+}
+
+.sla-modal-card .slider::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.12);
+  transition: transform 0.18s ease;
+}
+
+.sla-modal-card .switch input:checked + .slider {
+  background: var(--primary);
+}
+
+.sla-modal-card .switch input:checked + .slider::before {
+  transform: translateX(18px);
+}
+
+/* Switch trong bảng của SLA page */
+.sla-rules-page .switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+}
+
+.sla-rules-page .switch input {
+  display: none;
+}
+
+.sla-rules-page .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #d1d5db;
+  border-radius: 999px;
+  transition: background 0.18s ease;
+}
+
+.sla-rules-page .slider::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.12);
+  transition: transform 0.18s ease;
+}
+
+.sla-rules-page .switch input:checked + .slider {
+  background: var(--primary);
+}
+
+.sla-rules-page .switch input:checked + .slider::before {
+  transform: translateX(18px);
+}
+
+/* ===== Action buttons (Sửa / Xoá) – giống danh mục sản phẩm ===== */
+
+.sla-rules-page .action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.sla-rules-page .action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sla-rules-page .action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sla-rules-page .edit-btn {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+}
+
+.sla-rules-page .edit-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.sla-rules-page .delete-btn {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.sla-rules-page .delete-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 768px) {
+  .sla-rules-page {
+    padding: 16px 10px 32px;
+  }
+
+  .sla-rules-page > .card {
+    padding: 16px 14px 20px;
+  }
+
+  .sla-rules-page .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sla-rules-page .pager {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

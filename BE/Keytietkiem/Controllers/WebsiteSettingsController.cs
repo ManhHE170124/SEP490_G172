@@ -7,31 +7,41 @@
  * ✅ FIXED: Always update the FIRST record only
  */
 
+using Keytietkiem.DTOs;
+using Keytietkiem.Infrastructure;
+using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Keytietkiem.Models;
-using Keytietkiem.DTOs;
-using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
+using Keytietkiem.Constants;
 using System.Text.Json;
 
 namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/admin/settings")]
+    [Authorize]
     public class WebsiteSettingsController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly IWebsiteSettingService _settingService;
+        private readonly IAuditLogger _auditLogger;
 
         public WebsiteSettingsController(
             KeytietkiemDbContext context,
             IWebHostEnvironment env,
-            IWebsiteSettingService settingService)
+            IWebsiteSettingService settingService,
+            IAuditLogger auditLogger)
         {
             _context = context;
             _env = env;
             _settingService = settingService;
+            _auditLogger = auditLogger;
         }
 
         /// <summary>
@@ -39,6 +49,7 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always get the first record
         /// </summary>
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF,RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> Get()
         {
             // ✅ Use service to get settings
@@ -96,14 +107,15 @@ namespace Keytietkiem.Controllers
         /// ✅ FIXED: Always update the FIRST record only
         /// </summary>
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN)]
         [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> Save()
-        {
-            try
             {
                 WebsiteSettingsRequestDto? data = null;
                 string? logoUrl = null;
 
+            try
+            {
                 var jsonOptions = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
@@ -159,6 +171,39 @@ namespace Keytietkiem.Controllers
                 // ✅ FIXED: Use service to save (always updates first record)
                 var updatedSetting = await _settingService.SaveFromRequestAsync(data, logoUrl);
 
+                // 🔐 AUDIT LOG – SAVE WEBSITE SETTINGS (chỉ log summary, không log mật khẩu)
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "Save",
+                    entityType: "WebsiteSettings",
+                    entityId: "global",
+                    before: null,
+                    after: new
+                    {
+                        updatedSetting.SiteName,
+                        updatedSetting.Slogan,
+                        updatedSetting.LogoUrl,
+                        updatedSetting.PrimaryColor,
+                        updatedSetting.SecondaryColor,
+                        updatedSetting.FontFamily,
+                        updatedSetting.CompanyAddress,
+                        updatedSetting.Phone,
+                        updatedSetting.Email,
+                        updatedSetting.SmtpHost,
+                        updatedSetting.SmtpPort,
+                        updatedSetting.SmtpUsername,
+                        // Không log SmtpPassword để tránh lộ secret
+                        updatedSetting.UseTls,
+                        updatedSetting.UseDns,
+                        updatedSetting.UploadLimitMb,
+                        updatedSetting.AllowedExtensions,
+                        updatedSetting.Facebook,
+                        updatedSetting.Instagram,
+                        updatedSetting.Zalo,
+                        updatedSetting.TikTok
+                    }
+                );
+
                 return Ok(new
                 {
                     message = "Cập nhật thành công",
@@ -182,6 +227,21 @@ namespace Keytietkiem.Controllers
                     inner = ex.InnerException?.Message
                 });
             }
+        }
+
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublic()
+        {
+            var setting = await _settingService.GetOrCreateAsync();
+            return Ok(new
+            {
+                contact = new { address = setting.CompanyAddress, phone = setting.Phone, email = setting.Email },
+                social = new { facebook = setting.Facebook, instagram = setting.Instagram, zalo = setting.Zalo, tiktok = setting.TikTok },
+                logoUrl = setting.LogoUrl,
+                name = setting.SiteName,
+                slogan = setting.Slogan
+            });
         }
     }
 }

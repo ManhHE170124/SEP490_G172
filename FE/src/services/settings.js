@@ -3,15 +3,15 @@
 import axiosClient from "../api/axiosClient";
 
 const END = {
-    SETTINGS: "admin/settings",        // ✅ Relative path như "posts"
+    SETTINGS: "admin/settings",
+    PUBLIC_SETTINGS: "admin/settings/public",
     SMTP_TEST: "admin/smtp/test"
 };
 
 export const settingsApi = {
-    // ✅ Clone từ postsApi.getAllPosts()
     getSettings: () => axiosClient.get(END.SETTINGS),
+    getPublicSettings: () => axiosClient.get(END.PUBLIC_SETTINGS),
 
-    // ✅ Clone từ postsApi.createPost() với FormData
     saveSettings: (data, logoFile) => {
         if (logoFile) {
             const form = new FormData();
@@ -25,9 +25,7 @@ export const settingsApi = {
         }
     },
 
-    // ✅ Test SMTP
     testSmtp: (smtp) => axiosClient.post(END.SMTP_TEST, smtp),
 };
 
-// Default export for backward compatibility
 export default settingsApi;

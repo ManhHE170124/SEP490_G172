@@ -1,5 +1,5 @@
 // src/pages/admin/ProductsPage.jsx
-import React from "react";
+import React, { useRef } from "react";
 import { Link } from "react-router-dom";
 import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
@@ -8,6 +8,23 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
 
 export default function ProductsPage() {
+  // Permission checks removed - now role-based on backend
+  const canViewList = true;
+  const permissionLoading = false;
+  const canViewDetail = true;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  React.useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
+
   // ====== Toast & ConfirmDialog ======
   const [toasts, setToasts] = React.useState([]);
   const [confirmDialog, setConfirmDialog] = React.useState(null);
@@ -17,7 +34,7 @@ export default function ProductsPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const addToast = (type, message, title) => {
+  const addToast = (type, title, message) => {
     const id = toastIdRef.current++;
     setToasts((prev) => [
       ...prev,
@@ -51,7 +68,7 @@ export default function ProductsPage() {
       if (raw) {
         const t = JSON.parse(raw);
         if (t && t.message) {
-          addToast(t.type || "success", t.message, t.title);
+          addToast(t.type || "success", t.title, t.message);
         }
         window.sessionStorage.removeItem("products:toast");
       }
@@ -118,7 +135,7 @@ export default function ProductsPage() {
     const params = {
       keyword: query.keyword || undefined,
       categoryId: query.categoryId || undefined,
-      type: query.type || undefined,
+      type: query.type || undefined, // map sang [FromQuery(Name="type")] productType
       status: query.status || undefined,
       badge: query.badge || undefined,
       sort: query.sort || "name",
@@ -137,11 +154,27 @@ export default function ProductsPage() {
       setTotal(t);
     } catch (err) {
       console.error(err);
-      addToast(
-        "error",
-        err?.response?.data?.message || "Không tải được sản phẩm.",
-        "Lỗi"
-      );
+      const errorMsg = err?.response?.data?.message || err.message || "Không tải được sản phẩm.";
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          addToast("error", "Lỗi kết nối", "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.");
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          addToast("error", "Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          addToast("error", "Lỗi", errorMsg);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -181,24 +214,28 @@ export default function ProductsPage() {
     setQuery((q) => ({
       ...q,
       sort: key,
-      direction:
-        q.sort === key && q.direction === "asc" ? "desc" : "asc",
+      direction: q.sort === key && q.direction === "asc" ? "desc" : "asc",
     }));
   };
 
-  // Đổi trạng thái từ list, toast chi tiết hơn
+  // Đổi trạng thái từ list, logic theo controller mới (ACTIVE / INACTIVE / OUT_OF_STOCK)
   const toggleStatus = async (p) => {
+    if (!canEdit) {
+      addToast("error", "Không có quyền", "Bạn không có quyền thay đổi trạng thái sản phẩm.");
+      return;
+    }
     try {
       const res = await ProductApi.toggle(p.productId);
-      const next = (res?.status || res?.Status || "").toUpperCase();
+      const nextRaw = res?.status ?? res?.Status;
+      const next = (nextRaw || "").toUpperCase();
 
       await load();
 
       if (!next) {
         addToast(
           "success",
-          "Đã cập nhật trạng thái sản phẩm.",
-          "Thành công"
+          "Thành công",
+          "Đã cập nhật trạng thái sản phẩm."
         );
         return;
       }
@@ -206,114 +243,96 @@ export default function ProductsPage() {
       if (next === "ACTIVE") {
         addToast(
           "success",
-          `Sản phẩm "${p.productName}" đã được bật hiển thị.`,
-          "Trạng thái hiển thị"
+          "Trạng thái hiển thị",
+          `Sản phẩm "${p.productName}" đã được bật hiển thị.`
         );
       } else if (next === "INACTIVE") {
         addToast(
           "info",
-          `Sản phẩm "${p.productName}" đã được ẩn khỏi trang bán.`,
-          "Trạng thái hiển thị"
+          "Trạng thái hiển thị",
+          `Sản phẩm "${p.productName}" đã được ẩn khỏi trang bán.`
         );
       } else if (next === "OUT_OF_STOCK") {
         const totalStock = p.totalStock ?? 0;
         const msg =
           totalStock <= 0
-            ? `Không thể bật hiển thị vì sản phẩm "${p.productName}" đang hết hàng. Hãy nhập tồn kho trước khi bật hiển thị.`
+            ? `Sản phẩm "${p.productName}" hiện đang hết hàng nên sẽ hiển thị với trạng thái "Hết hàng". Khách vẫn xem được nhưng không thể mua cho đến khi bạn nhập thêm tồn kho.`
             : `Trạng thái sản phẩm "${p.productName}" đang là "Hết hàng".`;
-        addToast("warning", msg, "Không thể bật hiển thị");
+        addToast("info", "Trạng thái hết hàng", msg);
       } else {
         addToast(
           "success",
-          "Đã cập nhật trạng thái sản phẩm.",
-          "Thành công"
+          "Thành công",
+          "Đã cập nhật trạng thái sản phẩm."
         );
       }
     } catch (e) {
       console.error(e);
       addToast(
         "error",
-        e?.response?.data?.message || "Đổi trạng thái thất bại.",
-        "Lỗi"
+        "Lỗi",
+        e?.response?.data?.message || "Đổi trạng thái thất bại."
       );
     }
   };
 
+  // Xoá sản phẩm: để BE quyết định chặn (409) nếu còn variant/đơn hàng
   const deleteProduct = (p) => {
-    // Check chặn xoá nếu đã có biến thể / FAQ / đơn hàng
-    const hasVariants =
-      p.hasVariants ||
-      (typeof p.variantCount === "number" && p.variantCount > 0);
-    const hasFaqs =
-      p.hasFaqs || (typeof p.faqCount === "number" && p.faqCount > 0);
-    const hasOrders =
-      p.hasOrders || (typeof p.orderCount === "number" && p.orderCount > 0);
-
-    if (hasVariants || hasFaqs || hasOrders) {
-      const reasons = [];
-
-      if (hasVariants) {
-        const count =
-          typeof p.variantCount === "number" ? p.variantCount : null;
-        reasons.push(
-          count && count > 0
-            ? `${count} biến thể / key`
-            : "các biến thể / key đã được cấu hình"
-        );
-      }
-
-      if (hasFaqs) {
-        const count = typeof p.faqCount === "number" ? p.faqCount : null;
-        reasons.push(
-          count && count > 0
-            ? `${count} câu hỏi FAQ`
-            : "các câu hỏi FAQ đi kèm sản phẩm"
-        );
-      }
-
-      if (hasOrders) {
-        const count =
-          typeof p.orderCount === "number" ? p.orderCount : null;
-        reasons.push(
-          count && count > 0
-            ? `${count} đơn hàng đã phát sinh`
-            : "các đơn hàng đã phát sinh từ sản phẩm này"
-        );
-      }
-
-      const reasonText =
-        reasons.length > 0
-          ? `vì đã có ${reasons.join(", ")}`
-          : "vì đã có dữ liệu liên quan (biến thể / FAQ / đơn hàng)";
-
-      addToast(
-        "error",
-        `Không thể xoá sản phẩm "${p.productName}" ${reasonText}. Vui lòng ẩn sản phẩm (tắt hiển thị) thay vì xoá vĩnh viễn để tránh mất dữ liệu.`,
-        "Không thể xoá sản phẩm"
-      );
-      return;
-    }
-
     openConfirm({
       title: "Xoá sản phẩm?",
       message: `Xoá sản phẩm "${p.productName}"? Hành động này không thể hoàn tác!`,
       onConfirm: async () => {
         try {
           await ProductApi.remove(p.productId);
-          addToast("success", "Đã xoá sản phẩm.", "Thành công");
+          addToast("success", "Thành công", "Đã xoá sản phẩm.");
           await load();
         } catch (e) {
           console.error(e);
-          addToast(
-            "error",
-            e?.response?.data?.message || "Xoá sản phẩm thất bại.",
-            "Lỗi"
-          );
+
+          const status = e?.response?.status;
+          const data = e?.response?.data || {};
+          const msg =
+            data.message || e.message || "Xoá sản phẩm thất bại.";
+
+          if (status === 409) {
+            // Bị chặn vì đã có biến thể / đơn hàng... => hiển thị message từ server
+            addToast("warning", "Không thể xoá sản phẩm", msg);
+          } else {
+            addToast("error", "Lỗi", msg);
+          }
         }
       },
     });
   };
 
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h2>Danh sách sản phẩm</h2>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            Đang kiểm tra quyền truy cập...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no VIEW_LIST permission
+  if (!canViewList) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h2>Danh sách sản phẩm</h2>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem danh sách sản phẩm. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -327,16 +346,22 @@ export default function ProductsPage() {
             }}
           >
             <h2>Danh sách sản phẩm</h2>
-            <Link className="btn primary" to="/admin/products/add">
+            <Link 
+              className="btn primary" 
+              to="/admin/products/add"
+              onClick={(e) => {
+                if (!canCreate) {
+                  e.preventDefault();
+                  addToast("error", "Không có quyền", "Bạn không có quyền tạo sản phẩm mới.");
+                }
+              }}
+            >
               + Thêm sản phẩm
             </Link>
           </div>
 
           {/* Filters */}
-          <div
-            className="filter-inline input-group"
-            style={{ marginTop: 12 }}
-          >
+          <div className="filter-inline input-group" style={{ marginTop: 12 }}>
             <div className="group">
               <span>Tìm kiếm</span>
               <input
@@ -364,10 +389,7 @@ export default function ProductsPage() {
               >
                 <option value="">Tất cả</option>
                 {categories.map((c) => (
-                  <option
-                    key={c.categoryId}
-                    value={c.categoryId}
-                  >
+                  <option key={c.categoryId} value={c.categoryId}>
                     {c.categoryName}
                   </option>
                 ))}
@@ -428,18 +450,13 @@ export default function ProductsPage() {
               >
                 <option value="">Tất cả</option>
                 {badges.map((b) => (
-                  <option
-                    key={b.badgeCode}
-                    value={b.badgeCode}
-                  >
+                  <option key={b.badgeCode} value={b.badgeCode}>
                     {b.displayName || b.badgeCode}
                   </option>
                 ))}
               </select>
             </div>
-            {loading && (
-              <span className="badge gray">Đang tải…</span>
-            )}
+            {loading && <span className="badge gray">Đang tải…</span>}
             <button
               className="btn"
               onClick={() =>
@@ -541,61 +558,51 @@ export default function ProductsPage() {
                     <td>{fmtType(p.productType)}</td>
 
                     {/* Tổng tồn kho */}
-                    <td className="mono">
-                      {p.totalStock ?? 0}
-                    </td>
+                    <td className="mono">{p.totalStock ?? 0}</td>
 
                     {/* Danh mục */}
                     <td style={{ maxWidth: 360 }}>
                       {(p.categoryIds ?? []).length === 0
                         ? "—"
-                        : (p.categoryIds ?? []).map(
-                            (cid, idx, arr) => {
-                              const name =
-                                categoriesDict[cid] ??
-                                `#${cid}`;
-                              return (
-                                <React.Fragment
-                                  key={cid}
-                                >
-                                  <span className="chip">
-                                    {name}
-                                  </span>
-                                  {idx <
-                                  arr.length - 1 ? (
-                                    <span>,&nbsp;</span>
-                                  ) : null}
-                                </React.Fragment>
-                              );
-                            }
-                          )}
+                        : (p.categoryIds ?? []).map((cid, idx, arr) => {
+                            const name =
+                              categoriesDict[cid] ?? `#${cid}`;
+                            return (
+                              <React.Fragment key={cid}>
+                                <span className="chip">{name}</span>
+                                {idx < arr.length - 1 ? (
+                                  <span>,&nbsp;</span>
+                                ) : null}
+                              </React.Fragment>
+                            );
+                          })}
                     </td>
 
-                   {/* Nhãn */}
-<td style={{ maxWidth: 360 }}>
-  {(p.badges ?? []).map((code) => {
-    const meta = badgesDict[code];
+                    {/* Nhãn */}
+                    <td style={{ maxWidth: 360 }}>
+                      {(p.badges ?? []).map((code) => {
+                        const meta = badgesDict[code];
 
-    // Nếu badge không có trong dict (tức đã bị ẩn / không tồn tại) -> không hiển thị
-    if (!meta) return null;
+                        // Nếu badge không có trong dict (tức đã bị ẩn / không tồn tại) -> không hiển thị
+                        if (!meta) return null;
 
-    return (
-      <span
-        key={code}
-        className="label-chip"
-        style={{
-          background: meta.color,
-          color: "#fff",
-          marginRight: 6,
-          marginBottom: 4,
-        }}
-        title={meta.name}
-      >
-        {meta.name}
-      </span>
-    );
-  })}
-</td>
+                        return (
+                          <span
+                            key={code}
+                            className="label-chip"
+                            style={{
+                              background: meta.color,
+                              color: "#fff",
+                              marginRight: 6,
+                              marginBottom: 4,
+                            }}
+                            title={meta.name}
+                          >
+                            {meta.name}
+                          </span>
+                        );
+                      })}
+                    </td>
                     <td className="col-status">
                       <span
                         className={statusBadge(p.status)}
@@ -618,6 +625,12 @@ export default function ProductsPage() {
                           className="action-btn edit-btn"
                           to={`/admin/products/${p.productId}`}
                           title="Chi tiết / Biến thể"
+                          onClick={(e) => {
+                            if (!canViewDetail) {
+                              e.preventDefault();
+                              addToast("error", "Không có quyền", "Bạn không có quyền xem chi tiết sản phẩm.");
+                            }
+                          }}
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -650,9 +663,7 @@ export default function ProductsPage() {
                         <input
                           type="checkbox"
                           checked={p.status === "ACTIVE"}
-                          onChange={() =>
-                            toggleStatus(p)
-                          }
+                          onChange={() => toggleStatus(p)}
                         />
                         <span className="slider" />
                       </label>
@@ -666,15 +677,11 @@ export default function ProductsPage() {
           <div className="pager">
             <button
               disabled={page <= 1}
-              onClick={() =>
-                setPage((x) => Math.max(1, x - 1))
-              }
+              onClick={() => setPage((x) => Math.max(1, x - 1))}
             >
               Trước
             </button>
-            <span style={{ padding: "0 8px" }}>
-              Trang {page}
-            </span>
+            <span style={{ padding: "0 8px" }}>Trang {page}</span>
             <button
               disabled={page * pageSize >= total}
               onClick={() => setPage((x) => x + 1)}

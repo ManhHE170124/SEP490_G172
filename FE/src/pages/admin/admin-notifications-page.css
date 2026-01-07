@@ -1,0 +1,1031 @@
+/* File: admin-notifications-page.css */
+
+.admin-notifications-page {
+  padding: 24px;
+  background-color: #f7f8fa;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.admin-notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-notifications-title {
+  font-size: 22px;
+  margin: 0 0 4px 0;
+  color: #111827;
+}
+
+/* BUTTONS – dùng riêng cho trang thông báo */
+
+.admin-notifications-page .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  background-color: #e5e7eb;
+  color: #111827;
+}
+
+.admin-notifications-page .btn-primary {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
+.admin-notifications-page .btn-primary:hover {
+  background-color: #1d4ed8;
+}
+
+.admin-notifications-page .btn-secondary {
+  background-color: #e5e7eb;
+  color: #111827;
+}
+
+.admin-notifications-page .btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.admin-notifications-page .btn-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  padding: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin-notifications-page .btn-link:hover {
+  text-decoration: underline;
+}
+
+/* FILTERS */
+
+.notif-filters {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.notif-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 8px;
+}
+
+.notif-filter-item {
+  flex: 1 1 200px;
+  min-width: 200px;
+}
+
+.notif-filter-pagesize {
+  max-width: 160px;
+}
+
+.notif-filter-reset {
+  flex: 0 0 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.btn-reset {
+  width: 100%;
+}
+
+.notif-filter-label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+/* Input chung */
+
+.notif-input,
+.notif-select,
+.notif-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+  background-color: #ffffff;
+}
+
+/* Filter: bo tròn giống thanh search, rộng hơn */
+.notif-filters .notif-input,
+.notif-filters .notif-select {
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+
+.notif-input:focus,
+.notif-select:focus,
+.notif-textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+}
+
+.notif-textarea {
+  resize: vertical;
+}
+
+/* TABLE */
+
+.notif-table-wrapper {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  overflow-x: auto;
+}
+
+.notif-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+/* Column sizing (để badge mức độ không bị rớt dòng + đủ chỗ cho thêm cột) */
+.notif-table th.col-created,
+.notif-table td.col-created {
+  /* nhỏ hơn một chút để nhường chỗ cho các cột khác */
+  width: 145px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-severity,
+.notif-table td.col-severity {
+  /* rộng hơn để badge không bị chật */
+  width: 110px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-type,
+.notif-table td.col-type {
+  /* tăng độ rộng để hiển thị "Nhập key hàng loạt", "Gán ticket"... */
+  width: 140px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-createdby,
+.notif-table td.col-createdby {
+  width: 190px;
+}
+
+.notif-table th.col-scope,
+.notif-table td.col-scope {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.notif-table th.col-recipients,
+.notif-table td.col-recipients {
+  width: 170px;
+}
+
+.notif-table th.col-actions,
+.notif-table td.col-actions {
+  width: 70px;
+  white-space: nowrap;
+}
+
+.notif-table thead tr {
+  background-color: #f9fafb;
+}
+
+.notif-table th,
+.notif-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+.notif-table th {
+  font-weight: 600;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.notif-table td {
+  color: #111827;
+}
+
+.notif-table .sortable {
+  cursor: pointer;
+}
+
+.notif-table .sortable .sort-indicator {
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.notif-empty {
+  text-align: center;
+  padding: 24px 0;
+  color: #6b7280;
+}
+
+/* ROW CONTENT */
+
+.notif-date {
+  font-size: 12px;
+  color: #4b5563;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-creator-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.notif-creator-name {
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.notif-creator-email {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  min-height: 1.2em;
+}
+
+.notif-creator {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-title-cell {
+  max-width: none;
+}
+
+.notif-title-text {
+  font-weight: 500;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-message-preview {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-rec-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.notif-rec-line {
+  font-size: 12px;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.notif-targets {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.notif-actions-cell {
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Icon button ("con mắt" xem chi tiết) */
+.notif-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.notif-icon-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.notif-icon-btn:active {
+  transform: translateY(1px);
+}
+
+.notif-icon-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+/* BADGES */
+
+.badge-severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /*
+    IMPORTANT:
+    Một số global CSS (ở các màn khác) có thể đang áp fixed width/max-width/overflow
+    cho badge, làm chữ bị "lọt" ra ngoài hoặc bị cắt.
+    Ở trang Notification, ta ép badge auto-size để luôn bao hết label.
+  */
+  padding: 6px 14px;
+  font-size: 12px;
+  line-height: 1;
+  min-height: 26px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+
+  /* Force auto size + no clipping */
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  box-sizing: border-box;
+}
+
+.notif-modal-header-right .badge-severity {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.badge-info {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.badge-success {
+  background-color: #ecfdf3;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.badge-warning {
+  background-color: #fffbeb;
+  border-color: #facc15;
+  color: #92400e;
+}
+
+.badge-error {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+/* PAGINATION */
+
+.notif-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.notif-pagination-left {
+  padding-right: 8px;
+}
+
+.notif-pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notif-page-info {
+  min-width: 90px;
+  text-align: center;
+}
+
+/* STATES */
+
+.notif-loading {
+  padding: 12px 0;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.notif-error {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+/* MODAL */
+
+.notif-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px;
+  z-index: 999;
+  overflow-y: auto;
+}
+
+.notif-modal {
+  background-color: #ffffff;
+  border-radius: 10px;
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-modal-detail {
+  width: min(1080px, calc(100vw - 32px));
+}
+
+.notif-modal-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notif-modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #111827;
+}
+
+.notif-modal-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notif-modal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notif-modal-header-right .badge-severity {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.notif-global-label {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.notif-modal-body {
+  padding: 14px 16px 8px 16px;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+.notif-modal-footer {
+  padding: 10px 16px 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Create modal footer is inside form body (sticky to bottom while scrolling) */
+form.notif-modal-body .notif-modal-footer {
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  margin: 10px -16px -8px -16px;
+  padding: 10px 16px 12px 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* TECH SECTION (Option A) */
+.notif-tech {
+  margin-top: 10px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.notif-tech > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+  list-style: none;
+}
+
+.notif-tech > summary::-webkit-details-marker {
+  display: none;
+}
+
+.notif-tech-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.tech-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.tech-label {
+  width: 110px;
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.tech-value {
+  flex: 1;
+  color: #111827;
+  word-break: break-word;
+}
+
+.tech-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+}
+
+.tech-row-json {
+  flex-direction: column;
+}
+
+.tech-json {
+  margin: 6px 0 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* FORM / LAYOUT – dùng prefix notif- để tránh trùng global */
+
+.notif-form-group {
+  margin-bottom: 10px;
+}
+
+.notif-form-group label {
+  display: block;
+  font-size: 12px;
+  color: #4b5563;
+  margin-bottom: 4px;
+}
+
+.required {
+  color: #dc2626;
+}
+
+.field-error {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #b91c1c;
+}
+
+.has-error {
+  border-color: #fca5a5 !important;
+  background-color: #fef2f2;
+}
+
+/* Hàng flex */
+.notif-form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+/* Hàng trên: Tiêu đề/Mức độ + Nội dung chi tiết */
+.notif-form-row-top {
+  align-items: flex-start;
+}
+
+/* Hàng dưới: User + Role */
+.notif-form-row-targets {
+  align-items: flex-start;
+}
+
+/* Cột trái/phải hàng trên */
+.notif-form-col-left,
+.notif-form-col-right {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 2 cột ngang nhau cho user/role */
+.notif-form-col-half {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* SWITCH */
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #d1d5db;
+  transition: 0.2s;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 2px;
+  top: 2px;
+  background-color: #ffffff;
+  transition: 0.2s;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+}
+
+.switch input:checked + .slider {
+  background-color: #007bff; /* xanh sáng giống ảnh */
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+/* DETAIL BODY */
+
+.notif-detail-body {
+  font-size: 13px;
+}
+
+/* DETAIL TABS (Info / Technical) */
+
+.notif-detail-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 10px 0;
+}
+
+.notif-detail-tab {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notif-detail-tab.active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.notif-detail-tab:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.notif-tech-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f9fafb;
+}
+
+.notif-tech-payload {
+  margin-top: 10px;
+}
+
+.notif-tech-payload summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Lưới 2 cột cho các thông tin meta */
+.notif-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 6px;
+  margin-bottom: 10px;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 6px;
+}
+
+.detail-label {
+  width: 130px;
+  flex-shrink: 0;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.detail-value {
+  flex: 1;
+  color: #111827;
+}
+
+.detail-row-message {
+  margin-top: 10px;
+}
+
+.detail-row-message .detail-label {
+  padding-top: 2px;
+}
+
+.detail-value-message {
+  white-space: pre-wrap;
+}
+
+.detail-row-roles .detail-value {
+  padding-top: 1px;
+}
+
+.detail-role-list {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.detail-role-list li {
+  margin-bottom: 2px;
+}
+
+.role-id {
+  font-weight: 500;
+}
+
+.role-name {
+  color: #6b7280;
+}
+
+/* BẢNG NGƯỜI NHẬN */
+
+.notif-recipient-section {
+  margin-top: 10px;
+}
+
+.notif-recipient-table-wrapper {
+  margin-top: 4px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  max-height: 320px;
+  overflow-y: auto;
+  background-color: #ffffff;
+}
+
+.notif-recipient-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.notif-recipient-table th,
+.notif-recipient-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.notif-recipient-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.recipient-status-read {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.recipient-status-unread {
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+/* DROPDOWN USER / ROLE */
+
+.notif-dropdown-group {
+  border-radius: 12px;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+}
+
+.notif-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.notif-dropdown-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.notif-dropdown-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.notif-dropdown-count {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.notif-dropdown-arrow {
+  font-size: 12px;
+  color: #6b7280;
+  transition: transform 0.15s ease;
+}
+
+.notif-dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.notif-dropdown-body {
+  margin-top: 6px;
+  border-radius: 10px;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.notif-dropdown-list {
+  padding: 4px 0;
+}
+
+.notif-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.notif-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.notif-select-text {
+  display: flex;
+  flex-direction: column;
+  padding-right: 8px;
+}
+
+.notif-select-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.notif-select-subtitle {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.notif-empty-inline {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 6px 10px;
+}
+
+.small-muted {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 10px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 768px) {
+  .admin-notifications-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .notif-filters-row {
+    flex-direction: column;
+  }
+
+  .notif-modal {
+    max-width: 100%;
+  }
+
+  .detail-label {
+    width: 110px;
+  }
+
+  .notif-modal-header-right {
+    gap: 4px;
+  }
+
+  .notif-form-col-left,
+  .notif-form-col-right,
+  .notif-form-col-half {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .notif-detail-tabs {
+    flex-wrap: wrap;
+  }
+
+  .notif-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* small helper text inside modal */
+.notif-help {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 10px;
+}

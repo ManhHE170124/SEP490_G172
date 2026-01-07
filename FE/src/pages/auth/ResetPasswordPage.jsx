@@ -38,11 +38,14 @@ export default function ResetPasswordPage() {
     if (!formData.newPassword) {
       return "Vui lòng nhập mật khẩu mới";
     }
-    if (formData.newPassword.length < 6) {
-      return "Mật khẩu phải có ít nhất 6 ký tự";
+    if (formData.newPassword.length < 8) {
+      return "Mật khẩu mới phải có ít nhất 8 ký tự";
     }
     if (formData.newPassword.length > 100) {
-      return "Mật khẩu không được vượt quá 100 ký tự";
+      return "Mật khẩu mới không được vượt quá 100 ký tự";
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.newPassword)) {
+      return "Mật khẩu mới phải chứa ít nhất 1 chữ cái và 1 số";
     }
     if (!formData.confirmPassword) {
       return "Vui lòng xác nhận mật khẩu";
@@ -138,7 +141,7 @@ export default function ResetPasswordPage() {
                   {showPassword ? "Ẩn" : "Hiện"}
                 </button>
               </div>
-              <small className="helper">Mật khẩu phải từ 6-100 ký tự</small>
+              <small className="helper">Mật khẩu mới phải từ 8-100 ký tự, chứa ít nhất 1 chữ cái và 1 số</small>
             </div>
 
             <div className="form-row">

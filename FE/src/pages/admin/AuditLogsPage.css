@@ -1,0 +1,561 @@
+/* src/pages/admin/AuditLogsPage.css */
+/* Style riêng cho AuditLogsPage, chỉ áp dụng trong .page.audit-page hoặc .audit-modal-backdrop */
+
+:root {
+  --ink: #0b1220;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --page: #f3f6fa;
+  --card: #ffffff;
+  --primary: #2563eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* ===== Layout chính ===== */
+
+.page.audit-page {
+  padding: 18px;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.page.audit-page .card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px 20px;
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.page.audit-page .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.page.audit-page .group,
+.audit-modal-backdrop .group {
+  display: flex;
+  flex-direction: column;
+}
+
+.page.audit-page .group > span,
+.audit-modal-backdrop .group > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ===== Inputs / Filters ===== */
+
+.page.audit-page .input-group,
+.audit-modal-backdrop .input-group {
+  margin-top: 12px;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.page.audit-page .input-group input,
+.page.audit-page .input-group select,
+.page.audit-page .input-group textarea,
+.audit-modal-backdrop .input-group input,
+.audit-modal-backdrop .input-group select,
+.audit-modal-backdrop .input-group textarea {
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 7px 10px;
+  font-size: 14px;
+  outline: none;
+  background: #f9fafb;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.page.audit-page .input-group input:focus,
+.page.audit-page .input-group select:focus,
+.page.audit-page .input-group textarea:focus,
+.audit-modal-backdrop .input-group input:focus,
+.audit-modal-backdrop .input-group select:focus,
+.audit-modal-backdrop .input-group textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+  background: #ffffff;
+}
+
+/* Column helpers cho filter để 2 hàng đều nhau */
+.page.audit-page .filter-col {
+  flex: 1 1 0;
+  min-width: 180px;
+}
+
+.page.audit-page .filter-col-wide {
+  flex: 2 1 0;
+  min-width: 260px;
+}
+
+/* Nút Đặt lại filter cùng chiều cao với select/input */
+.page.audit-page .filter-reset-btn {
+  height: 36px;
+  align-self: flex-end;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+/* ===== Table ===== */
+
+.page.audit-page .table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.page.audit-page .table thead tr {
+  background: #f9fafb;
+}
+
+.page.audit-page .table th,
+.page.audit-page .table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.page.audit-page .table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Sortable header */
+.page.audit-page .sortable-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.page.audit-page .sortable-header .sort-arrow {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.page.audit-page .audit-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.page.audit-page .audit-row {
+  transition: background 0.12s ease, box-shadow 0.12s ease,
+    transform 0.08s ease, border-color 0.12s ease;
+}
+
+.page.audit-page .audit-row:hover {
+  background: #f3f4ff;
+}
+
+/* ===== Badges ===== */
+
+.page.audit-page .badge,
+.audit-modal-backdrop .badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.page.audit-page .badge.green,
+.audit-modal-backdrop .badge.green {
+  background: rgba(16, 185, 129, 0.08);
+  color: #047857;
+}
+
+.page.audit-page .badge.gray,
+.audit-modal-backdrop .badge.gray {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+}
+
+.page.audit-page .badge.red,
+.audit-modal-backdrop .badge.red {
+  background: rgba(248, 113, 113, 0.12);
+  color: #b91c1c;
+}
+
+/* ===== Buttons ===== */
+
+.page.audit-page .btn,
+.audit-modal-backdrop .btn {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  background: #e5e7eb;
+  color: #111827;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.page.audit-page .btn.primary,
+.audit-modal-backdrop .btn.primary {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.page.audit-page .btn.ghost,
+.audit-modal-backdrop .btn.ghost {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.page.audit-page .btn.small,
+.audit-modal-backdrop .btn.small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.page.audit-page .btn.icon-btn,
+.audit-modal-backdrop .btn.icon-btn {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  border-color: transparent;
+}
+
+.page.audit-page .btn.icon-btn svg,
+.audit-modal-backdrop .btn.icon-btn svg {
+  display: block;
+}
+
+.page.audit-page .btn.icon-btn:hover,
+.audit-modal-backdrop .btn.icon-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.page.audit-page .btn:disabled,
+.audit-modal-backdrop .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* ===== Text helpers ===== */
+
+.page.audit-page .muted,
+.audit-modal-backdrop .muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.page.audit-page .muted.small,
+.audit-modal-backdrop .muted.small {
+  font-size: 12px;
+}
+
+.page.audit-page .mono,
+.audit-modal-backdrop .mono {
+  font-family: var(--mono);
+}
+
+.page.audit-page .strong,
+.audit-modal-backdrop .strong {
+  font-weight: 600;
+}
+
+.page.audit-page .wrap,
+.audit-modal-backdrop .wrap {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* ===== Pager ===== */
+
+.page.audit-page .pager {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.page.audit-page .pager button {
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.page.audit-page .pager button:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #cbd5f5;
+}
+
+.page.audit-page .pager button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ===== Header row ===== */
+
+.page.audit-page .audit-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.page.audit-page .audit-header-left h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.page.audit-page .audit-header-left p {
+  margin: 2px 0 0;
+}
+
+/* Filters wrap */
+.page.audit-page .audit-filters {
+  overflow-x: auto;
+}
+
+/* Actions cell */
+.page.audit-page .audit-actions-cell {
+  text-align: center;
+}
+
+/* ===== Modal – audit-modal-* riêng cho AuditLogsPage ===== */
+
+.audit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.audit-modal-card {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  max-width: 980px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-detail-card {
+  max-width: 1100px;
+}
+
+.audit-modal-header {
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.audit-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.audit-detail-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.audit-modal-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+.audit-detail-body {
+  /* nếu cần custom thêm gì thì thêm ở đây, hiện để trống cũng OK */
+}
+
+.audit-modal-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ===== Grid helpers ===== */
+
+.page.audit-page .grid,
+.audit-modal-backdrop .grid {
+  display: grid;
+  gap: 10px;
+}
+
+.page.audit-page .grid.cols-2,
+.audit-modal-backdrop .grid.cols-2 {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+/* Detail grid tweak */
+.audit-detail-grid .group > span {
+  font-size: 11px;
+}
+
+/* JSON columns ===== */
+
+.audit-json-columns {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.audit-json {
+  background: #0f172a;
+  color: #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+/* ===== PHẦN DIFF TRONG MODAL (nếu sau này dùng) ===== */
+
+.audit-changes-section {
+  margin-top: 12px;
+}
+
+.audit-changes-table-wrapper {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.audit-changes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.audit-changes-table th,
+.audit-changes-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.audit-changes-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.audit-changes-table tr:last-child td {
+  border-bottom: none;
+}
+
+.small-json {
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Header cho box JSON before/after + nút 3 chấm */
+.audit-json-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audit-json-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.audit-json-toggle {
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.audit-json-toggle:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 900px) {
+  .audit-json-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page.audit-page .grid.cols-2,
+  .audit-modal-backdrop .grid.cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page.audit-page .audit-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page.audit-page .pager {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,12 +1,13 @@
-// src/pages/storefront/StorefrontCartPage.jsx
-import React, { useEffect, useState, useCallback } from "react";
+// File: src/pages/storefront/StorefrontCartPage.jsx
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import StorefrontCartApi from "../../services/storefrontCartService";
 import StorefrontProductApi from "../../services/storefrontProductService";
 import Toast from "../../components/Toast/Toast";
 import ConfirmDialog from "../../components/Toast/ConfirmDialog";
 import "./StorefrontCartPage.css";
-import GuestCartService from "../../services/guestCartService"; // guest wrapper (dùng API cart server-side)
+import GuestCartService from "../../services/guestCartService";
+import CheckoutConfirmDialog from "./components/CheckoutConfirmDialog";
 
 const formatCurrency = (value) => {
   if (value == null) return "0₫";
@@ -35,6 +36,42 @@ const readCustomerFromStorage = () => {
   }
 };
 
+const CHECKOUT_LOCK_KEY = "ktk_checkout_lock";
+
+const readCheckoutLock = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(CHECKOUT_LOCK_KEY);
+    if (!raw) return null;
+
+    const lock = JSON.parse(raw);
+    const expMs = Date.parse(lock?.expiresAtUtc || "");
+    if (!lock?.paymentUrl || !Number.isFinite(expMs)) return null;
+
+    if (Date.now() >= expMs) {
+      window.localStorage.removeItem(CHECKOUT_LOCK_KEY);
+      return null;
+    }
+
+    return lock; // { paymentId, orderId, paymentUrl, expiresAtUtc }
+  } catch {
+    try {
+      window.localStorage.removeItem(CHECKOUT_LOCK_KEY);
+    } catch {}
+    return null;
+  }
+};
+
+const saveCheckoutLock = ({ paymentId, orderId, paymentUrl, expiresAtUtc }) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      CHECKOUT_LOCK_KEY,
+      JSON.stringify({ paymentId, orderId, paymentUrl, expiresAtUtc })
+    );
+  } catch {}
+};
+
 const StorefrontCartPage = () => {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -44,11 +81,18 @@ const StorefrontCartPage = () => {
   const [localEmail, setLocalEmail] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
 
-  // Toast state
   const [toasts, setToasts] = useState([]);
-  const [customer] = useState(() => readCustomerFromStorage());
 
-  // Confirm dialog state
+  const [customer, setCustomer] = useState(() => readCustomerFromStorage());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncCustomer = () => setCustomer(readCustomerFromStorage());
+    window.addEventListener("storage", syncCustomer);
+    return () => window.removeEventListener("storage", syncCustomer);
+  }, []);
+
+  // ✅ ConfirmDialog chung (dùng cho xoá item / clear cart)
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: "",
@@ -56,9 +100,18 @@ const StorefrontCartPage = () => {
     action: null,
   });
 
+  // ✅ Dialog riêng cho checkout màn Cart (không ảnh hưởng màn khác)
+  const [checkoutConfirm, setCheckoutConfirm] = useState({
+    open: false,
+    email: "",
+    accountName: "",
+    accountEmail: "",
+    qty: 0,
+    totalText: "",
+  });
+
   const navigate = useNavigate();
 
-  // ===== Toast helpers =====
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -66,31 +119,21 @@ const StorefrontCartPage = () => {
   const addToast = useCallback(
     (type, title, message) => {
       const id = Date.now() + Math.random();
-      const toast = { id, type, title, message };
-      setToasts((prev) => [...prev, toast]);
-      // auto-hide sau 4s
+      setToasts((prev) => [...prev, { id, type, title, message }]);
       setTimeout(() => removeToast(id), 4000);
     },
     [removeToast]
   );
 
-  // ===== Confirm dialog helpers =====
   const closeConfirmDialog = () => {
-    setConfirmDialog((prev) => ({
-      ...prev,
-      isOpen: false,
-      action: null,
-    }));
+    setConfirmDialog((prev) => ({ ...prev, isOpen: false, action: null }));
   };
 
   const handleConfirmDialogConfirm = () => {
-    if (confirmDialog.action) {
-      confirmDialog.action();
-    }
+    if (confirmDialog.action) confirmDialog.action();
     closeConfirmDialog();
   };
 
-  // ===== Load cart =====
   const loadCart = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -98,35 +141,50 @@ const StorefrontCartPage = () => {
       let res;
 
       if (customer) {
-        // Đã đăng nhập -> cart server-side
         res = await StorefrontCartApi.getCart();
         const emailFromApi = res.accountEmail || res.receiverEmail || "";
         setLocalEmail(emailFromApi);
       } else {
-        // Guest -> cart server-side qua GuestCartService wrapper
         res = await GuestCartService.getCart();
         const emailFromApi = res.receiverEmail || "";
         setLocalEmail(emailFromApi);
       }
 
       setCart(res);
+
+      if (String(res?.status || "").toLowerCase() === "converting") {
+        addToast(
+          "warning",
+          "Giỏ hàng đang được checkout",
+          "Giỏ hàng đang được checkout ở tab/phiên khác. Vui lòng đợi vài giây rồi tải lại."
+        );
+      }
     } catch (err) {
       console.error("Load cart failed:", err);
-      if (err?.response?.status === 401) {
+
+      if (err?.response?.status === 401 && customer) {
         setError("Bạn cần đăng nhập để sử dụng giỏ hàng.");
       } else {
-        setError("Không tải được giỏ hàng. Vui lòng thử lại sau.");
+        setError(err?.message || "Không tải được giỏ hàng. Vui lòng thử lại sau.");
       }
     } finally {
       setLoading(false);
     }
-  }, [customer]);
+  }, [customer, addToast]);
 
   useEffect(() => {
     loadCart();
   }, [loadCart]);
 
-  // Thực hiện xoá 1 item (sau khi đã confirm)
+  const isCartLocked = useMemo(() => {
+    const s = String(cart?.status || "Active").toLowerCase();
+    return s !== "active";
+  }, [cart]);
+
+  const tryAutoReloadAfterConflict = useCallback(() => {
+    setTimeout(() => loadCart(), 800);
+  }, [loadCart]);
+
   const actuallyRemoveItem = async (item) => {
     setUpdatingItemId(item.variantId);
     try {
@@ -138,26 +196,23 @@ const StorefrontCartPage = () => {
       addToast(
         "success",
         "Đã xoá sản phẩm",
-        `Đã xoá "${
-          item.variantTitle || item.title || item.productName || "sản phẩm"
-        }" khỏi giỏ hàng.`
+        `Đã xoá "${item.variantTitle || item.title || item.productName || "sản phẩm"}" khỏi giỏ hàng.`
       );
     } catch (err) {
       console.error("Remove item failed:", err);
-      addToast(
-        "error",
-        "Xoá sản phẩm thất bại",
-        "Không thể xoá sản phẩm khỏi giỏ. Vui lòng thử lại."
-      );
+      if (err?.response?.status === 409) {
+        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        tryAutoReloadAfterConflict();
+      } else {
+        addToast("error", "Xoá sản phẩm thất bại", err?.message || "Không thể xoá sản phẩm khỏi giỏ.");
+      }
     } finally {
       setUpdatingItemId(null);
     }
   };
 
-  // Mở confirm dialog để xoá 1 item
   const handleRemoveItem = (item) => {
-    const itemName =
-      item.variantTitle || item.title || item.productName || "sản phẩm này";
+    const itemName = item.variantTitle || item.title || item.productName || "sản phẩm này";
     setConfirmDialog({
       isOpen: true,
       title: "Xoá sản phẩm khỏi giỏ hàng?",
@@ -166,15 +221,13 @@ const StorefrontCartPage = () => {
     });
   };
 
-  // Thay đổi quantity trong cart
   const handleChangeQuantity = async (item, delta) => {
     if (!cart) return;
     const newQty = (item.quantity || 0) + delta;
     if (newQty < 0) return;
 
     if (newQty === 0) {
-      const itemName =
-        item.variantTitle || item.title || item.productName || "sản phẩm này";
+      const itemName = item.variantTitle || item.title || item.productName || "sản phẩm này";
       setConfirmDialog({
         isOpen: true,
         title: "Xoá sản phẩm khỏi giỏ hàng?",
@@ -193,58 +246,51 @@ const StorefrontCartPage = () => {
       setCart(res);
     } catch (err) {
       console.error("Update quantity failed:", err);
-      const serverMsg = err?.response?.data?.message;
-      const type = err?.response?.status === 400 ? "warning" : "error";
-      addToast(
-        type,
-        "Cập nhật số lượng thất bại",
-        serverMsg || "Không thể cập nhật số lượng. Vui lòng thử lại."
-      );
+
+      if (err?.response?.status === 409) {
+        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        tryAutoReloadAfterConflict();
+      } else {
+        const serverMsg = err?.response?.data?.message;
+        const type = err?.response?.status === 400 ? "warning" : "error";
+        addToast(type, "Cập nhật số lượng thất bại", serverMsg || err?.message || "Không thể cập nhật số lượng.");
+      }
     } finally {
       setUpdatingItemId(null);
     }
   };
 
-  // Thực hiện xoá toàn bộ giỏ
   const actuallyClearCart = async () => {
-    if (!cart || !cart.items || cart.items.length === 0) return;
-
+    if (!cart?.items?.length) return;
     try {
-      const res = customer
-        ? await StorefrontCartApi.clearCart()
-        : await GuestCartService.clearCart();
-
+      const res = customer ? await StorefrontCartApi.clearCart() : await GuestCartService.clearCart();
       setCart(res);
       addToast("success", "Đã xoá giỏ hàng", "Toàn bộ sản phẩm đã được xoá.");
     } catch (err) {
       console.error("Clear cart failed:", err);
-      addToast(
-        "error",
-        "Xoá giỏ hàng thất bại",
-        "Không thể xoá giỏ hàng. Vui lòng thử lại."
-      );
+
+      if (err?.response?.status === 409) {
+        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        tryAutoReloadAfterConflict();
+      } else {
+        addToast("error", "Xoá giỏ hàng thất bại", err?.message || "Không thể xoá giỏ hàng.");
+      }
     }
   };
 
-  // Bấm nút "Xoá toàn bộ giỏ hàng" -> mở confirm
   const handleClearCart = () => {
-    if (!cart || !cart.items || cart.items.length === 0) return;
+    if (!cart?.items?.length) return;
     setConfirmDialog({
       isOpen: true,
       title: "Xoá toàn bộ giỏ hàng?",
-      message:
-        "Tất cả sản phẩm sẽ bị xoá khỏi giỏ hàng của bạn và không thể hoàn tác.",
+      message: "Tất cả sản phẩm sẽ bị xoá khỏi giỏ hàng của bạn và không thể hoàn tác.",
       action: () => actuallyClearCart(),
     });
   };
 
   const handleSaveEmail = async () => {
     if (!localEmail.trim()) {
-      addToast(
-        "warning",
-        "Thiếu email nhận hàng",
-        "Vui lòng nhập email nhận hàng."
-      );
+      addToast("warning", "Thiếu email nhận hàng", "Vui lòng nhập email nhận hàng.");
       return;
     }
 
@@ -256,68 +302,94 @@ const StorefrontCartPage = () => {
         : await GuestCartService.setReceiverEmail(trimmed);
 
       setCart(res);
-      addToast(
-        "success",
-        "Đã lưu email nhận hàng",
-        "Email nhận hàng đã được cập nhật cho đơn hàng."
-      );
+      addToast("success", "Đã lưu email nhận hàng", "Email nhận hàng đã được cập nhật.");
     } catch (err) {
       console.error("Update receiver email failed:", err);
-      addToast(
-        "error",
-        "Lưu email nhận hàng thất bại",
-        "Không thể lưu email nhận hàng. Vui lòng thử lại."
-      );
+      if (err?.response?.status === 409) {
+        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        tryAutoReloadAfterConflict();
+      } else {
+        addToast("error", "Lưu email nhận hàng thất bại", err?.message || "Không thể lưu email nhận hàng.");
+      }
     } finally {
       setUpdatingEmail(false);
     }
   };
 
-  const handleProceedCheckout = async () => {
-    if (checkingOut) return; // tránh double click
-    if (!cart || !cart.items || cart.items.length === 0) return;
+  // ✅ Mở dialog checkout riêng
+  const handleCheckoutWithConfirm = () => {
+    if (checkingOut) return;
+    if (!cart?.items?.length) return;
 
-    // email ưu tiên:
-    // - user login: cart.accountEmail (do server gửi về)
-    // - guest: localEmail nhập tay
-    const effectiveEmail = (
-      (customer ? cart.accountEmail : null) ||
-      localEmail ||
-      ""
-    ).trim();
-
+    const effectiveEmail = ((customer ? cart.accountEmail : null) || localEmail || "").trim();
     if (!effectiveEmail) {
-      addToast(
-        "warning",
-        "Thiếu email nhận hàng",
-        "Vui lòng nhập email nhận hàng trước khi thanh toán."
-      );
+      addToast("warning", "Thiếu email nhận hàng", "Vui lòng nhập email nhận hàng trước khi thanh toán.");
+      return;
+    }
+
+    const totalQty = (cart.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+
+    setCheckoutConfirm({
+      open: true,
+      email: effectiveEmail,
+      accountName: cart?.accountUserName || "",
+      accountEmail: customer ? cart?.accountEmail || "" : "",
+      qty: totalQty,
+      totalText: formatCurrency(cart.totalAmount),
+    });
+  };
+
+  const handleProceedCheckout = async () => {
+    if (checkingOut) return;
+    if (!cart?.items?.length) return;
+
+    // ✅ Multi-tab lock: nếu tab khác đã checkout và còn hạn => redirect luôn, KHÔNG gọi checkout API
+    const existingLock = readCheckoutLock();
+    if (existingLock?.paymentUrl) {
+      window.location.href = existingLock.paymentUrl;
+      return;
+    }
+
+    const effectiveEmail = ((customer ? cart.accountEmail : null) || localEmail || "").trim();
+    if (!effectiveEmail) {
+      addToast("warning", "Thiếu email nhận hàng", "Vui lòng nhập email nhận hàng trước khi thanh toán.");
       return;
     }
 
     setCheckingOut(true);
     try {
-      // Với user đã đăng nhập: BE dùng email từ JWT/DB.
-      // Với guest: BE dùng cart.ReceiverEmail, nên cần sync email lên server.
-      if (!customer) {
-        await GuestCartService.setReceiverEmail(effectiveEmail);
-      }
+      const checkoutResult = await StorefrontCartApi.checkout({
+        deliveryEmail: effectiveEmail,
+      });
 
-      // Gọi /api/storefront/cart/checkout:
-      //  - BE tính lại tiền,
-      //  - tạo Payment ORDER_CART (Pending),
-      //  - gọi PayOS lấy checkoutUrl,
-      //  - lưu snapshot cart,
-      //  - xoá cart hiển thị server-side.
-      const checkoutResult = await StorefrontCartApi.checkout();
-
-      // StorefrontCartApi.checkout() đã bắn event cart rỗng,
-      // ở đây chỉ cần reset state local.
       setCart(null);
       setLocalEmail(effectiveEmail);
 
+      // ✅ lưu lock cho multi-tab (localStorage)
+      if (checkoutResult?.paymentUrl && checkoutResult?.expiresAtUtc) {
+        saveCheckoutLock({
+          paymentId: checkoutResult.paymentId,
+          orderId: checkoutResult.orderId,
+          paymentUrl: checkoutResult.paymentUrl,
+          expiresAtUtc: checkoutResult.expiresAtUtc,
+        });
+      }
+
+      // lưu lại để trang return/cancel có thể hiển thị tốt hơn (cùng tab)
+      try {
+        window.sessionStorage.setItem(
+          "ktk_last_checkout",
+          JSON.stringify({
+            paymentId: checkoutResult.paymentId,
+            orderId: checkoutResult.orderId,
+            paymentUrl: checkoutResult.paymentUrl,
+            expiresAtUtc: checkoutResult.expiresAtUtc,
+            at: new Date().toISOString(),
+          })
+        );
+      } catch {}
+
       if (checkoutResult.paymentUrl) {
-        // Redirect sang trang thanh toán PayOS
         window.location.href = checkoutResult.paymentUrl;
         return;
       }
@@ -325,37 +397,36 @@ const StorefrontCartPage = () => {
       addToast(
         "warning",
         "Không nhận được link thanh toán",
-        "Phiên thanh toán đã được tạo nhưng thiếu URL. Vui lòng thử lại sau."
+        "Phiên thanh toán đã được tạo nhưng thiếu URL. Vui lòng thử lại."
       );
     } catch (err) {
       console.error("Checkout failed:", err);
       const serverMsg = err?.response?.data?.message;
-      addToast(
-        "error",
-        "Thanh toán thất bại",
-        serverMsg || "Không thể tạo phiên thanh toán. Vui lòng thử lại."
-      );
+
+      if (err?.response?.status === 409) {
+        addToast("warning", "Giỏ hàng đang checkout", serverMsg || err?.message || "Vui lòng thử lại sau.");
+        tryAutoReloadAfterConflict();
+      } else {
+        addToast("error", "Thanh toán thất bại", serverMsg || err?.message || "Không thể tạo phiên thanh toán.");
+      }
     } finally {
       setCheckingOut(false);
     }
   };
 
-  const handleContinueShopping = () => {
-    navigate("/products");
-  };
+  const handleContinueShopping = () => navigate("/products");
 
-  const hasItems = cart && cart.items && cart.items.length > 0;
+  const hasItems = !!cart?.items?.length;
 
   return (
     <main className="sf-cart-page">
-      {/* Toast stack */}
       <div className="toast-container">
         {toasts.map((t) => (
           <Toast key={t.id} toast={t} onRemove={removeToast} />
         ))}
       </div>
 
-      {/* Confirm dialog */}
+      {/* ✅ ConfirmDialog chung (xóa item / clear cart) */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
@@ -364,6 +435,22 @@ const StorefrontCartPage = () => {
         onCancel={closeConfirmDialog}
         confirmText="Đồng ý"
         cancelText="Hủy"
+      />
+
+      {/* ✅ Dialog riêng cho checkout màn Cart */}
+      <CheckoutConfirmDialog
+        open={checkoutConfirm.open}
+        email={checkoutConfirm.email}
+        accountName={checkoutConfirm.accountName}
+        accountEmail={checkoutConfirm.accountEmail}
+        qty={checkoutConfirm.qty}
+        totalText={checkoutConfirm.totalText}
+        confirmDisabled={checkingOut}
+        onCancel={() => setCheckoutConfirm((s) => ({ ...s, open: false }))}
+        onConfirm={() => {
+          setCheckoutConfirm((s) => ({ ...s, open: false }));
+          handleProceedCheckout();
+        }}
       />
 
       <div className="sf-cart-container">
@@ -375,30 +462,29 @@ const StorefrontCartPage = () => {
 
         <header className="sf-cart-header">
           <h1 className="sf-cart-title">Giỏ hàng của bạn</h1>
-          <p className="sf-cart-subtitle">
-            Kiểm tra lại sản phẩm trước khi tiến hành thanh toán.
-          </p>
+          <p className="sf-cart-subtitle">Kiểm tra lại sản phẩm trước khi tiến hành thanh toán.</p>
         </header>
 
-        {error && <div className="sf-cart-error">{error}</div>}
-
-        {loading && (
-          <div className="sf-cart-loading">Đang tải giỏ hàng...</div>
+        {isCartLocked && (
+          <div className="sf-cart-error" style={{ background: "#fff7ed", borderColor: "#fdba74", color: "#9a3412" }}>
+            Giỏ hàng đang được checkout ở phiên khác. Bạn chỉ có thể xem, vui lòng đợi rồi{" "}
+            <button className="sf-btn sf-btn-outline" type="button" onClick={loadCart} style={{ marginLeft: 8 }}>
+              Tải lại
+            </button>
+          </div>
         )}
+
+        {error && <div className="sf-cart-error">{error}</div>}
+        {loading && <div className="sf-cart-loading">Đang tải giỏ hàng...</div>}
 
         {!loading && !error && (
           <div className="sf-cart-layout">
-            {/* Cột trái: danh sách item */}
             <section className="sf-cart-main">
               {!hasItems && (
                 <div className="sf-cart-empty">
                   <p>Giỏ hàng của bạn đang trống.</p>
                   <div className="sf-cart-empty-actions">
-                    <button
-                      type="button"
-                      className="sf-btn sf-btn-primary"
-                      onClick={handleContinueShopping}
-                    >
+                    <button type="button" className="sf-btn sf-btn-primary" onClick={handleContinueShopping}>
                       Tiếp tục mua sắm
                     </button>
                   </div>
@@ -410,40 +496,27 @@ const StorefrontCartPage = () => {
                   <ul className="sf-cart-items">
                     {cart.items.map((item) => {
                       const isUpdating = updatingItemId === item.variantId;
+                      const disabled = isUpdating || isCartLocked || checkingOut;
 
                       const variantTitle =
-                        item.variantTitle ||
-                        item.title ||
-                        item.productName ||
-                        "Sản phẩm không xác định";
+                        item.variantTitle || item.title || item.productName || "Sản phẩm không xác định";
 
                       let typeLabel = "";
                       try {
-                        typeLabel = StorefrontProductApi.typeLabelOf(
-                          item.productType
-                        );
+                        typeLabel = StorefrontProductApi.typeLabelOf(item.productType);
                       } catch {
                         typeLabel = "";
                       }
 
-                      const displayTitle = typeLabel
-                        ? `${variantTitle} - ${typeLabel}`
-                        : variantTitle;
+                      const displayTitle = typeLabel ? `${variantTitle} - ${typeLabel}` : variantTitle;
 
                       const unitPrice = item.unitPrice ?? 0;
                       const listPrice = item.listPrice;
-                      const showOldPrice =
-                        listPrice != null && listPrice > unitPrice;
+                      const showOldPrice = listPrice != null && listPrice > unitPrice;
 
                       let discountPercent = item.discountPercent ?? 0;
-                      if (
-                        (!discountPercent || discountPercent <= 0) &&
-                        showOldPrice &&
-                        unitPrice > 0
-                      ) {
-                        discountPercent = Math.round(
-                          100 - (unitPrice / listPrice) * 100
-                        );
+                      if ((!discountPercent || discountPercent <= 0) && showOldPrice && unitPrice > 0) {
+                        discountPercent = Math.round(100 - (unitPrice / listPrice) * 100);
                       }
 
                       return (
@@ -452,38 +525,28 @@ const StorefrontCartPage = () => {
                             {item.thumbnail ? (
                               <img src={item.thumbnail} alt={displayTitle} />
                             ) : (
-                              <div className="sf-cart-item-media-placeholder">
-                                {displayTitle?.[0] || "K"}
-                              </div>
+                              <div className="sf-cart-item-media-placeholder">{displayTitle?.[0] || "K"}</div>
                             )}
                           </div>
 
                           <div className="sf-cart-item-body">
-                            <div className="sf-cart-item-title">
-                              {displayTitle}
-                            </div>
+                            <div className="sf-cart-item-title">{displayTitle}</div>
 
                             <div className="sf-cart-item-actions">
                               <button
                                 type="button"
                                 className="sf-btn sf-btn-outline"
-                                onClick={() =>
-                                  handleChangeQuantity(item, -1)
-                                }
-                                disabled={isUpdating}
+                                onClick={() => handleChangeQuantity(item, -1)}
+                                disabled={disabled}
                               >
                                 -
                               </button>
-                              <span className="sf-cart-qty-value">
-                                {item.quantity}
-                              </span>
+                              <span className="sf-cart-qty-value">{item.quantity}</span>
                               <button
                                 type="button"
                                 className="sf-btn sf-btn-outline"
-                                onClick={() =>
-                                  handleChangeQuantity(item, 1)
-                                }
-                                disabled={isUpdating}
+                                onClick={() => handleChangeQuantity(item, 1)}
+                                disabled={disabled}
                               >
                                 +
                               </button>
@@ -492,7 +555,7 @@ const StorefrontCartPage = () => {
                                 type="button"
                                 className="sf-btn sf-btn-outline"
                                 onClick={() => handleRemoveItem(item)}
-                                disabled={isUpdating}
+                                disabled={disabled}
                               >
                                 Xoá
                               </button>
@@ -500,20 +563,10 @@ const StorefrontCartPage = () => {
                           </div>
 
                           <div className="sf-cart-item-right">
-                            <div className="sf-cart-item-price-now">
-                              {formatCurrency(unitPrice)}
-                            </div>
-
-                            {showOldPrice && (
-                              <div className="sf-cart-item-price-old">
-                                {formatCurrency(listPrice)}
-                              </div>
-                            )}
-
+                            <div className="sf-cart-item-price-now">{formatCurrency(unitPrice)}</div>
+                            {showOldPrice && <div className="sf-cart-item-price-old">{formatCurrency(listPrice)}</div>}
                             {discountPercent > 0 && (
-                              <div className="sf-cart-item-discount-tag">
-                                Giảm {discountPercent}%
-                              </div>
+                              <div className="sf-cart-item-discount-tag">Giảm {discountPercent}%</div>
                             )}
                           </div>
                         </li>
@@ -522,11 +575,7 @@ const StorefrontCartPage = () => {
                   </ul>
 
                   <div className="sf-cart-actions-secondary">
-                    <button
-                      type="button"
-                      className="sf-btn sf-btn-outline"
-                      onClick={handleContinueShopping}
-                    >
+                    <button type="button" className="sf-btn sf-btn-outline" onClick={handleContinueShopping}>
                       &larr; Tiếp tục mua sắm
                     </button>
 
@@ -534,6 +583,7 @@ const StorefrontCartPage = () => {
                       type="button"
                       className="sf-btn sf-btn-outline"
                       onClick={handleClearCart}
+                      disabled={isCartLocked || checkingOut}
                     >
                       Xoá toàn bộ giỏ hàng
                     </button>
@@ -542,57 +592,34 @@ const StorefrontCartPage = () => {
               )}
             </section>
 
-            {/* Cột phải: tóm tắt & email */}
             <aside className="sf-cart-summary">
               <h2 className="sf-cart-summary-title">Thông tin đơn hàng</h2>
 
               {hasItems && (
                 <>
                   <div className="sf-cart-summary-row">
-                    <span className="sf-cart-summary-label">
-                      Tổng tiền theo giá gốc
-                    </span>
-                    <span className="sf-cart-summary-value">
-                      {formatCurrency(cart.totalListAmount)}
-                    </span>
+                    <span className="sf-cart-summary-label">Tổng tiền theo giá gốc</span>
+                    <span className="sf-cart-summary-value">{formatCurrency(cart.totalListAmount)}</span>
                   </div>
 
                   <div className="sf-cart-summary-row sf-cart-summary-discount">
-                    <span className="sf-cart-summary-label">
-                      Bạn tiết kiệm được
-                    </span>
-                    <span className="sf-cart-summary-value">
-                      -{formatCurrency(cart.totalDiscount)}
-                    </span>
+                    <span className="sf-cart-summary-label">Bạn tiết kiệm được</span>
+                    <span className="sf-cart-summary-value">-{formatCurrency(cart.totalDiscount)}</span>
                   </div>
 
                   <div className="sf-cart-summary-row sf-cart-summary-total">
-                    <span className="sf-cart-summary-label">
-                      Tổng thanh toán
-                    </span>
-                    <span className="sf-cart-summary-value">
-                      {formatCurrency(cart.totalAmount)}
-                    </span>
+                    <span className="sf-cart-summary-label">Tổng thanh toán</span>
+                    <span className="sf-cart-summary-value">{formatCurrency(cart.totalAmount)}</span>
                   </div>
 
                   <div className="sf-cart-email-block">
-                    <div className="sf-cart-email-label">
-                      Email nhận hàng (gửi key / tài khoản):
-                    </div>
+                    <div className="sf-cart-email-label">Email nhận hàng (gửi key / tài khoản):</div>
 
                     {cart.accountEmail ? (
                       <div className="sf-cart-email-readonly">
-                        {cart.accountUserName && (
-                          <div className="sf-cart-account-name">
-                            {cart.accountUserName}
-                          </div>
-                        )}
-                        <div className="sf-cart-account-email">
-                          {cart.accountEmail}
-                        </div>
-                        <div className="sf-cart-email-note">
-                          Email nhận hàng sẽ dùng email của tài khoản này.
-                        </div>
+                        {cart.accountUserName && <div className="sf-cart-account-name">{cart.accountUserName}</div>}
+                        <div className="sf-cart-account-email">{cart.accountEmail}</div>
+                        <div className="sf-cart-email-note">Email nhận hàng sẽ dùng email của tài khoản này.</div>
                       </div>
                     ) : (
                       <div className="sf-cart-email-input-row">
@@ -602,12 +629,13 @@ const StorefrontCartPage = () => {
                           placeholder="nhapemail@domain.com"
                           value={localEmail}
                           onChange={(e) => setLocalEmail(e.target.value)}
+                          disabled={isCartLocked || checkingOut}
                         />
                         <button
                           type="button"
                           className="sf-btn sf-btn-outline"
                           onClick={handleSaveEmail}
-                          disabled={updatingEmail}
+                          disabled={updatingEmail || isCartLocked || checkingOut}
                         >
                           Lưu
                         </button>
@@ -619,12 +647,10 @@ const StorefrontCartPage = () => {
                     <button
                       type="button"
                       className="sf-btn sf-btn-primary sf-btn-lg"
-                      onClick={handleProceedCheckout}
-                      disabled={checkingOut}
+                      onClick={handleCheckoutWithConfirm}
+                      disabled={checkingOut || isCartLocked}
                     >
-                      {checkingOut
-                        ? "Đang chuyển đến cổng thanh toán..."
-                        : "Tiến hành thanh toán"}
+                      {checkingOut ? "Đang chuyển đến cổng thanh toán..." : "Tiến hành thanh toán"}
                     </button>
                   </div>
                 </>

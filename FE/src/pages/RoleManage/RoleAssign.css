@@ -54,6 +54,13 @@
   gap: 16px;
 }
 
+.ra-page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
 .ra-page-heading h1 {
   margin: 0;
   font-size: 28px;
@@ -61,8 +68,15 @@
   color: var(--ink, #111827);
 }
 
-.ra-page-heading p {
-  margin: 4px 0 0;
+.ra-page-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ra-page-subrow p {
+  margin: 0;
   color: var(--muted, #6b7280);
   font-size: 15px;
 }
@@ -248,6 +262,67 @@
   overflow-y: auto;
   max-height: clamp(280px, 60vh, 520px);
   padding-right: 4px;
+}
+
+/* ===== Assign Module Modal ===== */
+
+.ra-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.ra-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.3);
+  width: 100%;
+  max-width: 420px;
+  padding: 20px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ra-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink, #111827);
+}
+
+.ra-modal-body {
+  font-size: 14px;
+  color: var(--muted, #4b5563);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ra-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ra-module-assign__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink, #111827);
+}
+
+.ra-select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e5e7eb);
+  font-size: 14px;
 }
 
 .ra-role-item {

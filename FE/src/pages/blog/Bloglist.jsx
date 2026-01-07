@@ -5,7 +5,25 @@ import { Link, useSearchParams } from "react-router-dom"; // ✅ Import useSearc
 import "../../styles/Bloglist.css";
 import { postsApi } from "../../services/postsApi";
 
-const pageSize = 10;
+const pageSize = 8;
+
+const createPaginationRange = (page, pageCount) => {
+    if (pageCount <= 5) {
+        return Array.from({ length: pageCount }, (_, i) => i + 1);
+    }
+
+    if (page <= 2) {
+        return [1, 2, 3, "...", pageCount];
+    }
+
+
+    if (page >= pageCount - 1) {
+        return [1, "...", pageCount - 2, pageCount - 1, pageCount];
+    }
+
+    return [1, "...", page - 1, page, page + 1, "...", pageCount];
+};
+
 
 const BlogList = () => {
     const [posts, setPosts] = useState([]);
@@ -18,7 +36,7 @@ const BlogList = () => {
 
     // Get filters from URL
     const page = parseInt(searchParams.get('page')) || 1;
-    const categorySlug = searchParams.get('category') || 'all';
+    const categoryId = searchParams.get('category') || 'all';
     const tagSlug = searchParams.get('tag') || 'all';
     const searchQuery = searchParams.get('q') || '';
 
@@ -33,19 +51,30 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getAllPosts(),
+               postsApi.getAllPosts(true), 
                 postsApi.getPosttypes(),
                 postsApi.getTags()
             ]);
 
+            // Additional frontend filtering as backup
+            const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
+            const filteredPosts = filterStaticContentPosts(Array.isArray(postsRes) ? postsRes : []);
+
+            // Filter out SpecificDocumentation post type from categories
+            const filteredCategories = (Array.isArray(categoriesRes) ? categoriesRes : []).filter(pt => {
+                const name = (pt.postTypeName || pt.PostTypeName || pt.posttypeName || pt.PosttypeName || '').toLowerCase();
+                const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+            });
+
             console.log("✅ Data loaded:", {
-                posts: postsRes.length,
-                categories: categoriesRes.length,
+                posts: filteredPosts.length,
+                categories: filteredCategories.length,
                 tags: tagsRes.length
             });
 
-            setPosts(Array.isArray(postsRes) ? postsRes : []);
-            setCategories(Array.isArray(categoriesRes) ? categoriesRes : []);
+            setPosts(filteredPosts);
+            setCategories(filteredCategories);
             setTags(Array.isArray(tagsRes) ? tagsRes : []);
         } catch (err) {
             console.error("❌ Load data error:", err);
@@ -81,6 +110,28 @@ const BlogList = () => {
     const filteredPosts = useMemo(() => {
         let result = posts;
 
+        // Additional static content filtering as backup - ensure SpecificDocumentation is excluded
+        const { isStaticContentPost } = require('../../utils/staticContentHelper');
+        result = result.filter(p => {
+            // Check using utility function
+            if (isStaticContentPost(p)) return false;
+            
+            // Additional check by postTypeName to be safe
+            const postTypeName = p.postTypeName || p.posttypeName || p.PostTypeName || p.PosttypeName || '';
+            if (postTypeName) {
+                const name = postTypeName.toLowerCase();
+                const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                if (slug === 'specific-documentation' || name === 'specificdocumentation') {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+
+        // Status filter - only show Published posts
+        result = result.filter(p => p.status === "Published");
+
         // Search filter
         if (search.trim()) {
             const lowerSearch = search.toLowerCase();
@@ -90,12 +141,10 @@ const BlogList = () => {
             );
         }
 
-        // Category filter (by slug)
-        if (categorySlug !== "all") {
-            const category = categories.find(c => c.slug === categorySlug);
-            if (category) {
-                result = result.filter(p => p.postTypeId === category.postTypeId);
-            }
+        // Category filter (by postTypeId)
+        if (categoryId !== "all") {
+            result = result.filter(p => p.postTypeId?.toString() === categoryId);
+
         }
 
         // Tag filter (by slug)
@@ -109,11 +158,15 @@ const BlogList = () => {
         }
 
         return result;
-    }, [posts, search, categorySlug, tagSlug, categories, tags]);
+    }, [posts, search, categoryId, tagSlug, categories, tags]);
 
     // Pagination
     const total = filteredPosts.length;
     const pageCount = Math.ceil(total / pageSize);
+    const paginationRange = useMemo(
+        () => createPaginationRange(page, pageCount),
+        [page, pageCount]
+    );
 
     const pagedPosts = useMemo(() => {
         const start = (page - 1) * pageSize;
@@ -138,7 +191,7 @@ const BlogList = () => {
     }, [search]);
 
     // Get active filter labels
-    const activeCategory = categories.find(c => c.slug === categorySlug);
+    const activeCategory = categories.find(c => c.postTypeId?.toString() === categoryId);
     const activeTag = tags.find(t => t.slug === tagSlug);
 
     return (
@@ -217,7 +270,7 @@ const BlogList = () => {
                     </form>
 
                     {/* ✅ Active filters indicator */}
-                    {(categorySlug !== "all" || tagSlug !== "all" || searchQuery) && (
+                    {(categoryId !== "all" || tagSlug !== "all" || searchQuery) && (
                         <div style={{
                             marginBottom: 16,
                             display: 'flex',
@@ -382,78 +435,93 @@ const BlogList = () => {
                                 </button>
                             </div>
                         ) : (
-                            pagedPosts.map(post => (
-                                <div className="bloglist-post-card" key={post.postId}>
-                                    {post.thumbnail && (
-                                        <img
-                                            src={post.thumbnail}
-                                            alt={post.title}
-                                            className="bloglist-post-thumb"
-                                        />
-                                    )}
-                                    <div className="bloglist-post-meta">
+                            pagedPosts.map((post) => (
+                                <Link
+                                    key={post.postId}
+                                    to={`/blog/${post.slug}`}
+                                    className="bloglist-post-card"
+                                >
+                                    <div className="bloglist-thumb-wrapper">
+                                        {post.thumbnail && (
+                                            <img
+                                                src={post.thumbnail}
+                                                alt={post.title}
+                                                className="bloglist-post-thumb"
+                                            />
+                                        )}
+
+                                        {post.postTypeName && (
+                                            <span className="bloglist-post-tag-chip">
+                                                {post.postTypeName}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <h2 className="bloglist-post-title">{post.title}</h2>
+
+                                    <div className="bloglist-post-meta-row">
+                                        {post.authorName && (
+                                            <>
+                                                <span className="bloglist-post-author">
+                                                    {post.authorName}
+                                                </span>
+                                                <span className="bloglist-post-meta-dot">-</span>
+                                            </>
+                                        )}
+
                                         <span className="bloglist-post-date">
                                             {post.createdAt
                                                 ? new Date(post.createdAt).toLocaleDateString("vi-VN")
                                                 : ""}
                                         </span>
-                                        {post.postTypeName && (
-                                            <span className="bloglist-post-type">
-                                                {" • " + post.postTypeName}
-                                            </span>
-                                        )}
                                     </div>
-                                    <div className="bloglist-post-title">{post.title}</div>
-                                    <div className="bloglist-post-desc">{post.shortDescription}</div>
-                                    <Link className="bloglist-readmore" to={`/blog/${post.slug}`}>
-                                        Đọc tiếp →
-                                    </Link>
-                                </div>
+                                </Link>
                             ))
                         )}
+
                     </div>
 
                     {/* Pagination */}
                     {pageCount > 1 && (
-                        <div className="bloglist-pagination">
-                            <button
-                                disabled={page <= 1}
-                                onClick={() => setPage(page - 1)}
-                                className={page <= 1 ? "disabled" : ""}
-                            >
-                                &lt; Trước
-                            </button>
+                        <div className="bloglist-pagination-wrap">
+                            <div className="bloglist-pagination">
+                                {paginationRange.map((item, idx) => {
+                                    if (item === "...") {
+                                        return (
+                                            <span key={idx} className="bloglist-page-ellipsis">
+                                                ...
+                                            </span>
+                                        );
+                                    }
 
-                            {[...Array(pageCount)].map((_, idx) => {
-                                const pageNum = idx + 1;
-                                // Show first, last, current, and ±1 around current
-                                if (
-                                    pageNum === 1 ||
-                                    pageNum === pageCount ||
-                                    (pageNum >= page - 1 && pageNum <= page + 1)
-                                ) {
+                                    const pageNum = item;
                                     return (
                                         <button
                                             key={idx}
-                                            className={page === pageNum ? "selected" : ""}
+                                            className={
+                                                "bloglist-page-btn" +
+                                                (pageNum === page ? " selected" : "")
+                                            }
                                             onClick={() => setPage(pageNum)}
                                         >
                                             {pageNum}
                                         </button>
                                     );
-                                } else if (pageNum === page - 2 || pageNum === page + 2) {
-                                    return <span key={idx} style={{ padding: '0 4px' }}>...</span>;
-                                }
-                                return null;
-                            })}
+                                })}
 
-                            <button
-                                disabled={page >= pageCount}
-                                onClick={() => setPage(page + 1)}
-                                className={page >= pageCount ? "disabled" : ""}
-                            >
-                                Sau &gt;
-                            </button>
+                                {/* nút mũi tên sang trang sau */}
+                                <button
+                                    className="bloglist-page-btn"
+                                    disabled={page >= pageCount}
+                                    onClick={() => setPage(page + 1)}
+                                >
+                                    &gt;
+                                </button>
+                            </div>
+
+                            <div className="bloglist-page-info">
+                                Trang {page} của {pageCount}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -466,15 +534,15 @@ const BlogList = () => {
                         <ul className="bloglist-category-list">
                             <li
                                 onClick={() => updateFilter('category', null)}
-                                className={categorySlug === "all" ? "active" : ""}
+                                className={categoryId === "all" ? "active" : ""}
                             >
                                 Tất cả danh mục
                             </li>
                             {categories.map(item => (
                                 <li
                                     key={item.postTypeId}
-                                    className={categorySlug === item.slug ? "active" : ""}
-                                    onClick={() => updateFilter('category', item.slug)}
+                                    className={categoryId === item.postTypeId ? "active" : ""}
+                                    onClick={() => updateFilter('category', item.postTypeId)}
                                 >
                                     {item.postTypeName}
                                 </li>

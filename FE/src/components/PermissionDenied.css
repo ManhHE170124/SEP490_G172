@@ -1,0 +1,29 @@
+.permission-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  min-height: 300px;
+}
+
+.permission-denied-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.6;
+}
+
+.permission-denied-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #dc3545;
+  margin-bottom: 0.5rem;
+}
+
+.permission-denied-message {
+  font-size: 1rem;
+  color: #6c757d;
+  max-width: 500px;
+}
+

@@ -3,26 +3,38 @@ using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Utils;
+using Keytietkiem.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Keytietkiem.Controllers
 {
     [ApiController]
     [Route("api/products/{productId:guid}/variants")]
+    [Authorize]
     public class ProductVariantsController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
+        private readonly IAuditLogger _auditLogger;
 
         private const int TitleMaxLength = 60;
         private const int CodeMaxLength = 50;
         private const decimal MaxPriceValue = 9999999999999999.99M; // decimal(18,2)
 
-        public ProductVariantsController(IDbContextFactory<KeytietkiemDbContext> dbFactory, IClock clock)
+        public ProductVariantsController(
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IClock clock,
+            IAuditLogger auditLogger)
         {
             _dbFactory = dbFactory;
             _clock = clock;
+            _auditLogger = auditLogger;
         }
 
         private static string NormalizeStatus(string? s)
@@ -31,13 +43,68 @@ namespace Keytietkiem.Controllers
             return ProductEnums.Statuses.Contains(u) ? u : "INACTIVE";
         }
 
+        /// <summary>
+        /// Quy ước status cho Variant (tương tự Product):
+        /// - ACTIVE      : còn hàng & hiển thị.
+        /// - OUT_OF_STOCK: hết hàng nhưng vẫn hiển thị.
+        /// - INACTIVE    : ẩn hoàn toàn, chỉ khi admin set explicit.
+        /// 
+        /// Hết hàng KHÔNG bao giờ tự chuyển sang INACTIVE, chỉ OUT_OF_STOCK.
+        /// </summary>
         private static string ResolveStatusFromStock(int stockQty, string? desired)
         {
-            if (stockQty <= 0) return "OUT_OF_STOCK";
-            var d = NormalizeStatus(desired);
-            return d == "OUT_OF_STOCK" ? "ACTIVE" : d;
+            var d = (desired ?? string.Empty).Trim().ToUpperInvariant();
+
+            // Admin explicit INACTIVE => luôn INACTIVE
+            if (d == "INACTIVE")
+                return "INACTIVE";
+
+            // Hết hàng => OUT_OF_STOCK (vẫn hiển thị)
+            if (stockQty <= 0)
+                return "OUT_OF_STOCK";
+
+            // Còn hàng:
+            if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d) && d != "OUT_OF_STOCK")
+            {
+                // Cho phép ACTIVE / các status hợp lệ khác (trừ OUT_OF_STOCK khi còn hàng)
+                return d;
+            }
+
+            // Mặc định khi có stock mà không truyền status hợp lệ: ACTIVE
+            return "ACTIVE";
         }
 
+        private static void TrySetProductStockQty(object productEntity, int totalStock)
+        {
+            // Avoid compile-time dependency on Product.StockQty (some DB versions may not have it).
+            var prop = productEntity.GetType().GetProperty("StockQty");
+            if (prop == null || !prop.CanWrite) return;
+
+            var t = prop.PropertyType;
+            if (t == typeof(int)) { prop.SetValue(productEntity, totalStock); return; }
+            if (t == typeof(int?)) { prop.SetValue(productEntity, (int?)totalStock); return; }
+            if (t == typeof(long)) { prop.SetValue(productEntity, (long)totalStock); return; }
+            if (t == typeof(long?)) { prop.SetValue(productEntity, (long?)totalStock); return; }
+
+            try
+            {
+                var target = Nullable.GetUnderlyingType(t) ?? t;
+                var converted = Convert.ChangeType(totalStock, target);
+                prop.SetValue(productEntity, converted);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        /// <summary>
+        /// Recalc status của Product dựa trên tổng stock các variant.
+        /// Hết hàng -> OUT_OF_STOCK, còn hàng -> ACTIVE.
+        /// Không bao giờ tự chuyển sang INACTIVE khi hết hàng.
+        /// Nếu product đang INACTIVE và không truyền desiredStatus thì giữ nguyên,
+        /// để đảm bảo "ẩn" là do admin quyết định.
+        /// </summary>
         private async Task RecalcProductStatus(KeytietkiemDbContext db, Guid productId, string? desiredStatus = null)
         {
             var p = await db.Products
@@ -45,26 +112,54 @@ namespace Keytietkiem.Controllers
                             .FirstAsync(x => x.ProductId == productId);
 
             var totalStock = p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0;
-            if (totalStock <= 0)
+
+            // Persist tổng tồn kho xuống Product (nếu có cột StockQty trong DB).
+            TrySetProductStockQty(p, totalStock);
+
+            // Nếu admin đã đặt sản phẩm INACTIVE và không truyền desiredStatus
+            // thì không tự động thay đổi nữa.
+            if (string.Equals(p.Status, "INACTIVE", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(desiredStatus))
             {
-                p.Status = "OUT_OF_STOCK";
-            }
-            else if (!string.IsNullOrWhiteSpace(desiredStatus) &&
-                     ProductEnums.Statuses.Contains(desiredStatus.Trim().ToUpperInvariant()))
-            {
-                p.Status = desiredStatus!.Trim().ToUpperInvariant();
-            }
-            else
-            {
-                p.Status = "ACTIVE";
+                p.UpdatedAt = _clock.UtcNow;
+                return;
             }
 
+            // Nếu có desiredStatus (ví dụ từ màn cập nhật Product) thì ưu tiên nó,
+            // nhưng INACTIVE luôn là quyết định explicit của admin.
+            if (!string.IsNullOrWhiteSpace(desiredStatus))
+            {
+                var d = desiredStatus.Trim().ToUpperInvariant();
+                if (ProductEnums.Statuses.Contains(d))
+                {
+                    if (d == "INACTIVE")
+                    {
+                        p.Status = "INACTIVE";
+                    }
+                    else if (totalStock <= 0)
+                    {
+                        p.Status = "OUT_OF_STOCK";
+                    }
+                    else
+                    {
+                        p.Status = d;
+                    }
+
+                    p.UpdatedAt = _clock.UtcNow;
+                    return;
+                }
+            }
+
+            // Không có desiredStatus: tự suy từ tồn kho, chỉ ACTIVE / OUT_OF_STOCK
+            p.Status = totalStock <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
             p.UpdatedAt = _clock.UtcNow;
         }
 
         private static string ToggleVisibility(string? current, int stock)
         {
+            // Hết hàng => chỉ OUT_OF_STOCK, không ẩn
             if (stock <= 0) return "OUT_OF_STOCK";
+
             var cur = NormalizeStatus(current);
             return cur == "ACTIVE" ? "INACTIVE" : "ACTIVE";
         }
@@ -212,6 +307,7 @@ namespace Keytietkiem.Controllers
 
         // ===== LIST =====
         [HttpGet]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<PagedResult<ProductVariantListItemDto>>> List(
             Guid productId,
             [FromQuery] ProductVariantListQuery query)
@@ -311,6 +407,7 @@ namespace Keytietkiem.Controllers
 
         // ===== DETAIL =====
         [HttpGet("{variantId:guid}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<ActionResult<ProductVariantDetailDto>> Get(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -346,6 +443,7 @@ namespace Keytietkiem.Controllers
 
         // ===== CREATE =====
         [HttpPost]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<ActionResult<ProductVariantDetailDto>> Create(Guid productId, ProductVariantCreateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -449,6 +547,29 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
+            // === AUDIT LOG: CREATE SUCCESS ===
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Create",
+                entityType: "ProductVariant",
+                entityId: v.VariantId.ToString(),
+                before: null,
+                after: new
+                {
+                    v.VariantId,
+                    v.ProductId,
+                    v.VariantCode,
+                    v.Title,
+                    v.DurationDays,
+                    v.StockQty,
+                    v.WarrantyDays,
+                    v.Status,
+                    v.SellPrice,
+                    v.ListPrice,
+                    v.CogsPrice
+                }
+            );
+
             return CreatedAtAction(nameof(Get), new { productId, variantId = v.VariantId },
                 new ProductVariantDetailDto(
                     v.VariantId,
@@ -471,11 +592,28 @@ namespace Keytietkiem.Controllers
 
         // ===== UPDATE =====
         [HttpPut("{variantId:guid}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Update(Guid productId, Guid variantId, ProductVariantUpdateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
             var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
+
+            // Snapshot before
+            var before = new
+            {
+                v.VariantId,
+                v.ProductId,
+                v.VariantCode,
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice
+            };
 
             var title = NormalizeString(dto.Title);
             var variantCode = NormalizeString(dto.VariantCode ?? v.VariantCode ?? string.Empty);
@@ -567,11 +705,38 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
+            // Snapshot after
+            var after = new
+            {
+                v.VariantId,
+                v.ProductId,
+                v.VariantCode,
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice
+            };
+
+            // === AUDIT LOG: UPDATE SUCCESS ===
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Update",
+                entityType: "ProductVariant",
+                entityId: v.VariantId.ToString(),
+                before: before,
+                after: after
+            );
+
             return NoContent();
         }
 
         // ===== DELETE =====
         [HttpDelete("{variantId:guid}")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Delete(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
@@ -580,6 +745,22 @@ namespace Keytietkiem.Controllers
                             .FirstOrDefaultAsync(x => x.ProductId == productId &&
                                                       x.VariantId == variantId);
             if (v is null) return NotFound();
+
+            // Snapshot before delete
+            var before = new
+            {
+                v.VariantId,
+                v.ProductId,
+                v.VariantCode,
+                v.Title,
+                v.DurationDays,
+                v.StockQty,
+                v.WarrantyDays,
+                v.Status,
+                v.SellPrice,
+                v.ListPrice,
+                v.CogsPrice
+            };
 
             var hasSections = await db.ProductSections
                                       .AnyAsync(s => s.VariantId == variantId);
@@ -599,11 +780,22 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
+            // === AUDIT LOG: DELETE SUCCESS ===
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "Delete",
+                entityType: "ProductVariant",
+                entityId: v.VariantId.ToString(),
+                before: before,
+                after: null
+            );
+
             return NoContent();
         }
 
         // ===== TOGGLE =====
         [HttpPatch("{variantId:guid}/toggle")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> Toggle(Guid productId, Guid variantId)
         {
             try
@@ -613,6 +805,14 @@ namespace Keytietkiem.Controllers
                                 .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
                 if (v is null) return NotFound();
 
+                var before = new
+                {
+                    v.VariantId,
+                    v.ProductId,
+                    v.Status,
+                    v.StockQty
+                };
+
                 v.Status = ToggleVisibility(v.Status, v.StockQty);
                 v.UpdatedAt = _clock.UtcNow;
 
@@ -620,10 +820,29 @@ namespace Keytietkiem.Controllers
                 await RecalcProductStatus(db, productId);
                 await db.SaveChangesAsync();
 
+                var after = new
+                {
+                    v.VariantId,
+                    v.ProductId,
+                    v.Status,
+                    v.StockQty
+                };
+
+                // === AUDIT LOG: TOGGLE SUCCESS ===
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "Toggle",
+                    entityType: "ProductVariant",
+                    entityId: v.VariantId.ToString(),
+                    before: before,
+                    after: after
+                );
+
                 return Ok(new { VariantId = v.VariantId, Status = v.Status });
             }
             catch (Exception ex)
             {
+                // Không audit log lỗi toggle để tránh spam, chỉ trả 500
                 return Problem(title: "Toggle variant status failed",
                                detail: ex.Message,
                                statusCode: StatusCodes.Status500InternalServerError);

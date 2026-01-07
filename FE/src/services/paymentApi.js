@@ -1,11 +1,30 @@
-// services/paymentApi.js
+// File: src/services/paymentApi.js
 import axiosClient from "../api/axiosClient";
 
 const END = { PAYMENTS: "payments" };
 
-export const paymentApi = {
-  // params: status, provider, email, transactionType, sortBy, sortDir, ...
-  list: (params = {}) => axiosClient.get(END.PAYMENTS, { params }),
+const unwrap = (res) => res?.data ?? res;
 
-  get: (id) => axiosClient.get(`${END.PAYMENTS}/${id}`),
+const normalizePaged = (res) => {
+  const data = unwrap(res) || {};
+  return {
+    pageIndex: data.pageIndex ?? data.PageIndex ?? 1,
+    pageSize: data.pageSize ?? data.PageSize ?? 20,
+    totalItems: data.totalItems ?? data.TotalItems ?? 0,
+    items: Array.isArray(data.items ?? data.Items) ? (data.items ?? data.Items) : [],
+  };
+};
+
+export const paymentApi = {
+  // params: search, createdFrom, createdTo, paymentStatus, transactionType, amountFrom, amountTo, sortBy, sortDir, pageIndex, pageSize
+  listPaged: (params = {}) => axiosClient.get(END.PAYMENTS, { params }).then(normalizePaged),
+
+  // Customer payment history (filtered by current user)
+  listCustomerPaged: (params = {}) => axiosClient.get(`${END.PAYMENTS}/customer`, { params }).then(normalizePaged),
+
+  // detail: full payment fields (không dùng attempts)
+  get: (paymentId, params) => {
+    const cfg = params ? { params } : undefined;
+    return axiosClient.get(`${END.PAYMENTS}/${paymentId}`, cfg);
+  },
 };

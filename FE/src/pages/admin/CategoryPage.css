@@ -470,3 +470,36 @@ textarea:focus {
   background: #d1d5db;
   border-radius: 999px;
 }
+/* Giữ label + dấu * trên cùng 1 dòng, dùng cho mọi form */
+.input-group .group > span {
+  display: inline-flex;       /* span trở thành 1 khối inline */
+  align-items: center;        /* căn giữa theo chiều dọc */
+  gap: 4px;                   /* khoảng cách giữa text và * */
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  white-space: nowrap;        /* không cho tự xuống dòng trong label */
+}
+/* Tuỳ chọn: thu gọn các cột số trong FAQ list */
+.faq-table th:nth-child(3),
+.faq-table td:nth-child(3), /* Thứ tự */
+.faq-table th:nth-child(4),
+.faq-table td:nth-child(4), /* Danh mục */
+.faq-table th:nth-child(5),
+.faq-table td:nth-child(5), /* Sản phẩm */
+.faq-table th:nth-child(6),
+.faq-table td:nth-child(6)  /* Trạng thái */
+{
+  width: 80px;
+  max-width: 80px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 2 cột Câu hỏi / Trả lời chiếm phần lớn chiều ngang, nhưng cho phép xuống dòng */
+.faq-table th:nth-child(1),
+.faq-table td:nth-child(1),
+.faq-table th:nth-child(2),
+.faq-table td:nth-child(2) {
+  word-break: break-word;
+}

@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import {
   useParams,
@@ -86,6 +87,10 @@ const StorefrontProductDetailPage = () => {
   const [error, setError] = useState("");
   const [addingToCart, setAddingToCart] = useState(false);
 
+  // ✅ chống +view nhiều lần khi reload (cart update / re-render)
+  const viewedRef = useRef(new Set()); // key: `${productId}:${variantId}`
+
+
   // Toast state
   const [toasts, setToasts] = useState([]);
 
@@ -119,12 +124,12 @@ const StorefrontProductDetailPage = () => {
   }, []);
 
   // ====== Load detail & related ======
-  const loadDetail = useCallback(async (pid, vid) => {
+  const loadDetail = useCallback(async (pid, vid, options = {}) => {
     if (!pid || !vid) return;
     setLoadingDetail(true);
     setError("");
     try {
-      const res = await StorefrontProductApi.variantDetail(pid, vid);
+      const res = await StorefrontProductApi.variantDetail(pid, vid, options);
       setDetail(res);
       // Reset quantity về 1 khi đổi biến thể hoặc khi reload detail
       setQuantity(1);
@@ -158,7 +163,12 @@ const StorefrontProductDetailPage = () => {
   // Lần đầu & khi đổi variant
   useEffect(() => {
     if (!productId || !currentVariantId) return;
-    loadDetail(productId, currentVariantId);
+
+    const key = `${productId}:${currentVariantId}`;
+    const shouldCountView = !viewedRef.current.has(key);
+    if (shouldCountView) viewedRef.current.add(key);
+
+    loadDetail(productId, currentVariantId, { countView: shouldCountView });
     loadRelated(productId, currentVariantId);
   }, [productId, currentVariantId, loadDetail, loadRelated]);
 
@@ -168,7 +178,7 @@ const StorefrontProductDetailPage = () => {
 
     const handleCartUpdated = () => {
       if (productId && currentVariantId) {
-        loadDetail(productId, currentVariantId);
+        loadDetail(productId, currentVariantId, { countView: false });
       }
     };
 
@@ -212,10 +222,15 @@ const StorefrontProductDetailPage = () => {
     }
   };
 
-  // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
+   // ==== Tính trạng thái hết hàng (kết hợp status + stockQty) ====
   const isOutOfStock = detail
-    ? detail.isOutOfStock || (detail.stockQty ?? 0) <= 0
+    ? !!(
+        detail.isOutOfStock ||
+        (detail.status || "").toString().toUpperCase() === "OUT_OF_STOCK" ||
+        (typeof detail.stockQty === "number" && detail.stockQty <= 0)
+      )
     : false;
+
 
   const typeLabel = detail
     ? StorefrontProductApi.typeLabelOf(detail.productType)

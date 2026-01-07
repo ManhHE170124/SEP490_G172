@@ -1,27 +1,46 @@
 ﻿// File: Controllers/TicketsController.cs
+using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Hubs;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
 
 namespace Keytietkiem.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // ✅ NEW: bắt buộc đăng nhập cho toàn bộ Tickets APIs
 public class TicketsController : ControllerBase
 {
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<TicketHub> _ticketHub;
-
-    public TicketsController(KeytietkiemDbContext db, IHubContext<TicketHub> ticketHub)
+    private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
+    private readonly IClock _clock;
+    public TicketsController(
+        KeytietkiemDbContext db,
+        IHubContext<TicketHub> ticketHub,
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService,
+        IConfiguration config)
     {
         _db = db;
         _ticketHub = ticketHub;
+        _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService;
+        _config = config;
     }
 
     // ============ Helpers ============
@@ -46,6 +65,46 @@ public class TicketsController : ControllerBase
     private static IQueryable<Ticket> BaseQuery(KeytietkiemDbContext db) => db.Tickets.AsNoTracking()
         .Include(t => t.User)
         .Include(t => t.Assignee);
+
+    // ✅ NEW: helpers role tối thiểu để kiểm tra quyền theo yêu cầu
+    private static bool IsCustomer(User u)
+    {
+        // FIX: tránh bắt nhầm role kiểu "customer-care-staff" là customer
+        if (u.Roles == null || u.Roles.Count == 0) return false;
+
+        var hasCustomer = u.Roles.Any(r =>
+        {
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return code.Contains("customer");
+        });
+
+        // Nếu đồng thời là staff/admin thì không coi là customer
+        if (hasCustomer && IsStaffOrAdmin(u)) return false;
+
+        return hasCustomer;
+    }
+
+    private static bool IsCareStaff(User u)
+    {
+        return u.Roles != null && u.Roles.Any(r =>
+        {
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return code.Contains("care");
+        });
+    }
+
+    private static bool IsAdmin(User u)
+    {
+        return u.Roles != null && u.Roles.Any(r =>
+        {
+            var name = (r.Name ?? string.Empty).Trim().ToLowerInvariant();
+            var rid = (r.RoleId ?? string.Empty).Trim().ToLowerInvariant();
+            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
+            return name == "admin" || rid == "admin" || code.Contains("admin");
+        });
+    }
+
+    private static bool IsStaffOrAdmin(User u) => IsAdmin(u) || IsCareStaff(u);
 
     /// <summary>
     /// Sinh TicketCode mới dạng TCK-0001 dựa trên TicketCode lớn nhất hiện có.
@@ -77,23 +136,8 @@ public class TicketsController : ControllerBase
     }
 
     // ============ LIST ============
-    /// <summary>
-    /// Danh sách ticket chung (dùng cho Admin & Staff list).
-    /// Hỗ trợ:
-    /// - q: search
-    /// - status: New / InProgress / Completed / Closed
-    /// - severity: Low/Medium/High/Critical
-    /// - sla: OK/Warning/Overdue
-    /// - assignmentState: Unassigned/Assigned/Technical hoặc "Mine" (AssigneeId = user hiện tại)
-    /// 
-    /// Sắp xếp ưu tiên:
-    /// 1) SLA: Overdue -> Warning -> OK -> khác
-    /// 2) Ticket chưa gán (Unassigned) trước, ticket đã gán sau
-    /// 3) Với ticket chưa gán: Hạn phản hồi (FirstResponseDueAt) tăng dần
-    ///    Với ticket đã gán: Hạn giải quyết (ResolutionDueAt) tăng dần
-    /// 4) Cuối cùng theo TicketCode giảm dần (để ổn định thứ tự)
-    /// </summary>
     [HttpGet]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<PagedResult<TicketListItemWithSlaDto>>> List(
         [FromQuery] string? q,
         [FromQuery] string? status,
@@ -225,6 +269,7 @@ public class TicketsController : ControllerBase
 
     // ============ LIST: Ticket của chính khách hàng đang đăng nhập ============
     [HttpGet("customer")]
+    [Authorize]
     public async Task<ActionResult<PagedResult<CustomerTicketListItemDto>>> MyTickets(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
@@ -237,6 +282,26 @@ public class TicketsController : ControllerBase
         if (!Guid.TryParse(userIdStr, out var userId))
         {
             return Unauthorized(new { message = "Bạn cần đăng nhập để xem ticket của mình." });
+        }
+
+        // ✅ NEW: chỉ cho phép Customer xem list ticket của mình
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (me is null)
+            return Unauthorized();
+
+        if ((me.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsCustomer(me))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
         }
 
         // Chỉ lấy ticket của chính user đang đăng nhập
@@ -278,6 +343,7 @@ public class TicketsController : ControllerBase
 
     // ============ DETAIL ============
     [HttpGet("{id:guid}")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<TicketDetailDto>> Detail(Guid id)
     {
         var t = await _db.Tickets
@@ -285,6 +351,147 @@ public class TicketsController : ControllerBase
             .Include(x => x.Assignee)
             .FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
+
+        // ✅ NEW: Customer chỉ được xem ticket của chính mình, Staff/Admin xem được
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (me is null)
+            return Unauthorized();
+
+        if ((me.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (IsCustomer(me))
+        {
+            if (t.UserId != me.UserId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Bạn không có quyền truy cập ticket này." });
+            }
+        }
+        else
+        {
+            if (!IsStaffOrAdmin(me))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Bạn không có quyền truy cập chức năng này." });
+            }
+        }
+
+        var replies = await _db.TicketReplies.AsNoTracking()
+            .Include(r => r.Sender)
+            .Where(r => r.TicketId == id)
+            .OrderBy(r => r.SentAt)
+            .Select(r => new TicketReplyDto
+            {
+                ReplyId = r.ReplyId,
+                SenderId = r.SenderId,
+                SenderName = r.Sender != null ? (r.Sender.FullName ?? r.Sender.Email) : "Không rõ",
+
+                // ✅ NEW: map avatar theo đúng user gửi tin
+                SenderAvatarUrl = r.Sender != null ? r.Sender.AvatarUrl : null,
+
+                IsStaffReply = r.IsStaffReply,
+                Message = r.Message,
+                SentAt = r.SentAt
+            })
+            .ToListAsync();
+
+        var relatedRaw = await _db.Tickets.AsNoTracking()
+            .Where(x => x.UserId == t.UserId && x.TicketId != t.TicketId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.TicketId,
+                x.TicketCode,
+                x.Subject,
+                x.Status,
+                x.Severity,
+                x.SlaStatus,
+                x.CreatedAt
+            })
+            .Take(10)
+            .ToListAsync();
+
+        var related = relatedRaw.Select(x => new RelatedTicketDto
+        {
+            TicketId = x.TicketId,
+            TicketCode = x.TicketCode ?? "",
+            Subject = x.Subject ?? "",
+            Status = NormStatus(x.Status),
+            Severity = ParseSeverity(x.Severity),
+            SlaStatus = ParseSla(x.SlaStatus),
+            CreatedAt = x.CreatedAt
+        }).ToList();
+
+        var dto = new TicketDetailDto
+        {
+            TicketId = t.TicketId,
+            TicketCode = t.TicketCode ?? "",
+            Subject = t.Subject ?? "",
+            Description = t.Description,
+            Status = NormStatus(t.Status),
+            Severity = ParseSeverity(t.Severity),
+            PriorityLevel = t.PriorityLevel,
+            SlaStatus = ParseSla(t.SlaStatus),
+            AssignmentState = ParseAssignState(t.AssignmentState),
+
+            FirstResponseDueAt = t.FirstResponseDueAt,
+            FirstRespondedAt = t.FirstRespondedAt,
+            ResolutionDueAt = t.ResolutionDueAt,
+            ResolvedAt = t.ResolvedAt,
+
+            CustomerName = t.User.FullName ?? "",
+            CustomerEmail = t.User.Email,
+            CustomerPhone = t.User.Phone,
+
+            AssigneeId = t.AssigneeId,
+            AssigneeName = t.Assignee != null ? (t.Assignee.FullName ?? t.Assignee.Email) : null,
+            AssigneeEmail = t.Assignee?.Email,
+
+            CreatedAt = t.CreatedAt,
+            UpdatedAt = t.UpdatedAt,
+
+            Replies = replies,
+            RelatedTickets = related
+        };
+
+        return Ok(dto);
+    }
+
+    [HttpGet("customer/{id:guid}")]
+    [Authorize]
+    public async Task<ActionResult<TicketDetailDto>> GetCustomerTicketDetail(Guid id)
+    {
+        // Lấy UserId từ claim
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized(new { message = "Bạn cần đăng nhập để xem ticket của mình." });
+        }
+
+        var t = await _db.Tickets
+            .Include(x => x.User)
+            .Include(x => x.Assignee)
+            .FirstOrDefaultAsync(x => x.TicketId == id);
+
+        if (t == null) return NotFound();
+
+        // Kiểm tra ownership: chỉ cho phép chủ ticket xem
+        if (t.UserId != userId)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền xem ticket này." });
+        }
 
         var replies = await _db.TicketReplies.AsNoTracking()
             .Include(r => r.Sender)
@@ -364,19 +571,8 @@ public class TicketsController : ControllerBase
     }
 
     // ============ CUSTOMER CREATE ============
-    /// <summary>
-    /// Customer tạo ticket mới từ màn hình customer-ticket.
-    /// - Chỉ cho phép user đang đăng nhập có role "Customer".
-    /// - Severity mặc định = Medium (không cho customer chọn).
-    /// - PriorityLevel lấy từ SupportPriorityLevel của user.
-    /// - Tự sinh TicketCode dạng "TCK-0001" dựa trên mã lớn nhất hiện có.
-    /// - Tự áp dụng SLA (SlaRuleId, FirstResponseDueAt, ResolutionDueAt, SlaStatus).
-    /// </summary>
-    /// <remarks>
-    /// POST /api/Tickets/create
-    /// Body: { "templateCode": "...", "description": "..." }
-    /// </remarks>
     [HttpPost("create")]
+    [Authorize]
     public async Task<ActionResult<CustomerTicketCreatedDto>> CreateCustomerTicket([FromBody] CustomerCreateTicketDto dto)
     {
         var templateCode = (dto?.TemplateCode ?? string.Empty).Trim();
@@ -411,12 +607,15 @@ public class TicketsController : ControllerBase
         if (sender is null)
             return Unauthorized();
 
-        // Chỉ cho phép khách hàng tạo ticket (lọc theo Role.Code chứa "customer")
-        var isCustomer = sender.Roles.Any(r =>
+        // ✅ NEW: chặn user bị khoá
+        if ((sender.Status ?? "Active") != "Active")
         {
-            var code = (r.Code ?? string.Empty).Trim().ToLowerInvariant();
-            return code.Contains("customer");
-        });
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        // Chỉ cho phép khách hàng tạo ticket (lọc theo Role.Code chứa "customer")
+        var isCustomer = IsCustomer(sender);
 
         if (!isCustomer)
         {
@@ -460,8 +659,6 @@ public class TicketsController : ControllerBase
         };
 
         // Áp dụng logic SLA chung:
-        // - Severity lấy theo template (Low/Medium/High/Critical)
-        // - PriorityLevel = sender.SupportPriorityLevel
         TicketSlaHelper.ApplyOnCreate(
             _db,
             ticket,
@@ -490,8 +687,33 @@ public class TicketsController : ControllerBase
 
     // ============ SUBJECT TEMPLATES (Customer create) ============
     [HttpGet("subject-templates")]
+    [AllowAnonymous]
     public async Task<ActionResult<List<TicketSubjectTemplateDto>>> GetSubjectTemplates([FromQuery] bool activeOnly = true)
     {
+        // ✅ NEW: chỉ Customer mới được xem templates (vì phục vụ create ticket)
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var me = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (me is null)
+            return Unauthorized();
+
+        if ((me.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsCustomer(me))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Chỉ khách hàng mới được phép tạo ticket." });
+        }
+
         var query = _db.TicketSubjectTemplates.AsNoTracking();
 
         if (activeOnly)
@@ -519,8 +741,34 @@ public class TicketsController : ControllerBase
     public class AssignTicketDto { public Guid AssigneeId { get; set; } }
 
     [HttpPost("{id:guid}/assign")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignTicketDto dto)
     {
+        // ✅ NEW: chỉ Staff/Admin (ưu tiên Admin) mới được gán người khác
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền gán ticket." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
 
@@ -539,12 +787,69 @@ public class TicketsController : ControllerBase
                 u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
+        var before = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
         if (asg == "Unassigned") t.AssignmentState = "Assigned";
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
         t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
+        // 🔐 AUDIT LOG – ASSIGN TICKET
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "Assign",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+        // ✅ System notification: Admin gán ticket -> notify nhân viên được gán
+        try
+        {
+            var actorName = actor.FullName ?? "(unknown)";
+            var actorEmail = actor.Email ?? "(unknown)";
+            var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/staff/tickets/{id}";
+
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Bạn được gán ticket mới",
+                Message =
+                    $"Admin {actorName} đã gán ticket cho bạn.\n" +
+                    $"-Mã ticket: {ticketCode}\n" +
+                    $"- Nội dung: {t.Subject ?? ""}",
+                Severity = 0, // Info
+                CreatedByUserId = actor.UserId,
+                CreatedByEmail = actorEmail,
+                Type = "Ticket.Assigned",
+                RelatedEntityType = "Ticket",
+                RelatedEntityId = t.TicketId.ToString(),
+
+                // ✅ bạn đổi route FE staff ticket detail
+                RelatedUrl = relatedUrl,
+
+                TargetUserIds = new List<Guid> { dto.AssigneeId }
+            });
+        }
+        catch { }
+
         return NoContent();
     }
 
@@ -553,6 +858,8 @@ public class TicketsController : ControllerBase
     /// POST /api/tickets/{id}/assign-me
     /// </summary>
     [HttpPost("{id:guid}/assign-me")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> AssignToMe(Guid id)
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -571,6 +878,10 @@ public class TicketsController : ControllerBase
         {
             return BadRequest(new { message = "Ticket đã khoá, không thể nhận thêm." });
         }
+        if (ticket.AssigneeId.HasValue)
+        {
+            return BadRequest(new { message = "Ticket đã có người xử lý, không thể nhận thêm." });
+        }
 
         // Validate staff: Active + Role.Code chứa "care"
         var me = await _db.Users
@@ -585,6 +896,14 @@ public class TicketsController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden,
                 new { message = "Bạn không có quyền nhận ticket này." });
         }
+
+        var before = new
+        {
+            ticket.TicketId,
+            ticket.AssigneeId,
+            AssignmentState = ticket.AssignmentState,
+            Status = ticket.Status
+        };
 
         ticket.AssigneeId = currentUserId;
 
@@ -602,14 +921,68 @@ public class TicketsController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        var after = new
+        {
+            ticket.TicketId,
+            ticket.AssigneeId,
+            AssignmentState = ticket.AssignmentState,
+            Status = ticket.Status
+        };
+
+        // 🔐 AUDIT LOG – ASSIGN TO ME
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "AssignToMe",
+            entityType: "Ticket",
+            entityId: ticket.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 
     [HttpPost("{id:guid}/transfer-tech")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> TransferToTech(Guid id, [FromBody] AssignTicketDto dto)
     {
+        // ✅ NEW: chỉ assignee hoặc admin mới được transfer
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
+
+        if (!IsAdmin(actor))
+        {
+            var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == actor.UserId;
+            if (!isAssignee)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Người dùng không có quyền hạn để chuyển ticket." });
+            }
+        }
 
         var st = NormStatus(t.Status);
         if (st is "Closed" or "Completed")
@@ -631,26 +1004,127 @@ public class TicketsController : ControllerBase
                 u.Roles.Any(r => (r.Code ?? string.Empty).ToLower().Contains("care")));
         if (!userOk) return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
 
+        var before = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
         if (asg != "Technical") t.AssignmentState = "Technical";
         if (st == "New") t.Status = "InProgress";
 
         t.AssigneeId = dto.AssigneeId;
         t.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.AssigneeId,
+            AssignmentState = t.AssignmentState,
+            Status = t.Status
+        };
+
+        // 🔐 AUDIT LOG – TRANSFER TO TECH
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "TransferToTech",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+        // ✅ System notification: chuyển ticket -> notify nhân viên được chuyển tới (best-effort)
+        try
+        {
+            var actorName = actor.FullName ?? "(unknown)";
+            var actorEmail = actor.Email ?? "(unknown)";
+            var ticketCode = t.TicketCode ?? t.TicketId.ToString();
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/staff/tickets/{id}";
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Ticket đã được chuyển cho bạn",
+                Message =
+                    $"Nhân viên {actorName} đã chuyển ticket cho bạn.\n" +
+                    $"- Mã ticket: {ticketCode}\n" +
+                    $"- Nội dung: {t.Subject ?? ""}",
+                Severity = 0, // Info
+                CreatedByUserId = actor.UserId,
+                CreatedByEmail = actorEmail,
+                Type = "Ticket.Transferred",
+
+                RelatedEntityType = "Ticket",
+                RelatedEntityId = t.TicketId.ToString(),
+
+                // ✅ đổi theo route FE staff ticket detail của bạn
+                RelatedUrl = relatedUrl,
+
+                TargetUserIds = new List<Guid> { dto.AssigneeId }
+            });
+        }
+        catch { }
+
         return NoContent();
     }
 
     [HttpPost("{id:guid}/complete")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> Complete(Guid id)
     {
+        // ✅ NEW: chỉ assignee hoặc admin mới được complete
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
+
+        if (!IsAdmin(actor))
+        {
+            var isAssignee = t.AssigneeId.HasValue && t.AssigneeId.Value == actor.UserId;
+            if (!isAssignee)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { message = "Người dùng không có quyền hạn để hoàn thành ticket." });
+            }
+        }
 
         var st = NormStatus(t.Status);
         if (st is "Closed" or "Completed")
             return BadRequest(new { message = "Ticket đã khoá." });
         if (st != "InProgress")
             return BadRequest(new { message = "Chỉ hoàn thành khi trạng thái Đang xử lý." });
+
+        var before = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
 
         var now = DateTime.UtcNow;
 
@@ -666,12 +1140,57 @@ public class TicketsController : ControllerBase
         TicketSlaHelper.UpdateSlaStatus(t, now);
 
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
+
+        // 🔐 AUDIT LOG – COMPLETE TICKET
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "Complete",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 
     [HttpPost("{id:guid}/close")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<IActionResult> Close(Guid id)
     {
+        // ✅ NEW: chỉ Admin mới được close (tránh staff/customer tự đóng ticket)
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền đóng ticket." });
+        }
+
         var t = await _db.Tickets.FirstOrDefaultAsync(x => x.TicketId == id);
         if (t == null) return NotFound();
 
@@ -680,6 +1199,14 @@ public class TicketsController : ControllerBase
             return BadRequest(new { message = "Ticket đã khoá." });
         if (st != "New")
             return BadRequest(new { message = "Chỉ đóng khi trạng thái Mới." });
+
+        var before = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
 
         var now = DateTime.UtcNow;
 
@@ -694,6 +1221,25 @@ public class TicketsController : ControllerBase
         TicketSlaHelper.UpdateSlaStatus(t, now);
 
         await _db.SaveChangesAsync();
+
+        var after = new
+        {
+            t.TicketId,
+            t.Status,
+            t.SlaStatus,
+            t.ResolvedAt
+        };
+
+        // 🔐 AUDIT LOG – CLOSE TICKET
+        await _auditLogger.LogAsync(
+            HttpContext,
+            action: "Close",
+            entityType: "Ticket",
+            entityId: t.TicketId.ToString(),
+            before: before,
+            after: after
+        );
+
         return NoContent();
     }
 
@@ -718,11 +1264,37 @@ public class TicketsController : ControllerBase
 
     // GET /api/tickets/assignees?q=&page=&pageSize=
     [HttpGet("assignees")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<List<StaffMiniDto>>> GetAssignableStaff(
         [FromQuery] string? q,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        // ✅ NEW: chỉ Staff/Admin mới được xem danh sách assignees
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
@@ -752,12 +1324,38 @@ public class TicketsController : ControllerBase
 
     // GET /api/tickets/assignees/transfer?excludeUserId=&q=&page=&pageSize=
     [HttpGet("assignees/transfer")]
+    [Authorize]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
     public async Task<ActionResult<List<StaffMiniDto>>> GetTransferAssignees(
         [FromQuery] Guid? excludeUserId,
         [FromQuery] string? q,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        // ✅ NEW: chỉ Staff/Admin mới được xem danh sách transfer assignees
+        var meStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(meStr, out var meId))
+            return Unauthorized();
+
+        var actor = await _db.Users
+            .Include(u => u.Roles)
+            .FirstOrDefaultAsync(u => u.UserId == meId);
+
+        if (actor is null)
+            return Unauthorized();
+
+        if ((actor.Status ?? "Active") != "Active")
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Tài khoản đã bị khoá." });
+        }
+
+        if (!IsStaffOrAdmin(actor))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { message = "Bạn không có quyền truy cập chức năng này." });
+        }
+
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 

@@ -1,7 +1,7 @@
 // src/pages/admin/ProductDetail.jsx
 import React from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ProductApi } from "../../services/products";
+import ProductApi from "../../services/products";
 import { CategoryApi } from "../../services/categories";
 import { BadgesApi } from "../../services/badges";
 import VariantsPanel from "../admin/VariantsPanel";
@@ -9,8 +9,8 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import "./admin.css";
 
 // ====== CONST & HELPERS ======
-const MAX_PRODUCT_NAME = 200; // TODO: chỉnh lại cho khớp DB (VD: 150)
-const MAX_PRODUCT_CODE = 64;
+const MAX_PRODUCT_NAME = 100;
+const MAX_PRODUCT_CODE = 50;
 
 // Chuẩn hoá mã định danh: trim + bỏ dấu + chỉ A-Z0-9_ + uppercase
 const normalizeProductCode = (raw) => {
@@ -86,12 +86,11 @@ export default function ProductDetail() {
   // lỗi validation
   const [errors, setErrors] = React.useState({});
 
-  // để render tổng tồn kho từ variants
-  const [variants, setVariants] = React.useState([]);
+  // thông tin biến thể / tồn kho (nhận từ VariantsPanel)
+  const [totalStock, setTotalStock] = React.useState(0);
+  const [variantCount, setVariantCount] = React.useState(0);
 
-  const [hasVariants, setHasVariants] = React.useState(false);
-  const lockIdentity = hasVariants 
-
+  // ẩn sub-panels khi đang sửa text
   const [showSubPanels, setShowSubPanels] = React.useState(true);
   const editTimerRef = React.useRef(null);
 
@@ -102,7 +101,7 @@ export default function ProductDetail() {
     }
     editTimerRef.current = setTimeout(() => {
       setShowSubPanels(true);
-    }, 1500); // 3 giây sau khi ngừng sửa thì mới hiện lại sub-panel
+    }, 1500);
   }, []);
 
   React.useEffect(() => {
@@ -195,10 +194,27 @@ export default function ProductDetail() {
         categoryIds: dto.categoryIds ?? [],
       };
 
-      setForm(nextForm);
-      setVariants(Array.isArray(dto.variants) ? dto.variants : []);
+      // variantCount & totalStock lấy từ dto (nếu có) hoặc tính từ mảng variants
+      const initialVariantCount =
+        typeof dto.variantCount === "number"
+          ? dto.variantCount
+          : Array.isArray(dto.variants)
+          ? dto.variants.length
+          : 0;
 
-      setHasVariants((dto.variants ?? []).length > 0);
+      const initialTotalStock =
+        typeof dto.totalStock === "number"
+          ? dto.totalStock
+          : Array.isArray(dto.variants)
+          ? dto.variants.reduce(
+              (sum, v) => sum + (Number(v.stockQty) || 0),
+              0
+            )
+          : 0;
+
+      setForm(nextForm);
+      setVariantCount(initialVariantCount);
+      setTotalStock(initialTotalStock);
 
       setErrors({});
 
@@ -243,10 +259,13 @@ export default function ProductDetail() {
       message:
         "Bạn có các thay đổi chưa lưu. Rời khỏi trang sẽ làm mất các thay đổi này.",
       onConfirm: () => {
-      nav("/admin/products");
+        nav("/admin/products");
       },
     });
   };
+
+  const hasVariants = variantCount > 0;
+  const lockIdentity = hasVariants;
 
   const handleCodeBlur = () => {
     if (lockIdentity) return;
@@ -395,15 +414,6 @@ export default function ProductDetail() {
       );
     }
   };
-
-  const totalStock = React.useMemo(
-    () =>
-      (variants || []).reduce(
-        (sum, v) => sum + (Number(v.stockQty) || 0),
-        0
-      ),
-    [variants]
-  );
 
   const selectedCatCount = (form.categoryIds || []).length;
   const selectedBadgeCount = (form.badges || []).length;
@@ -700,7 +710,10 @@ export default function ProductDetail() {
                 productId={productId}
                 productName={form.productName}
                 productCode={form.productCode}
-                onTotalChange={(total) => setHasVariants(total > 0)}
+                onTotalChange={({ totalStock, variantCount }) => {
+                  setTotalStock(totalStock);
+                  setVariantCount(variantCount);
+                }}
               />
             </div>
           )}

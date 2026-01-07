@@ -1,4 +1,4 @@
-﻿/**
+/**
  * File: ModulesController.cs
  * Author: HieuNDHE173169
  * Created: 16/10/2025
@@ -13,21 +13,32 @@
  *   - PUT    /api/modules/{id}         : Update a module
  *   - DELETE /api/modules/{id}         : Delete a module and its role-permissions
  */
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Keytietkiem.Models;
-using Microsoft.EntityFrameworkCore;
 using Keytietkiem.DTOs.Roles;
+using Keytietkiem.Models;
+using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+using Keytietkiem.Utils;
+using Keytietkiem.Constants;
+using Microsoft.EntityFrameworkCore;
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ModulesController : ControllerBase
     {
         private readonly KeytietkiemDbContext _context;
-        public ModulesController(KeytietkiemDbContext context)
+        private readonly IAuditLogger _auditLogger;
+
+        public ModulesController(
+            KeytietkiemDbContext context,
+            IAuditLogger auditLogger)
         {
             _context = context;
+            _auditLogger = auditLogger;
         }
 
         /**
@@ -37,6 +48,7 @@ namespace Keytietkiem.Controllers
         * Returns: 200 OK with list of modules
         */
         [HttpGet]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetModules()
         {
             var modules = await _context.Modules
@@ -50,6 +62,7 @@ namespace Keytietkiem.Controllers
                     UpdatedAt = m.UpdatedAt
                 })
                 .ToListAsync();
+
             return Ok(modules);
         }
 
@@ -60,10 +73,12 @@ namespace Keytietkiem.Controllers
          * @Returns: 200 OK with module, 404 if not found
          */
         [HttpGet("{id}")]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetModuleById(long id)
         {
             var module = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
+
             if (module == null)
             {
                 return NotFound();
@@ -85,10 +100,11 @@ namespace Keytietkiem.Controllers
         /**
          * Summary: Create a new module.
          * Route: POST /api/modules
-         * Body: Module newModule
+         * Body: CreateModuleDTO createModuleDto
          * Returns: 201 Created with created module, 400/409 on validation errors
          */
         [HttpPost]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreateModule([FromBody] CreateModuleDTO createModuleDto)
         {
             if (createModuleDto == null)
@@ -162,6 +178,20 @@ namespace Keytietkiem.Controllers
                 UpdatedAt = newModule.UpdatedAt
             };
 
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "CreateModule",
+                entityType: "Module",
+                entityId: newModule.ModuleId.ToString(),
+                before: createModuleDto,
+                after: new
+                {
+                    newModule.ModuleId,
+                    newModule.ModuleName,
+                    newModule.Code
+                }
+            );
+
             return CreatedAtAction(nameof(GetModuleById), new { id = newModule.ModuleId }, moduleDto);
         }
 
@@ -169,10 +199,11 @@ namespace Keytietkiem.Controllers
          * Summary: Update an existing module by id.
          * Route: PUT /api/modules/{id}
          * Params: id (long)
-         * Body: Module updatedModule
-         * Returns: 204 No Content, 400/404 on errors
+         * Body: UpdateModuleDTO updateModuleDto
+         * Returns: 204 No Content, 400/404/409 on errors
          */
         [HttpPut("{id}")]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateModule(long id, [FromBody] UpdateModuleDTO updateModuleDto)
         {
             if (updateModuleDto == null)
@@ -185,12 +216,14 @@ namespace Keytietkiem.Controllers
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return BadRequest(new { message = string.Join(" ", errors) });
             }
+
             var existing = await _context.Modules
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
             if (existing == null)
             {
                 return NotFound();
             }
+
             // Check if Code is unique (if provided and changed)
             if (!string.IsNullOrWhiteSpace(updateModuleDto.Code) && existing.Code != updateModuleDto.Code)
             {
@@ -202,12 +235,37 @@ namespace Keytietkiem.Controllers
                 }
             }
 
+            var beforeSnapshot = new
+            {
+                existing.ModuleId,
+                existing.ModuleName,
+                existing.Code,
+                existing.Description
+            };
+
             existing.ModuleName = updateModuleDto.ModuleName;
             existing.Code = updateModuleDto.Code;
             existing.Description = updateModuleDto.Description;
             existing.UpdatedAt = DateTime.Now;
+
             _context.Modules.Update(existing);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "UpdateModule",
+                entityType: "Module",
+                entityId: existing.ModuleId.ToString(),
+                before: beforeSnapshot,
+                after: new
+                {
+                    existing.ModuleId,
+                    existing.ModuleName,
+                    existing.Code,
+                    existing.Description
+                }
+            );
+
             return NoContent();
         }
 
@@ -218,17 +276,39 @@ namespace Keytietkiem.Controllers
          * Returns: 204 No Content, 404 if not found
          */
         [HttpDelete("{id}")]
+    [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeleteModule(long id)
         {
             var existingModule = await _context.Modules
+                .Include(m => m.RolePermissions)
                 .FirstOrDefaultAsync(m => m.ModuleId == id);
+
             if (existingModule == null)
             {
                 return NotFound();
             }
+
+            var beforeSnapshot = new
+            {
+                existingModule.ModuleId,
+                existingModule.ModuleName,
+                existingModule.Code,
+                existingModule.Description
+            };
+
             _context.RolePermissions.RemoveRange(existingModule.RolePermissions);
             _context.Modules.Remove(existingModule);
             await _context.SaveChangesAsync();
+
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "DeleteModule",
+                entityType: "Module",
+                entityId: existingModule.ModuleId.ToString(),
+                before: beforeSnapshot,
+                after: null
+            );
+
             return NoContent();
         }
     }

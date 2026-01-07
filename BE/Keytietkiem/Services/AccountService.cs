@@ -85,7 +85,7 @@ public class AccountService : IAccountService
 
         // Check if a temp user exists with this email
         var existingTempUser = await _userRepository.FirstOrDefaultAsync(
-            u => u.Email == registerDto.Email && u.Status == "Temp",
+            u => u.Email == registerDto.Email && u.IsTemp,
             cancellationToken);
 
         User user;
@@ -101,6 +101,7 @@ public class AccountService : IAccountService
             user.Phone = registerDto.Phone;
             user.Address = registerDto.Address;
             user.Status = "Active";
+            user.IsTemp = false;
             user.EmailVerified = true; // Email verified via OTP
             user.UpdatedAt = _clock.UtcNow;
 
@@ -196,7 +197,7 @@ public class AccountService : IAccountService
             // Increment failed login count
             account.FailedLoginCount++;
 
-            // Lock account after 5 failed attempts for 15 minutes
+            // Lock account after 5 failed attempts within 15 minutes
             if (account.FailedLoginCount >= 5)
             {
                 account.LockedUntil = _clock.UtcNow.AddMinutes(15);
@@ -254,7 +255,11 @@ public class AccountService : IAccountService
             throw new InvalidOperationException(AccountNotFoundMessage);
 
         var user = account.User;
-        var roles = user.Roles.Select(r => r.RoleId).ToList();
+        // Return Role.Code instead of RoleId for frontend permission checks
+        var roles = user.Roles
+            .Where(r => !string.IsNullOrWhiteSpace(r.Code))
+            .Select(r => r.Code!)
+            .ToList();
 
         return new AccountProfileDto
         {
@@ -358,14 +363,14 @@ public class AccountService : IAccountService
 
     public async Task<bool> IsEmailExistsAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _userRepository.AnyAsync(u => u.Email == email && u.Status != "Temp", cancellationToken);
+        return await _userRepository.AnyAsync(u => u.Email == email && !u.IsTemp, cancellationToken);
     }
 
     public async Task<User> CreateTempUserAsync(string email, CancellationToken cancellationToken = default)
     {
         // Check if temp user already exists
         var existingTempUser = await _userRepository.FirstOrDefaultAsync(
-            u => u.Email == email && u.Status == "Temp",
+            u => u.Email == email && u.IsTemp,
             cancellationToken);
 
         if (existingTempUser != null)
@@ -378,7 +383,8 @@ public class AccountService : IAccountService
         {
             UserId = Guid.NewGuid(),
             Email = email,
-            Status = "Temp",
+            Status = "Active",  // Database constraint only allows: Active, Locked, Disabled
+            IsTemp = true,
             EmailVerified = false,
             CreatedAt = _clock.UtcNow
         };
@@ -480,8 +486,8 @@ public class AccountService : IAccountService
             $"Link đặt lại mật khẩu đã được gửi đến {forgotPasswordDto.Email}. Link có hiệu lực trong {_clientConfig.ResetLinkExpiryInMinutes} phút.";
     }
 
-    public async Task ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
-        CancellationToken cancellationToken = default)
+    public async Task<ResetPasswordResultDto> ResetPasswordAsync(ResetPasswordDto resetPasswordDto,
+     CancellationToken cancellationToken = default)
     {
         // Get email from cache using reset token
         var cacheKey = $"{ResetTokenCacheKeyPrefix}{resetPasswordDto.Token}";
@@ -515,7 +521,16 @@ public class AccountService : IAccountService
 
         // Remove reset token from cache
         _cache.Remove(cacheKey);
+
+        // trả về meta để controller log audit chính xác
+        return new ResetPasswordResultDto
+        {
+            UserId = user.UserId,
+            AccountId = account.AccountId,
+            Email = email
+        };
     }
+
 
     public async Task RevokeTokenAsync(RevokeTokenDto revokeTokenDto, CancellationToken cancellationToken = default)
     {
@@ -640,7 +655,11 @@ public class AccountService : IAccountService
 
     private LoginResponseDto GenerateLoginResponse(Account account, User user)
     {
-        var roles = user.Roles.Select(r => r.RoleId).ToList();
+        // Return Role.Code instead of RoleId for frontend permission checks
+        var roles = user.Roles
+            .Where(r => !string.IsNullOrWhiteSpace(r.Code))
+            .Select(r => r.Code!)
+            .ToList();
         var expiresAt = _clock.UtcNow.AddMinutes(_jwtConfig.ExpiryInMinutes);
 
         var claims = new List<Claim>

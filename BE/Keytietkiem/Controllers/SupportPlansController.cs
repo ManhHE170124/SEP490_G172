@@ -1,15 +1,18 @@
 ﻿// File: Controllers/SupportPlansController.cs
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
 using Keytietkiem.DTOs.Payments;
-using Keytietkiem.DTOs.SupportPlans;
+using Keytietkiem.DTOs.Support;
+using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers
 {
@@ -17,11 +20,18 @@ namespace Keytietkiem.Controllers
     [Route("api/[controller]")]
     public class SupportPlansController : ControllerBase
     {
-        private readonly KeytietkiemDbContext _db;
+        private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
+        private readonly IAuditLogger _auditLogger;
+        private readonly IClock _clock;
 
-        public SupportPlansController(KeytietkiemDbContext db)
+        public SupportPlansController(
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IAuditLogger auditLogger,
+            IClock clock)
         {
-            _db = db;
+            _dbFactory = dbFactory;
+            _auditLogger = auditLogger;
+            _clock = clock;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -38,7 +48,9 @@ namespace Keytietkiem.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<SupportPlanListItemDto>>> GetActivePlans()
         {
-            var plans = await _db.SupportPlans
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var plans = await db.SupportPlans
                 .AsNoTracking()
                 .Where(p => p.IsActive)
                 .OrderBy(p => p.PriorityLevel)
@@ -59,8 +71,6 @@ namespace Keytietkiem.Controllers
 
         // ===== CUSTOMER: Lấy mức ưu tiên/gói hỗ trợ hiện tại của user =====
         // GET /api/supportplans/me/current
-        // Luôn tính PriorityLevel dựa trên Users.SupportPriorityLevel,
-        // kết hợp với subscription hiện tại nếu có.
         [HttpGet("me/current")]
         [Authorize]
         public async Task<ActionResult<SupportPlanCurrentSubscriptionDto?>> GetMyCurrentSubscription()
@@ -68,37 +78,30 @@ namespace Keytietkiem.Controllers
             var userId = GetCurrentUserIdOrNull();
             if (userId == null) return Unauthorized();
 
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = _clock.UtcNow;
 
-            // Lấy user để đọc SupportPriorityLevel hiện tại
-            var user = await _db.Users
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var user = await db.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.UserId == userId.Value);
 
-            if (user == null)
-            {
-                return Unauthorized();
-            }
+            if (user == null) return Unauthorized();
 
-            // Tìm subscription active (nếu có)
-            var sub = await _db.UserSupportPlanSubscriptions
+            var sub = await db.UserSupportPlanSubscriptions
                 .AsNoTracking()
-                .Include(s => s.SupportPlan)
                 .Where(s =>
                     s.UserId == userId.Value &&
-                    s.Status == "Active" &&                // ✅ Dùng so sánh thường để EF translate
+                    s.Status == "Active" &&
                     (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
                 .OrderByDescending(s => s.StartedAt)
                 .FirstOrDefaultAsync();
 
-            // Priority hiệu lực lấy từ Users.SupportPriorityLevel,
-            // và tối thiểu bằng PriorityLevel của gói (nếu có subscription)
             var effectivePriorityLevel = user.SupportPriorityLevel;
 
             if (sub == null)
             {
-                // Không có subscription active: vẫn trả PriorityLevel hiện tại từ user
-                var dtoNoSub = new SupportPlanCurrentSubscriptionDto
+                return Ok(new SupportPlanCurrentSubscriptionDto
                 {
                     SubscriptionId = Guid.Empty,
                     SupportPlanId = 0,
@@ -109,31 +112,29 @@ namespace Keytietkiem.Controllers
                     Status = "None",
                     StartedAt = nowUtc,
                     ExpiresAt = null
-                };
-
-                return Ok(dtoNoSub);
+                });
             }
 
-            var planPriority = sub.SupportPlan?.PriorityLevel ?? 0;
+            var plan = await db.SupportPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.SupportPlanId == sub.SupportPlanId);
+
+            var planPriority = plan?.PriorityLevel ?? 0;
             if (planPriority > effectivePriorityLevel)
-            {
                 effectivePriorityLevel = planPriority;
-            }
 
-            var dto = new SupportPlanCurrentSubscriptionDto
+            return Ok(new SupportPlanCurrentSubscriptionDto
             {
                 SubscriptionId = sub.SubscriptionId,
                 SupportPlanId = sub.SupportPlanId,
-                PlanName = sub.SupportPlan?.Name ?? string.Empty,
-                PlanDescription = sub.SupportPlan?.Description,
+                PlanName = plan?.Name ?? string.Empty,
+                PlanDescription = plan?.Description,
                 PriorityLevel = effectivePriorityLevel,
-                Price = sub.SupportPlan?.Price ?? 0,
+                Price = plan?.Price ?? 0,
                 Status = sub.Status,
                 StartedAt = sub.StartedAt,
                 ExpiresAt = sub.ExpiresAt
-            };
-
-            return Ok(dto);
+            });
         }
 
         // ===== CUSTOMER: Xác nhận thanh toán thành công và tạo subscription 1 tháng =====
@@ -143,31 +144,32 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> ConfirmSupportPlanPayment([FromBody] ConfirmSupportPlanPaymentDTO dto)
         {
             if (dto == null || dto.PaymentId == Guid.Empty || dto.SupportPlanId <= 0)
-            {
                 return BadRequest(new { message = "Dữ liệu thanh toán không hợp lệ" });
-            }
 
             var userId = GetCurrentUserIdOrNull();
             if (userId == null) return Unauthorized();
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId.Value);
+            var nowUtc = _clock.UtcNow;
+
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            // user (tracked vì sẽ update SupportPriorityLevel)
+            var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId.Value);
             if (user == null) return Unauthorized();
 
-            var payment = await _db.Payments
-                .FirstOrDefaultAsync(p => p.PaymentId == dto.PaymentId);
+            var payment = await db.Payments.FirstOrDefaultAsync(p => p.PaymentId == dto.PaymentId);
+            if (payment == null) return NotFound(new { message = "Payment không tồn tại" });
 
-            if (payment == null)
+            // DB mới: Payment dùng TargetType/TargetId (không có TransactionType)
+            if (!string.Equals(payment.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { message = "Payment không thuộc loại SupportPlan" });
+
+            if (string.IsNullOrWhiteSpace(payment.TargetId) ||
+                !string.Equals(payment.TargetId.Trim(), dto.SupportPlanId.ToString(), StringComparison.OrdinalIgnoreCase))
             {
-                return NotFound(new { message = "Payment không tồn tại" });
+                return BadRequest(new { message = "Payment không khớp SupportPlanId" });
             }
 
-            // Chỉ nhận payment dành cho gói hỗ trợ
-            if (!string.Equals(payment.TransactionType, "SERVICE_PAYMENT", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { message = "Payment không thuộc loại SERVICE_PAYMENT" });
-            }
-
-            // Chỉ chấp nhận khi đã Paid / Success / Completed
             var status = payment.Status ?? string.Empty;
             if (!status.Equals("Paid", StringComparison.OrdinalIgnoreCase) &&
                 !status.Equals("Success", StringComparison.OrdinalIgnoreCase) &&
@@ -176,51 +178,34 @@ namespace Keytietkiem.Controllers
                 return BadRequest(new { message = "Thanh toán chưa thành công hoặc đang chờ xử lý." });
             }
 
-            var plan = await _db.SupportPlans
-                .FirstOrDefaultAsync(p =>
-                    p.SupportPlanId == dto.SupportPlanId &&
-                    p.IsActive);
+            var plan = await db.SupportPlans
+                .FirstOrDefaultAsync(p => p.SupportPlanId == dto.SupportPlanId && p.IsActive);
 
             if (plan == null)
-            {
                 return BadRequest(new { message = "Gói hỗ trợ không tồn tại hoặc đã bị khóa." });
-            }
 
-            // Bảo vệ basic: số tiền phải > 0 (không check = Price vì có thể là AdjustedAmount)
             if (payment.Amount <= 0)
-            {
                 return BadRequest(new { message = "Số tiền thanh toán không hợp lệ." });
-            }
 
-            // Bảo vệ: email payment phải trùng email user (nếu payment có email)
-            if (!string.IsNullOrEmpty(payment.Email) &&
-                !string.Equals(payment.Email, user.Email, StringComparison.OrdinalIgnoreCase))
-            {
+            // Payment.Email trong DB mới NOT NULL -> so sánh trực tiếp
+            if (!string.Equals(payment.Email, user.Email, StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { message = "Payment không thuộc về tài khoản hiện tại." });
-            }
 
-            var nowUtc = DateTime.UtcNow;
+            // marker để idempotent (vì bảng UserSupportPlanSubscription DB mới không có PaymentId)
+            var paymentMark = $"[PAYMENT:{payment.PaymentId}]";
 
-            // Dùng transaction để đảm bảo logic "chỉ 1 gói Active" nhất quán
-            await using var tx = await _db.Database.BeginTransactionAsync();
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
-            // Idempotent: nếu đã có subscription gắn với payment này -> trả luôn
-            var existing = await _db.UserSupportPlanSubscriptions
-                .Include(s => s.SupportPlan)
-                .Where(s => s.PaymentId == payment.PaymentId)
+            // Idempotent: nếu đã tạo subscription từ payment này rồi -> trả luôn
+            var existing = await db.UserSupportPlanSubscriptions
+                .Where(s => s.UserId == user.UserId && s.Note != null && s.Note.Contains(paymentMark))
                 .OrderByDescending(s => s.StartedAt)
                 .FirstOrDefaultAsync();
 
             if (existing != null)
             {
-                if (existing.UserId != user.UserId)
-                {
-                    return BadRequest(new { message = "Payment đã được gán cho người dùng khác." });
-                }
-
-                // 🔐 Đảm bảo chỉ có subscription này là Active:
-                // Tất cả subscription khác của user đang Active sẽ bị đổi trạng thái (ví dụ: Cancelled)
-                var otherActiveSubs = await _db.UserSupportPlanSubscriptions
+                // đảm bảo chỉ 1 gói Active
+                var otherActiveSubs = await db.UserSupportPlanSubscriptions
                     .Where(s =>
                         s.UserId == user.UserId &&
                         s.Status == "Active" &&
@@ -230,54 +215,65 @@ namespace Keytietkiem.Controllers
                 foreach (var sub in otherActiveSubs)
                 {
                     sub.Status = "Cancelled";
-                    // tuỳ bạn muốn: sub.ExpiresAt = nowUtc; // nếu muốn cắt hạn luôn
+                    sub.ExpiresAt = nowUtc;
                 }
 
                 if (otherActiveSubs.Count > 0)
-                {
-                    await _db.SaveChangesAsync();
-                }
+                    await db.SaveChangesAsync();
 
                 await tx.CommitAsync();
 
-                // Priority hiệu lực cho response: dựa theo Users.SupportPriorityLevel,
-                // nhưng đảm bảo không thấp hơn PriorityLevel của gói
                 var effectivePriorityLevelExisting = user.SupportPriorityLevel;
-                var existingPlanPriority = existing.SupportPlan?.PriorityLevel ?? plan.PriorityLevel;
-                if (existingPlanPriority > effectivePriorityLevelExisting)
-                {
-                    effectivePriorityLevelExisting = existingPlanPriority;
-                }
+                if (plan.PriorityLevel > effectivePriorityLevelExisting)
+                    effectivePriorityLevelExisting = plan.PriorityLevel;
 
                 var existingDto = new SupportPlanCurrentSubscriptionDto
                 {
                     SubscriptionId = existing.SubscriptionId,
                     SupportPlanId = existing.SupportPlanId,
-                    PlanName = existing.SupportPlan?.Name ?? plan.Name,
-                    PlanDescription = existing.SupportPlan?.Description ?? plan.Description,
+                    PlanName = plan.Name,
+                    PlanDescription = plan.Description,
                     PriorityLevel = effectivePriorityLevelExisting,
-                    Price = existing.SupportPlan?.Price ?? plan.Price,
+                    Price = plan.Price,
                     Status = existing.Status,
                     StartedAt = existing.StartedAt,
                     ExpiresAt = existing.ExpiresAt
                 };
 
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "ConfirmSupportPlanPayment",
+                    entityType: "UserSupportPlanSubscription",
+                    entityId: existing.SubscriptionId.ToString(),
+                    before: null,
+                    after: new
+                    {
+                        existing.SubscriptionId,
+                        existing.UserId,
+                        existing.SupportPlanId,
+                        existing.Status,
+                        existing.StartedAt,
+                        existing.ExpiresAt,
+                        PaymentId = payment.PaymentId,
+                        EffectivePriorityLevel = effectivePriorityLevelExisting
+                    }
+                );
+
                 return Ok(existingDto);
             }
 
-            // 🔐 Chưa có subscription cho Payment này -> tạo mới
-            // Trước khi tạo, phải chắc chắn không còn gói nào khác đang Active cho user
-            var oldActiveSubsForUser = await _db.UserSupportPlanSubscriptions
+            // huỷ các subscription Active cũ (đảm bảo chỉ 1 active)
+            var oldActiveSubsForUser = await db.UserSupportPlanSubscriptions
                 .Where(s => s.UserId == user.UserId && s.Status == "Active")
                 .ToListAsync();
 
             foreach (var sub in oldActiveSubsForUser)
             {
                 sub.Status = "Cancelled";
-                // tuỳ bạn muốn: sub.ExpiresAt = nowUtc;
+                sub.ExpiresAt = nowUtc;
             }
 
-            // Tạo subscription 1 tháng cho gói vừa thanh toán
+            // tạo subscription mới 1 tháng
             var subscription = new UserSupportPlanSubscription
             {
                 UserId = user.UserId,
@@ -285,27 +281,21 @@ namespace Keytietkiem.Controllers
                 Status = "Active",
                 StartedAt = nowUtc,
                 ExpiresAt = nowUtc.AddMonths(1),
-                PaymentId = payment.PaymentId,
-                Note = dto.Note
+                Note = string.IsNullOrWhiteSpace(dto.Note) ? paymentMark : $"{paymentMark} {dto.Note}"
             };
 
-            _db.UserSupportPlanSubscriptions.Add(subscription);
+            db.UserSupportPlanSubscriptions.Add(subscription);
 
-            // Nâng SupportPriorityLevel của user nếu gói cao hơn
+            // nâng priority nếu gói cao hơn
             if (plan.PriorityLevel > user.SupportPriorityLevel)
-            {
                 user.SupportPriorityLevel = plan.PriorityLevel;
-            }
 
-            await _db.SaveChangesAsync();
+            await db.SaveChangesAsync();
             await tx.CommitAsync();
 
-            // Sau khi lưu, priority hiệu lực là Users.SupportPriorityLevel (ít nhất bằng plan.PriorityLevel)
             var effectivePriorityLevelNew = user.SupportPriorityLevel;
             if (plan.PriorityLevel > effectivePriorityLevelNew)
-            {
                 effectivePriorityLevelNew = plan.PriorityLevel;
-            }
 
             var result = new SupportPlanCurrentSubscriptionDto
             {
@@ -320,8 +310,33 @@ namespace Keytietkiem.Controllers
                 ExpiresAt = subscription.ExpiresAt
             };
 
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "ConfirmSupportPlanPayment",
+                entityType: "UserSupportPlanSubscription",
+                entityId: subscription.SubscriptionId.ToString(),
+                before: new
+                {
+                    UserId = user.UserId,
+                    OldActiveSubscriptionCount = oldActiveSubsForUser.Count,
+                    PaymentId = payment.PaymentId,
+                    PlanId = plan.SupportPlanId
+                },
+                after: new
+                {
+                    subscription.SubscriptionId,
+                    subscription.UserId,
+                    subscription.SupportPlanId,
+                    subscription.Status,
+                    subscription.StartedAt,
+                    subscription.ExpiresAt,
+                    subscription.Note,
+                    PaymentId = payment.PaymentId,
+                    EffectivePriorityLevel = effectivePriorityLevelNew
+                }
+            );
+
             return Ok(result);
         }
-
     }
 }

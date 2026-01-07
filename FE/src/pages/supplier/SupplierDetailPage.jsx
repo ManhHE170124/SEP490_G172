@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { SupplierApi } from "../../services/suppliers";
 import { LicensePackageApi } from "../../services/licensePackages";
 import { ProductApi } from "../../services/products";
 import { ProductVariantsApi } from "../../services/productVariants";
+import { ProductAccountApi } from "../../services/productAccounts";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import CsvUploadModal from "../../components/Modal/CsvUploadModal";
@@ -20,6 +21,21 @@ export default function SupplierDetailPage() {
   const isNew = location.pathname.endsWith("/add") || !id || id === "add";
   const { toasts, showSuccess, showError, showWarning, removeToast } =
     useToast();
+
+  // Permission checks removed - now role-based on backend
+  const canViewDetail = true;
+  const permissionLoading = false;
+  const canCreate = true;
+  const canEdit = true;
+
+  // Global network error handler
+  const networkErrorShownRef = useRef(false);
+  // Global permission error handler - only show one toast for permission errors
+  const permissionErrorShownRef = useRef(false);
+  useEffect(() => {
+    networkErrorShownRef.current = false;
+    permissionErrorShownRef.current = false;
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,15 +86,27 @@ export default function SupplierDetailPage() {
   const [csvKeyType, setCsvKeyType] = useState("Individual");
   const [csvExpiryDate, setCsvExpiryDate] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [showImportResultModal, setShowImportResultModal] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   // View keys modal states
   const [showKeysModal, setShowKeysModal] = useState(false);
   const [selectedPackageKeys, setSelectedPackageKeys] = useState(null);
   const [loadingKeys, setLoadingKeys] = useState(false);
 
+  // Product accounts states
+  const [productAccounts, setProductAccounts] = useState([]);
+  const [loadingProductAccounts, setLoadingProductAccounts] = useState(false);
+
   const loadSupplier = useCallback(async () => {
     if (!id || id === "add") {
       console.warn("Attempted to load supplier with invalid id:", id);
+      return;
+    }
+
+    if (!canViewDetail) {
+      showError("Không có quyền", "Bạn không có quyền xem chi tiết nhà cung cấp.");
+      navigate("/suppliers");
       return;
     }
 
@@ -99,12 +127,31 @@ export default function SupplierDetailPage() {
         err.response?.data?.message ||
         err.message ||
         "Không thể tải thông tin nhà cung cấp";
-      showError("Lỗi tải dữ liệu", errorMsg);
+      
+      // Handle network errors globally - only show one toast
+      if (err.isNetworkError || err.message === 'Lỗi kết nối đến máy chủ') {
+        if (!networkErrorShownRef.current) {
+          networkErrorShownRef.current = true;
+          showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
+        }
+      } else {
+        // Check if error message contains permission denied - only show once
+        const isPermissionError = err.message?.includes('không có quyền') || 
+                                  err.message?.includes('quyền truy cập') ||
+                                  err.response?.status === 403;
+        if (isPermissionError && !permissionErrorShownRef.current) {
+          permissionErrorShownRef.current = true;
+          const errorMsgFinal = err?.response?.data?.message || err.message || "Bạn không có quyền truy cập chức năng này.";
+          showError("Lỗi tải dữ liệu", errorMsgFinal);
+        } else if (!isPermissionError) {
+          showError("Lỗi tải dữ liệu", errorMsg);
+        }
+      }
       navigate("/suppliers");
     } finally {
       setLoading(false);
     }
-  }, [id, navigate, showError]);
+  }, [id, navigate, showError, canViewDetail]);
 
   const loadLicensePackages = useCallback(async () => {
     if (!id || id === "add") return;
@@ -126,6 +173,29 @@ export default function SupplierDetailPage() {
       showError("Lỗi tải dữ liệu", errorMsg);
     } finally {
       setLoadingPackages(false);
+    }
+  }, [id, showError]);
+
+  const loadProductAccounts = useCallback(async () => {
+    if (!id || id === "add") return;
+
+    setLoadingProductAccounts(true);
+    try {
+      const data = await ProductAccountApi.list({
+        supplierId: parseInt(id),
+        pageNumber: 1,
+        pageSize: 100,
+      });
+      setProductAccounts(data.items || data.data || []);
+    } catch (err) {
+      console.error("Failed to load product accounts:", err);
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Không thể tải danh sách tài khoản sản phẩm";
+      showError("Lỗi tải dữ liệu", errorMsg);
+    } finally {
+      setLoadingProductAccounts(false);
     }
   }, [id, showError]);
 
@@ -160,13 +230,14 @@ export default function SupplierDetailPage() {
     []
   );
 
-  // Load supplier and license packages on mount
+  // Load supplier, license packages, and product accounts on mount
   useEffect(() => {
     if (!isNew) {
       loadSupplier();
       loadLicensePackages();
+      loadProductAccounts();
     }
-  }, [id, isNew, loadSupplier, loadLicensePackages]);
+  }, [id, isNew, loadSupplier, loadLicensePackages, loadProductAccounts]);
 
   // Load initial products when dropdown opens
   useEffect(() => {
@@ -234,6 +305,15 @@ export default function SupplierDetailPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isNew && !canCreate) {
+      showError("Không có quyền", "Bạn không có quyền tạo nhà cung cấp mới.");
+      return;
+    }
+    if (!isNew && !canEdit) {
+      showError("Không có quyền", "Bạn không có quyền cập nhật nhà cung cấp.");
+      return;
+    }
+
     if (!validateForm()) {
       showWarning("Dữ liệu không hợp lệ", "Vui lòng kiểm tra lại thông tin");
       return;
@@ -268,6 +348,10 @@ export default function SupplierDetailPage() {
   };
 
   const handleToggleStatus = async () => {
+    if (!canEdit) {
+      showError("Không có quyền", "Bạn không có quyền thay đổi trạng thái nhà cung cấp.");
+      return;
+    }
     const isActive = supplierInfo?.status === "Active";
     const action = isActive ? "tạm dừng" : "kích hoạt lại";
 
@@ -468,17 +552,26 @@ export default function SupplierDetailPage() {
         formData.append("expiryDate", csvExpiryDate);
       }
 
-      await LicensePackageApi.uploadCsv(formData);
+      const response = await LicensePackageApi.uploadCsv(formData);
+      const data = response?.data || response;
 
-      showSuccess(
-        "Thành công",
-        "Đã nhập license từ file CSV vào kho thành công"
-      );
+      setImportResult(data);
+      if (data.errors && data.errors.length > 0) {
+        showError("Có lỗi xảy ra", "Vui lòng kiểm tra lại kết quả nhập liệu");
+      } else {
+        showSuccess(
+          "Thành công",
+          "Đã nhập license từ file CSV vào kho thành công"
+        );
+      }
+
       setShowUploadModal(false);
       setCsvFile(null);
       setCsvKeyType("Individual");
       setCsvExpiryDate("");
       setSelectedPackageForImport(null);
+      
+      setShowImportResultModal(true);
       loadLicensePackages();
     } catch (err) {
       console.error("Failed to upload CSV:", err);
@@ -487,9 +580,13 @@ export default function SupplierDetailPage() {
         err.message ||
         "Không thể upload file CSV";
       showError("Lỗi upload", errorMsg);
-    } finally {
       setUploading(false);
     }
+  };
+
+  const closeImportResultModal = () => {
+    setShowImportResultModal(false);
+    setImportResult(null);
   };
 
   const closeUploadModal = () => {
@@ -526,6 +623,52 @@ export default function SupplierDetailPage() {
     setShowKeysModal(false);
     setSelectedPackageKeys(null);
   };
+
+  // Show loading while checking permission
+  if (permissionLoading) {
+    return (
+      <div className="page">
+        <div className="card">
+          <p style={{ textAlign: "center", padding: 40 }}>Đang kiểm tra quyền truy cập...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied message if no permission
+  if (isNew && !canCreate) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Thêm nhà cung cấp mới</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền tạo nhà cung cấp mới. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+            <Link className="btn" to="/suppliers" style={{ marginTop: 16 }}>
+              Quay lại
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isNew && !canViewDetail) {
+    return (
+      <div className="page">
+        <div className="card">
+          <h1 style={{ margin: 0 }}>Chi tiết nhà cung cấp</h1>
+          <div style={{ padding: "20px" }}>
+            <h2>Không có quyền truy cập</h2>
+            <p>Bạn không có quyền xem chi tiết nhà cung cấp. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
+            <Link className="btn" to="/suppliers" style={{ marginTop: 16 }}>
+              Quay lại
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -822,127 +965,126 @@ export default function SupplierDetailPage() {
 
           {/* Add Package Form */}
           <div
-            className="grid"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              display: "flex",
               gap: 12,
+              flexWrap: "wrap",
+              alignItems: "end",
               marginBottom: 16,
             }}
           >
-            <div className="form-row" style={{ position: "relative" }}>
-              <label>Sản phẩm</label>
-              <div>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Tìm kiếm sản phẩm..."
-                  value={
-                    selectedProduct
-                      ? selectedProduct.productName
-                      : productSearch
-                  }
-                  onChange={handleProductSearchChange}
-                  onFocus={() => setShowProductDropdown(true)}
-                  onBlur={() => {
-                    // Delay to allow click on dropdown item
-                    setTimeout(() => setShowProductDropdown(false), 200);
+            <div className="group" style={{ minWidth: 200, position: "relative" }}>
+              <span>Sản phẩm</span>
+              <input
+                className="input"
+                type="text"
+                placeholder="Tìm kiếm sản phẩm..."
+                value={
+                  selectedProduct
+                    ? selectedProduct.productName
+                    : productSearch
+                }
+                onChange={handleProductSearchChange}
+                onFocus={() => setShowProductDropdown(true)}
+                onBlur={() => {
+                  // Delay to allow click on dropdown item
+                  setTimeout(() => setShowProductDropdown(false), 200);
+                }}
+                disabled={supplierInfo?.status !== "Active"}
+              />
+              {showProductDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                    background: "white",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    zIndex: 1000,
+                    marginTop: "4px",
                   }}
-                  disabled={supplierInfo?.status !== "Active"}
-                />
-                {showProductDropdown && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      maxHeight: "300px",
-                      overflowY: "auto",
-                      background: "white",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                      zIndex: 1000,
-                      marginTop: "4px",
-                    }}
-                    onScroll={handleProductDropdownScroll}
-                  >
-                    {loadingProducts && products.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#666",
-                        }}
-                      >
-                        Đang tải...
-                      </div>
-                    ) : products.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "12px",
-                          textAlign: "center",
-                          color: "#666",
-                        }}
-                      >
-                        Không tìm thấy sản phẩm
-                      </div>
-                    ) : (
-                      <>
-                        {products.map((product) => (
-                          <div
-                            key={product.productId}
-                            style={{
-                              padding: "10px 12px",
-                              cursor: "pointer",
-                              borderBottom: "1px solid #f0f0f0",
-                              transition: "background-color 0.2s",
-                            }}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              handleProductSelect(product);
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = "#f5f5f5";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = "white";
-                            }}
-                          >
-                            {product.productName}
-                          </div>
-                        ))}
-                        {loadingProducts && (
-                          <div
-                            style={{
-                              padding: "12px",
-                              textAlign: "center",
-                              color: "#666",
-                            }}
-                          >
-                            Đang tải thêm...
-                          </div>
-                        )}
-                        {!loadingProducts && hasMoreProducts && (
-                          <div
-                            style={{
-                              padding: "12px",
-                              textAlign: "center",
-                              color: "#999",
-                              fontSize: "12px",
-                            }}
-                          >
-                            Cuộn xuống để tải thêm
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                  onScroll={handleProductDropdownScroll}
+                >
+                  {loadingProducts && products.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px",
+                        textAlign: "center",
+                        color: "#666",
+                      }}
+                    >
+                      Đang tải...
+                    </div>
+                  ) : products.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px",
+                        textAlign: "center",
+                        color: "#666",
+                      }}
+                    >
+                      Không tìm thấy sản phẩm
+                    </div>
+                  ) : (
+                    <>
+                      {products.map((product) => (
+                        <div
+                          key={product.productId}
+                          style={{
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f0f0f0",
+                            transition: "background-color 0.2s",
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleProductSelect(product);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f5f5f5";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "white";
+                          }}
+                        >
+                          {product.productName}
+                        </div>
+                      ))}
+                      {loadingProducts && (
+                        <div
+                          style={{
+                            padding: "12px",
+                            textAlign: "center",
+                            color: "#666",
+                          }}
+                        >
+                          Đang tải thêm...
+                        </div>
+                      )}
+                      {!loadingProducts && hasMoreProducts && (
+                        <div
+                          style={{
+                            padding: "12px",
+                            textAlign: "center",
+                            color: "#999",
+                            fontSize: "12px",
+                          }}
+                        >
+                          Cuộn xuống để tải thêm
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="form-row">
-              <label>Biến thể</label>
+            <div className="group" style={{ minWidth: 180 }}>
+              <span>Biến thể</span>
               <select
                 className="input"
                 value={packageForm.variantId}
@@ -969,8 +1111,8 @@ export default function SupplierDetailPage() {
                 ))}
               </select>
             </div>
-            <div className="form-row">
-              <label>Số lượng gói</label>
+            <div className="group" style={{ minWidth: 150 }}>
+              <span>Số lượng gói</span>
               <input
                 className="input"
                 type="number"
@@ -982,29 +1124,27 @@ export default function SupplierDetailPage() {
                 disabled={supplierInfo?.status !== "Active"}
               />
             </div>
-            <div className="form-row">
-              <label>Giá/gói</label>
+            <div className="group" style={{ minWidth: 150 }}>
+              <span>Giá/gói</span>
               <input
                 className="input"
-                type="number"
-                placeholder="VD: 120000"
-                value={packageForm.pricePerUnit}
-                onChange={(e) =>
-                  handlePackageFormChange("pricePerUnit", e.target.value)
-                }
+                type="text"
+                placeholder="VD: 120.000"
+                value={packageForm.pricePerUnit ? Number(packageForm.pricePerUnit).toLocaleString('vi-VN') : ''}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                  handlePackageFormChange("pricePerUnit", val);
+                }}
                 disabled={supplierInfo?.status !== "Active"}
               />
             </div>
-            <div className="form-row">
-              <label>&nbsp;</label>
-              <button
-                className="btn primary"
-                onClick={handleAddPackage}
-                disabled={supplierInfo?.status !== "Active"}
-              >
-                Thêm gói
-              </button>
-            </div>
+            <button
+              className="btn primary"
+              onClick={handleAddPackage}
+              disabled={supplierInfo?.status !== "Active"}
+            >
+              Thêm gói
+            </button>
           </div>
 
           {/* Packages Table */}
@@ -1074,6 +1214,115 @@ export default function SupplierDetailPage() {
         </section>
       )}
 
+      {/* Product Accounts Section - Only shown for existing suppliers */}
+      {!isNew && (
+        <section className="card " style={{ marginTop: 14 }}>
+          <h2 style={{ margin: "0 0 12px" }}>Tài khoản sản phẩm</h2>
+
+          {loadingProductAccounts ? (
+            <div style={{ textAlign: "center", padding: 20 }}>Đang tải...</div>
+          ) : productAccounts.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>
+              Chưa có tài khoản sản phẩm nào từ nhà cung cấp này
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Sản phẩm</th>
+                    <th>Biến thể</th>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Số người dùng</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày hết hạn</th>
+                    <th>Giá nhập</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productAccounts.map((account) => (
+                    <tr key={account.productAccountId}>
+                      <td>{account.productName || "-"}</td>
+                      <td>{account.variantTitle || "-"}</td>
+                      <td>
+                        <ChunkedText
+                          value={account.accountEmail}
+                          fallback="-"
+                          chunkSize={24}
+                          className="chunk-text--wide"
+                        />
+                      </td>
+                      <td>
+                        {account.accountUsername ? (
+                          <ChunkedText
+                            value={account.accountUsername}
+                            fallback="-"
+                            chunkSize={20}
+                            className="chunk-text--wide"
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>
+                        {account.currentUsers}/{account.maxUsers}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            background:
+                              account.status === "Active"
+                                ? "#d1fae5"
+                                : account.status === "Expired"
+                                ? "#fee2e2"
+                                : "#e5e7eb",
+                            color:
+                              account.status === "Active"
+                                ? "#065f46"
+                                : account.status === "Expired"
+                                ? "#991b1b"
+                                : "#374151",
+                          }}
+                        >
+                          {account.status === "Active"
+                            ? "Hoạt động"
+                            : account.status === "Expired"
+                            ? "Hết hạn"
+                            : account.status === "Full"
+                            ? "Đầy"
+                            : account.status === "Error"
+                            ? "Lỗi"
+                            : account.status}
+                        </span>
+                      </td>
+                      <td>
+                        {account.expiryDate
+                          ? new Date(account.expiryDate).toLocaleDateString(
+                              "vi-VN"
+                            )
+                          : "-"}
+                      </td>
+                      <td>
+                        {account.cogsPrice
+                          ? account.cogsPrice.toLocaleString("vi-VN") + " đ"
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <small className="muted" style={{ display: "block", marginTop: 8 }}>
+            Tổng số: {productAccounts.length} tài khoản
+          </small>
+        </section>
+      )}
+
       {/* CSV Upload Modal */}
       <CsvUploadModal
         isOpen={showUploadModal}
@@ -1096,6 +1345,123 @@ export default function SupplierDetailPage() {
         packageKeys={selectedPackageKeys}
         loading={loadingKeys}
       />
+
+      {/* Import Result Modal */}
+      {showImportResultModal && importResult && (
+        <div className="modal-backdrop" onClick={closeImportResultModal}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Kết quả nhập Key</h3>
+            </div>
+            <div className="modal-body">
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#f0fdf4",
+                    borderRadius: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#166534" }}>Thành công</div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      color: "#16a34a",
+                    }}
+                  >
+                    {importResult.successfullyImported}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#fefce8",
+                    borderRadius: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#854d0e" }}>Trùng lặp</div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      color: "#ca8a04",
+                    }}
+                  >
+                    {importResult.duplicateKeys}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    padding: 12,
+                    background: "#fef2f2",
+                    borderRadius: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#991b1b" }}>Lỗi khác</div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "bold",
+                      color: "#dc2626",
+                    }}
+                  >
+                    {importResult.invalidKeys}
+                  </div>
+                </div>
+              </div>
+
+              {importResult.errors && importResult.errors.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: 14 }}>
+                    Chi tiết lỗi:
+                  </h4>
+                  <div
+                    style={{
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      background: "#fff1f2",
+                      border: "1px solid #fca5a5",
+                      borderRadius: 6,
+                      padding: 8,
+                    }}
+                  >
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 20,
+                        fontSize: 13,
+                        color: "#b91c1c",
+                      }}
+                    >
+                      {importResult.errors.map((err, idx) => (
+                        <li key={idx} style={{ marginBottom: 4 }}>
+                          {err}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn primary" onClick={closeImportResultModal}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

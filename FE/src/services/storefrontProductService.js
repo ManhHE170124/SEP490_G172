@@ -1,9 +1,6 @@
 // src/services/storefrontProductService.js
 import axiosClient from "../api/axiosClient";
-import {
-  PRODUCT_TYPES,
-  typeLabelOf,
-} from "./products";
+import { PRODUCT_TYPES, typeLabelOf } from "./products";
 
 const ROOT = "storefront/products";
 
@@ -59,7 +56,7 @@ const normalizeVariantItem = (v = {}) => {
 
   const sellPrice = v.sellPrice ?? v.SellPrice ?? null;
   const listPrice = v.listPrice ?? v.ListPrice ?? null;
-  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null; // có thì map, không thì null
+  const cogsPrice = v.cogsPrice ?? v.CogsPrice ?? null;
 
   return {
     variantId:   v.variantId   ?? v.VariantId,
@@ -75,14 +72,14 @@ const normalizeVariantItem = (v = {}) => {
     status: rawStatus,
     isOutOfStock: rawStatus === "OUT_OF_STOCK",
 
-    // Giá hiển thị trên storefront
     sellPrice,
-    listPrice,   // <= GIÁ NIÊM YẾT / GIÁ GỐC
-    cogsPrice,   // chỉ để tham khảo nếu BE có trả về
+    listPrice,
+    cogsPrice,
 
     badges: (v.badges ?? v.Badges ?? []).map(normalizeBadgeMini),
   };
 };
+
 // ==== Chuẩn hoá sibling variant trong detail ====
 const normalizeSiblingVariant = (v = {}) => {
   const title =
@@ -165,7 +162,7 @@ export const StorefrontProductApi = {
       productType,
       minPrice,
       maxPrice,
-      sort,
+      sort, // ✅ hỗ trợ: deals | low-stock | sold | updated | views | ...
       page = 1,
       pageSize = 8,
     } = params;
@@ -191,13 +188,15 @@ export const StorefrontProductApi = {
     };
   },
 
-  variantDetail: async (productId, variantId) => {
-    const axiosRes = await axiosClient.get(
-      `${ROOT}/${productId}/variants/${variantId}/detail`
-    );
-    const res = axiosRes?.data ?? axiosRes;
-    return normalizeVariantDetail(res);
-  },
+ variantDetail: async (productId, variantId, options = {}) => {
+  const countView = options?.countView !== false; // default true
+  const axiosRes = await axiosClient.get(
+    `${ROOT}/${productId}/variants/${variantId}/detail`,
+    { params: { countView } }
+  );
+  const res = axiosRes?.data ?? axiosRes;
+  return normalizeVariantDetail(res);
+},
 
   relatedVariants: async (productId, variantId) => {
     const axiosRes = await axiosClient.get(
@@ -205,10 +204,7 @@ export const StorefrontProductApi = {
     );
     const res = axiosRes?.data ?? axiosRes;
 
-    const items = Array.isArray(res)
-      ? res
-      : res?.items ?? res?.Items ?? [];
-
+    const items = Array.isArray(res) ? res : res?.items ?? res?.Items ?? [];
     return items.map(normalizeVariantItem);
   },
 

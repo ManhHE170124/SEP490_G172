@@ -1,10 +1,39 @@
-// src/services/storefrontCartService.js
+// File: src/services/storefrontCartService.js
 import axiosClient from "../api/axiosClient";
 
-// Sự kiện global dùng để thông báo cart thay đổi
 export const CART_UPDATED_EVENT = "storefront_cart_updated";
 
-// ==== Chuẩn hoá 1 item trong cart (StorefrontCartItemDto) ====
+/* ====================== GUEST ANON ID (MUST MATCH BE) ====================== */
+/**
+ * BE nhận diện guest cart ưu tiên bằng:
+ * - header X-Guest-Cart-Id (FE gửi), hoặc
+ * - cookie HttpOnly (BE set).
+ *
+ * FE lưu ổn định id trong localStorage và axiosClient sẽ luôn gửi header theo key này.
+ * Khi checkout guest, cũng gửi anonymousId trong body để BE có thể resolve cart chắc chắn.
+ */
+const GUEST_CART_STORAGE_KEY = "ktk_guest_cart_id";
+
+function getOrInitGuestAnonymousId() {
+  if (typeof window === "undefined") return null;
+  try {
+    let id = window.localStorage.getItem(GUEST_CART_STORAGE_KEY);
+    if (!id) {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        id = window.crypto.randomUUID();
+      } else {
+        id = `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+      }
+      window.localStorage.setItem(GUEST_CART_STORAGE_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+/* ====================== NORMALIZE ====================== */
+
 const normalizeCartItem = (i = {}) => {
   const quantity = i.quantity ?? i.Quantity ?? 0;
 
@@ -38,6 +67,7 @@ const normalizeCartItem = (i = {}) => {
       : 0;
 
   return {
+    cartItemId: i.cartItemId ?? i.CartItemId ?? null,
     variantId: i.variantId ?? i.VariantId,
     productId: i.productId ?? i.ProductId,
 
@@ -46,6 +76,7 @@ const normalizeCartItem = (i = {}) => {
 
     variantTitle: i.variantTitle ?? i.VariantTitle ?? "",
     thumbnail: i.thumbnail ?? i.Thumbnail ?? null,
+    slug: i.slug ?? i.Slug ?? "",
 
     quantity,
 
@@ -60,12 +91,13 @@ const normalizeCartItem = (i = {}) => {
   };
 };
 
-// ==== Chuẩn hoá toàn bộ cart (StorefrontCartDto từ BE) ====
 const normalizeCart = (res = {}) => {
   const itemsRaw = res.items ?? res.Items ?? [];
-  const items = Array.isArray(itemsRaw)
-    ? itemsRaw.map(normalizeCartItem)
-    : [];
+  const items = Array.isArray(itemsRaw) ? itemsRaw.map(normalizeCartItem) : [];
+
+  const cartId = res.cartId ?? res.CartId ?? null;
+  const status = res.status ?? res.Status ?? "Active";
+  const updatedAt = res.updatedAt ?? res.UpdatedAt ?? null;
 
   const totalQuantityRaw = res.totalQuantity ?? res.TotalQuantity;
   const totalAmountRaw = res.totalAmount ?? res.TotalAmount;
@@ -85,10 +117,7 @@ const normalizeCart = (res = {}) => {
   const totalListAmount =
     totalListAmountRaw != null
       ? Number(totalListAmountRaw)
-      : items.reduce(
-          (sum, it) => sum + (it.listLineTotal || it.lineTotal || 0),
-          0
-        );
+      : items.reduce((sum, it) => sum + (it.listLineTotal || it.lineTotal || 0), 0);
 
   const totalDiscount =
     totalDiscountRaw != null
@@ -97,12 +126,13 @@ const normalizeCart = (res = {}) => {
 
   const receiverEmail = res.receiverEmail ?? res.ReceiverEmail ?? null;
 
-  // Info tài khoản từ API (user đã đăng nhập)
   const accountEmail = res.accountEmail ?? res.AccountEmail ?? null;
-  const accountUserName =
-    res.accountUserName ?? res.AccountUserName ?? null;
+  const accountUserName = res.accountUserName ?? res.AccountUserName ?? null;
 
   return {
+    cartId,
+    status,
+    updatedAt,
     receiverEmail,
     accountEmail,
     accountUserName,
@@ -114,7 +144,6 @@ const normalizeCart = (res = {}) => {
   };
 };
 
-// ==== Chuẩn hoá kết quả checkout (CartCheckoutResultDto – Payment ORDER_CART) ====
 const normalizeCheckoutResult = (res = {}) => {
   const paymentId = res.paymentId ?? res.PaymentId ?? null;
   const paymentStatus = res.paymentStatus ?? res.PaymentStatus ?? null;
@@ -124,7 +153,19 @@ const normalizeCheckoutResult = (res = {}) => {
 
   const email = res.email ?? res.Email ?? null;
   const createdAt = res.createdAt ?? res.CreatedAt ?? null;
-  const paymentUrl = res.paymentUrl ?? res.PaymentUrl ?? null;
+
+  const paymentUrl =
+    res.paymentUrl ??
+    res.PaymentUrl ??
+    res.checkoutUrl ??
+    res.CheckoutUrl ??
+    null;
+
+  const orderId = res.orderId ?? res.OrderId ?? null;
+  const orderCode = res.orderCode ?? res.OrderCode ?? null;
+
+  const expiresAtUtc = res.expiresAtUtc ?? res.ExpiresAtUtc ?? null;
+  const paymentLinkId = res.paymentLinkId ?? res.PaymentLinkId ?? null;
 
   return {
     paymentId,
@@ -133,27 +174,25 @@ const normalizeCheckoutResult = (res = {}) => {
     email,
     createdAt,
     paymentUrl,
+    orderId,
+    orderCode,
+    expiresAtUtc,
+    paymentLinkId,
   };
 };
 
-// Bắn event ra window để header (và chỗ khác) nghe được
 const notifyCartUpdated = (cart) => {
   if (typeof window === "undefined") return;
   try {
-    window.dispatchEvent(
-      new CustomEvent(CART_UPDATED_EVENT, {
-        detail: { cart },
-      })
-    );
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT, { detail: { cart } }));
   } catch (err) {
     console.error("Dispatch cart updated event failed:", err);
   }
 };
 
-const ROOT = "storefront/cart";
+const ROOT = "/storefront/cart";
 
 export const StorefrontCartApi = {
-  // Lấy cart hiện tại của user/guest (server quản lý cả hai)
   getCart: async () => {
     const axiosRes = await axiosClient.get(`${ROOT}`);
     const res = axiosRes?.data ?? axiosRes;
@@ -162,30 +201,22 @@ export const StorefrontCartApi = {
     return cart;
   },
 
-  // Thêm item vào cart (BE trừ stock + giữ cart trong cache)
   addItem: async ({ variantId, quantity }) => {
-    const axiosRes = await axiosClient.post(`${ROOT}/items`, {
-      variantId,
-      quantity,
-    });
+    const axiosRes = await axiosClient.post(`${ROOT}/items`, { variantId, quantity });
     const res = axiosRes?.data ?? axiosRes;
     const cart = normalizeCart(res ?? {});
     notifyCartUpdated(cart);
     return cart;
   },
 
-  // Cập nhật quantity cho 1 variant
   updateItem: async (variantId, quantity) => {
-    const axiosRes = await axiosClient.put(`${ROOT}/items/${variantId}`, {
-      quantity,
-    });
+    const axiosRes = await axiosClient.put(`${ROOT}/items/${variantId}`, { quantity });
     const res = axiosRes?.data ?? axiosRes;
     const cart = normalizeCart(res ?? {});
     notifyCartUpdated(cart);
     return cart;
   },
 
-  // Xoá 1 item khỏi cart
   removeItem: async (variantId) => {
     const axiosRes = await axiosClient.delete(`${ROOT}/items/${variantId}`);
     const res = axiosRes?.data ?? axiosRes;
@@ -194,45 +225,48 @@ export const StorefrontCartApi = {
     return cart;
   },
 
-  // Xoá toàn bộ cart
   clearCart: async (options = {}) => {
     const { skipRestoreStock = false } = options;
-
-    const url = skipRestoreStock
-      ? `${ROOT}?skipRestoreStock=true`
-      : `${ROOT}`;
-
+    const url = skipRestoreStock ? `${ROOT}?skipRestoreStock=true` : `${ROOT}`;
     await axiosClient.delete(url);
 
-    // BE trả NoContent => tự tạo cart trống ở FE
     const cart = normalizeCart({ items: [], receiverEmail: null });
     notifyCartUpdated(cart);
     return cart;
   },
 
-  // Set email nhận hàng cho cart
   setReceiverEmail: async (receiverEmail) => {
-    const axiosRes = await axiosClient.put(`${ROOT}/receiver-email`, {
-      receiverEmail,
-    });
+    const axiosRes = await axiosClient.put(`${ROOT}/receiver-email`, { receiverEmail });
     const res = axiosRes?.data ?? axiosRes;
     const cart = normalizeCart(res ?? {});
     notifyCartUpdated(cart);
     return cart;
   },
 
-  // Checkout: tạo Payment ORDER_CART + PayOS checkoutUrl.
-  // BE:
-  //  - tính lại tiền,
-  //  - tạo Payment Pending,
-  //  - lưu snapshot cart,
-  //  - xoá cart hiển thị trên server.
-  checkout: async () => {
-    const axiosRes = await axiosClient.post(`${ROOT}/checkout`);
+  /**
+   * Checkout:
+   * POST /api/orders/checkout
+   * - guest: cần anonymousId + deliveryEmail
+   * - trả: { OrderId, PaymentId, CheckoutUrl, ExpiresAtUtc, ... }
+   */
+  checkout: async (payload = {}) => {
+    const anonymousId = payload.anonymousId ?? getOrInitGuestAnonymousId();
+
+    const dto = {
+      anonymousId,
+      deliveryEmail: payload.deliveryEmail ?? payload.email ?? null,
+      buyerName: payload.buyerName ?? null,
+      buyerPhone: payload.buyerPhone ?? null,
+      // returnUrl/cancelUrl: để BE tự default nếu null
+      returnUrl: payload.returnUrl ?? null,
+      cancelUrl: payload.cancelUrl ?? null,
+    };
+
+    const axiosRes = await axiosClient.post(`/orders/checkout`, dto);
     const res = axiosRes?.data ?? axiosRes;
     const checkoutResult = normalizeCheckoutResult(res ?? {});
 
-    // Cart hiện tại trên BE đã bị xoá -> update FE về trạng thái rỗng
+    // FE coi như cart đã “chuyển sang order”, header cart count về 0
     const emptyCart = normalizeCart({ items: [], receiverEmail: null });
     notifyCartUpdated(emptyCart);
 

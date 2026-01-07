@@ -79,5 +79,21 @@ namespace Keytietkiem.Services.Interfaces
         Task<byte[]> ExportKeysToCSVAsync(
             ProductKeyFilterDto filter,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Get expired product keys (pagination supported)
+        /// </summary>
+        Task<ProductKeyListResponseDto> GetExpiredKeysAsync(
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Get product keys expiring soon (within days)
+        /// </summary>
+        Task<ProductKeyListResponseDto> GetKeysExpiringSoonAsync(
+            int days,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default);
     }
 }
