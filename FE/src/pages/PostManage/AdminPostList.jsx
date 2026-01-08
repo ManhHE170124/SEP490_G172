@@ -58,16 +58,27 @@ export default function AdminPostList() {
     setLoading(true);
     setError("");
     
-    // Exclude static content posts from the list
+    // Get all posts, filter specific-documentation on frontend
     try {
       const [postsData, posttypesData] = await Promise.all([
-        postsApi.getAllPosts(true), // Exclude static content posts
+        postsApi.getAllPosts(false), // Get all posts, filter specific-documentation on frontend
         postsApi.getPosttypes()
       ]);
       // Additional frontend filtering as backup
       const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
       const filteredPosts = filterStaticContentPosts(Array.isArray(postsData) ? postsData : []);
-      setPosts(filteredPosts);
+      
+      // Additional filtering to ensure SpecificDocumentation is excluded
+      const finalFiltered = filteredPosts.filter(post => {
+        const postTypeName = post.postTypeName || post.posttypeName || post.PostTypeName || post.PosttypeName || '';
+        if (!postTypeName) return true; // Keep posts without postType
+        
+        const name = postTypeName.toLowerCase();
+        const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+        return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+      });
+      
+      setPosts(finalFiltered);
       setPosttypes(Array.isArray(posttypesData) ? posttypesData : []);
     } catch (err) {
       setError(err.message || "Không thể tải dữ liệu");
@@ -94,11 +105,16 @@ export default function AdminPostList() {
     }
   };
 
-  // Format date helper
+  // Format date helper - treat as UTC if no timezone indicator
   const formatDate = (value) => {
     if (!value) return "";
     try {
-      const d = new Date(value);
+      // Ensure the date string is treated as UTC by appending 'Z' if not present
+      const dateString = typeof value === 'string' ? value : value.toString();
+      const utcDateString = dateString.endsWith("Z") || dateString.includes("+") || dateString.includes("-", 10)
+        ? dateString
+        : `${dateString}Z`;
+      const d = new Date(utcDateString);
       if (Number.isNaN(d.getTime())) return "";
       return d.toLocaleString("vi-VN", {
         year: "numeric",

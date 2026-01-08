@@ -23,7 +23,15 @@ function useFetchData(activeTab, showError, networkErrorShownRef, permissionErro
         try {
             let res = [];
             if (activeTab === TABS.TAGS) res = await postsApi.getTags();
-            else if (activeTab === TABS.POSTTYPES) res = await postsApi.getPosttypes();
+            else if (activeTab === TABS.POSTTYPES) {
+                res = await postsApi.getPosttypes();
+                // Filter out SpecificDocumentation post type
+                res = Array.isArray(res) ? res.filter(pt => {
+                    const name = (pt.postTypeName || pt.PostTypeName || '').toLowerCase();
+                    const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                    return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+                }) : [];
+            }
             setData(Array.isArray(res) ? res : []);
         } catch (e) {
             setError(e.message || "Không thể tải dữ liệu");
@@ -116,11 +124,16 @@ export default function TagAndPosttypeManage() {
     // Check if any filters are active
     const hasActiveFilters = search || sortKey;
 
-    // Format date helper
+    // Format date helper - treat as UTC if no timezone indicator
     const formatDate = (dateValue) => {
         if (!dateValue) return "-";
         try {
-            const date = new Date(dateValue);
+            // Ensure the date string is treated as UTC by appending 'Z' if not present
+            const dateString = typeof dateValue === 'string' ? dateValue : dateValue.toString();
+            const utcDateString = dateString.endsWith("Z") || dateString.includes("+") || dateString.includes("-", 10)
+                ? dateString
+                : `${dateString}Z`;
+            const date = new Date(utcDateString);
             if (Number.isNaN(date.getTime())) return "-";
             return date.toLocaleString("vi-VN", {
                 year: "numeric",

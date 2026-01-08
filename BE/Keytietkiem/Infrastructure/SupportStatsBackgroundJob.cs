@@ -761,25 +761,23 @@ namespace Keytietkiem.Infrastructure
 
         private static bool IsPaymentPaid(Payment p)
         {
-            // DB constraint: Pending/Cancelled/Failed/Paid/Success/Completed/Refunded
+            // Payment mới: chỉ xem là đã thanh toán khi Status == "Paid"
             var st = (p.Status ?? string.Empty).Trim();
-            return st.Equals("Paid", StringComparison.OrdinalIgnoreCase)
-                   || st.Equals("Success", StringComparison.OrdinalIgnoreCase)
-                   || st.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+            return st.Equals("Paid", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSupportPlanPayment(Payment p)
         {
-            // Với DB mới: phân biệt bằng TargetType + TargetId
-            // Bạn nên set TargetType khi tạo payment support plan (ví dụ: "SupportPlanSubscription")
+            // Payment mới: TargetType chỉ còn 2 loại "SupportPlan" | "Order"
             var tt = (p.TargetType ?? string.Empty).Trim();
+            return tt.Equals("SupportPlan", StringComparison.OrdinalIgnoreCase);
+        }
 
-            return tt.Equals("SupportPlanSubscription", StringComparison.OrdinalIgnoreCase)
-                   || tt.Equals("UserSupportPlanSubscription", StringComparison.OrdinalIgnoreCase)
-                   || tt.Equals("SupportPlan", StringComparison.OrdinalIgnoreCase)
-                   || tt.Equals("SupportPlanPayment", StringComparison.OrdinalIgnoreCase)
-                   || tt.Equals("Service", StringComparison.OrdinalIgnoreCase)
-                   || tt.Equals("SERVICE_PAYMENT", StringComparison.OrdinalIgnoreCase);
+        private static bool IsOrderPayment(Payment p)
+        {
+            // Dùng cho thống kê "tổng tiền chi tiêu" / loyalty (chỉ lấy Order đã Paid)
+            var tt = (p.TargetType ?? string.Empty).Trim();
+            return tt.Equals("Order", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task RebuildSupportPlanMonthlyStatsAsync(

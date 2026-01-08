@@ -1,3 +1,7 @@
+// File: Controllers/SupportPriorityLoyaltyRulesController.cs
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using CloudinaryDotNet.Actions;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
@@ -18,7 +22,7 @@ namespace Keytietkiem.Controllers
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IAuditLogger _auditLogger;
-        private readonly IClock _clock;
+        private readonly IClock _clock = default!;
 
         public SupportPriorityLoyaltyRulesController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
@@ -541,17 +545,17 @@ namespace Keytietkiem.Controllers
             if (string.IsNullOrWhiteSpace(email))
                 return 0m;
 
-            var normalizedEmail = email.Trim();
+            // NOTE: so sánh chuỗi quá chặt dễ khiến SUM = 0 (case/whitespace).
+            // Vẫn giữ đúng nghiệp vụ: chỉ tính Paid + Order.
+            var emailKey = email.Trim().ToLower();
 
-            // Tuỳ hệ thống bạn đang set status nào là "thành công":
-            // Payment.Status CHECK: Pending, Paid, Success, Completed, Cancelled, Failed, Refunded
             var total = await db.Payments
                 .AsNoTracking()
                 .Where(p =>
-                    p.Email == normalizedEmail
-                    && (p.Status == "Paid" || p.Status == "Success" || p.Status == "Completed")
-                    // TargetType trong DB mới (default 'Order'). Mở rộng thêm để tương thích dữ liệu cũ nếu có.
-                    && (p.TargetType == "Order" || p.TargetType == "ORDER" || p.TargetType == "ORDER_PAYMENT"))
+                    p.Email != null &&
+                    p.Email.Trim().ToLower() == emailKey &&
+                    (p.Status ?? "").Trim().ToLower() == "paid" &&
+                    (p.TargetType ?? "").Trim().ToLower() == "order")
                 .SumAsync(p => (decimal?)p.Amount);
 
             return total ?? 0m;
@@ -571,16 +575,16 @@ namespace Keytietkiem.Controllers
             if (string.IsNullOrWhiteSpace(email))
                 return 0;
 
-            var normalizedEmail = email.Trim();
+            var emailKey = email.Trim().ToLower();
 
             var user = await db.Users
-                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+                .FirstOrDefaultAsync(u => u.Email != null && u.Email.Trim().ToLower() == emailKey);
 
             if (user == null)
                 return 0;
 
-            // 1. Tính tổng tiền user đã tiêu (ORDER, Paid/Success/Completed)
-            var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
+            // 1. Tính tổng tiền user đã tiêu (ORDER, Paid)
+            var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, emailKey);
 
             var needSave = false;
 
@@ -602,7 +606,7 @@ namespace Keytietkiem.Controllers
                 .Select(r => (int?)r.PriorityLevel)
                 .FirstOrDefaultAsync() ?? 0;
 
-            // 3. Nếu khác với SupportPriorityLevel hiện tại → update lại
+            // 3. Cập nhật SupportPriorityLevel theo loyalty base
             if (user.SupportPriorityLevel != newLevel)
             {
                 user.SupportPriorityLevel = newLevel;
@@ -618,10 +622,10 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Tính level hiệu lực cuối cùng cho user:
-        /// finalLevel = max(loyaltyLevel, activeSupportPlanLevel)
-        /// - Vẫn cập nhật TotalProductSpend (giống loyalty).
-        /// - Không bao giờ hạ level thấp hơn level của gói đang ACTIVE.
+        /// Tính level cuối cùng:
+        /// - Loyalty level (theo chi tiêu ORDER Paid)
+        /// - SupportPlan đang active (nếu có) có thể override bằng level cao hơn
+        /// => final = max(loyalty, plan)
         /// </summary>
         [NonAction]
         public static async Task<int> RecalculateUserSupportPriorityLevelAsync(
@@ -631,64 +635,80 @@ namespace Keytietkiem.Controllers
             if (string.IsNullOrWhiteSpace(email))
                 return 0;
 
-            var normalizedEmail = email.Trim();
+            var emailKey = email.Trim().ToLower();
 
             var user = await db.Users
-                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+                .FirstOrDefaultAsync(u => u.Email != null && u.Email.Trim().ToLower() == emailKey);
 
             if (user == null)
                 return 0;
 
-            // 1. Tính tổng tiền user đã tiêu (ORDER, Paid/Success/Completed)
-            var totalSpend = await CalculateUserTotalPaidOrderAmountAsync(db, normalizedEmail);
+            // 1) Loyalty base (cũng cập nhật TotalProductSpend)
+            var loyaltyLevel = await RecalculateUserLoyaltyPriorityLevelAsync(db, emailKey);
 
-            var needSave = false;
+            // 2) SupportPlan active level (nếu có)
+            var nowUtc = DateTime.UtcNow;
 
-            // 1.1. Cập nhật TotalProductSpend nếu thay đổi
-            if (user.TotalProductSpend != totalSpend)
-            {
-                user.TotalProductSpend = totalSpend;
-                needSave = true;
-            }
-
-            // 2. Loyalty level
-            var loyaltyLevel = await db.SupportPriorityLoyaltyRules
-                .Where(r =>
-                    r.IsActive &&
-                    r.PriorityLevel > 0 &&
-                    r.MinTotalSpend <= totalSpend)
-                .OrderByDescending(r => r.PriorityLevel)
-                .Select(r => (int?)r.PriorityLevel)
+            var activeSupportPlanLevel = await (
+                    from s in db.UserSupportPlanSubscriptions.AsNoTracking()
+                    join p in db.SupportPlans.AsNoTracking() on s.SupportPlanId equals p.SupportPlanId
+                    where s.UserId == user.UserId
+                          && s.Status == "Active"
+                          && (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc)
+                          && p.IsActive
+                    orderby s.StartedAt descending
+                    select (int?)p.PriorityLevel
+                )
                 .FirstOrDefaultAsync() ?? 0;
 
-            // 3. Level từ gói hỗ trợ đang ACTIVE (nếu có)
-            var nowUtc = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(7), DateTimeKind.Unspecified);
-
-            var activePlanLevel = await db.UserSupportPlanSubscriptions
-                .Include(s => s.SupportPlan)
-                .Where(s =>
-                    s.UserId == user.UserId &&
-                    s.Status == "Active" &&
-                    (!s.ExpiresAt.HasValue || s.ExpiresAt > nowUtc))
-                .OrderByDescending(s => s.StartedAt)
-                .Select(s => (int?)s.SupportPlan.PriorityLevel)
-                .FirstOrDefaultAsync() ?? 0;
-
-            // 4. Level cuối cùng = max(loyalty, plan)
-            var finalLevel = Math.Max(loyaltyLevel, activePlanLevel);
+            var finalLevel = Math.Max(loyaltyLevel, activeSupportPlanLevel);
 
             if (user.SupportPriorityLevel != finalLevel)
             {
                 user.SupportPriorityLevel = finalLevel;
-                needSave = true;
-            }
-
-            if (needSave)
-            {
                 await db.SaveChangesAsync();
             }
 
             return finalLevel;
+        }
+
+        // =========================
+        //  DEBUG/INTERNAL TRIGGERS
+        // =========================
+
+        public class RecalculateUserSupportPriorityRequest
+        {
+            public string Email { get; set; } = string.Empty;
+        }
+
+        /// <summary>
+        /// POST: /api/support-priority-loyalty-rules/recalculate-user
+        /// Dùng để trigger tính lại chi tiêu + priority cho 1 user (phục vụ debug hoặc để flow khác gọi).
+        /// </summary>
+        [HttpPost("recalculate-user")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
+        public async Task<IActionResult> RecalculateUser([FromBody] RecalculateUserSupportPriorityRequest dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest(new { message = "Email is required." });
+
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var level = await RecalculateUserSupportPriorityLevelAsync(db, dto.Email);
+
+            var emailKey = dto.Email.Trim().ToLower();
+            var user = await db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email != null && u.Email.Trim().ToLower() == emailKey);
+
+            if (user == null) return NotFound(new { message = "User not found." });
+
+            return Ok(new
+            {
+                user.Email,
+                user.TotalProductSpend,
+                SupportPriorityLevel = level
+            });
         }
     }
 }

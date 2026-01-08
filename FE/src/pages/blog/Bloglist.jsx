@@ -5,25 +5,22 @@ import { Link, useSearchParams } from "react-router-dom"; // ✅ Import useSearc
 import "../../styles/Bloglist.css";
 import { postsApi } from "../../services/postsApi";
 
-const pageSize = 4;
+const pageSize = 8;
 
-// Tạo dải số trang: 1, 2, 3, ..., last
 const createPaginationRange = (page, pageCount) => {
     if (pageCount <= 5) {
         return Array.from({ length: pageCount }, (_, i) => i + 1);
     }
 
-    // Đầu danh sách (giống screenshot: 1 2 3 ... 44)
     if (page <= 2) {
         return [1, 2, 3, "...", pageCount];
     }
 
-    // Cuối danh sách: 1 ... 42 43 44
+
     if (page >= pageCount - 1) {
         return [1, "...", pageCount - 2, pageCount - 1, pageCount];
     }
 
-    // Ở giữa: 1 ... (page-1) page (page+1) ... last
     return [1, "...", page - 1, page, page + 1, "...", pageCount];
 };
 
@@ -54,7 +51,7 @@ const BlogList = () => {
         setLoading(true);
         try {
             const [postsRes, categoriesRes, tagsRes] = await Promise.all([
-                postsApi.getAllPosts(true), // Exclude static content posts
+               postsApi.getAllPosts(true), 
                 postsApi.getPosttypes(),
                 postsApi.getTags()
             ]);
@@ -63,14 +60,21 @@ const BlogList = () => {
             const { filterStaticContentPosts } = await import('../../utils/staticContentHelper');
             const filteredPosts = filterStaticContentPosts(Array.isArray(postsRes) ? postsRes : []);
 
+            // Filter out SpecificDocumentation post type from categories
+            const filteredCategories = (Array.isArray(categoriesRes) ? categoriesRes : []).filter(pt => {
+                const name = (pt.postTypeName || pt.PostTypeName || pt.posttypeName || pt.PosttypeName || '').toLowerCase();
+                const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                return slug !== 'specific-documentation' && name !== 'specificdocumentation';
+            });
+
             console.log("✅ Data loaded:", {
                 posts: filteredPosts.length,
-                categories: categoriesRes.length,
+                categories: filteredCategories.length,
                 tags: tagsRes.length
             });
 
             setPosts(filteredPosts);
-            setCategories(Array.isArray(categoriesRes) ? categoriesRes : []);
+            setCategories(filteredCategories);
             setTags(Array.isArray(tagsRes) ? tagsRes : []);
         } catch (err) {
             console.error("❌ Load data error:", err);
@@ -106,9 +110,27 @@ const BlogList = () => {
     const filteredPosts = useMemo(() => {
         let result = posts;
 
-        // Additional static content filtering as backup
+        // Additional static content filtering as backup - ensure SpecificDocumentation is excluded
         const { isStaticContentPost } = require('../../utils/staticContentHelper');
-        result = result.filter(p => !isStaticContentPost(p));
+        result = result.filter(p => {
+            // Check using utility function
+            if (isStaticContentPost(p)) return false;
+            
+            // Additional check by postTypeName to be safe
+            const postTypeName = p.postTypeName || p.posttypeName || p.PostTypeName || p.PosttypeName || '';
+            if (postTypeName) {
+                const name = postTypeName.toLowerCase();
+                const slug = name.replace(/\s+/g, '-').replace(/_/g, '-');
+                if (slug === 'specific-documentation' || name === 'specificdocumentation') {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+
+        // Status filter - only show Published posts
+        result = result.filter(p => p.status === "Published");
 
         // Search filter
         if (search.trim()) {
@@ -452,8 +474,6 @@ const BlogList = () => {
                                                 ? new Date(post.createdAt).toLocaleDateString("vi-VN")
                                                 : ""}
                                         </span>
-
-                                        <span className="bloglist-post-comment-count">0</span>
                                     </div>
                                 </Link>
                             ))

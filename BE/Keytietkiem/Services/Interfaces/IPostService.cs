@@ -59,19 +59,14 @@ public interface IPostService
     Task IncrementViewCountAsync(Guid postId, CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Gets static content by type (policy, user-guide, about-us).
+    /// Gets all SpecificDocumentation posts.
     /// </summary>
-    Task<PostDTO> GetStaticContentAsync(string type, CancellationToken cancellationToken = default);
+    Task<IEnumerable<PostListItemDTO>> GetAllSpecificDocumentationAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
-    /// Creates static content (Policy, UserGuide, AboutUs).
+    /// Gets a SpecificDocumentation post by slug.
     /// </summary>
-    Task<PostDTO> CreateStaticContentAsync(CreateStaticContentDTO createDto, Guid actorId, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Updates static content (Policy, UserGuide, AboutUs).
-    /// </summary>
-    Task UpdateStaticContentAsync(Guid id, UpdateStaticContentDTO updateDto, Guid actorId, CancellationToken cancellationToken = default);
+    Task<PostDTO> GetSpecificDocumentationBySlugAsync(string slug, CancellationToken cancellationToken = default);
     
     // ===== PostType Operations =====
     

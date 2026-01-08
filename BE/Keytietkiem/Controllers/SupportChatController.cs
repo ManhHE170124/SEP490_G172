@@ -245,7 +245,7 @@ public class SupportChatController : ControllerBase
         var me = GetCurrentUserIdOrNull();
         if (me is null) return Unauthorized();
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         var user = await _db.Users
             .Include(u => u.Roles)
@@ -515,7 +515,7 @@ public class SupportChatController : ControllerBase
                 new { message = "Người dùng không có quyền gửi tin trong phiên chat này." });
         }
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         var msg = new SupportChatMessage
         {
@@ -784,7 +784,7 @@ public class SupportChatController : ControllerBase
         }
 
         session.Status = StatusClosed;
-        session.ClosedAt = _clock.UtcNow;
+        session.ClosedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
@@ -1119,7 +1119,7 @@ public class SupportChatController : ControllerBase
         if (session.Status == StatusClosed)
             return BadRequest(new { message = "Phiên chat đã đóng." });
 
-        var now = _clock.UtcNow;
+        var now = DateTime.UtcNow;
 
         var msg = new SupportChatMessage
         {

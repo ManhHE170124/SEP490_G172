@@ -2,16 +2,14 @@
  * File: staticContentHelper.js
  * Author: Keytietkiem Team
  * Created: 2025
- * Version: 1.0.0
- * Purpose: Utility functions for identifying static content posts
+ * Version: 2.0.0
+ * Purpose: Utility functions for identifying SpecificDocumentation posts
  */
 
-export const STATIC_CONTENT_SLUGS = ['policy', 'user-guide', 'about-us'];
-
 /**
- * Check if a post is a static content post based on its PostType slug
+ * Check if a post is a SpecificDocumentation post based on its PostType name
  * @param {Object} post - The post object
- * @returns {boolean} - True if the post is static content
+ * @returns {boolean} - True if the post is SpecificDocumentation
  */
 export const isStaticContentPost = (post) => {
   if (!post) return false;
@@ -24,7 +22,8 @@ export const isStaticContentPost = (post) => {
   // Convert to slug format (lowercase, replace spaces with hyphens)
   const slug = postTypeName.toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-');
   
-  return STATIC_CONTENT_SLUGS.includes(slug);
+  // Check if it's SpecificDocumentation
+  return slug === 'specific-documentation';
 };
 
 /**
