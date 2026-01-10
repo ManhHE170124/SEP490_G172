@@ -50,7 +50,7 @@ namespace Keytietkiem.Services
             // ===== Load minimal fields (AuditLogs) =====
             var audits = await LoadAuditRowsAsync(db, fromUtc, toUtc, ct);
 
-            // ===== Load minimal fields (Notifications) =====
+            // ===== Load Notifications (minimal + aggregate like NotificationsController) =====
             var notis = await LoadNotificationRowsAsync(db, fromUtc, toUtc, ct);
 
             // ===== Build response =====
@@ -226,6 +226,16 @@ namespace Keytietkiem.Services
         // -------------------------
         // Notifications
         // -------------------------
+        private sealed class NotiBase
+        {
+            public int Id { get; set; }
+            public DateTime CreatedAtUtc { get; set; }
+            public bool IsSystemGenerated { get; set; }
+            public bool IsGlobal { get; set; }
+            public byte Severity { get; set; }
+            public string? Type { get; set; }
+        }
+
         private sealed class NotiRow
         {
             public DateTime CreatedAtUtc { get; set; }
@@ -233,6 +243,8 @@ namespace Keytietkiem.Services
             public bool IsGlobal { get; set; }
             public byte Severity { get; set; }
             public string? Type { get; set; }
+
+            // ✅ computed like NotificationsController (NOT columns)
             public int TotalTargetUsers { get; set; }
             public int ReadCount { get; set; }
             public int TargetRolesCount { get; set; }
@@ -256,29 +268,88 @@ namespace Keytietkiem.Services
             DateTime toUtc,
             CancellationToken ct)
         {
-            async Task<List<NotiRow>> TryLoad(string createdProp)
+            async Task<List<NotiBase>> TryLoadBase(string createdProp)
             {
-                return await db.Set<Notification>()
+                return await db.Notifications
                     .AsNoTracking()
                     .Where(n =>
                         EF.Property<DateTime>(n, createdProp) >= fromUtc &&
                         EF.Property<DateTime>(n, createdProp) < toUtc)
-                    .Select(n => new NotiRow
+                    .Select(n => new NotiBase
                     {
+                        Id = n.Id,
                         CreatedAtUtc = EF.Property<DateTime>(n, createdProp),
-                        IsSystemGenerated = EF.Property<bool>(n, "IsSystemGenerated"),
-                        IsGlobal = EF.Property<bool>(n, "IsGlobal"),
-                        Severity = EF.Property<byte>(n, "Severity"),
-                        Type = EF.Property<string>(n, "Type"),
-                        TotalTargetUsers = EF.Property<int>(n, "TotalTargetUsers"),
-                        ReadCount = EF.Property<int>(n, "ReadCount"),
-                        TargetRolesCount = EF.Property<int>(n, "TargetRolesCount"),
+                        IsSystemGenerated = n.IsSystemGenerated,
+                        IsGlobal = n.IsGlobal,
+                        Severity = n.Severity,
+                        Type = n.Type
                     })
                     .ToListAsync(ct);
             }
 
-            try { return await TryLoad("CreatedAtUtc"); }
-            catch { return await TryLoad("CreatedAt"); }
+            List<NotiBase> baseNotis;
+            try { baseNotis = await TryLoadBase("CreatedAtUtc"); }
+            catch { baseNotis = await TryLoadBase("CreatedAt"); }
+
+            if (baseNotis.Count == 0) return new List<NotiRow>();
+
+            var ids = baseNotis.Select(x => x.Id).ToList();
+
+            // total active users for IsGlobal notifications (same logic as NotificationsController)
+            var totalActiveUsers = await db.Users.AsNoTracking()
+                .CountAsync(u => u.Status == "Active", ct);
+
+            // aggregate NotificationUsers: total + read
+            var userAgg = await db.NotificationUsers.AsNoTracking()
+                .Where(nu => ids.Contains(nu.NotificationId))
+                .GroupBy(nu => nu.NotificationId)
+                .Select(g => new
+                {
+                    NotificationId = g.Key,
+                    Total = g.Count(),
+                    Read = g.Count(x => x.IsRead)
+                })
+                .ToListAsync(ct);
+
+            var userAggMap = userAgg.ToDictionary(x => x.NotificationId, x => x);
+
+            // aggregate NotificationTargetRoles count
+            var roleAgg = await db.NotificationTargetRoles.AsNoTracking()
+                .Where(ntr => ids.Contains(ntr.NotificationId))
+                .GroupBy(ntr => ntr.NotificationId)
+                .Select(g => new
+                {
+                    NotificationId = g.Key,
+                    Count = g.Count()
+                })
+                .ToListAsync(ct);
+
+            var roleAggMap = roleAgg.ToDictionary(x => x.NotificationId, x => x.Count);
+
+            // build NotiRow
+            var rows = new List<NotiRow>(baseNotis.Count);
+            foreach (var n in baseNotis)
+            {
+                userAggMap.TryGetValue(n.Id, out var ua);
+                roleAggMap.TryGetValue(n.Id, out var rc);
+
+                var totalTargets = n.IsGlobal ? totalActiveUsers : (ua?.Total ?? 0);
+                var readCount = ua?.Read ?? 0;
+
+                rows.Add(new NotiRow
+                {
+                    CreatedAtUtc = n.CreatedAtUtc,
+                    IsSystemGenerated = n.IsSystemGenerated,
+                    IsGlobal = n.IsGlobal,
+                    Severity = n.Severity,
+                    Type = n.Type,
+                    TotalTargetUsers = Math.Max(0, totalTargets),
+                    ReadCount = Math.Max(0, readCount),
+                    TargetRolesCount = Math.Max(0, rc)
+                });
+            }
+
+            return rows;
         }
 
         private static void BuildNotificationKpisAndCharts(
