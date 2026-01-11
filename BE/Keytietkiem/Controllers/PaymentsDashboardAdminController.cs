@@ -38,27 +38,40 @@ namespace Keytietkiem.Controllers
 
         // ===== Status groups (sync with PaymentsController) =====
         private static readonly string[] SuccessStatuses = { "Paid", "Success", "Completed" };
-        private const string StatusPending = "Pending";
-        private const string StatusCancelled = "Cancelled";
-        private const string StatusTimeout = "Timeout";
-        private const string StatusFailed = "Failed";
-        private const string StatusRefunded = "Refunded"; // nếu DB có
+
+        // ✅ FE hiện tại có mode "ALL" => provider query param có thể bị omit (undefined)
+        // => provider mặc định phải là null (không filter), FE tự gửi "PayOS" khi chọn PayOS.
+        private static readonly string[] PendingStatuses = { "Pending", "PendingPayment" };
+        private static readonly string[] TimeoutStatuses = { "Timeout", "Expired", "CancelledByTimeout" };
+        private static readonly string[] CancelledStatuses = { "Cancelled", "Canceled", "CancelledByUser" };
+        private static readonly string[] FailedStatuses = { "Failed", "Error" };
+        private static readonly string[] RefundedStatuses = { "Refunded", "Refund" };
 
         // AuditLogs pattern
         private const string AuditEntityTypePayment = "Payment";
         private const string AuditActionPaymentStatusChanged = "PaymentStatusChanged";
 
+        // ✅ cap range theo FE: FE có thể chọn theo năm và clamp days tới 3660
+        private const int MaxRangeDays = 3660;
+
         // ===== Vietnamese mapping =====
         private static readonly Dictionary<string, string> StatusViMap = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Pending"] = "Đang chờ",
+            ["PendingPayment"] = "Đang chờ",
             ["Paid"] = "Đã thanh toán",
             ["Success"] = "Thành công",
             ["Completed"] = "Hoàn tất",
             ["Cancelled"] = "Đã hủy",
+            ["Canceled"] = "Đã hủy",
+            ["CancelledByUser"] = "Đã hủy",
             ["Timeout"] = "Hết hạn thanh toán",
+            ["Expired"] = "Hết hạn thanh toán",
+            ["CancelledByTimeout"] = "Hết hạn thanh toán",
             ["Failed"] = "Giao dịch lỗi",
+            ["Error"] = "Giao dịch lỗi",
             ["Refunded"] = "Hoàn tiền",
+            ["Refund"] = "Hoàn tiền",
             ["Unknown"] = "Không rõ"
         };
 
@@ -81,7 +94,7 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<PaymentDashboardSummaryDto>> GetSummary(
             [FromQuery] DateTime? fromUtc = null,
             [FromQuery] DateTime? toUtc = null,
-            [FromQuery] string? provider = "PayOS",
+            [FromQuery] string? provider = null,
             [FromQuery] string? targetType = null,          // Order | SupportPlan | null=all
             [FromQuery] int pendingOverdueMinutes = 5,
             CancellationToken cancellationToken = default)
@@ -106,22 +119,22 @@ namespace Keytietkiem.Controllers
             var createdCount = await paymentsBase.CountAsync(cancellationToken);
 
             var successCount = await paymentsBase.CountAsync(
-                p => SuccessStatuses.Contains(p.Status!), cancellationToken);
+                p => SuccessStatuses.Contains(p.Status ?? ""), cancellationToken);
 
             var pendingCount = await paymentsBase.CountAsync(
-                p => p.Status == StatusPending, cancellationToken);
+                p => PendingStatuses.Contains(p.Status ?? ""), cancellationToken);
 
             var timeoutCount = await paymentsBase.CountAsync(
-                p => p.Status == StatusTimeout, cancellationToken);
+                p => TimeoutStatuses.Contains(p.Status ?? ""), cancellationToken);
 
             var cancelledCount = await paymentsBase.CountAsync(
-                p => p.Status == StatusCancelled, cancellationToken);
+                p => CancelledStatuses.Contains(p.Status ?? ""), cancellationToken);
 
             var failedCount = await paymentsBase.CountAsync(
-                p => p.Status == StatusFailed, cancellationToken);
+                p => FailedStatuses.Contains(p.Status ?? ""), cancellationToken);
 
             var refundedCount = await paymentsBase.CountAsync(
-                p => p.Status == StatusRefunded, cancellationToken);
+                p => RefundedStatuses.Contains(p.Status ?? ""), cancellationToken);
 
             var successRate = createdCount > 0 ? (decimal)successCount / createdCount : (decimal?)null;
             var timeoutRate = createdCount > 0 ? (decimal)timeoutCount / createdCount : (decimal?)null;
@@ -130,17 +143,17 @@ namespace Keytietkiem.Controllers
 
             // ===== Amounts (best-effort) =====
             var amountCollected = await paymentsBase
-                .Where(p => SuccessStatuses.Contains(p.Status!))
+                .Where(p => SuccessStatuses.Contains(p.Status ?? ""))
                 .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
 
             var refundAmount = await paymentsBase
-                .Where(p => p.Status == StatusRefunded)
+                .Where(p => RefundedStatuses.Contains(p.Status ?? ""))
                 .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
 
             // ===== Pending overdue right now =====
             var overdueCutoff = nowUtc.AddMinutes(-pendingOverdueMinutes);
             var pendingOverdueCount = await paymentsBase.CountAsync(
-                p => p.Status == StatusPending && p.CreatedAt < overdueCutoff,
+                p => PendingStatuses.Contains(p.Status ?? "") && p.CreatedAt < overdueCutoff,
                 cancellationToken);
 
             // ===== Time-to-pay metrics (use AuditLogs) =====
@@ -164,7 +177,7 @@ namespace Keytietkiem.Controllers
                 prevBase = prevBase.Where(p => p.TargetType == targetType!.Trim());
 
             var prevCreated = await prevBase.CountAsync(cancellationToken);
-            var prevSuccess = await prevBase.CountAsync(p => SuccessStatuses.Contains(p.Status!), cancellationToken);
+            var prevSuccess = await prevBase.CountAsync(p => SuccessStatuses.Contains(p.Status ?? ""), cancellationToken);
             var prevSuccessRate = prevCreated > 0 ? (decimal)prevSuccess / prevCreated : (decimal?)null;
 
             var alerts = BuildAlerts(
@@ -214,13 +227,13 @@ namespace Keytietkiem.Controllers
         [HttpGet("trends/daily")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult<List<PaymentDailyTrendPointDto>>> GetDailyTrends(
-      [FromQuery] DateTime? fromUtc = null,
-      [FromQuery] DateTime? toUtc = null,
-      [FromQuery] int days = 30,
-      [FromQuery] string? provider = "PayOS",
-      [FromQuery] string? targetType = null,
-      [FromQuery] int timezoneOffsetMinutes = 420,
-      CancellationToken cancellationToken = default)
+            [FromQuery] DateTime? fromUtc = null,
+            [FromQuery] DateTime? toUtc = null,
+            [FromQuery] int days = 30,
+            [FromQuery] string? provider = null,
+            [FromQuery] string? targetType = null,
+            [FromQuery] int timezoneOffsetMinutes = 420,
+            CancellationToken cancellationToken = default)
         {
             await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -229,17 +242,17 @@ namespace Keytietkiem.Controllers
             DateTime from;
             DateTime to;
 
-            // ✅ Nếu FE gửi from/to => dùng đúng kỳ lọc
+            // ✅ Nếu FE gửi from/to => dùng đúng kỳ lọc (và không bị cap 180d nữa)
             if (fromUtc.HasValue || toUtc.HasValue)
             {
-                var rng = NormalizeRangeUtc(nowUtc, fromUtc, toUtc); // (nếu bạn đang cap range, cân nhắc nâng cap lên 366)
+                var rng = NormalizeRangeUtc(nowUtc, fromUtc, toUtc);
                 from = rng.from;
                 to = rng.to;
             }
             else
             {
                 if (days <= 0) days = 30;
-                if (days > 366) days = 366;
+                if (days > MaxRangeDays) days = MaxRangeDays;
                 from = nowUtc.Date.AddDays(1 - days);
                 to = nowUtc;
             }
@@ -264,7 +277,7 @@ namespace Keytietkiem.Controllers
                     Day = g.Key.Day,
                     Status = g.Key.Status,
                     Count = g.Count(),
-                    AmountSuccess = g.Where(x => SuccessStatuses.Contains(x.Status!))
+                    AmountSuccess = g.Where(x => SuccessStatuses.Contains(x.Status ?? ""))
                                      .Sum(x => (decimal?)x.Amount) ?? 0m
                 })
                 .ToListAsync(cancellationToken);
@@ -289,7 +302,12 @@ namespace Keytietkiem.Controllers
                 dayRows ??= new List<DailyStatusAggRow>();
 
                 int total = dayRows.Sum(x => x.Count);
-                int success = dayRows.Where(x => SuccessStatuses.Contains((string?)x.Status ?? "")).Sum(x => x.Count);
+                int success = dayRows.Where(x => SuccessStatuses.Contains((x.Status ?? "").Trim())).Sum(x => x.Count);
+
+                var pending = SumStatuses(dayRows, PendingStatuses);
+                var timeout = SumStatuses(dayRows, TimeoutStatuses);
+                var cancelled = SumStatuses(dayRows, CancelledStatuses);
+                var failed = SumStatuses(dayRows, FailedStatuses);
 
                 var point = new PaymentDailyTrendPointDto
                 {
@@ -298,17 +316,12 @@ namespace Keytietkiem.Controllers
                     SuccessCount = success,
                     SuccessRate = total > 0 ? (decimal)success / total : (decimal?)null,
 
-                    PendingCount = SumStatus(dayRows, StatusPending),
-                    TimeoutCount = SumStatus(dayRows, StatusTimeout),
-                    CancelledCount = SumStatus(dayRows, StatusCancelled),
-                    FailedCount = SumStatus(dayRows, StatusFailed),
+                    PendingCount = pending,
+                    TimeoutCount = timeout,
+                    CancelledCount = cancelled,
+                    FailedCount = failed,
 
-                    OtherCount = total
-                        - SumStatus(dayRows, StatusPending)
-                        - SumStatus(dayRows, StatusTimeout)
-                        - SumStatus(dayRows, StatusCancelled)
-                        - SumStatus(dayRows, StatusFailed)
-                        - success,
+                    OtherCount = Math.Max(0, total - pending - timeout - cancelled - failed - success),
 
                     AmountCollected = dayRows.Sum(x => x.AmountSuccess)
                 };
@@ -319,7 +332,6 @@ namespace Keytietkiem.Controllers
             return Ok(result);
         }
 
-
         // ============================================================
         // 3) TIME-TO-PAY
         // ============================================================
@@ -328,7 +340,7 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<PaymentTimeToPayDto>> GetTimeToPay(
             [FromQuery] DateTime? fromUtc = null,
             [FromQuery] DateTime? toUtc = null,
-            [FromQuery] string? provider = "PayOS",
+            [FromQuery] string? provider = null,
             [FromQuery] string? targetType = null,
             CancellationToken cancellationToken = default)
         {
@@ -358,11 +370,11 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult<PaymentAttemptsDto>> GetAttempts(
             [FromQuery] int days = 30,
-            [FromQuery] string? provider = "PayOS",
+            [FromQuery] string? provider = null,
             CancellationToken cancellationToken = default)
         {
             if (days <= 0) days = 30;
-            if (days > 366) days = 366;
+            if (days > MaxRangeDays) days = MaxRangeDays;
 
             await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -412,13 +424,13 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult<PaymentHeatmapDto>> GetHeatmap(
             [FromQuery] int days = 30,
-            [FromQuery] string? provider = "PayOS",
+            [FromQuery] string? provider = null,
             [FromQuery] string metric = "success",          // "success" | "created"
             [FromQuery] int timezoneOffsetMinutes = 420,
             CancellationToken cancellationToken = default)
         {
             if (days <= 0) days = 30;
-            if (days > 366) days = 366;
+            if (days > MaxRangeDays) days = MaxRangeDays;
 
             await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -432,7 +444,7 @@ namespace Keytietkiem.Controllers
                 q = q.Where(p => p.Provider == provider!.Trim());
 
             if (string.Equals(metric, "success", StringComparison.OrdinalIgnoreCase))
-                q = q.Where(p => SuccessStatuses.Contains(p.Status!));
+                q = q.Where(p => SuccessStatuses.Contains(p.Status ?? ""));
 
             var createdTimes = await q
                 .Select(p => p.CreatedAt)
@@ -479,13 +491,13 @@ namespace Keytietkiem.Controllers
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<ActionResult<List<ReasonCountDto>>> GetFailureReasons(
             [FromQuery] int days = 30,
-            [FromQuery] string? provider = "PayOS",
+            [FromQuery] string? provider = null,
             [FromQuery] string? targetType = null,
             [FromQuery] int top = 10,
             CancellationToken cancellationToken = default)
         {
             if (days <= 0) days = 30;
-            if (days > 366) days = 366;
+            if (days > MaxRangeDays) days = MaxRangeDays;
             if (top <= 0) top = 10;
             if (top > 50) top = 50;
 
@@ -510,6 +522,7 @@ namespace Keytietkiem.Controllers
             {
                 if (!TryParseAfterJson(l.AfterDataJson!, out var after)) continue;
 
+                // ✅ case-insensitive keys (provider/targetType/meta/reason)
                 if (!string.IsNullOrWhiteSpace(provider))
                 {
                     if (!TryGetString(after, "provider", out var prov) || !string.Equals(prov, provider.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -540,7 +553,7 @@ namespace Keytietkiem.Controllers
             // Add "Timeout" bucket from Payments.Status (vì TimeoutService chưa audit)
             var timeoutFromPayments = await db.Payments.AsNoTracking()
                 .Where(p => p.CreatedAt >= from && p.CreatedAt < nowUtc
-                            && p.Status == StatusTimeout
+                            && TimeoutStatuses.Contains(p.Status ?? "")
                             && (string.IsNullOrWhiteSpace(provider) || p.Provider == provider!.Trim())
                             && (string.IsNullOrWhiteSpace(targetType) || p.TargetType == targetType!.Trim()))
                 .CountAsync(cancellationToken);
@@ -591,8 +604,9 @@ namespace Keytietkiem.Controllers
                 to = tmp;
             }
 
-            if ((to - from).TotalDays > 180)
-                from = to.AddDays(-180);
+            // ✅ cap theo FE (thay vì 180 ngày)
+            if ((to - from).TotalDays > MaxRangeDays)
+                from = to.AddDays(-MaxRangeDays);
 
             return (from, to);
         }
@@ -618,9 +632,10 @@ namespace Keytietkiem.Controllers
             };
         }
 
-        private static int SumStatus(IEnumerable<DailyStatusAggRow> rows, string status)
+        private static int SumStatuses(IEnumerable<DailyStatusAggRow> rows, IEnumerable<string> statuses)
         {
-            return rows.Where(x => string.Equals(x.Status ?? "", status, StringComparison.OrdinalIgnoreCase))
+            var set = new HashSet<string>(statuses.Select(s => (s ?? "").Trim()), StringComparer.OrdinalIgnoreCase);
+            return rows.Where(x => set.Contains((x.Status ?? "").Trim()))
                        .Sum(x => x.Count);
         }
 
@@ -649,9 +664,8 @@ namespace Keytietkiem.Controllers
 
             if (string.Equals(norm, "Canceled", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(norm, "Canceled by user", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(norm, "Cancel", StringComparison.OrdinalIgnoreCase)||
+                string.Equals(norm, "Cancel", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(norm, "CancelFromReturn", StringComparison.OrdinalIgnoreCase))
-
             {
                 code = "Cancelled";
                 return StatusViMap["Cancelled"];
@@ -756,38 +770,38 @@ namespace Keytietkiem.Controllers
             string? targetType,
             CancellationToken ct)
         {
-            var paidLogs = await db.AuditLogs.AsNoTracking()
+            // ✅ FE dùng provider có thể null ("ALL") => không filter
+            // ✅ AuditLogs JSON key có thể PascalCase => parse + get property case-insensitive
+            // ✅ Lấy earliest "success" event cho mỗi paymentId trong kỳ
+
+            var logs = await db.AuditLogs.AsNoTracking()
                 .Where(a =>
                     a.OccurredAt >= fromUtc && a.OccurredAt < toUtc
                     && a.EntityType == AuditEntityTypePayment
                     && a.Action == AuditActionPaymentStatusChanged
                     && a.AfterDataJson != null
-                    && a.AfterDataJson.Contains("\"status\":\"Paid\""))
+                    && (
+                        a.AfterDataJson.Contains("\"status\":\"Paid\"") ||
+                        a.AfterDataJson.Contains("\"Status\":\"Paid\"") ||
+                        a.AfterDataJson.Contains("\"status\":\"Success\"") ||
+                        a.AfterDataJson.Contains("\"Status\":\"Success\"") ||
+                        a.AfterDataJson.Contains("\"status\":\"Completed\"") ||
+                        a.AfterDataJson.Contains("\"Status\":\"Completed\"")
+                    ))
                 .Select(a => new { a.EntityId, a.OccurredAt, a.AfterDataJson })
                 .ToListAsync(ct);
 
-            if (paidLogs.Count == 0) return null;
+            if (logs.Count == 0) return null;
 
             var paidAt = new Dictionary<Guid, DateTime>();
 
-            foreach (var l in paidLogs)
+            foreach (var l in logs)
             {
                 if (!TryParseAfterJson(l.AfterDataJson!, out var after)) continue;
 
-                if (!TryGetString(after, "status", out var st) || !string.Equals(st, "Paid", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!string.IsNullOrWhiteSpace(provider))
-                {
-                    if (!TryGetString(after, "provider", out var prov) || !string.Equals(prov, provider.Trim(), StringComparison.OrdinalIgnoreCase))
-                        continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(targetType))
-                {
-                    if (!TryGetString(after, "targetType", out var tt) || !string.Equals(tt, targetType.Trim(), StringComparison.OrdinalIgnoreCase))
-                        continue;
-                }
+                if (!TryGetString(after, "status", out var st)) continue;
+                var stNorm = (st ?? "").Trim();
+                if (!SuccessStatuses.Contains(stNorm, StringComparer.OrdinalIgnoreCase)) continue;
 
                 Guid pid;
                 if (!Guid.TryParse(l.EntityId, out pid))
@@ -808,15 +822,36 @@ namespace Keytietkiem.Controllers
 
             if (paidAt.Count == 0) return null;
 
-            var createdLookupFrom = fromUtc.AddDays(-7);
-            var payments = await db.Payments.AsNoTracking()
-                .Where(p => p.CreatedAt >= createdLookupFrom && p.CreatedAt < toUtc)
-                .Select(p => new { p.PaymentId, p.CreatedAt })
-                .ToListAsync(ct);
+            // ✅ Query Payments theo danh sách PaymentId để lấy CreatedAt + filter theo provider/targetType (không phụ thuộc audit json)
+            var ids = paidAt.Keys.ToList();
+            var createdDict = new Dictionary<Guid, DateTime>(ids.Count);
 
-            var createdDict = payments.ToDictionary(x => x.PaymentId, x => x.CreatedAt);
+            // chunk để tránh IN quá lớn
+            const int ChunkSize = 2000;
+            for (int i = 0; i < ids.Count; i += ChunkSize)
+            {
+                var chunk = ids.Skip(i).Take(ChunkSize).ToList();
 
-            var seconds = new List<int>(paidAt.Count);
+                var q = db.Payments.AsNoTracking()
+                    .Where(p => chunk.Contains(p.PaymentId));
+
+                if (!string.IsNullOrWhiteSpace(provider))
+                    q = q.Where(p => p.Provider == provider!.Trim());
+
+                if (!string.IsNullOrWhiteSpace(targetType))
+                    q = q.Where(p => p.TargetType == targetType!.Trim());
+
+                var rows = await q
+                    .Select(p => new { p.PaymentId, p.CreatedAt })
+                    .ToListAsync(ct);
+
+                foreach (var r in rows)
+                {
+                    createdDict[r.PaymentId] = r.CreatedAt;
+                }
+            }
+
+            var seconds = new List<int>(createdDict.Count);
 
             foreach (var kv in paidAt)
             {
@@ -887,12 +922,41 @@ namespace Keytietkiem.Controllers
             }
         }
 
+        // ✅ Case-insensitive property getter (để khớp audit json PascalCase/camelCase)
+        private static bool TryGetPropertyCaseInsensitive(JsonElement root, string prop, out JsonElement value)
+        {
+            value = default;
+            try
+            {
+                if (root.ValueKind != JsonValueKind.Object) return false;
+
+                // fast path (exact)
+                if (root.TryGetProperty(prop, out value)) return true;
+
+                // case-insensitive scan
+                foreach (var p in root.EnumerateObject())
+                {
+                    if (string.Equals(p.Name, prop, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = p.Value;
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static bool TryGetString(JsonElement root, string prop, out string? value)
         {
             value = null;
             try
             {
-                if (!root.TryGetProperty(prop, out var el)) return false;
+                if (!TryGetPropertyCaseInsensitive(root, prop, out var el)) return false;
                 if (el.ValueKind == JsonValueKind.String)
                 {
                     value = el.GetString();
@@ -912,7 +976,7 @@ namespace Keytietkiem.Controllers
             value = Guid.Empty;
             try
             {
-                if (!root.TryGetProperty(prop, out var el)) return false;
+                if (!TryGetPropertyCaseInsensitive(root, prop, out var el)) return false;
                 var s = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
                 return Guid.TryParse(s, out value);
             }
@@ -926,9 +990,9 @@ namespace Keytietkiem.Controllers
         {
             try
             {
-                if (!afterRoot.TryGetProperty("meta", out var meta)) return null;
+                if (!TryGetPropertyCaseInsensitive(afterRoot, "meta", out var meta)) return null;
                 if (meta.ValueKind != JsonValueKind.Object) return null;
-                if (!meta.TryGetProperty("reason", out var r)) return null;
+                if (!TryGetPropertyCaseInsensitive(meta, "reason", out var r)) return null;
                 return r.ValueKind == JsonValueKind.String ? r.GetString() : r.ToString();
             }
             catch

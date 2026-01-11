@@ -1,5 +1,7 @@
 // File: src/pages/admin/AdminPaymentListPage.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { paymentApi } from "../../services/paymentApi";
 import "./AdminPaymentListPage.css";
 
@@ -146,8 +148,8 @@ const fmtDateTime = (d) => {
 export default function AdminPaymentListPage() {
   // ===== Draft filters (UI) =====
   const [qDraft, setQDraft] = useState("");
-  const [fromDraft, setFromDraft] = useState("");
-  const [toDraft, setToDraft] = useState("");
+  const [fromDraft, setFromDraft] = useState(null);
+  const [toDraft, setToDraft] = useState(null);
   const [statusDraft, setStatusDraft] = useState("");
   const [typeDraft, setTypeDraft] = useState("");
   const [minDraft, setMinDraft] = useState("");
@@ -242,9 +244,17 @@ export default function AdminPaymentListPage() {
   }, [fetchPayments]);
 
   const applyFilters = useCallback(() => {
+    const fmtYmd = (d) => {
+      if (!d) return "";
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yy}-${mm}-${dd}`;
+    };
+
     setQ(qDraft.trim());
-    setFrom(fromDraft);
-    setTo(toDraft);
+    setFrom(fmtYmd(fromDraft));
+    setTo(fmtYmd(toDraft));
     setStatus(statusDraft);
     setType(typeDraft);
     setMinAmount(minDraft);
@@ -254,8 +264,8 @@ export default function AdminPaymentListPage() {
 
   const resetFilters = useCallback(() => {
     setQDraft("");
-    setFromDraft("");
-    setToDraft("");
+    setFromDraft(null);
+    setToDraft(null);
     setStatusDraft("");
     setTypeDraft("");
     setMinDraft("");
@@ -389,12 +399,24 @@ export default function AdminPaymentListPage() {
 
               <div className="apl-group">
                 <span>Từ ngày</span>
-                <input type="date" value={fromDraft} onChange={(e) => setFromDraft(e.target.value)} />
+                <DatePicker
+                  selected={fromDraft}
+                  onChange={(d) => setFromDraft(d)}
+                  className="apl-dateInput"
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Chọn ngày"
+                />
               </div>
 
               <div className="apl-group">
                 <span>Đến ngày</span>
-                <input type="date" value={toDraft} onChange={(e) => setToDraft(e.target.value)} />
+                <DatePicker
+                  selected={toDraft}
+                  onChange={(d) => setToDraft(d)}
+                  className="apl-dateInput"
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Chọn ngày"
+                />
               </div>
             </div>
 

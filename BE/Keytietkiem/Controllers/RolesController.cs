@@ -239,7 +239,7 @@ namespace Keytietkiem.Controllers
             // ===== AUDIT LOG: CREATE ROLE (success only) =====
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateRole",
                 entityType: "Role",
                 entityId: newRole.RoleId,
                 before: null,
@@ -321,7 +321,7 @@ namespace Keytietkiem.Controllers
             // ===== AUDIT LOG: UPDATE ROLE (success only) =====
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateRole",
                 entityType: "Role",
                 entityId: existingRole.RoleId,
                 before: before,
@@ -365,7 +365,7 @@ namespace Keytietkiem.Controllers
             // ===== AUDIT LOG: DELETE ROLE (success only) =====
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteRole",
                 entityType: "Role",
                 entityId: existingRole.RoleId,
                 before: before,

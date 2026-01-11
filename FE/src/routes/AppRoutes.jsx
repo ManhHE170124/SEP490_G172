@@ -38,9 +38,13 @@ import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
 import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
+import AdminOrdersDashboardPage from "../pages/admin/AdminOrdersDashboardPage";
 import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
 import SpecificDocumentationManage from "../pages/PostManage/SpecificDocumentationManage.jsx";
 import DocumentationViewPage from "../pages/documentation/DocumentationViewPage.jsx";
+
+import SystemInsightsDashboardPage from "../pages/admin/SystemInsightsDashboardPage.jsx";
+
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -291,8 +295,11 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/payments/dashboard"
-        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN))}
       />
+<Route path="/admin/orders/dashboard"         
+element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
+ />
 
       <Route
         path="/admin/orders/:id"
@@ -396,6 +403,12 @@ export default function AppRoutes() {
         path="/admin/support-dashboard"
         element={renderAdminPage(<SupportDashboardAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
+<Route
+  path="/admin/system-insights"
+  element={renderAdminPage(<SystemInsightsDashboardPage />, role(ROLES.ADMIN))}
+/>
+
+
       <Route
         path="/admin/support-chats"
         element={renderAdminPage(<AdminSupportChatPage />, role(ROLES.ADMIN))}

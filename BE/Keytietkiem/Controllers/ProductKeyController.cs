@@ -100,7 +100,7 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Create",
+                    action: "CreateProductKey",
                     entityType: "ProductKey",
                     entityId: result.KeyId.ToString(),
                     before: null,
@@ -155,7 +155,7 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Update",
+                    action: "UpdateProductKey",
                     entityType: "ProductKey",
                     entityId: keyId.ToString(),
                     before: before,
@@ -204,7 +204,7 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Delete",
+                    action: "DeleteProductKey",
                     entityType: "ProductKey",
                     entityId: keyId.ToString(),
                     before: null,

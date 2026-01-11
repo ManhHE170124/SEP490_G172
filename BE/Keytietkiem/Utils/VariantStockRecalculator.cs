@@ -1,9 +1,9 @@
-// File: Utils/VariantStockRecalculator.cs
+﻿// File: Utils/VariantStockRecalculator.cs
 // Purpose: Recalculate stock for key/account variants based on real inventory (not expired, not assigned to order)
 //          and persist to DB: ProductVariant.StockQty, ProductVariant.Status, Product.Status.
 // Notes:
-// - Keeps INACTIVE if admin explicitly set.
-// - Uses OUT_OF_STOCK when stock <= 0 (never auto set INACTIVE).
+// - Keeps INACTIVE if admin explicitly set (only when stock > 0).
+// - Uses OUT_OF_STOCK when stock <= 0 (always overrides INACTIVE).
 
 using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Products;
@@ -80,7 +80,6 @@ namespace Keytietkiem.Utils
 
         /// <summary>
         /// Bulk sync convenience wrapper.
-        /// Fixes ProductKeyController cases that pass a list of VariantId.
         /// </summary>
         public static async Task SyncVariantStockAndStatusAsync(
             KeytietkiemDbContext db,
@@ -101,14 +100,17 @@ namespace Keytietkiem.Utils
         /// <summary>
         /// Sync stock for a single variant and persist:
         /// - ProductVariant.StockQty
-        /// - ProductVariant.Status (ACTIVE / OUT_OF_STOCK; keep INACTIVE)
-        /// - Product.Status (ACTIVE / OUT_OF_STOCK; keep INACTIVE)
+        /// - ProductVariant.Status (ACTIVE / OUT_OF_STOCK; keep INACTIVE only when stock > 0)
+        /// - Product.Status (ACTIVE / OUT_OF_STOCK; keep INACTIVE only when stock > 0)
         ///
         /// Rules:
         /// PERSONAL_KEY      : count keys Available, not assigned, not expired
         /// PERSONAL_ACCOUNT  : count accounts Active, MaxUsers=1, not expired, no active customer
         /// SHARED_ACCOUNT    : sum available slots of Active accounts MaxUsers>1, not expired
-        /// Then subtract reservations (OrderInventoryReservation) still valid.
+        ///
+        /// Reservations substract:
+        /// - Reserved   : count only when ReservedUntilUtc > nowUtc
+        /// - Finalized  : always count (Paid but not yet fulfilled); will be "Consumed" after fulfill
         /// </summary>
         public static async Task<VariantStockSyncResult?> SyncVariantStockAndStatusAsync(
             KeytietkiemDbContext db,
@@ -135,13 +137,21 @@ namespace Keytietkiem.Utils
             if (!isSupported)
                 return null;
 
-            // Reserved quantity (pending checkout)
-            // NOTE: Keep it SQL-translatable (avoid StringComparison).
+            // Reserved quantity:
+            // - Reserved: still valid only when ReservedUntilUtc > nowUtc
+            // - Finalized: always count until consumed after fulfill
             var reservedQty = await db.Set<OrderInventoryReservation>()
                 .AsNoTracking()
                 .Where(r => r.VariantId == variantId
-                            && r.ReservedUntilUtc > nowUtc
-                            && (r.Status == "Reserved" || r.Status == "RESERVED"))
+                            && r.Quantity > 0
+                            && (
+                                (
+                                    (r.Status == "Reserved" || r.Status == "RESERVED")
+                                    && r.ReservedUntilUtc > nowUtc
+                                )
+                                ||
+                                (r.Status == "Finalized" || r.Status == "FINALIZED")
+                            ))
                 .SumAsync(r => (int?)r.Quantity, ct) ?? 0;
 
             int rawQty = 0;
@@ -183,12 +193,15 @@ namespace Keytietkiem.Utils
             var newStock = rawQty - reservedQty;
             if (newStock < 0) newStock = 0;
 
+            int oldStock = 0;
+            try { oldStock = Convert.ToInt32(variant.StockQty); } catch { oldStock = 0; }
+
             var res = new VariantStockSyncResult
             {
                 VariantId = variant.VariantId,
                 ProductId = variant.ProductId,
                 ProductType = productType,
-                OldStockQty = (int)variant.StockQty,
+                OldStockQty = oldStock,
                 NewStockQty = newStock,
                 OldVariantStatus = variant.Status,
                 OldProductStatus = product.Status,
@@ -199,34 +212,19 @@ namespace Keytietkiem.Utils
             // Update variant stock
             variant.StockQty = newStock;
 
-            // Update variant status (keep INACTIVE)
+            // ✅ Status rule (3 statuses only)
             var curVariantStatus = (variant.Status ?? string.Empty).Trim().ToUpperInvariant();
-            if (curVariantStatus != "INACTIVE")
+            if (newStock <= 0)
             {
-                if (newStock <= 0)
-                {
-                    variant.Status = "OUT_OF_STOCK";
-                }
-                else
-                {
-                    // When back in stock, don't keep OUT_OF_STOCK.
-                    // Keep other valid statuses if any, otherwise set ACTIVE.
-                    if (!string.IsNullOrWhiteSpace(curVariantStatus)
-                        && ProductEnums.Statuses.Contains(curVariantStatus)
-                        && curVariantStatus != "OUT_OF_STOCK"
-                        && curVariantStatus != "INACTIVE")
-                    {
-                        variant.Status = curVariantStatus;
-                    }
-                    else
-                    {
-                        variant.Status = "ACTIVE";
-                    }
-                }
+                variant.Status = "OUT_OF_STOCK";
+            }
+            else
+            {
+                variant.Status = (curVariantStatus == "INACTIVE") ? "INACTIVE" : "ACTIVE";
             }
 
             // Recalc product total stock (sum of all variants) and persist to DB if Product has StockQty.
-            // NOTE: we use "otherStock + newStock" so the current variant uses the freshly computed value.
+            // Use "otherStock + newStock" so current variant uses freshly computed value.
             var otherStock = await db.ProductVariants
                 .AsNoTracking()
                 .Where(v => v.ProductId == product.ProductId && v.VariantId != variantId)
@@ -237,11 +235,15 @@ namespace Keytietkiem.Utils
 
             TrySetStockQty(product, totalStock);
 
-            // Recalc product status from total stock
+            // ✅ Product status rule (3 statuses only)
             var curProductStatus = (product.Status ?? string.Empty).Trim().ToUpperInvariant();
-            if (curProductStatus != "INACTIVE")
+            if (totalStock <= 0)
             {
-                product.Status = totalStock <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
+                product.Status = "OUT_OF_STOCK";
+            }
+            else
+            {
+                product.Status = (curProductStatus == "INACTIVE") ? "INACTIVE" : "ACTIVE";
             }
 
             TrySetUpdatedAt(variant, nowUtc);

@@ -1,4 +1,5 @@
 using Keytietkiem.Models;
+using Keytietkiem.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -32,10 +33,10 @@ namespace Keytietkiem.Infrastructure
 
                 var now = DateTime.UtcNow;
 
-                // 1. Update ProductAccount
+                // 1) Update ProductAccount -> Expired
                 var expiredAccounts = await context.ProductAccounts
-                    .Where(a => a.Status != "Expired" 
-                             && a.ExpiryDate != null 
+                    .Where(a => a.Status != "Expired"
+                             && a.ExpiryDate != null
                              && a.ExpiryDate < now)
                     .ToListAsync(cancellationToken);
 
@@ -44,16 +45,18 @@ namespace Keytietkiem.Infrastructure
                     foreach (var acc in expiredAccounts)
                     {
                         acc.Status = "Expired";
-                        // Update UpdatedAt/UpdatedBy if necessary, but skipping for auto-job or set a system ID
                         acc.UpdatedAt = now;
                     }
-                    _logger.LogInformation("ExpiryStatusUpdateJob: Found {Count} expired ProductAccounts. Updating status...", expiredAccounts.Count);
+
+                    _logger.LogInformation(
+                        "ExpiryStatusUpdateJob: Found {Count} expired ProductAccounts. Updating status...",
+                        expiredAccounts.Count);
                 }
 
-                // 2. Update ProductKey
+                // 2) Update ProductKey -> Expired
                 var expiredKeys = await context.ProductKeys
-                    .Where(k => k.Status != "Expired" 
-                             && k.ExpiryDate != null 
+                    .Where(k => k.Status != "Expired"
+                             && k.ExpiryDate != null
                              && k.ExpiryDate < now)
                     .ToListAsync(cancellationToken);
 
@@ -64,13 +67,40 @@ namespace Keytietkiem.Infrastructure
                         key.Status = "Expired";
                         key.UpdatedAt = now;
                     }
-                    _logger.LogInformation("ExpiryStatusUpdateJob: Found {Count} expired ProductKeys. Updating status...", expiredKeys.Count);
+
+                    _logger.LogInformation(
+                        "ExpiryStatusUpdateJob: Found {Count} expired ProductKeys. Updating status...",
+                        expiredKeys.Count);
                 }
 
                 if (expiredAccounts.Any() || expiredKeys.Any())
                 {
                     await context.SaveChangesAsync(cancellationToken);
-                    _logger.LogInformation("ExpiryStatusUpdateJob: Successfully updated {AccountCount} accounts and {KeyCount} keys to Expired.", expiredAccounts.Count, expiredKeys.Count);
+
+                    _logger.LogInformation(
+                        "ExpiryStatusUpdateJob: Successfully updated {AccountCount} accounts and {KeyCount} keys to Expired.",
+                        expiredAccounts.Count, expiredKeys.Count);
+
+                    // ✅ NEW: Sync stock/status realtime cho các variant bị ảnh hưởng
+                    var affectedVariantIds = expiredAccounts
+                        .Select(a => a.VariantId)
+                        .Concat(expiredKeys.Select(k => k.VariantId))
+                        .Where(id => id != Guid.Empty)
+                        .Distinct()
+                        .ToList();
+
+                    if (affectedVariantIds.Count > 0)
+                    {
+                        _logger.LogInformation(
+                            "ExpiryStatusUpdateJob: Syncing stock/status for {VariantCount} affected variants...",
+                            affectedVariantIds.Count);
+
+                        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                            context,
+                            affectedVariantIds,
+                            now,
+                            cancellationToken);
+                    }
                 }
                 else
                 {

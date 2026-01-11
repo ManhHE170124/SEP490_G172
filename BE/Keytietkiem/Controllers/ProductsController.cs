@@ -1,33 +1,4 @@
-﻿/**
- * File: ProductsController.cs
- * Author: ManhLDHE170124
- * Created: 24/10/2025
- * Last Updated: 28/10/2025
- * Version: 1.0.0
- * Purpose: Manage products, including listing with filters/pagination, detail view,
- *          create/update (JSON and multipart with images), delete, toggle/status updates,
- *          image CRUD (upload/delete/reorder/set primary/thumbnail), CSV price export/import,
- *          and bulk percentage price adjustments.
- * Endpoints:
- *   - GET    /api/products/list                         : List products (filters, sort, paging)
- *   - GET    /api/products/{id}                         : Get product detail by id (Guid)
- *   - POST   /api/products                              : Create product (JSON)
- *   - POST   /api/products/with-images                  : Create product (multipart + images)
- *   - PUT    /api/products/{id}                         : Update product (JSON)
- *   - PUT    /api/products/{id}/with-images             : Update product (multipart + images)
- *   - DELETE /api/products/{id}                         : Delete product
- *   - PATCH  /api/products/{id}/toggle                  : Toggle visibility (ACTIVE <-> INACTIVE; OUT_OF_STOCK if none)
- *   - PATCH  /api/products/{id}/status                  : Set status explicitly (validated)
- *   - POST   /api/products/{id}/images/upload           : Upload single image
- *   - POST   /api/products/{id}/thumbnail               : Set thumbnail by URL
- *   - DELETE /api/products/{id}/images/{imageId}        : Delete single image
- *   - POST   /api/products/{id}/images/reorder          : Reorder images
- *   - POST   /api/products/{id}/images/{imageId}/primary: Mark image as primary
- *   - GET    /api/products/export-csv                   : Export prices CSV (sku,new_price)
- *   - POST   /api/products/import-price-csv             : Import prices CSV (sku,new_price)
- *   - POST   /api/products/bulk-price                   : Bulk % price change (filters)
- */
-// File: Controllers/ProductsController.cs
+﻿// File: Controllers/ProductsController.cs
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
@@ -85,10 +56,9 @@ namespace Keytietkiem.Controllers
             s = new string(chars.ToArray());
 
             // 2. Xoá toàn bộ khoảng trắng bên trong (join các "word code" lại)
-            //    ví dụ: "pro duct-01" -> "product-01"
             s = Regex.Replace(s, @"\s+", string.Empty);
 
-            // 3. Các ký tự không phải chữ/số (ví dụ: '-', '.', '#', …) -> "_"
+            // 3. Các ký tự không phải chữ/số -> "_"
             s = Regex.Replace(s, "[^A-Za-z0-9]+", "_");
 
             // 4. Gộp "_" liên tiếp và trim "_" ở đầu/cuối
@@ -97,34 +67,43 @@ namespace Keytietkiem.Controllers
             return s.ToUpperInvariant();
         }
 
+        private static bool IsKeyType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
+                || t.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAccountType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase)
+                || t.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Quy ước status cho Product:
         /// - ACTIVE      : đang hiển thị và còn hàng.
         /// - OUT_OF_STOCK: hết hàng nhưng vẫn hiển thị.
         /// - INACTIVE    : ẩn hoàn toàn, chỉ khi admin set explicit.
-        /// 
-        /// Hết hàng KHÔNG bao giờ tự chuyển sang INACTIVE, chỉ OUT_OF_STOCK.
-        /// Nếu admin chọn INACTIVE trong dto.Status thì luôn INACTIVE, bất kể tồn kho.
         /// </summary>
         private static string ResolveStatusFromTotalStock(int totalStock, string? desired)
         {
             var d = (desired ?? string.Empty).Trim().ToUpperInvariant();
 
-            // Admin cố tình set INACTIVE => giữ INACTIVE, không phụ thuộc stock
+            // Admin cố tình set INACTIVE => giữ INACTIVE
             if (d == "INACTIVE")
                 return "INACTIVE";
 
-            // Hết hàng => luôn OUT_OF_STOCK (hết hàng nhưng vẫn hiện)
+            // Hết hàng => OUT_OF_STOCK
             if (totalStock <= 0)
-            {
                 return "OUT_OF_STOCK";
-            }
 
             // Còn hàng:
             if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d) && d != "OUT_OF_STOCK")
                 return d;
 
-            // Mặc định khi có hàng mà không truyền status hợp lệ: ACTIVE
+            // Mặc định: ACTIVE
             return "ACTIVE";
         }
 
@@ -139,9 +118,7 @@ namespace Keytietkiem.Controllers
                 : "ACTIVE";
         }
 
-
-
-        // ✅ PATCH: Stock thật cho variant (chỉ tính key/account còn hạn + chưa gắn vào đơn + trừ reservation)
+        // ✅ Stock thật cho variant (key/account còn hạn + chưa gắn đơn + trừ reservation)
         private async Task<Dictionary<Guid, int>> ComputeAvailableStockByVariantIdAsync(
             KeytietkiemDbContext db,
             Dictionary<Guid, string?> productTypeByVariantId,
@@ -163,7 +140,7 @@ namespace Keytietkiem.Controllers
             var keyCountByVariantId = await db.Set<ProductKey>()
                 .AsNoTracking()
                 .Where(k => variantIds.Contains(k.VariantId)
-                            && k.Status == "Available"
+                            && k.Status == nameof(ProductKeyStatus.Available)
                             && k.AssignedToOrderId == null
                             && (!k.ExpiryDate.HasValue || k.ExpiryDate.Value >= nowUtc))
                 .GroupBy(k => k.VariantId)
@@ -173,7 +150,7 @@ namespace Keytietkiem.Controllers
             var personalAccountCountByVariantId = await db.Set<ProductAccount>()
                 .AsNoTracking()
                 .Where(pa => variantIds.Contains(pa.VariantId)
-                             && pa.Status == "Active"
+                             && pa.Status == nameof(ProductAccountStatus.Active)
                              && pa.MaxUsers == 1
                              && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc)
                              && !pa.ProductAccountCustomers.Any(pac => pac.IsActive))
@@ -184,7 +161,7 @@ namespace Keytietkiem.Controllers
             var sharedAccountSlotsByVariantId = await db.Set<ProductAccount>()
                 .AsNoTracking()
                 .Where(pa => variantIds.Contains(pa.VariantId)
-                             && pa.Status == "Active"
+                             && pa.Status == nameof(ProductAccountStatus.Active)
                              && pa.MaxUsers > 1
                              && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc))
                 .Select(pa => new
@@ -200,15 +177,17 @@ namespace Keytietkiem.Controllers
             var result = new Dictionary<Guid, int>();
             foreach (var id in variantIds)
             {
-                if (!productTypeByVariantId.TryGetValue(id, out var pt))
+                if (!productTypeByVariantId.TryGetValue(id, out var ptRaw))
                     continue;
 
+                var pt = (ptRaw ?? "").Trim();
+
                 var raw = 0;
-                if (pt == ProductEnums.PERSONAL_KEY)
+                if (IsKeyType(pt))
                     raw = keyCountByVariantId.TryGetValue(id, out var kq) ? kq : 0;
-                else if (pt == ProductEnums.PERSONAL_ACCOUNT)
+                else if (pt.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase))
                     raw = personalAccountCountByVariantId.TryGetValue(id, out var aq) ? aq : 0;
-                else if (pt == ProductEnums.SHARED_ACCOUNT)
+                else if (pt.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase))
                     raw = sharedAccountSlotsByVariantId.TryGetValue(id, out var sq) ? sq : 0;
                 else
                     continue; // unknown type -> caller fallback to v.StockQty
@@ -223,6 +202,24 @@ namespace Keytietkiem.Controllers
             return result;
         }
 
+        private async Task<int> ComputeTotalAvailableStockForProductAsync(
+            KeytietkiemDbContext db,
+            Product product,
+            DateTime nowUtc,
+            CancellationToken ct)
+        {
+            var map = product.ProductVariants
+                .GroupBy(v => v.VariantId)
+                .ToDictionary(g => g.Key, g => product.ProductType);
+
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, map, nowUtc, ct);
+
+            var total = product.ProductVariants.Sum(v =>
+                stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty);
+
+            return total;
+        }
+
         // ===== LIST (không giá) =====
         [HttpGet("list")]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
@@ -231,9 +228,7 @@ namespace Keytietkiem.Controllers
             [FromQuery] int? categoryId,
             [FromQuery(Name = "type")] string? productType,
             [FromQuery] string? status,
-            // NEW: filter theo badge
             [FromQuery] string? badge,
-            // OPTIONAL: nhiều badge, phân tách bằng dấu phẩy "HOT,SALE"
             [FromQuery] string? badges,
             [FromQuery] string[]? productTypes,
             [FromQuery] string? sort = "createdAt",
@@ -256,13 +251,10 @@ namespace Keytietkiem.Controllers
             if (!string.IsNullOrWhiteSpace(status))
                 q = q.Where(p => p.Status == status);
             if (productTypes != null && productTypes.Length > 0)
-            {
                 q = q.Where(p => productTypes.Contains(p.ProductType));
-            }
             if (categoryId is not null)
                 q = q.Where(p => p.Categories.Any(c => c.CategoryId == categoryId));
 
-            // NEW: lọc theo badge
             if (!string.IsNullOrWhiteSpace(badges))
             {
                 var set = badges.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -279,7 +271,8 @@ namespace Keytietkiem.Controllers
             sort = sort?.Trim().ToLowerInvariant();
             direction = direction?.Trim().ToLowerInvariant();
 
-            // Sort theo tổng stock (biến thể)
+            // NOTE: sort stock ở DB vẫn dựa theo StockQty (cache). Nếu muốn sort theo stock thật,
+            // cần chiến lược precompute/cached hoặc materialize toàn bộ -> nặng.
             q = (sort, direction) switch
             {
                 ("name", "asc") => q.OrderBy(p => p.ProductName),
@@ -299,7 +292,6 @@ namespace Keytietkiem.Controllers
 
             var total = await q.CountAsync(ct);
 
-            // Load page entities first, then compute "real" stock from keys/accounts (exclude expired/assigned) and subtract reservations.
             var pageProducts = await q
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -322,13 +314,16 @@ namespace Keytietkiem.Controllers
                     var totalStock = p.ProductVariants.Sum(v =>
                         stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty);
 
+                    // ✅ status hiển thị theo stock thật, nhưng vẫn tôn trọng INACTIVE (admin set explicit)
+                    var effectiveStatus = ResolveStatusFromTotalStock(totalStock, p.Status);
+
                     return new ProductListItemDto(
                         p.ProductId,
                         p.ProductCode,
                         p.ProductName,
                         p.ProductType,
                         totalStock,
-                        p.Status,
+                        effectiveStatus,
                         p.Categories.Select(c => c.CategoryId),
                         p.ProductBadges.Select(b => b.Badge)
                     );
@@ -353,7 +348,6 @@ namespace Keytietkiem.Controllers
 
             if (p is null) return NotFound();
 
-
             var ct = HttpContext.RequestAborted;
             var nowUtc = _clock.UtcNow;
 
@@ -367,19 +361,34 @@ namespace Keytietkiem.Controllers
                 nowUtc,
                 ct);
 
+            var totalStock = p.ProductVariants.Sum(v =>
+                stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty);
+
+            var effectiveProductStatus = ResolveStatusFromTotalStock(totalStock, p.Status);
+
             var dto = new ProductDetailDto(
                 p.ProductId,
                 p.ProductCode,
                 p.ProductName,
                 p.ProductType,
-                p.Status,
+                effectiveProductStatus,
                 p.Categories.Select(c => c.CategoryId),
                 p.ProductBadges.Select(b => b.Badge),
                 p.ProductVariants
-                    .Select(v => new ProductVariantMiniDto(
-                        v.VariantId, v.VariantCode ?? "", v.Title, v.DurationDays,
-                        stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty, v.Status
-                    ))
+                    .Select(v =>
+                    {
+                        var avail = stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty;
+                        var effectiveVariantStatus = ResolveStatusFromTotalStock(avail, v.Status);
+
+                        return new ProductVariantMiniDto(
+                            v.VariantId,
+                            v.VariantCode ?? "",
+                            v.Title,
+                            v.DurationDays,
+                            avail,
+                            effectiveVariantStatus
+                        );
+                    })
             );
 
             return Ok(dto);
@@ -419,7 +428,7 @@ namespace Keytietkiem.Controllers
                 ProductCode = normalizedCode,
                 ProductName = name,
                 ProductType = dto.ProductType.Trim(),
-                Status = "INACTIVE", // sẽ set lại theo stock sau (OUT_OF_STOCK / ACTIVE tuỳ tồn kho)
+                Status = "INACTIVE",
                 Slug = dto.Slug ?? normalizedCode,
                 CreatedAt = _clock.UtcNow
             };
@@ -442,13 +451,16 @@ namespace Keytietkiem.Controllers
             db.Products.Add(entity);
             await db.SaveChangesAsync();
 
+            // Lúc tạo mới chưa có variant => totalStock = 0
             var totalStock = 0;
+
+            // Nếu admin truyền INACTIVE thì giữ, còn lại theo stock => OUT_OF_STOCK
             entity.Status = ResolveStatusFromTotalStock(totalStock, dto.Status);
             await db.SaveChangesAsync();
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateProduct",
                 entityType: "Product",
                 entityId: entity.ProductId.ToString(),
                 before: null,
@@ -514,7 +526,6 @@ namespace Keytietkiem.Controllers
 
             if (locked)
             {
-                // Không cho đổi tên hoặc mã nếu đã có biến thể hoặc FAQ
                 if (!string.Equals(newName, e.ProductName, StringComparison.Ordinal) ||
                     !string.Equals(normalizedCode, e.ProductCode, StringComparison.Ordinal))
                 {
@@ -526,7 +537,6 @@ namespace Keytietkiem.Controllers
             }
             else
             {
-                // Check trùng tên
                 if (!string.Equals(newName, e.ProductName, StringComparison.Ordinal))
                 {
                     var dupName = await db.Products
@@ -535,7 +545,6 @@ namespace Keytietkiem.Controllers
                         return Conflict(new { message = "ProductName already exists" });
                 }
 
-                // Check trùng mã
                 if (!string.Equals(normalizedCode, e.ProductCode, StringComparison.Ordinal))
                 {
                     var dupCode = await db.Products
@@ -548,12 +557,10 @@ namespace Keytietkiem.Controllers
                 e.ProductCode = normalizedCode;
             }
 
-            // Phần còn lại giữ nguyên
             e.ProductType = dto.ProductType.Trim();
             e.Slug = dto.Slug ?? e.Slug;
             e.UpdatedAt = _clock.UtcNow;
 
-            // Categories
             e.Categories.Clear();
             if (dto.CategoryIds is { } cids && cids.Any())
             {
@@ -561,7 +568,6 @@ namespace Keytietkiem.Controllers
                 foreach (var c in cats) e.Categories.Add(c);
             }
 
-            // Badges
             e.ProductBadges.Clear();
             if (dto.BadgeCodes is { } bcs && bcs.Any())
             {
@@ -572,15 +578,31 @@ namespace Keytietkiem.Controllers
                     e.ProductBadges.Add(new ProductBadge { ProductId = e.ProductId, Badge = code, CreatedAt = _clock.UtcNow });
             }
 
-            // Tính lại status theo tổng stock biến thể
-            var totalStock = await db.ProductVariants.Where(v => v.ProductId == e.ProductId).SumAsync(v => (int?)v.StockQty) ?? 0;
-            e.Status = ResolveStatusFromTotalStock(totalStock, dto.Status);
+            // ✅ totalStock theo stock thật (key/account - reservation)
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
+            var totalStock = await ComputeTotalAvailableStockForProductAsync(db, e, nowUtc, ct);
+
+            var desiredStatus = string.IsNullOrWhiteSpace(dto.Status) ? null : dto.Status;
+
+            // ✅ Nếu đang INACTIVE và admin không truyền Status => giữ INACTIVE
+            if (string.Equals(e.Status, "INACTIVE", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(desiredStatus))
+            {
+                // giữ nguyên
+            }
+            else
+            {
+                // Nếu admin truyền desired => ưu tiên desired (INACTIVE vẫn được giữ),
+                // nếu không truyền => dùng status hiện tại làm "desired" để auto OUT_OF_STOCK/ACTIVE theo stock
+                e.Status = ResolveStatusFromTotalStock(totalStock, desiredStatus ?? e.Status);
+            }
 
             await db.SaveChangesAsync();
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateProduct",
                 entityType: "Product",
                 entityId: e.ProductId.ToString(),
                 before: beforeSnapshot,
@@ -615,7 +637,11 @@ namespace Keytietkiem.Controllers
                 e.Status
             };
 
-            var totalStock = e.ProductVariants.Sum(v => v.StockQty);
+            // ✅ totalStock theo stock thật
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
+            var totalStock = await ComputeTotalAvailableStockForProductAsync(db, e, nowUtc, ct);
+
             e.Status = ToggleVisibility(e.Status, totalStock);
             e.UpdatedAt = _clock.UtcNow;
             await db.SaveChangesAsync();
@@ -639,34 +665,22 @@ namespace Keytietkiem.Controllers
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // Load product kèm các collection cần check
             var p = await db.Products
                 .Include(x => x.ProductVariants)
                 .FirstOrDefaultAsync(x => x.ProductId == id);
 
             if (p is null)
-            {
                 return NotFound();
-            }
 
-            // Đếm số Variant / FAQ đang gắn với product này
             var variantCount = p.ProductVariants.Count;
-
-            // (Tuỳ bạn có bảng OrderItem / OrderLines thì thêm check đơn hàng ở đây)
-            // Ví dụ (đổi tên DbSet và field cho đúng với project):
-            // var orderCount = await db.OrderItems.CountAsync(o => o.ProductId == id);
-
             var hasVariants = variantCount > 0;
-            var hasOrders = false; // set lại nếu bạn có check đơn hàng
+            var hasOrders = false;
 
             if (hasVariants || hasOrders)
             {
                 var reasons = new List<string>();
-
-                if (hasVariants)
-                    reasons.Add($"{variantCount} biến thể / key");
-                if (hasOrders)
-                    reasons.Add("các đơn hàng đã phát sinh từ sản phẩm này");
+                if (hasVariants) reasons.Add($"{variantCount} biến thể / key");
+                if (hasOrders) reasons.Add("các đơn hàng đã phát sinh từ sản phẩm này");
 
                 var reasonText = string.Join(", ", reasons);
 
@@ -689,13 +703,12 @@ namespace Keytietkiem.Controllers
                 p.Status
             };
 
-            // Không còn gì phụ thuộc -> cho xoá
             db.Products.Remove(p);
             await db.SaveChangesAsync();
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteProduct",
                 entityType: "Product",
                 entityId: p.ProductId.ToString(),
                 before: beforeSnapshot,
@@ -704,7 +717,8 @@ namespace Keytietkiem.Controllers
 
             return NoContent();
         }
-        // ===== LOW STOCK / EXPIRING REPORTS =====
+
+        // ===== LOW STOCK REPORT (stock thật) =====
         [HttpGet("low-stock")]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
         public async Task<IActionResult> GetLowStockProducts(
@@ -713,7 +727,6 @@ namespace Keytietkiem.Controllers
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            // 1. Get all active products we care about
             var query = db.Products.AsNoTracking()
                 .Include(p => p.ProductVariants)
                 .Where(p => p.Status != "INACTIVE")
@@ -733,54 +746,24 @@ namespace Keytietkiem.Controllers
             }
 
             var products = await query.ToListAsync();
-            var result = new List<object>();
 
-            // 2. Pre-fetch availability stats
-            // For Keys: Available keys per product
-            var productIds = products.Select(p => p.ProductId).ToList();
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
 
-            var availableKeysMap = await db.ProductKeys
-                .Where(k => productIds.Contains(k.Variant.ProductId) && k.Status == nameof(ProductKeyStatus.Available))
-                .GroupBy(k => k.Variant.ProductId)
-                .Select(g => new { ProductId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.ProductId, x => x.Count);
+            // build variantId -> productType map for all variants in the result set
+            var productTypeByVariantId = products
+                .SelectMany(p => p.ProductVariants.Select(v => new { v.VariantId, p.ProductType }))
+                .GroupBy(x => x.VariantId)
+                .ToDictionary(g => g.Key, g => g.First().ProductType);
 
-            // For Accounts: Available slots (Active accounts)
-            // Complex logic: Sum(MaxUsers - ActiveUsers)
-            // To avoid complex EF groupBy with subquery, fetch active accounts flat list
-            var activeAccounts = await db.ProductAccounts
-                .Where(a => productIds.Contains(a.Variant.ProductId) &&
-                       (a.Status == nameof(ProductAccountStatus.Active) || a.Status == nameof(ProductAccountStatus.Full))) // Check Full too just in case? No, Full has 0 slots.
-                .Select(a => new
-                {
-                    a.Variant.ProductId,
-                    a.MaxUsers,
-                    ActiveUsers = a.ProductAccountCustomers.Count(c => c.IsActive)
-                })
-                .ToListAsync();
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, productTypeByVariantId, nowUtc, ct);
 
-            var availableAccountsMap = activeAccounts
-                .GroupBy(a => a.ProductId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Sum(x => Math.Max(0, x.MaxUsers - x.ActiveUsers))
-                );
-
-            // 3. Match and filter
             var finalResult = new List<object>();
-             foreach (var p in products)
+            foreach (var p in products)
             {
-                var available = 0;
-                var isKey = p.ProductType == ProductEnums.PERSONAL_KEY || p.ProductType == ProductEnums.SHARED_KEY;
-                var isAccount = p.ProductType == ProductEnums.PERSONAL_ACCOUNT || p.ProductType == ProductEnums.SHARED_ACCOUNT;
+                var available = p.ProductVariants.Sum(v =>
+                    stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty);
 
-                if (isKey)
-                    available = availableKeysMap.TryGetValue(p.ProductId, out var kVal) ? kVal : 0;
-                else if (isAccount)
-                    available = availableAccountsMap.TryGetValue(p.ProductId, out var aVal) ? aVal : 0;
-                else
-                     available = p.ProductVariants.Sum(v => v.StockQty);
-                
                 if (available < threshold)
                 {
                     finalResult.Add(new
