@@ -255,12 +255,12 @@ namespace Keytietkiem.Controllers
                 .ToList();
 
             // ===== Lọc “còn hàng” dùng stock thật =====
-            var inStockItems = rawItems.Where(i => i.StockQty > 0).ToList();
+            var visibleItems = rawItems.ToList();
 
             // =========================
             // 1) Ưu đãi hôm nay (Deals / On sale)
             // =========================
-            var todayDealsRaw = inStockItems
+            var todayDealsRaw = visibleItems
                 .Where(i => i.DiscountPercent > 0)
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
@@ -279,7 +279,7 @@ namespace Keytietkiem.Controllers
             // =========================
             // 2) Bán chạy nhất (Best sellers)
             // =========================
-            var bestSellersRaw = inStockItems
+            var bestSellersRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
                     .OrderByDescending(x => x.Sold30d)
@@ -297,7 +297,7 @@ namespace Keytietkiem.Controllers
             // =========================
             // 3) Mới ra mắt (New arrivals)
             // =========================
-            var newArrivalsRaw = inStockItems
+            var newArrivalsRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
                     .OrderByDescending(x => x.CreatedAt)
@@ -311,7 +311,7 @@ namespace Keytietkiem.Controllers
             // =========================
             // 4) Đang thịnh hành (Trending)
             // =========================
-            var trendingRaw = inStockItems
+            var trendingRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
                     .OrderByDescending(x => x.ViewCount)
@@ -327,7 +327,7 @@ namespace Keytietkiem.Controllers
             // =========================
             const int LowStockThreshold = 5;
 
-            var lowStockRaw = inStockItems
+            var lowStockRaw = visibleItems
                 .Where(i => i.StockQty > 0 && i.StockQty <= LowStockThreshold)
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
