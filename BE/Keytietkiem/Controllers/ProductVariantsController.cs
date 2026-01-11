@@ -1,4 +1,4 @@
-﻿// Controllers/ProductVariantsController.cs
+﻿// File: Controllers/ProductVariantsController.cs
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
@@ -6,11 +6,16 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Utils;
 using Keytietkiem.Constants;
+using Keytietkiem.DTOs.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text.RegularExpressions;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers
 {
@@ -37,6 +42,103 @@ namespace Keytietkiem.Controllers
             _auditLogger = auditLogger;
         }
 
+        private static bool IsKeyType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
+                || t.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAccountType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase)
+                || t.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<Dictionary<Guid, int>> ComputeAvailableStockByVariantIdAsync(
+            KeytietkiemDbContext db,
+            Dictionary<Guid, string?> productTypeByVariantId,
+            DateTime nowUtc,
+            CancellationToken ct)
+        {
+            var variantIds = productTypeByVariantId?.Keys?.Distinct().ToList() ?? new List<Guid>();
+            if (variantIds.Count == 0) return new Dictionary<Guid, int>();
+
+            var reservedByVariantId = await db.Set<OrderInventoryReservation>()
+                .AsNoTracking()
+                .Where(r => variantIds.Contains(r.VariantId)
+                            && r.ReservedUntilUtc > nowUtc
+                            && r.Status == "Reserved")
+                .GroupBy(r => r.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var keyCountByVariantId = await db.Set<ProductKey>()
+                .AsNoTracking()
+                .Where(k => variantIds.Contains(k.VariantId)
+                            && k.Status == nameof(ProductKeyStatus.Available)
+                            && k.AssignedToOrderId == null
+                            && (!k.ExpiryDate.HasValue || k.ExpiryDate.Value >= nowUtc))
+                .GroupBy(k => k.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var personalAccountCountByVariantId = await db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => variantIds.Contains(pa.VariantId)
+                             && pa.Status == nameof(ProductAccountStatus.Active)
+                             && pa.MaxUsers == 1
+                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc)
+                             && !pa.ProductAccountCustomers.Any(pac => pac.IsActive))
+                .GroupBy(pa => pa.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var sharedAccountSlotsByVariantId = await db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => variantIds.Contains(pa.VariantId)
+                             && pa.Status == nameof(ProductAccountStatus.Active)
+                             && pa.MaxUsers > 1
+                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc))
+                .Select(pa => new
+                {
+                    pa.VariantId,
+                    Available = pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive)
+                })
+                .Where(x => x.Available > 0)
+                .GroupBy(x => x.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Available) })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var result = new Dictionary<Guid, int>();
+            foreach (var id in variantIds)
+            {
+                if (!productTypeByVariantId.TryGetValue(id, out var ptRaw))
+                    continue;
+
+                var pt = (ptRaw ?? "").Trim();
+
+                var raw = 0;
+                if (IsKeyType(pt))
+                    raw = keyCountByVariantId.TryGetValue(id, out var kq) ? kq : 0;
+                else if (pt.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase))
+                    raw = personalAccountCountByVariantId.TryGetValue(id, out var aq) ? aq : 0;
+                else if (pt.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase))
+                    raw = sharedAccountSlotsByVariantId.TryGetValue(id, out var sq) ? sq : 0;
+                else
+                    continue;
+
+                var reserved = reservedByVariantId.TryGetValue(id, out var rq) ? rq : 0;
+                var available = raw - reserved;
+                if (available < 0) available = 0;
+
+                result[id] = available;
+            }
+
+            return result;
+        }
+
         private static string NormalizeStatus(string? s)
         {
             var u = (s ?? "").Trim().ToUpperInvariant();
@@ -44,39 +146,29 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Quy ước status cho Variant (tương tự Product):
-        /// - ACTIVE      : còn hàng & hiển thị.
-        /// - OUT_OF_STOCK: hết hàng nhưng vẫn hiển thị.
-        /// - INACTIVE    : ẩn hoàn toàn, chỉ khi admin set explicit.
-        /// 
-        /// Hết hàng KHÔNG bao giờ tự chuyển sang INACTIVE, chỉ OUT_OF_STOCK.
+        /// Quy ước status cho Variant:
+        /// - INACTIVE chỉ khi admin set explicit.
+        /// - OUT_OF_STOCK khi stock<=0 (và không INACTIVE)
+        /// - Còn hàng: ACTIVE (hoặc status hợp lệ khác nếu muốn giữ)
         /// </summary>
-        private static string ResolveStatusFromStock(int stockQty, string? desired)
+        private static string ResolveStatusFromStock(int stockQty, string? desiredOrCurrent)
         {
-            var d = (desired ?? string.Empty).Trim().ToUpperInvariant();
+            var d = (desiredOrCurrent ?? string.Empty).Trim().ToUpperInvariant();
 
-            // Admin explicit INACTIVE => luôn INACTIVE
             if (d == "INACTIVE")
                 return "INACTIVE";
 
-            // Hết hàng => OUT_OF_STOCK (vẫn hiển thị)
             if (stockQty <= 0)
                 return "OUT_OF_STOCK";
 
-            // Còn hàng:
             if (!string.IsNullOrWhiteSpace(d) && ProductEnums.Statuses.Contains(d) && d != "OUT_OF_STOCK")
-            {
-                // Cho phép ACTIVE / các status hợp lệ khác (trừ OUT_OF_STOCK khi còn hàng)
                 return d;
-            }
 
-            // Mặc định khi có stock mà không truyền status hợp lệ: ACTIVE
             return "ACTIVE";
         }
 
         private static void TrySetProductStockQty(object productEntity, int totalStock)
         {
-            // Avoid compile-time dependency on Product.StockQty (some DB versions may not have it).
             var prop = productEntity.GetType().GetProperty("StockQty");
             if (prop == null || !prop.CanWrite) return;
 
@@ -92,32 +184,34 @@ namespace Keytietkiem.Controllers
                 var converted = Convert.ChangeType(totalStock, target);
                 prop.SetValue(productEntity, converted);
             }
-            catch
-            {
-                // ignore
-            }
+            catch { }
         }
 
         /// <summary>
-        /// Recalc status của Product dựa trên tổng stock các variant.
-        /// Hết hàng -> OUT_OF_STOCK, còn hàng -> ACTIVE.
-        /// Không bao giờ tự chuyển sang INACTIVE khi hết hàng.
-        /// Nếu product đang INACTIVE và không truyền desiredStatus thì giữ nguyên,
-        /// để đảm bảo "ẩn" là do admin quyết định.
+        /// Recalc status Product dựa theo tổng stock thật của variant:
+        /// - Nếu Product đang INACTIVE và không truyền desiredStatus => giữ nguyên.
+        /// - Nếu không INACTIVE => OUT_OF_STOCK khi total<=0, còn lại ACTIVE (hoặc desired hợp lệ).
         /// </summary>
         private async Task RecalcProductStatus(KeytietkiemDbContext db, Guid productId, string? desiredStatus = null)
         {
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
+
             var p = await db.Products
                             .Include(x => x.ProductVariants)
-                            .FirstAsync(x => x.ProductId == productId);
+                            .FirstAsync(x => x.ProductId == productId, ct);
 
-            var totalStock = p.ProductVariants.Sum(v => (int?)v.StockQty) ?? 0;
+            var map = p.ProductVariants
+                .GroupBy(v => v.VariantId)
+                .ToDictionary(g => g.Key, g => p.ProductType);
 
-            // Persist tổng tồn kho xuống Product (nếu có cột StockQty trong DB).
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, map, nowUtc, ct);
+
+            var totalStock = p.ProductVariants.Sum(v =>
+                stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty);
+
             TrySetProductStockQty(p, totalStock);
 
-            // Nếu admin đã đặt sản phẩm INACTIVE và không truyền desiredStatus
-            // thì không tự động thay đổi nữa.
             if (string.Equals(p.Status, "INACTIVE", StringComparison.OrdinalIgnoreCase) &&
                 string.IsNullOrWhiteSpace(desiredStatus))
             {
@@ -125,39 +219,28 @@ namespace Keytietkiem.Controllers
                 return;
             }
 
-            // Nếu có desiredStatus (ví dụ từ màn cập nhật Product) thì ưu tiên nó,
-            // nhưng INACTIVE luôn là quyết định explicit của admin.
             if (!string.IsNullOrWhiteSpace(desiredStatus))
             {
                 var d = desiredStatus.Trim().ToUpperInvariant();
                 if (ProductEnums.Statuses.Contains(d))
                 {
                     if (d == "INACTIVE")
-                    {
                         p.Status = "INACTIVE";
-                    }
-                    else if (totalStock <= 0)
-                    {
-                        p.Status = "OUT_OF_STOCK";
-                    }
                     else
-                    {
-                        p.Status = d;
-                    }
+                        p.Status = totalStock <= 0 ? "OUT_OF_STOCK" : d;
 
                     p.UpdatedAt = _clock.UtcNow;
                     return;
                 }
             }
 
-            // Không có desiredStatus: tự suy từ tồn kho, chỉ ACTIVE / OUT_OF_STOCK
+            // Không có desiredStatus: tự suy từ tồn kho
             p.Status = totalStock <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
             p.UpdatedAt = _clock.UtcNow;
         }
 
         private static string ToggleVisibility(string? current, int stock)
         {
-            // Hết hàng => chỉ OUT_OF_STOCK, không ẩn
             if (stock <= 0) return "OUT_OF_STOCK";
 
             var cur = NormalizeStatus(current);
@@ -170,140 +253,64 @@ namespace Keytietkiem.Controllers
             int? durationDays,
             int? warrantyDays)
         {
-            // Tên biến thể
             if (string.IsNullOrWhiteSpace(title))
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "TITLE_REQUIRED",
-                    message = "Tên biến thể là bắt buộc."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "TITLE_REQUIRED", message = "Tên biến thể là bắt buộc." }));
             }
-
             if (title.Length > TitleMaxLength)
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "TITLE_TOO_LONG",
-                    message = $"Tên biến thể không được vượt quá {TitleMaxLength} ký tự."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "TITLE_TOO_LONG", message = $"Tên biến thể không được vượt quá {TitleMaxLength} ký tự." }));
             }
 
-            // Mã biến thể
             if (string.IsNullOrWhiteSpace(variantCode))
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "CODE_REQUIRED",
-                    message = "Mã biến thể là bắt buộc."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "CODE_REQUIRED", message = "Mã biến thể là bắt buộc." }));
             }
-
             if (variantCode.Length > CodeMaxLength)
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "CODE_TOO_LONG",
-                    message = $"Mã biến thể không được vượt quá {CodeMaxLength} ký tự."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "CODE_TOO_LONG", message = $"Mã biến thể không được vượt quá {CodeMaxLength} ký tự." }));
             }
 
-            // Duration / Warranty: số nguyên >= 0, Duration > Warranty
             if (durationDays.HasValue && durationDays.Value < 0)
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "DURATION_INVALID",
-                    message = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "DURATION_INVALID", message = "Thời lượng (ngày) phải lớn hơn hoặc bằng 0." }));
             }
-
             if (warrantyDays.HasValue && warrantyDays.Value < 0)
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "WARRANTY_INVALID",
-                    message = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "WARRANTY_INVALID", message = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0." }));
             }
-
-            if (durationDays.HasValue &&
-                warrantyDays.HasValue &&
-                durationDays.Value <= warrantyDays.Value)
+            if (durationDays.HasValue && warrantyDays.HasValue && durationDays.Value <= warrantyDays.Value)
             {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "DURATION_LE_WARRANTY",
-                    message = "Thời lượng (ngày) phải lớn hơn số ngày bảo hành."
-                }));
+                return (false, new BadRequestObjectResult(new { code = "DURATION_LE_WARRANTY", message = "Thời lượng (ngày) phải lớn hơn số ngày bảo hành." }));
             }
 
             return (true, null);
         }
 
-        /// <summary>
-        /// Validate 2 giá chỉnh từ màn variant:
-        /// - SellPrice >= 0, ListPrice >= 0
-        /// - SellPrice <= ListPrice
-        /// - Nếu biết CogsPrice (giá vốn) thì ListPrice >= CogsPrice
-        /// </summary>
         private (bool IsValid, ActionResult? ErrorResult) ValidatePriceFields(
             decimal sellPrice,
             decimal listPrice,
             decimal? currentCogsPrice = null)
         {
             if (sellPrice < 0)
-            {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "SELL_PRICE_INVALID",
-                    message = "Giá bán phải lớn hơn hoặc bằng 0."
-                }));
-            }
+                return (false, new BadRequestObjectResult(new { code = "SELL_PRICE_INVALID", message = "Giá bán phải lớn hơn hoặc bằng 0." }));
 
             if (listPrice < 0)
-            {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "LIST_PRICE_INVALID",
-                    message = "Giá niêm yết phải lớn hơn hoặc bằng 0."
-                }));
-            }
+                return (false, new BadRequestObjectResult(new { code = "LIST_PRICE_INVALID", message = "Giá niêm yết phải lớn hơn hoặc bằng 0." }));
 
             if (sellPrice > MaxPriceValue || listPrice > MaxPriceValue)
-            {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "PRICE_TOO_LARGE",
-                    message = "Giá không được vượt quá giới hạn cho phép (decimal 18,2)."
-                }));
-            }
+                return (false, new BadRequestObjectResult(new { code = "PRICE_TOO_LARGE", message = "Giá không được vượt quá giới hạn cho phép (decimal 18,2)." }));
 
-            // Giá bán không được lớn hơn giá niêm yết
             if (sellPrice > listPrice)
-            {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "SELL_GT_LIST",
-                    message = "Giá bán không được lớn hơn giá niêm yết."
-                }));
-            }
+                return (false, new BadRequestObjectResult(new { code = "SELL_GT_LIST", message = "Giá bán không được lớn hơn giá niêm yết." }));
 
-            // Nếu đã có giá vốn (CogsPrice) thì ListPrice không được nhỏ hơn giá vốn
             if (currentCogsPrice.HasValue && currentCogsPrice.Value > 0 && listPrice < currentCogsPrice.Value)
-            {
-                return (false, new BadRequestObjectResult(new
-                {
-                    code = "LIST_LT_COGS",
-                    message = "Giá niêm yết không được nhỏ hơn giá vốn."
-                }));
-            }
+                return (false, new BadRequestObjectResult(new { code = "LIST_LT_COGS", message = "Giá niêm yết không được nhỏ hơn giá vốn." }));
 
             return (true, null);
         }
 
-        private static string NormalizeString(string? s)
-            => (s ?? string.Empty).Trim();
+        private static string NormalizeString(string? s) => (s ?? string.Empty).Trim();
 
         // ===== LIST =====
         [HttpGet]
@@ -314,8 +321,13 @@ namespace Keytietkiem.Controllers
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
 
-            var exists = await db.Products.AnyAsync(p => p.ProductId == productId);
-            if (!exists) return NotFound();
+            var productType = await db.Products
+                .AsNoTracking()
+                .Where(p => p.ProductId == productId)
+                .Select(p => p.ProductType)
+                .FirstOrDefaultAsync();
+
+            if (productType == null) return NotFound();
 
             var q = db.ProductVariants.AsNoTracking()
                                       .Where(v => v.ProductId == productId);
@@ -351,18 +363,15 @@ namespace Keytietkiem.Controllers
             }
 
             if (query.MinPrice.HasValue)
-            {
                 q = q.Where(v => v.SellPrice >= query.MinPrice.Value);
-            }
 
             if (query.MaxPrice.HasValue)
-            {
                 q = q.Where(v => v.SellPrice <= query.MaxPrice.Value);
-            }
 
             var sort = (query.Sort ?? "created").Trim().ToLowerInvariant();
             var desc = string.Equals(query.Dir, "desc", StringComparison.OrdinalIgnoreCase);
 
+            // NOTE: sort theo stock ở DB vẫn dựa StockQty (cache)
             q = sort switch
             {
                 "title" => desc ? q.OrderByDescending(v => v.Title) : q.OrderBy(v => v.Title),
@@ -378,23 +387,41 @@ namespace Keytietkiem.Controllers
             var pageSize = Math.Clamp(query.PageSize, 1, 200);
             var total = await q.CountAsync();
 
-            var items = await q
+            var pageVariants = await q
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(v => new ProductVariantListItemDto(
+                .ToListAsync();
+
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
+
+            var map = pageVariants
+                .GroupBy(v => v.VariantId)
+                .ToDictionary(g => g.Key, g => productType);
+
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, map, nowUtc, ct);
+
+            var items = pageVariants.Select(v =>
+            {
+                var avail = stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty;
+
+                // ✅ status hiển thị theo stock thật, nhưng vẫn tôn trọng INACTIVE
+                var effectiveStatus = ResolveStatusFromStock(avail, v.Status);
+
+                return new ProductVariantListItemDto(
                     v.VariantId,
                     v.VariantCode ?? "",
                     v.Title,
                     v.DurationDays,
-                    v.StockQty,
-                    v.Status,
+                    avail,
+                    effectiveStatus,
                     v.Thumbnail,
                     v.ViewCount,
                     v.SellPrice,
                     v.ListPrice,
-                    v.CogsPrice  // show giá vốn để admin thấy nhưng không sửa qua API này
-                ))
-                .ToListAsync();
+                    v.CogsPrice
+                );
+            }).ToList();
 
             return Ok(new PagedResult<ProductVariantListItemDto>
             {
@@ -411,15 +438,30 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<ProductVariantDetailDto>> Get(Guid productId, Guid variantId)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var productType = await db.Products
+                .AsNoTracking()
+                .Where(p => p.ProductId == productId)
+                .Select(p => p.ProductType)
+                .FirstOrDefaultAsync();
+
+            if (productType == null) return NotFound();
+
             var v = await db.ProductVariants
                             .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
 
-            // Kiểm tra xem biến thể đang được dùng trong section hay chưa
-            var hasSections = await db.ProductSections
-                                      .AnyAsync(s => s.VariantId == variantId);
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
 
-            // Trả thêm cờ HasSections để FE disable sửa mã biến thể khi đã có section
+            var map = new Dictionary<Guid, string?> { [v.VariantId] = productType };
+            var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, map, nowUtc, ct);
+            var avail = stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty;
+
+            var effectiveStatus = ResolveStatusFromStock(avail, v.Status);
+
+            var hasSections = await db.ProductSections.AnyAsync(s => s.VariantId == variantId);
+
             return Ok(new
             {
                 v.VariantId,
@@ -427,16 +469,16 @@ namespace Keytietkiem.Controllers
                 VariantCode = v.VariantCode ?? "",
                 v.Title,
                 v.DurationDays,
-                v.StockQty,
+                StockQty = avail, // ✅ stock thật
                 v.WarrantyDays,
                 v.Thumbnail,
                 v.MetaTitle,
                 v.MetaDescription,
                 v.ViewCount,
-                v.Status,
+                Status = effectiveStatus, // ✅ status theo stock thật (trừ INACTIVE)
                 v.SellPrice,
                 v.ListPrice,
-                v.CogsPrice, // hiển thị giá vốn
+                v.CogsPrice,
                 HasSections = hasSections
             });
         }
@@ -460,66 +502,39 @@ namespace Keytietkiem.Controllers
             if (!isValid) return errorResult!;
 
             if (!dto.SellPrice.HasValue)
-            {
-                return BadRequest(new
-                {
-                    code = "SELL_PRICE_REQUIRED",
-                    message = "Giá bán là bắt buộc."
-                });
-            }
+                return BadRequest(new { code = "SELL_PRICE_REQUIRED", message = "Giá bán là bắt buộc." });
 
             if (!dto.ListPrice.HasValue)
-            {
-                return BadRequest(new
-                {
-                    code = "LIST_PRICE_REQUIRED",
-                    message = "Giá niêm yết là bắt buộc."
-                });
-            }
+                return BadRequest(new { code = "LIST_PRICE_REQUIRED", message = "Giá niêm yết là bắt buộc." });
 
             var sellPrice = dto.SellPrice.Value;
             var listPrice = dto.ListPrice.Value;
 
-            // Lúc tạo mới, CogsPrice sẽ để default (0) và sau này được cập nhật từ module nhập key
             var (priceValid, priceError) = ValidatePriceFields(sellPrice, listPrice, currentCogsPrice: null);
             if (!priceValid) return priceError!;
 
-            // Không cho trùng Title trong cùng một sản phẩm (case-insensitive)
             var normalizedTitle = title.ToLower();
             var titleExists = await db.ProductVariants.AnyAsync(v =>
                 v.ProductId == productId &&
                 v.Title != null &&
                 v.Title.ToLower() == normalizedTitle);
-
             if (titleExists)
-            {
-                return Conflict(new
-                {
-                    code = "VARIANT_TITLE_DUPLICATE",
-                    message = "Tên biến thể đã tồn tại trong sản phẩm này."
-                });
-            }
+                return Conflict(new { code = "VARIANT_TITLE_DUPLICATE", message = "Tên biến thể đã tồn tại trong sản phẩm này." });
 
-            // Không cho trùng Mã biến thể trong cùng sản phẩm
             var normalizedCode = variantCode.ToLower();
             var codeExists = await db.ProductVariants.AnyAsync(v =>
                 v.ProductId == productId &&
                 v.VariantCode != null &&
                 v.VariantCode.ToLower() == normalizedCode);
-
             if (codeExists)
-            {
-                return Conflict(new
-                {
-                    code = "VARIANT_CODE_DUPLICATE",
-                    message = "Mã biến thể đã tồn tại trong sản phẩm này."
-                });
-            }
+                return Conflict(new { code = "VARIANT_CODE_DUPLICATE", message = "Mã biến thể đã tồn tại trong sản phẩm này." });
 
             var stock = dto.StockQty;
             if (stock < 0) stock = 0;
 
-            var status = ResolveStatusFromStock(stock, dto.Status);
+            // ✅ Với KEY/ACCOUNT: stock thật phụ thuộc key/account => lúc tạo mới coi như 0 để set status đúng.
+            var effectiveStockForStatus = (IsKeyType(p.ProductType) || IsAccountType(p.ProductType)) ? 0 : stock;
+            var status = ResolveStatusFromStock(effectiveStockForStatus, dto.Status);
 
             var v = new ProductVariant
             {
@@ -537,7 +552,6 @@ namespace Keytietkiem.Controllers
                 Status = status,
                 SellPrice = sellPrice,
                 ListPrice = listPrice,
-                // CogsPrice KHÔNG set ở đây => để default 0, sau này module nhập key/account sẽ cập nhật
                 CreatedAt = _clock.UtcNow
             };
 
@@ -547,7 +561,6 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
-            // === AUDIT LOG: CREATE SUCCESS ===
             await _auditLogger.LogAsync(
                 HttpContext,
                 action: "CreateProductVariant",
@@ -596,10 +609,17 @@ namespace Keytietkiem.Controllers
         public async Task<IActionResult> Update(Guid productId, Guid variantId, ProductVariantUpdateDto dto)
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var productType = await db.Products
+                .Where(p => p.ProductId == productId)
+                .Select(p => p.ProductType)
+                .FirstOrDefaultAsync();
+
+            if (productType == null) return NotFound();
+
             var v = await db.ProductVariants.FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
 
-            // Snapshot before
             var before = new
             {
                 v.VariantId,
@@ -627,15 +647,11 @@ namespace Keytietkiem.Controllers
             var newSellPrice = dto.SellPrice ?? v.SellPrice;
             var newListPrice = dto.ListPrice ?? v.ListPrice;
 
-            // Validate giá: dùng giá vốn hiện tại của biến thể để đảm bảo ListPrice >= CogsPrice
             var (priceValid, priceError) = ValidatePriceFields(newSellPrice, newListPrice, v.CogsPrice);
             if (!priceValid) return priceError!;
 
-            // Check đang có section không
-            var hasSections = await db.ProductSections
-                                      .AnyAsync(s => s.VariantId == variantId);
+            var hasSections = await db.ProductSections.AnyAsync(s => s.VariantId == variantId);
 
-            // Nếu đang có section thì không cho đổi mã biến thể
             if (hasSections &&
                 !string.IsNullOrWhiteSpace(v.VariantCode) &&
                 !string.Equals(v.VariantCode.Trim(), variantCode, StringComparison.OrdinalIgnoreCase))
@@ -647,39 +663,23 @@ namespace Keytietkiem.Controllers
                 });
             }
 
-            // Không cho trùng Title trong cùng 1 sản phẩm (trừ chính nó)
             var normalizedTitle = title.ToLower();
             var titleExists = await db.ProductVariants.AnyAsync(x =>
                 x.ProductId == productId &&
                 x.VariantId != variantId &&
                 x.Title != null &&
                 x.Title.ToLower() == normalizedTitle);
-
             if (titleExists)
-            {
-                return Conflict(new
-                {
-                    code = "VARIANT_TITLE_DUPLICATE",
-                    message = "Tên biến thể đã tồn tại trong sản phẩm này."
-                });
-            }
+                return Conflict(new { code = "VARIANT_TITLE_DUPLICATE", message = "Tên biến thể đã tồn tại trong sản phẩm này." });
 
-            // Không cho trùng Mã biến thể trong cùng sản phẩm (trừ chính nó)
             var normalizedCode = variantCode.ToLower();
             var codeExists = await db.ProductVariants.AnyAsync(x =>
                 x.ProductId == productId &&
                 x.VariantId != variantId &&
                 x.VariantCode != null &&
                 x.VariantCode.ToLower() == normalizedCode);
-
             if (codeExists)
-            {
-                return Conflict(new
-                {
-                    code = "VARIANT_CODE_DUPLICATE",
-                    message = "Mã biến thể đã tồn tại trong sản phẩm này."
-                });
-            }
+                return Conflict(new { code = "VARIANT_CODE_DUPLICATE", message = "Mã biến thể đã tồn tại trong sản phẩm này." });
 
             v.Title = title;
             v.DurationDays = durationDays;
@@ -690,22 +690,46 @@ namespace Keytietkiem.Controllers
             v.MetaDescription = string.IsNullOrWhiteSpace(dto.MetaDescription) ? null : dto.MetaDescription!.Trim();
             v.SellPrice = newSellPrice;
             v.ListPrice = newListPrice;
-            // CogsPrice giữ nguyên, không cho sửa ở API này
 
             if (!hasSections)
-            {
                 v.VariantCode = variantCode;
+
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
+
+            // ✅ effective stock để tính status: KEY/ACCOUNT dùng stock thật (keys/accounts - reservation), còn lại dùng StockQty
+            int effectiveStockForStatus;
+            if (IsKeyType(productType) || IsAccountType(productType))
+            {
+                var map = new Dictionary<Guid, string?> { [v.VariantId] = productType };
+                var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, map, nowUtc, ct);
+                effectiveStockForStatus = stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty;
+            }
+            else
+            {
+                effectiveStockForStatus = v.StockQty;
             }
 
             var desired = string.IsNullOrWhiteSpace(dto.Status) ? null : dto.Status;
-            v.Status = ResolveStatusFromStock(v.StockQty, desired);
+
+            // ✅ Nếu đang INACTIVE và admin không truyền Status => giữ INACTIVE
+            if (string.Equals(v.Status, "INACTIVE", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(desired))
+            {
+                // giữ nguyên
+            }
+            else
+            {
+                // Nếu có desired: ưu tiên desired; nếu không: dùng status hiện tại để auto OUT_OF_STOCK/ACTIVE theo stock
+                v.Status = ResolveStatusFromStock(effectiveStockForStatus, desired ?? v.Status);
+            }
+
             v.UpdatedAt = _clock.UtcNow;
 
             await db.SaveChangesAsync();
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
-            // Snapshot after
             var after = new
             {
                 v.VariantId,
@@ -721,7 +745,6 @@ namespace Keytietkiem.Controllers
                 v.CogsPrice
             };
 
-            // === AUDIT LOG: UPDATE SUCCESS ===
             await _auditLogger.LogAsync(
                 HttpContext,
                 action: "UpdateProductVariant",
@@ -742,11 +765,9 @@ namespace Keytietkiem.Controllers
             await using var db = await _dbFactory.CreateDbContextAsync();
 
             var v = await db.ProductVariants
-                            .FirstOrDefaultAsync(x => x.ProductId == productId &&
-                                                      x.VariantId == variantId);
+                            .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
             if (v is null) return NotFound();
 
-            // Snapshot before delete
             var before = new
             {
                 v.VariantId,
@@ -762,15 +783,13 @@ namespace Keytietkiem.Controllers
                 v.CogsPrice
             };
 
-            var hasSections = await db.ProductSections
-                                      .AnyAsync(s => s.VariantId == variantId);
+            var hasSections = await db.ProductSections.AnyAsync(s => s.VariantId == variantId);
             if (hasSections)
             {
                 return Conflict(new
                 {
                     code = "VARIANT_IN_USE_SECTION",
-                    message = "Không thể xoá biến thể này vì đang được sử dụng trong các section. " +
-                              "Vui lòng xoá hoặc cập nhật các section liên quan trước."
+                    message = "Không thể xoá biến thể này vì đang được sử dụng trong các section. Vui lòng xoá hoặc cập nhật các section liên quan trước."
                 });
             }
 
@@ -780,7 +799,6 @@ namespace Keytietkiem.Controllers
             await RecalcProductStatus(db, productId);
             await db.SaveChangesAsync();
 
-            // === AUDIT LOG: DELETE SUCCESS ===
             await _auditLogger.LogAsync(
                 HttpContext,
                 action: "DeleteProductVariant",
@@ -801,6 +819,14 @@ namespace Keytietkiem.Controllers
             try
             {
                 await using var db = await _dbFactory.CreateDbContextAsync();
+
+                var productType = await db.Products
+                    .Where(p => p.ProductId == productId)
+                    .Select(p => p.ProductType)
+                    .FirstOrDefaultAsync();
+
+                if (productType == null) return NotFound();
+
                 var v = await db.ProductVariants
                                 .FirstOrDefaultAsync(x => x.ProductId == productId && x.VariantId == variantId);
                 if (v is null) return NotFound();
@@ -813,7 +839,22 @@ namespace Keytietkiem.Controllers
                     v.StockQty
                 };
 
-                v.Status = ToggleVisibility(v.Status, v.StockQty);
+                var ct = HttpContext.RequestAborted;
+                var nowUtc = _clock.UtcNow;
+
+                int effectiveStock;
+                if (IsKeyType(productType) || IsAccountType(productType))
+                {
+                    var map = new Dictionary<Guid, string?> { [v.VariantId] = productType };
+                    var stockByVariantId = await ComputeAvailableStockByVariantIdAsync(db, map, nowUtc, ct);
+                    effectiveStock = stockByVariantId.TryGetValue(v.VariantId, out var st) ? st : v.StockQty;
+                }
+                else
+                {
+                    effectiveStock = v.StockQty;
+                }
+
+                v.Status = ToggleVisibility(v.Status, effectiveStock);
                 v.UpdatedAt = _clock.UtcNow;
 
                 await db.SaveChangesAsync();
@@ -828,7 +869,6 @@ namespace Keytietkiem.Controllers
                     v.StockQty
                 };
 
-                // === AUDIT LOG: TOGGLE SUCCESS ===
                 await _auditLogger.LogAsync(
                     HttpContext,
                     action: "ToggleProductVariantStatus",
@@ -842,7 +882,6 @@ namespace Keytietkiem.Controllers
             }
             catch (Exception ex)
             {
-                // Không audit log lỗi toggle để tránh spam, chỉ trả 500
                 return Problem(title: "Toggle variant status failed",
                                detail: ex.Message,
                                statusCode: StatusCodes.Status500InternalServerError);
