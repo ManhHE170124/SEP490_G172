@@ -63,7 +63,7 @@ export default function AccountManagementPage() {
         pageNumber: 1,
         pageSize: 100,
         // Include both shared and personal account products
-        type: ["SHARED_ACCOUNT", "PERSONAL_ACCOUNT"],
+        productTypes: ["SHARED_ACCOUNT", "PERSONAL_ACCOUNT"],
       });
       setProducts(data.items || data.data || []);
     } catch (err) {

@@ -121,7 +121,10 @@ export default function AccountDetailPage() {
         status: data.status,
         cogsPrice: (data.cogsPrice ?? "").toString(),
         expiryDate: data.expiryDate
-          ? new Date(data.expiryDate).toISOString().split("T")[0]
+          ? (() => {
+              const d = new Date(data.expiryDate);
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            })()
           : "",
         notes: data.notes || "",
       });
@@ -296,6 +299,11 @@ export default function AccountDetailPage() {
       return;
     }
 
+    if (formData.expiryDate && extendDialog.newExpiryDate < formData.expiryDate) {
+      showWarning("Dữ liệu không hợp lệ", "Ngày hết hạn mới không được nhỏ hơn ngày hết hạn hiện tại");
+      return;
+    }
+
     try {
       await ProductAccountApi.extendExpiry(id, {
         productAccountId: id,
@@ -316,6 +324,7 @@ export default function AccountDetailPage() {
   }, [
     id,
     extendDialog.newExpiryDate,
+    formData.expiryDate,
     loadProductAccount,
     loadHistory,
     showSuccess,
@@ -628,6 +637,20 @@ export default function AccountDetailPage() {
 
       {/* Extend Expiry Dialog */}
       {extendDialog.isOpen && (
+        (() => {
+          const calculateMinDate = () => {
+             if (!formData.expiryDate) return todayStr;
+             const parts = formData.expiryDate.split('-');
+             if (parts.length !== 3) return todayStr;
+             const duration = parseInt(selectedVariant?.durationDays ?? 0);
+             if (duration <= 0) return todayStr;
+             const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+             // Set min date to current expiry + duration (next possible expiry)
+             d.setDate(d.getDate() + 1 + duration);
+             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          };
+          const minDateVal = calculateMinDate();
+          return (
         <div
           style={{
             position: "fixed",
@@ -681,10 +704,10 @@ export default function AccountDetailPage() {
                     newExpiryDate: e.target.value,
                   }))
                 }
-                min={formData.expiryDate || todayStr}
+                min={minDateVal}
               />
               <small style={{ color: "#6b7280", marginTop: 4 }}>
-                Ngày mới phải sau ngày hết hạn hiện tại
+                Ngày mới phải sau ngày hết hạn hiện tại (Min: {minDateVal})
               </small>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
@@ -707,6 +730,8 @@ export default function AccountDetailPage() {
             </div>
           </div>
         </div>
+          );
+        })()
       )}
 
       <section className="card ">
@@ -1019,12 +1044,24 @@ export default function AccountDetailPage() {
                   <button
                     type="button"
                     className="btn"
-                    onClick={() =>
-                      setExtendDialog({
-                        isOpen: true,
-                        newExpiryDate: formData.expiryDate || "",
-                      })
-                    }
+                    onClick={() => {
+                        const duration = parseInt(selectedVariant?.durationDays ?? 0);
+                        let nextDate = "";
+                        if (formData.expiryDate && duration > 0) {
+                            // Robust local date parsing
+                            const parts = formData.expiryDate.split('-');
+                            if (parts.length === 3) {
+                                const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                                // Start from visual expiry date (stored + 1)
+                                d.setDate(d.getDate() + 1 + duration);
+                                nextDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                            }
+                        }
+                        setExtendDialog({
+                            isOpen: true,
+                            newExpiryDate: nextDate || formData.expiryDate || "",
+                        });
+                    }}
                     title="Gia hạn tài khoản"
                   >
                     Gia hạn

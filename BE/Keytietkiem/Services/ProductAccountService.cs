@@ -684,45 +684,86 @@ public class ProductAccountService : IProductAccountService
 
         var now = _clock.UtcNow;
         var oldExpiryDate = account.ExpiryDate;
+        
+        // Base date for calculation: use current expiry if exists and active, otherwise use now.
+        // If account is expired, we might want to extend from NOW, or from old expiry?
+        // Usually if expired, you extend from NOW. If active, you extend from expiry.
+        // Let's stick to extending from current expiry if it's in the future, else from now?
+        // Or simple logic: base = expiry ?? now.
+        // If expiry is in the past (expired), adding days to it might still leave it expired or not give full value.
+        // Let's assume: if expired, extend from NOW. If active, extend from Expiry.
+        var baseDate = (account.ExpiryDate.HasValue && account.ExpiryDate.Value > now) ? account.ExpiryDate.Value : now;
 
-        // Determine days to extend: use provided value or variant's DurationDays
-        int daysToExtend;
+        int daysExtended = 0;
         string extensionSource;
 
-        if (extendDto.DaysToExtend.HasValue && extendDto.DaysToExtend.Value > 0)
+        if (extendDto.NewExpiryDate.HasValue)
         {
-            // Use custom days provided by user
-            daysToExtend = extendDto.DaysToExtend.Value;
-            extensionSource = "custom";
-        }
-        else if (account.Variant?.DurationDays.HasValue == true && account.Variant.DurationDays.Value > 0)
-        {
-            // Use variant's standard duration
-            daysToExtend = account.Variant.DurationDays.Value;
-            extensionSource = "variant";
+            if (extendDto.NewExpiryDate.Value <= baseDate)
+            {
+               throw new InvalidOperationException(
+                    "Ngày hết hạn mới phải lớn hơn ngày hiện tại.");
+            }
+            account.ExpiryDate = extendDto.NewExpiryDate.Value;
+            daysExtended = (int)(account.ExpiryDate.Value - (oldExpiryDate ?? now)).TotalDays;
+            extensionSource = "custom_date";
         }
         else
         {
-            throw new InvalidOperationException(
-                "Không thể xác định số ngày gia hạn. Vui lòng cung cấp số ngày hoặc đảm bảo sản phẩm có DurationDays.");
+            int daysToAdd = 0;
+            
+            if (extendDto.DaysToExtend.HasValue && extendDto.DaysToExtend.Value > 0)
+            {
+                daysToAdd = extendDto.DaysToExtend.Value;
+                extensionSource = "custom_days";
+            }
+            else if (account.Variant?.DurationDays.HasValue == true && account.Variant.DurationDays.Value > 0)
+            {
+                daysToAdd = account.Variant.DurationDays.Value;
+                extensionSource = "variant";
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "Không thể xác định số ngày gia hạn. Vui lòng cung cấp ngày hết hạn mới, số ngày gia hạn hoặc đảm bảo sản phẩm có thời hạn mặc định.");
+            }
+            
+            account.ExpiryDate = baseDate.AddDays(daysToAdd);
+            daysExtended = daysToAdd;
         }
 
-        // Extend from current expiry date if exists, otherwise from now
-        var baseDate = account.ExpiryDate ?? now;
-        account.ExpiryDate = baseDate.AddDays(daysToExtend);
         account.UpdatedAt = now;
         account.UpdatedBy = extendedBy;
+        
+        if (account.Status == nameof(ProductAccountStatus.Expired) && account.ExpiryDate > now)
+        {
+             var currentActiveUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive);
+             if (currentActiveUsers >= account.MaxUsers)
+                account.Status = nameof(ProductAccountStatus.Full);
+             else
+                account.Status = nameof(ProductAccountStatus.Active);
+        }
 
         _productAccountRepository.Update(account);
 
-        // Log history with source information
-        var extensionInfo = extensionSource == "variant"
-            ? $"Gia hạn {daysToExtend} ngày (theo gói sản phẩm)"
-            : $"Gia hạn {daysToExtend} ngày (tùy chỉnh)";
+        // Log history
+        string actionNote;
+        if (extensionSource == "custom_date")
+        {
+             actionNote = $"Gia hạn đến {account.ExpiryDate:dd/MM/yyyy} (tùy chỉnh ngày)";
+        }
+        else if (extensionSource == "variant")
+        {
+             actionNote = $"Gia hạn thêm {daysExtended} ngày (theo gói)";
+        }
+        else
+        {
+             actionNote = $"Gia hạn thêm {daysExtended} ngày (tùy chỉnh)";
+        }
 
         var notes = string.IsNullOrWhiteSpace(extendDto.Notes)
-            ? $"{extensionInfo}. Từ {oldExpiryDate:dd/MM/yyyy} đến {account.ExpiryDate:dd/MM/yyyy}"
-            : $"{extensionInfo}. Từ {oldExpiryDate:dd/MM/yyyy} đến {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {extendDto.Notes}";
+            ? $"{actionNote}. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}"
+            : $"{actionNote}. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {extendDto.Notes}";
 
         var history = new ProductAccountHistory
         {
