@@ -6,6 +6,7 @@ export const formatDate = (dateString) => {
 
 export const formatVietnameseDate = (dateString) => {
   if (!dateString) return "-";
-  const date = new Date(dateString.split("T")[0]);
-  return `${date.getDate()+1}/${(date.getMonth() + 1)}/${date.getFullYear()}`;
+  // Parse YYYY-MM-DD format directly to avoid timezone issues
+  const [year, month, day] = dateString.split("T")[0].split("-");
+  return `${day}/${month}/${year}`;
 };
