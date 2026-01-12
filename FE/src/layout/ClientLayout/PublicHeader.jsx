@@ -967,7 +967,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                         navigate(dashboardRoute);
                       }}
                     >
-                      Dashboard
+                      Bảng điều khiển quản trị
                     </button>
                   )}
                   <button

@@ -316,6 +316,7 @@ const UserProfilePage = () => {
   const [transactionPage, setTransactionPage] = useState(1);
   const [transactionItems, setTransactionItems] = useState([]);
   const [transactionTotal, setTransactionTotal] = useState(0);
+  const [allTransactionsTotal, setAllTransactionsTotal] = useState(0);
 
   const [activeSection, setActiveSection] = useState(SECTION_ITEMS[0].id);
 
@@ -558,6 +559,20 @@ const UserProfilePage = () => {
       }
   }, [transactionFilters, transactionSortBy, transactionSortDir, transactionPage]);
 
+  const fetchAllTransactionsCount = useCallback(async () => {
+    try {
+      const params = {
+        pageIndex: 1,
+        pageSize: 1, // Only need totalItems, not the actual items
+      };
+      const paged = await paymentApi.listCustomerPaged(params);
+      setAllTransactionsTotal(Number(paged.totalItems || 0));
+    } catch (e) {
+      // Silently fail - we'll just show 0 or use other fallback
+      setAllTransactionsTotal(0);
+    }
+  }, []);
+
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
@@ -588,6 +603,11 @@ const UserProfilePage = () => {
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  // Fetch total transaction count once on mount
+  useEffect(() => {
+    fetchAllTransactionsCount();
+  }, [fetchAllTransactionsCount]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -864,11 +884,11 @@ const UserProfilePage = () => {
   );
 
   const orderCount =
-    profile?.stats?.orderCount ?? profile?.ordersCount ?? (orders?.length || 0);
+    profile?.stats?.orderCount ?? profile?.ordersCount ?? (allOrders?.length || 0);
   const transactionCount =
     profile?.stats?.transactionCount ??
     profile?.transactionsCount ??
-    (transactions?.length || 0);
+    (allTransactionsTotal || 0);
 
   const profileName =
     profileForm.fullName ||
