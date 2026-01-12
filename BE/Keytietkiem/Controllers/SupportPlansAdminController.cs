@@ -241,7 +241,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateSupportPlan",
                 entityType: "SupportPlan",
                 entityId: entity.SupportPlanId.ToString(),
                 before: null,
@@ -396,7 +396,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateSupportPlan",
                 entityType: "SupportPlan",
                 entityId: entity.SupportPlanId.ToString(),
                 before: before,
@@ -456,7 +456,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteSupportPlan",
                 entityType: "SupportPlan",
                 entityId: entity.SupportPlanId.ToString(),
                 before: before,
@@ -532,7 +532,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Toggle",
+                action: "ToggleSupportPlanActive",
                 entityType: "SupportPlan",
                 entityId: entity.SupportPlanId.ToString(),
                 before: before,

@@ -410,7 +410,7 @@ public class SupportChatController : ControllerBase
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Claim",
+                action: "ClaimSupportChatSession",
                 entityType: "SupportChatSession",
                 entityId: session.ChatSessionId.ToString(),
                 before: new
@@ -451,7 +451,7 @@ public class SupportChatController : ControllerBase
         await _auditLogger.LogAsync(
             HttpContext,
 
-            action: "Claim",
+            action: "ClaimSupportChatSession",
             entityType: "SupportChatSession",
             entityId: session.ChatSessionId.ToString(),
             before: null,
@@ -721,7 +721,7 @@ public class SupportChatController : ControllerBase
 
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Unassign",
+            action: "UnassignSupportChatSession",
             entityType: "SupportChatSession",
             entityId: session.ChatSessionId.ToString(),
             before: null,
@@ -798,7 +798,7 @@ public class SupportChatController : ControllerBase
 
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Close",
+            action: "CloseSupportChatSession",
             entityType: "SupportChatSession",
             entityId: session.ChatSessionId.ToString(),
             before: null,

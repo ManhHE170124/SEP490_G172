@@ -247,7 +247,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – CREATE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateSupportPriorityLoyaltyRule",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: entity.RuleId.ToString(),
                 before: null,
@@ -380,7 +380,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – UPDATE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateSupportPriorityLoyaltyRule",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: entity.RuleId.ToString(),
                 before: before,
@@ -419,7 +419,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – DELETE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteSupportPriorityLoyaltyRule",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: ruleId.ToString(),
                 before: before,
@@ -519,7 +519,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – TOGGLE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Toggle",
+                action: "ToggleSupportPriorityLoyaltyRuleActive",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: entity.RuleId.ToString(),
                 before: before,

@@ -251,13 +251,10 @@ public class AssignAccountToOrderDto
 /// </summary>
 public class ExtendExpiryDateDto
 {
-    [Required(ErrorMessage = "ID tài khoản sản phẩm là bắt buộc")]
     public Guid ProductAccountId { get; set; }
 
-    /// <summary>
-    /// Number of days to extend (optional). If not provided, will use DurationDays from ProductVariant.
-    /// </summary>
-    [Range(1, 3650, ErrorMessage = "Số ngày gia hạn phải từ 1 đến 3650 (10 năm)")]
+    public DateTime? NewExpiryDate { get; set; }
+
     public int? DaysToExtend { get; set; }
 
     public string? Notes { get; set; }

@@ -264,7 +264,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateProductSection",
                 entityType: "ProductSection",
                 entityId: s.SectionId.ToString(),
                 before: null,
@@ -378,7 +378,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateProductSection",
                 entityType: "ProductSection",
                 entityId: s.SectionId.ToString(),
                 before: beforeSnapshot,
@@ -425,7 +425,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteProductSection",
                 entityType: "ProductSection",
                 entityId: s.SectionId.ToString(),
                 before: beforeSnapshot,
@@ -462,7 +462,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Toggle",
+                action: "ToggleProductSectionActive",
                 entityType: "ProductSection",
                 entityId: s.SectionId.ToString(),
                 before: beforeSnapshot,
@@ -504,7 +504,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Reorder",
+                action: "ReorderProductSections",
                 entityType: "ProductSection",
                 entityId: variantId.ToString(),
                 before: beforeSnapshot,

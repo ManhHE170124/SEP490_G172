@@ -89,7 +89,7 @@ public class ProductReportController : ControllerBase
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateProductReport",
                 entityType: "ProductReport",
                 entityId: report.Id.ToString(),
                 before: null,

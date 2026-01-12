@@ -85,7 +85,7 @@ namespace Keytietkiem.Controllers
         private void SetAuditSystemActor(string source)
         {
             // AuditLogger có đọc override từ HttpContext.Items
-            HttpContext.Items["Audit:ActorEmail"] = source; // ví dụ: "PayOSWebhook", "PayOSReturnCancel"
+            HttpContext.Items["Audit:ActorEmail"] = "";
             HttpContext.Items["Audit:ActorRole"] = "System";
         }
 
@@ -1238,7 +1238,7 @@ namespace Keytietkiem.Controllers
                 return Ok(new { message = "Payment status", status = payment.Status });
 
             // ✅ Audit actor = System (PayOS return cancel)
-            SetAuditSystemActor("PayOSReturnCancel");
+            SetAuditSystemActor("");
 
             var prevStatus = payment.Status;
 
@@ -1316,7 +1316,7 @@ namespace Keytietkiem.Controllers
                 return Ok(new { message = "Payment status", status = payment.Status });
 
             // ✅ Audit actor = System (PayOS return cancel)
-            SetAuditSystemActor("PayOSReturnCancel");
+            SetAuditSystemActor("");
 
             var prevStatus = payment.Status;
 
