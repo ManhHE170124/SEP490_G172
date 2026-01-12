@@ -4,6 +4,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { paymentApi } from "../../services/paymentApi";
 import "./AdminPaymentListPage.css";
+import formatDatetime from "../../utils/formatDatetime";
 
 /** ===== Icons (SVG inline) - tránh phụ thuộc react-icons ===== */
 const Ico = {
@@ -131,19 +132,7 @@ const mapStatusToUi = (s) => {
   return { label: s ? String(s) : "Không rõ", cls: "payment-unknown", value: s || "Unknown" };
 };
 
-const fmtDateTime = (d) => {
-  if (!d) return "—";
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return "—";
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(dt);
-};
+const fmtDateTime = (d) => formatDatetime(d);
 
 export default function AdminPaymentListPage() {
   // ===== Draft filters (UI) =====

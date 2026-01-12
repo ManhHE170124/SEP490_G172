@@ -629,7 +629,10 @@ namespace Keytietkiem.Controllers
                     PaymentAttemptCount = 0
                 })
                 .ToListAsync();
-
+            foreach (var it in items)
+            {
+                it.CreatedAt = EnsureUtc(it.CreatedAt);
+            }
             // (optional) gán OrderNumber (nếu bạn muốn)
             foreach (var it in items)
                 it.OrderNumber = FormatOrderNumber(it.OrderId, it.CreatedAt);
@@ -760,6 +763,7 @@ namespace Keytietkiem.Controllers
                 }
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
+                orderDto.CreatedAt = EnsureUtc(orderDto.CreatedAt);
 
                 // ✅ Bổ sung payment summary + attempts (giữ nguyên logic cũ của bạn)
                 var nowUtc = DateTime.UtcNow;
@@ -783,7 +787,11 @@ namespace Keytietkiem.Controllers
                                     && nowUtc > p.CreatedAt.Add(PaymentTimeout)
                     })
                     .ToListAsync();
-
+                foreach (var a in attempts)
+                {
+                    a.CreatedAt = EnsureUtc(a.CreatedAt);
+                    a.ExpiresAtUtc = EnsureUtc(a.ExpiresAtUtc);
+                }
                 var best = attempts
                     .OrderByDescending(x => IsPaidLike(x.Status))
                     .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
@@ -1086,6 +1094,22 @@ namespace Keytietkiem.Controllers
             if (claim == null) return null;
             return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
         }
+        // ✅ FIX UTC+Z: normalize DateTime Kind from SQL/EF (Unspecified) -> Utc
+        private static DateTime EnsureUtc(DateTime dt)
+        {
+            if (dt == default) return dt;
+
+            if (dt.Kind == DateTimeKind.Utc) return dt;
+
+            if (dt.Kind == DateTimeKind.Local)
+                return dt.ToUniversalTime();
+
+            // Unspecified (thường từ SQL Server datetime/datetime2) => coi là UTC và chỉ set Kind
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        }
+
+        private static DateTime? EnsureUtc(DateTime? dt)
+            => dt.HasValue ? EnsureUtc(dt.Value) : null;
 
         private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
         {
@@ -1294,7 +1318,7 @@ namespace Keytietkiem.Controllers
                 DiscountAmount = order.DiscountAmount,
                 FinalAmount = (order.TotalAmount - order.DiscountAmount),
                 Status = displayStatus,
-                CreatedAt = order.CreatedAt,
+                CreatedAt = EnsureUtc(order.CreatedAt),
                 OrderDetails = details
             };
         }

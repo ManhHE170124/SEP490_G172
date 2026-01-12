@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { orderApi } from "../../services/orderApi";
 import "./AdminOrderDetailPage.css";
+import formatDatetime from "../../utils/formatDatetime";
 
 const formatMoneyVnd = (n) => {
   const x = Number(n ?? 0);
@@ -13,15 +14,7 @@ const formatMoneyVnd = (n) => {
   }
 };
 
-const formatDateTime = (dt) => {
-  if (!dt) return "—";
-  const d = new Date(dt);
-  if (Number.isNaN(d.getTime())) return String(dt);
-  const pad = (v) => String(v).padStart(2, "0");
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(
-    d.getDate()
-  )}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-};
+const formatDateTime = (dt) => formatDatetime(dt);
 
 const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 

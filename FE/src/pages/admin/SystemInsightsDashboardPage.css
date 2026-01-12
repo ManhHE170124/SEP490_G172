@@ -215,6 +215,11 @@
   grid-column: span 2;
 }
 
+/* span 3 for full-row panels in grid-3 */
+.sid-span-3 {
+  grid-column: span 3;
+}
+
 .sid-panel {
   background: #fff;
   border: 1px solid var(--line, #e5e7eb);
@@ -246,6 +251,16 @@
 .sid-chart {
   width: 100%;
   margin-top: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+/* Wider 2-column grid: first column narrow, second column wider */
+.sid-grid-2-wide {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
 }
 
 .sid-note {

@@ -10,20 +10,21 @@ const CODE_MAX = 50;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
-// Helper: parse số tiền
+// Helper: parse số tiền (supports vi-VN formatted numbers like 1.234.567 or 1.234,56)
 const parseMoney = (value) => {
   if (value === null || value === undefined) return { num: null, raw: "" };
-  const raw = String(value).replace(/,/g, "").trim();
-  if (!raw) return { num: null, raw: "" };
-  const num = Number(raw);
-  if (!Number.isFinite(num)) return { num: null, raw };
-  return { num, raw };
+  const s = String(value).trim();
+  if (!s) return { num: null, raw: "" };
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return { num: null, raw: s };
+  return { num, raw: s };
 };
 
 // Helper: validate decimal(18,2)
 const isValidDecimal18_2 = (raw) => {
   if (!raw) return false;
-  const normalized = raw.replace(/,/g, "").trim();
+  const normalized = String(raw).trim().replace(/\./g, "").replace(/,/g, ".");
   if (!normalized) return false;
 
   const neg = normalized[0] === "-";
@@ -41,11 +42,23 @@ const isValidDecimal18_2 = (raw) => {
 
 const formatMoney = (val) => {
   const num = Number(val);
-  if (!Number.isFinite(num)) return "0";
-  return num.toLocaleString("vi-VN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+  if (!Number.isFinite(num)) return "0 đ";
+  return (
+    num.toLocaleString("vi-VN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }) + " đ"
+  );
+};
+
+// Format for input (vi-VN style, thousands '.' and decimal ',')
+const formatForInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return s;
+  return num.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 };
 
 export default function VariantsPanel({
@@ -1149,15 +1162,17 @@ export default function VariantsPanel({
               <div className="grid cols-2" style={{ marginTop: 8 }}>
                 <div className="group">
                   <span>
-                    Giá niêm yết
+                    Giá niêm yết (đ)
                     <span style={{ color: "#dc2626" }}>*</span>
                   </span>
                   <input
-                    type="number"
-                    min={0}
-                    step={1000}
+                    type="text"
                     name="listPrice"
-                    defaultValue={0}
+                    defaultValue={formatForInput(0)}
+                    onInput={(e) => {
+                      const cleaned = (e.target.value || "").replace(/[^0-9.,]/g, "");
+                      e.target.value = formatForInput(cleaned);
+                    }}
                     className={modalErrors.listPrice ? "input-error" : ""}
                   />
                   {modalErrors.listPrice && (
@@ -1166,14 +1181,16 @@ export default function VariantsPanel({
                 </div>
                 <div className="group">
                   <span>
-                    Giá bán<span style={{ color: "#dc2626" }}>*</span>
+                    Giá bán (đ)<span style={{ color: "#dc2626" }}>*</span>
                   </span>
                   <input
-                    type="number"
-                    min={0}
-                    step={1000}
+                    type="text"
                     name="sellPrice"
-                    defaultValue={0}
+                    defaultValue={formatForInput(0)}
+                    onInput={(e) => {
+                      const cleaned = (e.target.value || "").replace(/[^0-9.,]/g, "");
+                      e.target.value = formatForInput(cleaned);
+                    }}
                     className={modalErrors.sellPrice ? "input-error" : ""}
                   />
                   {modalErrors.sellPrice && (

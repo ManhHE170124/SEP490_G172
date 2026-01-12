@@ -921,8 +921,8 @@ export default function SystemInsightsDashboardPage() {
           <div className="sid-section-title">Thông báo</div>
 
           <div className="sid-grid-3">
-            {/* Trend */}
-            <div className="sid-panel sid-span-2">
+            {/* Trend - span full row */}
+            <div className="sid-panel sid-span-3">
               <div className="sid-panel-head">
                 <div>
                   <div className="sid-panel-title">Số thông báo theo thời gian</div>
@@ -948,44 +948,32 @@ export default function SystemInsightsDashboardPage() {
               </div>
             </div>
 
-            {/* Pie scope */}
-            <div className="sid-panel">
-              <div className="sid-panel-head">
-                <div>
-                  <div className="sid-panel-title">Cơ cấu phạm vi</div>
-                  <div className="sid-panel-sub">Toàn hệ thống/Theo nhóm quyền/Người dùng cụ thể</div>
-                </div>
-              </div>
+          </div>
 
-              <div className="sid-chart">
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Tooltip formatter={(value, name) => [fmtInt(value), name]} />
-                    <Legend />
-                    <Pie data={notiScopePie} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2} labelLine={false}>
-                      {notiScopePie.map((_, idx) => (
-                        <Cell key={idx} fill={["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#6b7280", "#a78bfa"][idx % 6]} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
+          <div className="sid-grid-2-wide">
             {/* Top types */}
             <div className="sid-panel">
               <div className="sid-panel-head">
                 <div>
                   <div className="sid-panel-title">Top loại thông báo</div>
-                  <div className="sid-panel-sub">Type phổ biến nhất</div>
                 </div>
               </div>
               <TopBars data={topNotiTypes.slice(0, 5)} height={280} barName="Số thông báo" barColor="#f59e0b" />
             </div>
+
+            {/* Phân bố số người nhận (wider) */}
+            <div className="sid-panel">
+              <div className="sid-panel-head">
+                <div>
+                  <div className="sid-panel-title">Phân bố số người nhận</div>
+                </div>
+              </div>
+              <TopBars data={notiRecipientsHistogram} height={280} valueKey="value" labelKey="label" barName="Số người nhận" barColor="#111827" />
+            </div>
           </div>
 
           <div className="sid-grid-2">
-            <div className="sid-panel">
+            <div className="sid-panel sid-span-2">
               <div className="sid-panel-head">
                 <div>
                   <div className="sid-panel-title">Tỷ lệ đã đọc theo thời gian</div>
@@ -1010,15 +998,6 @@ export default function SystemInsightsDashboardPage() {
 
               <div className="sid-note">Ghi chú: biểu đồ hiển thị phần trăm (0–100%).</div>
             </div>
-
-            <div className="sid-panel">
-              <div className="sid-panel-head">
-                <div>
-                  <div className="sid-panel-title">Phân bố số người nhận</div>
-                </div>
-              </div>
-              <TopBars data={notiRecipientsHistogram} height={280} barName="Số thông báo" barColor="#111827" />
-            </div>
           </div>
 
           {/* Severity table */}
@@ -1039,7 +1018,7 @@ export default function SystemInsightsDashboardPage() {
                 <div>Tổng</div>
               </div>
 
-              {(notiSeverityDaily || []).slice(-14).map((r, idx) => (
+              {(notiSeverityDaily || []).slice(-7).map((r, idx) => (
                 <div key={idx} className="sid-sev-row" title={`Ngày ${r.label}`}>
                   <div className="sid-mono">{r.label}</div>
                   <div>{fmtInt(r.info)}</div>
@@ -1055,13 +1034,7 @@ export default function SystemInsightsDashboardPage() {
           </div>
         </section>
 
-        {/* Foot */}
-        <div className="sid-foot">
-          <span className="sid-foot-badge">Thuần tiếng Việt</span>
-          <span className="sid-foot-text">
-            Top hành động/đối tượng đã map theo cấu hình VN của AuditLogs; Notification Type/Severity map theo trang Thông báo hệ thống.
-          </span>
-        </div>
+        {/* Foot (explanatory text removed per request) */}
       </div>
 
       <ToastContainer toasts={toasts} onRemove={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />

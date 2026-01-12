@@ -80,7 +80,21 @@ namespace Keytietkiem.Controllers
             if (claim == null) return null;
             return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
         }
+        // ✅ FIX UTC+Z: normalize DateTime Kind from SQL/EF (Unspecified) -> Utc
+        private static DateTime EnsureUtc(DateTime dt)
+        {
+            if (dt == default) return dt;
 
+            if (dt.Kind == DateTimeKind.Utc) return dt;
+
+            if (dt.Kind == DateTimeKind.Local)
+                return dt.ToUniversalTime();
+
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        }
+
+        private static DateTime? EnsureUtc(DateTime? dt)
+            => dt.HasValue ? EnsureUtc(dt.Value) : null;
         // ================== AUDIT HELPERS (Dashboard Payments) ==================
         private void SetAuditSystemActor(string source)
         {
@@ -314,14 +328,16 @@ namespace Keytietkiem.Controllers
 
             var items = raw.Select(p =>
             {
-                var expiresAt = p.CreatedAt.Add(timeout);
+                // ✅ FIX UTC+Z: đảm bảo CreatedAt/ExpiresAtUtc Kind=Utc trước khi trả về
+                var createdAtUtc = EnsureUtc(p.CreatedAt);
+                var expiresAtUtc = createdAtUtc.Add(timeout);
+
                 var isExpired = string.Equals(p.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase)
-                                && nowUtc > expiresAt;
+                                && nowUtc > expiresAtUtc;
 
                 var key = $"{p.TargetType ?? ""}|{p.TargetId ?? ""}";
                 var isLatest = maxCreatedAtByKey.TryGetValue(key, out var maxAt) && maxAt == p.CreatedAt;
 
-                // ✅ TargetDisplayId theo rule
                 var targetDisplayId =
                     string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                         ? p.TargetId
@@ -334,20 +350,19 @@ namespace Keytietkiem.Controllers
                     PaymentId = p.PaymentId,
                     Amount = p.Amount,
                     Status = p.Status,
-                    CreatedAt = p.CreatedAt,
+                    CreatedAt = createdAtUtc,
                     Provider = p.Provider,
                     ProviderOrderCode = p.ProviderOrderCode,
                     PaymentLinkId = p.PaymentLinkId,
                     Email = p.Email,
                     TargetType = p.TargetType,
-                    TargetId = p.TargetId,                 // raw (OrderId string hoặc SupportPlanId string)
-                    TargetDisplayId = targetDisplayId,     // ✅ đúng yêu cầu hiển thị
+                    TargetId = p.TargetId,
+                    TargetDisplayId = targetDisplayId,
 
-                    ExpiresAtUtc = expiresAt,
+                    ExpiresAtUtc = expiresAtUtc,
                     IsExpired = isExpired,
                     IsLatestAttemptForTarget = isLatest,
 
-                    // ✅ List API: không trả target snapshot để tránh “quick compare/reconcile”/join target info
                     OrderId = null,
                     OrderStatus = null,
                     TargetUserId = null,
@@ -358,6 +373,7 @@ namespace Keytietkiem.Controllers
                     SupportPlanPriority = null
                 };
             }).ToList();
+
 
             return Ok(new
             {
@@ -638,21 +654,23 @@ namespace Keytietkiem.Controllers
 
             var nowUtc = DateTime.UtcNow;
             var timeout = TimeSpan.FromMinutes(5);
-            var expiresAt = p.CreatedAt.Add(timeout);
-            var isExpired = string.Equals(p.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase) && nowUtc > expiresAt;
+            // ✅ FIX UTC+Z: normalize base timestamps
+            var createdAtUtc = EnsureUtc(p.CreatedAt);
+            var expiresAtUtc = createdAtUtc.Add(timeout);
+
+            var isExpired = string.Equals(p.Status, PaymentStatusPending, StringComparison.OrdinalIgnoreCase)
+                            && nowUtc > expiresAtUtc;
 
             string? checkoutUrl = null;
             if (includeCheckoutUrl
                 && string.Equals(p.Provider, "PayOS", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(p.PaymentLinkId))
             {
-                // ✅ DB không lưu checkoutUrl -> lấy lại từ PayOS theo PaymentLinkId
                 checkoutUrl = await _payOs.GetCheckoutUrlByPaymentLinkId(p.PaymentLinkId!);
             }
 
             var targetSnapshot = new PaymentTargetSnapshotDTO();
 
-            // Target = Order
             if (string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                 && Guid.TryParse(p.TargetId, out var orderId))
             {
@@ -665,7 +683,10 @@ namespace Keytietkiem.Controllers
                     targetSnapshot.OrderId = o.OrderId;
                     targetSnapshot.OrderStatus = o.Status;
                     targetSnapshot.OrderEmail = o.Email;
-                    targetSnapshot.OrderCreatedAt = o.CreatedAt;
+
+                    // ✅ FIX UTC+Z
+                    targetSnapshot.OrderCreatedAt = EnsureUtc(o.CreatedAt);
+
                     targetSnapshot.OrderTotalAmount = o.TotalAmount;
                     targetSnapshot.OrderDiscountAmount = o.DiscountAmount;
                     targetSnapshot.OrderFinalAmount = (o.TotalAmount - o.DiscountAmount);
@@ -679,7 +700,6 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // Target = SupportPlan (TargetId = SupportPlanId)
             if (string.Equals(p.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase)
                 && int.TryParse(p.TargetId, out var planId))
             {
@@ -694,7 +714,6 @@ namespace Keytietkiem.Controllers
                     targetSnapshot.SupportPlanPrice = plan.Price;
                 }
 
-                // user lookup theo Payment.Email (flow hiện tại)
                 if (!string.IsNullOrWhiteSpace(p.Email))
                 {
                     var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == p.Email);
@@ -726,15 +745,21 @@ namespace Keytietkiem.Controllers
                                     && DateTime.UtcNow > x.CreatedAt.Add(timeout)
                     })
                     .ToListAsync();
+
+                // ✅ FIX UTC+Z
+                foreach (var a in attempts)
+                {
+                    a.CreatedAt = EnsureUtc(a.CreatedAt);
+                    a.ExpiresAtUtc = EnsureUtc(a.ExpiresAtUtc);
+                }
             }
 
-            // ✅ Detail: chỉ trả Payment detail (không kèm order details)
             return Ok(new PaymentDetailDTO
             {
                 PaymentId = p.PaymentId,
                 Amount = p.Amount,
                 Status = p.Status,
-                CreatedAt = p.CreatedAt,
+                CreatedAt = createdAtUtc,
                 Provider = p.Provider,
                 ProviderOrderCode = p.ProviderOrderCode,
                 PaymentLinkId = p.PaymentLinkId,
@@ -742,19 +767,20 @@ namespace Keytietkiem.Controllers
                 TargetType = p.TargetType,
                 TargetId = p.TargetId,
                 TargetDisplayId =
-        string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
-            ? p.TargetId
-            : (string.Equals(p.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase)
-                ? (targetSnapshot.UserId?.ToString() ?? targetSnapshot.UserEmail)
-                : p.TargetId),
+                    string.Equals(p.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
+                        ? p.TargetId
+                        : (string.Equals(p.TargetType, "SupportPlan", StringComparison.OrdinalIgnoreCase)
+                            ? (targetSnapshot.UserId?.ToString() ?? targetSnapshot.UserEmail)
+                            : p.TargetId),
 
-                ExpiresAtUtc = expiresAt,
+                ExpiresAtUtc = expiresAtUtc,
                 IsExpired = isExpired,
                 CheckoutUrl = checkoutUrl,
                 TargetSnapshot = targetSnapshot,
                 Attempts = attempts
             });
         }
+
 
         // ================== PAYOS WEBHOOK ==================
 
