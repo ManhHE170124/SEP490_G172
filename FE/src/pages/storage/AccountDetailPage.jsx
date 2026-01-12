@@ -60,6 +60,12 @@ export default function AccountDetailPage() {
     newExpiryDate: "",
   });
 
+  const [editExpiryDialog, setEditExpiryDialog] = useState({
+    isOpen: false,
+    newExpiryDate: "",
+    notes: "",
+  });
+
   // History state (for in-page paging and sort)
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -322,6 +328,41 @@ export default function AccountDetailPage() {
     id,
     extendDialog.newExpiryDate,
     formData.expiryDate,
+    loadProductAccount,
+    loadHistory,
+    showSuccess,
+    showError,
+    showWarning,
+  ]);
+
+  const handleEditExpiry = useCallback(async () => {
+    if (!editExpiryDialog.newExpiryDate) {
+      showWarning("Dữ liệu không hợp lệ", "Vui lòng chọn ngày hết hạn mới");
+      return;
+    }
+
+    try {
+      await ProductAccountApi.editExpiryDate(id, {
+        productAccountId: id,
+        newExpiryDate: editExpiryDialog.newExpiryDate,
+        notes: editExpiryDialog.notes,
+      });
+      showSuccess("Thành công", "Đã cập nhật ngày hết hạn thành công");
+      setEditExpiryDialog({ isOpen: false, newExpiryDate: "", notes: "" });
+      await loadProductAccount();
+      await loadHistory(true);
+    } catch (err) {
+      console.error("Edit expiry failed:", err);
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Không thể cập nhật ngày hết hạn";
+      showError("Lỗi", msg);
+    }
+  }, [
+    id,
+    editExpiryDialog.newExpiryDate,
+    editExpiryDialog.notes,
     loadProductAccount,
     loadHistory,
     showSuccess,
@@ -636,14 +677,28 @@ export default function AccountDetailPage() {
       {extendDialog.isOpen && (
         (() => {
           const calculateMinDate = () => {
-             if (!formData.expiryDate) return todayStr;
-             const parts = formData.expiryDate.split('-');
-             if (parts.length !== 3) return todayStr;
              const duration = parseInt(selectedVariant?.durationDays ?? 0);
              if (duration <= 0) return todayStr;
-             const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-             // Set min date to current expiry + duration (next possible expiry)
-             d.setDate(d.getDate() + 1 + duration);
+             
+             let baseDate = new Date(); // Default to today
+             if (formData.expiryDate) {
+                 const parts = formData.expiryDate.split('-');
+                 if (parts.length === 3) {
+                     const expiry = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                     // If expiry is in future, use it as base
+                     const today = new Date();
+                     today.setHours(0, 0, 0, 0);
+                     if (expiry > today) {
+                         baseDate = expiry;
+                     }
+                 }
+             }
+
+             // duplicate to modify
+             const d = new Date(baseDate); 
+             // Set min date to base + duration + 1 day (start of next cycle)
+             d.setDate(d.getDate() + duration);
+             
              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           };
           const minDateVal = calculateMinDate();
@@ -701,10 +756,10 @@ export default function AccountDetailPage() {
                     newExpiryDate: e.target.value,
                   }))
                 }
-                min={todayStr}
+                min={minDateVal}
               />
               <small style={{ color: "#6b7280", marginTop: 4 }}>
-                Ngày mới phải sau ngày hôm nay (Min: {todayStr})
+                Ngày mới phải tối thiểu là {minDateVal} (Kế thừa {formData.expiryDate > new Date().toISOString().split('T')[0] ? "hạn cũ" : "hôm nay"} + gói)
               </small>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
@@ -728,6 +783,115 @@ export default function AccountDetailPage() {
           </div>
         </div>
           );
+        })()
+      )}
+
+      {/* Edit Expiry Dialog */}
+      {editExpiryDialog.isOpen && (
+        (() => {
+           // Calculate min date: Today + Duration
+           // If no variant duration, fallback to today
+           const duration = parseInt(selectedVariant?.durationDays ?? 0);
+           const t = new Date();
+           if (duration > 0) {
+             t.setDate(t.getDate() + duration);
+           }
+           const yyyy = t.getFullYear();
+           const mm = String(t.getMonth() + 1).padStart(2, "0");
+           const dd = String(t.getDate()).padStart(2, "0");
+           const minEditDate = `${yyyy}-${mm}-${dd}`;
+
+           return (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setEditExpiryDialog({ isOpen: false, newExpiryDate: "", notes: "" })}
+        >
+          <div
+            className="card"
+            style={{
+              minWidth: 400,
+              maxWidth: 500,
+              padding: 24,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0 }}>Sửa ngày hết hạn</h2>
+            <p style={{ color: "#6b7280", marginBottom: 16 }}>
+              Đặt lại ngày hết hạn cho tài khoản này (Ghi đè)
+            </p>
+            <div className="group">
+              <span>
+                Ngày hết hạn hiện tại
+              </span>
+              <input
+                className="input"
+                type="text"
+                value={formatVietnameseDate(formData.expiryDate)}
+                disabled
+              />
+            </div>
+            <div className="group">
+              <span style={{ whiteSpace: "nowrap" }}>
+                Ngày hết hạn mới <span style={{ color: "red" }}>*</span>
+              </span>
+              <input
+                className="input"
+                type="date"
+                value={editExpiryDialog.newExpiryDate}
+                onChange={(e) =>
+                  setEditExpiryDialog((prev) => ({
+                    ...prev,
+                    newExpiryDate: e.target.value,
+                  }))
+                }
+                min={minEditDate}
+              />
+              <small style={{ color: "#6b7280", marginTop: 4 }}>
+                Ngày mới phải tối thiểu là {minEditDate} (Hôm nay + {duration} ngày theo gói)
+              </small>
+            </div>
+            <div className="group">
+               <span>Ghi chú thay đổi</span>
+               <textarea
+                  className="textarea"
+                  value={editExpiryDialog.notes}
+                  onChange={(e) => setEditExpiryDialog(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Lý do thay đổi..."
+                  rows={2}
+               />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={handleEditExpiry}
+              >
+                Xác nhận
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() =>
+                  setEditExpiryDialog({ isOpen: false, newExpiryDate: "", notes: "" })
+                }
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+           );
         })()
       )}
 
@@ -1041,15 +1205,51 @@ export default function AccountDetailPage() {
                   <button
                     type="button"
                     className="btn"
+                    style={{ color: "#f3bb02ff", border: "1px solid #f3bb02ff" }}
                     onClick={() => {
+                        // Calculate default min date (Same logic as in dialog)
+                        const duration = parseInt(selectedVariant?.durationDays ?? 0);
+                        let baseDate = new Date(); // Default to today
+                        if (formData.expiryDate) {
+                            const parts = formData.expiryDate.split('-');
+                            if (parts.length === 3) {
+                                const expiry = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                if (expiry > today) {
+                                    baseDate = expiry;
+                                }
+                            }
+                        }
+                        const d = new Date(baseDate);
+                        d.setDate(d.getDate() + duration);
+                        const minDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
                         setExtendDialog({
                             isOpen: true,
-                            newExpiryDate: todayStr,
+                            newExpiryDate: minDateStr,
                         });
                     }}
                     title="Gia hạn tài khoản"
                   >
                     Gia hạn
+                  </button>
+                )}
+                {!isNew && (
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    onClick={() => {
+                        setEditExpiryDialog({
+                            isOpen: true,
+                            newExpiryDate: formData.expiryDate, // Pre-fill with current date
+                            notes: ""
+                        });
+                    }}
+                    title="Sửa ngày hết hạn (Ghi đè)"
+                    style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}
+                  >
+                    Sửa
                   </button>
                 )}
               </div>

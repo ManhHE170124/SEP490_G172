@@ -895,6 +895,84 @@ public class ProductAccountService : IProductAccountService
     }
     
 
+
+    public async Task<ProductAccountResponseDto> EditExpiryDateAsync(
+        EditProductAccountExpiryDto editDto,
+        Guid editedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _context.ProductAccounts
+            .Include(pa => pa.Variant)
+            .FirstOrDefaultAsync(pa => pa.ProductAccountId == editDto.ProductAccountId, cancellationToken);
+
+        if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
+
+        // Validate: new expiry date must be >= today + duration
+        var now = _clock.UtcNow;
+        var today = now.Date;
+        
+        // If variant has duration, use it. If not, maybe fallback to 0 or 30? Use 0 to be safe (min is just today)
+        var durationDays = account.Variant?.DurationDays ?? 0;
+        
+        // Calculate min date: Today + Duration
+        // Example: Today = 13/01. Duration = 30 days. Min = 12/02.
+        var minDate = today.AddDays(durationDays);
+
+        // Normalize input date to compare properly (ignore time part of input if needed, but DateTime usually has time)
+        // If user sends 2026-02-28 (midnight), and minDate is 2026-02-28, it matches.
+        if (editDto.NewExpiryDate.Date < minDate)
+        {
+            throw new InvalidOperationException(
+                $"Ngày hết hạn mới phải từ {minDate:dd/MM/yyyy} trở đi (Hôm nay + {durationDays} ngày theo gói).");
+        }
+
+        var oldExpiryDate = account.ExpiryDate;
+        
+        account.ExpiryDate = editDto.NewExpiryDate;
+        account.UpdatedAt = now;
+        account.UpdatedBy = editedBy;
+
+        // Auto-update status if expired account is now valid again
+        if (account.Status == nameof(ProductAccountStatus.Expired) && account.ExpiryDate > now)
+        {
+            // Check if full
+            var currentActiveUsers = await _productAccountCustomerRepository.Query()
+                .CountAsync(pac => pac.ProductAccountId == account.ProductAccountId && pac.IsActive, cancellationToken);
+                
+            if (currentActiveUsers >= account.MaxUsers)
+                account.Status = nameof(ProductAccountStatus.Full);
+            else
+                account.Status = nameof(ProductAccountStatus.Active);
+        }
+
+        _productAccountRepository.Update(account);
+
+        // Log history
+        var notes = string.IsNullOrWhiteSpace(editDto.Notes)
+            ? $"Sửa ngày hết hạn. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}"
+            : $"Sửa ngày hết hạn. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {editDto.Notes}";
+
+        var history = new ProductAccountHistory
+        {
+            ProductAccountId = account.ProductAccountId,
+            UserId = null,
+            Action = nameof(ProductAccountAction.UpdateSlot), // Reusing existing action enum for simplicity or "CredentialsUpdated"? 'UpdateSlot' works for admin override. Actually 'CredentialsUpdated' is better as generic update. Or just custom string "EditExpiry".
+            ActionBy = editedBy,
+            ActionAt = now,
+            Notes = notes
+        };
+        // Override action to be specific
+        history.Action = "EditExpiry";
+
+        await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Sync stock is handled by caller (Controller) using VariantStockRecalculator usually
+        // but we return the DTO so controller can do it.
+
+        return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
+    }
+
     private static void ValidateProductAccountEntity(ProductAccount account, bool requireExpiryDate)
     {
         var validationContext = new ValidationContext(account);

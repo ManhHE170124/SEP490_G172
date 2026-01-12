@@ -70,6 +70,11 @@ public interface IProductAccountService
     Task<List<ProductAccountResponseDto>> GetAccountsExpiringSoonAsync(int days = 5, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Edit the expiry date of a product account manually
+    /// </summary>
+    Task<ProductAccountResponseDto> EditExpiryDateAsync(EditProductAccountExpiryDto editDto, Guid editedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get expired product accounts (pagination supported)
     /// </summary>
     Task<ProductAccountListResponseDto> GetExpiredAccountsAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
