@@ -55,6 +55,24 @@ public class ProductAccountController : ControllerBase
     }
 
     /// <summary>
+    /// Get paginated list of expired product accounts
+    /// </summary>
+    [HttpGet("expired")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+    public async Task<IActionResult> GetExpired([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    {
+        try
+        {
+            var response = await _productAccountService.GetExpiredAccountsAsync(pageNumber, pageSize);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Get a single product account by ID (password masked)
     /// </summary>
     [HttpGet("{id}")]
