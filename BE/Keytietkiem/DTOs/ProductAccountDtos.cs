@@ -259,3 +259,18 @@ public class ExtendExpiryDateDto
 
     public string? Notes { get; set; }
 }
+
+/// <summary>
+/// DTO for directly editing expiry date of product account with validation
+/// </summary>
+public class EditProductAccountExpiryDto
+{
+    [Required]
+    public Guid ProductAccountId { get; set; }
+
+    [Required]
+    public DateTime NewExpiryDate { get; set; }
+
+    [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự")]
+    public string? Notes { get; set; }
+}
