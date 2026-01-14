@@ -1,7 +1,7 @@
 /**
  * File: PostRepository.cs
- * Author: Keytietkiem Team
- * Created: 2025
+ * Author: HieuNDHE173169
+ * Created: 31/12/2025
  * Version: 1.0.0
  * Purpose: Repository implementation for Post, PostComment, Tag, and PostType data access.
  *          Inherits from BaseRepository to share DbContext connection.

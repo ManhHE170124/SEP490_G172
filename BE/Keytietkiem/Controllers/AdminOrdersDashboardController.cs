@@ -130,7 +130,7 @@ namespace Keytietkiem.Controllers
                     alerts.Add(new DashboardAlertDto
                     {
                         Code = "NO_DATA",
-                        Severity = 1,
+                        Severity = "warn",
                         Message = "Không có đơn hàng nào trong khoảng thời gian đã chọn."
                     });
                 }
@@ -139,7 +139,7 @@ namespace Keytietkiem.Controllers
                     alerts.Add(new DashboardAlertDto
                     {
                         Code = "PENDING_EXISTS",
-                        Severity = 0,
+                        Severity = "info",
                         Message = $"Có {pendingOrders} đơn đang chờ thanh toán."
                     });
                 }
@@ -568,11 +568,6 @@ namespace Keytietkiem.Controllers
             public int OrdersCount { get; set; }
         }
 
-        public class DashboardAlertDto
-        {
-            public string Code { get; set; } = "";
-            public byte Severity { get; set; } = 0; // 0 info, 1 warn, 2 error
-            public string Message { get; set; } = "";
-        }
+        
     }
 }

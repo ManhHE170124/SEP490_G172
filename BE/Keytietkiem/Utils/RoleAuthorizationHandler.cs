@@ -1,7 +1,7 @@
 /**
  * File: RoleAuthorizationHandler.cs
- * Author: Keytietkiem Team
- * Created: 2025
+ * Author: HieuNDHE173169
+ * Created: 31/12/2025
  * Purpose: Authorization handler that checks if user has required role(s).
  *          Uses JWT claims for role checking - no database queries needed.
  *          This is a simpler replacement for PermissionAuthorizationHandler.

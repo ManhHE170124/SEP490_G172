@@ -36,6 +36,10 @@ using System.Linq;
 
 namespace Keytietkiem.Controllers
 {
+    /// <summary>
+    /// Controller for managing roles (CRUD operations).
+    /// Initializes role-permissions for all modules and permissions on role creation and maintains referential integrity on updates/deletions.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
@@ -44,6 +48,11 @@ namespace Keytietkiem.Controllers
         private readonly KeytietkiemDbContext _context;
         private readonly IAuditLogger _auditLogger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="RolesController"/> class.
+        /// </summary>
+        /// <param name="context">The database context.</param>
+        /// <param name="auditLogger">The audit logger for tracking changes.</param>
         public RolesController(KeytietkiemDbContext context, IAuditLogger auditLogger)
         {
             _context = context;
@@ -51,8 +60,9 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Get a list of roles excluding any role whose name contains "admin" (case-insensitive).
+        /// Retrieves a list of roles excluding any role whose name contains "admin" (case-insensitive).
         /// </summary>
+        /// <returns>200 OK with list of roles.</returns>
         [HttpGet]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> Get()
@@ -66,12 +76,10 @@ namespace Keytietkiem.Controllers
             return Ok(roles);
         }
 
-        /**
-         * Summary: Retrieve all roles.
-         * Route: GET /api/roles/list
-         * Params: none
-         * Returns: 200 OK with list of roles
-         */
+        /// <summary>
+        /// Retrieves all roles.
+        /// </summary>
+        /// <returns>200 OK with list of roles.</returns>
         [HttpGet("list")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoles()
@@ -91,12 +99,11 @@ namespace Keytietkiem.Controllers
             return Ok(roles);
         }
 
-        /**
-         * Summary: Retrieve a role by id including role-permissions.
-         * Route: GET /api/roles/{id}
-         * Params: id (string) - role identifier
-         * Returns: 200 OK with role, 404 if not found
-         */
+        /// <summary>
+        /// Retrieves a role by its identifier including role-permissions.
+        /// </summary>
+        /// <param name="id">The role identifier.</param>
+        /// <returns>200 OK with role details, or 404 if not found.</returns>
         [HttpGet("{id}")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRoleById(string id)
@@ -136,12 +143,11 @@ namespace Keytietkiem.Controllers
             return Ok(roleResponse);
         }
 
-        /**
-         * Summary: Create a new role and seed role-permissions for all modules & permissions.
-         * Route: POST /api/roles
-         * Body: CreateRoleDTO
-         * Returns: 201 Created with created role, 400/409 on validation errors
-         */
+        /// <summary>
+        /// Creates a new role and seeds role-permissions for all modules and permissions.
+        /// </summary>
+        /// <param name="createRoleDto">The role creation data.</param>
+        /// <returns>201 Created with the created role, or 400/409 on validation errors.</returns>
         [HttpPost]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleDTO createRoleDto)
@@ -249,13 +255,12 @@ namespace Keytietkiem.Controllers
             return CreatedAtAction(nameof(GetRoleById), new { id = newRole.RoleId }, roleDto);
         }
 
-        /**
-        * Summary: Update an existing role by id.
-        * Route: PUT /api/roles/{id}
-        * Params: id (string)
-        * Body: UpdateRoleDTO
-        * Returns: 204 No Content, 400/404 on errors
-        */
+        /// <summary>
+        /// Updates an existing role.
+        /// </summary>
+        /// <param name="id">The role identifier.</param>
+        /// <param name="updateRoleDto">The role update data.</param>
+        /// <returns>204 No Content on success, or 400/404 on errors.</returns>
         [HttpPut("{id}")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDTO updateRoleDto)
@@ -331,12 +336,11 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        /**
-         * Summary: Delete a role by id and cascade remove related role-permissions.
-         * Route: DELETE /api/roles/{id}
-         * Params: id (string)
-         * Returns: 204 No Content, 404 if not found
-         */
+        /// <summary>
+        /// Deletes a role and cascades removal of related role-permissions.
+        /// </summary>
+        /// <param name="id">The role identifier.</param>
+        /// <returns>204 No Content on success, or 404 if not found.</returns>
         [HttpDelete("{id}")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> DeleteRoleById(string id)
@@ -375,12 +379,10 @@ namespace Keytietkiem.Controllers
             return NoContent();
         }
 
-        /**
-         * Summary: Retrieve all active roles.
-         * Route: GET /api/roles/active
-         * Params: none
-         * Returns: 200 OK with list of active roles
-         */
+        /// <summary>
+        /// Retrieves all active roles.
+        /// </summary>
+        /// <returns>200 OK with list of active roles.</returns>
         [HttpGet("active")]
         public async Task<IActionResult> GetActiveRoles()
         {
@@ -401,12 +403,11 @@ namespace Keytietkiem.Controllers
             return Ok(activeRoles);
         }
 
-        /**
-         * Summary: Get role permissions matrix for a specific role.
-         * Route: GET /api/roles/{id}/permissions
-         * Params: id (string) - role identifier
-         * Returns: 200 OK with role permissions matrix, 404 if role not found
-         */
+        /// <summary>
+        /// Retrieves the role permissions matrix for a specific role.
+        /// </summary>
+        /// <param name="id">The role identifier.</param>
+        /// <returns>200 OK with role permissions matrix, or 404 if role not found.</returns>
         [HttpGet("{id}/permissions")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> GetRolePermissions(string id)
@@ -443,13 +444,12 @@ namespace Keytietkiem.Controllers
             return Ok(response);
         }
 
-        /**
-         * Summary: Bulk update role permissions for a specific role.
-         * Route: PUT /api/roles/{id}/permissions
-         * Params: id (string) - role identifier
-         * Body: BulkRolePermissionUpdateDTO - list of role permissions to update
-         * Returns: 200 OK with updated role permissions, 400/404 on errors
-         */
+        /// <summary>
+        /// Bulk updates role permissions for a specific role.
+        /// </summary>
+        /// <param name="id">The role identifier.</param>
+        /// <param name="updateDto">The bulk role permission update data.</param>
+        /// <returns>200 OK with updated role permissions, or 400/404 on errors.</returns>
         [HttpPut("{id}/permissions")]
         [RequireRole(RoleCodes.ADMIN)]
         public async Task<IActionResult> UpdateRolePermissions(string id, [FromBody] BulkRolePermissionUpdateDTO updateDto)
@@ -559,13 +559,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Retrieve modules that the provided role codes can access for a specific permission.
-         * Route: POST /api/roles/module-access
-         * Body: ModuleAccessRequestDTO - list of role codes and permission code (required, no default)
-         * Returns: 200 OK with list of modules the roles can access
-         * Note: PermissionCode is now required (ACCESS permission has been removed)
-         */
+        /// <summary>
+        /// Retrieves modules that the provided role codes can access for a specific permission.
+        /// </summary>
+        /// <param name="request">The module access request containing role codes and permission code.</param>
+        /// <returns>200 OK with list of modules the roles can access.</returns>
+        /// <remarks>PermissionCode is required (ACCESS permission has been removed).</remarks>
         [HttpPost("module-access")]
         public async Task<IActionResult> GetModuleAccessForRoles([FromBody] ModuleAccessRequestDTO request)
         {
@@ -622,12 +621,11 @@ namespace Keytietkiem.Controllers
             return Ok(modules);
         }
 
-        /**
-         * Summary: Check if a role has active permission for a module and permission.
-         * Route: POST /api/roles/check-permission
-         * Body: CheckPermissionRequestDTO - role code, module code, permission code
-         * Returns: 200 OK with CheckPermissionResponseDTO indicating if access is granted
-         */
+        /// <summary>
+        /// Checks if a role has active permission for a module and permission.
+        /// </summary>
+        /// <param name="request">The permission check request containing role code, module code, and permission code.</param>
+        /// <returns>200 OK with CheckPermissionResponseDTO indicating if access is granted.</returns>
         [HttpPost("check-permission")]
         public async Task<IActionResult> CheckPermission([FromBody] CheckPermissionRequestDTO request)
         {
@@ -700,12 +698,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Check permissions for multiple role codes (for users with multiple roles).
-         * Route: POST /api/roles/check-permissions
-         * Body: List of CheckPermissionRequestDTO
-         * Returns: 200 OK with list of CheckPermissionResponseDTO
-         */
+        /// <summary>
+        /// Checks permissions for multiple role codes (for users with multiple roles).
+        /// </summary>
+        /// <param name="requests">List of permission check requests.</param>
+        /// <returns>200 OK with list of CheckPermissionResponseDTO.</returns>
         [HttpPost("check-permissions")]
         public async Task<IActionResult> CheckPermissions([FromBody] List<CheckPermissionRequestDTO> requests)
         {

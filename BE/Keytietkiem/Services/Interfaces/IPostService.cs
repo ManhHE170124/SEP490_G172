@@ -1,7 +1,7 @@
 /**
  * File: IPostService.cs
- * Author: Keytietkiem Team
- * Created: 2025
+ * Author: HieuNDHE173169
+ * Created: 31/12/2025
  * Version: 1.0.0
  * Purpose: Service interface for Post, PostComment, Tag, and PostType business logic operations.
  */

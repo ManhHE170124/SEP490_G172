@@ -19,6 +19,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Roles
 {
+    /// <summary>
+    /// Data Transfer Object for Role operations.
+    /// </summary>
     public class RoleDTO
     {
         public string RoleId { get; set; } = null!;
@@ -30,6 +33,9 @@ namespace Keytietkiem.DTOs.Roles
         public DateTime? UpdatedAt { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for creating a new role.
+    /// </summary>
     public class CreateRoleDTO
     {
         [StringLength(50, ErrorMessage = "ID vai trò không được vượt quá 50 ký tự.")]
@@ -46,6 +52,9 @@ namespace Keytietkiem.DTOs.Roles
         public bool IsSystem { get; set; } = false;
     }
 
+    /// <summary>
+    /// Data Transfer Object for updating an existing role.
+    /// </summary>
     public class UpdateRoleDTO
     {
         [Required(ErrorMessage = "Tên vai trò không được để trống.")]
@@ -59,11 +68,17 @@ namespace Keytietkiem.DTOs.Roles
         public bool IsActive { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for role response with permissions.
+    /// </summary>
     public class RoleResponseDTO : RoleDTO
     {
         public List<RolePermissionDTO> RolePermissions { get; set; } = new List<RolePermissionDTO>();
     }
 
+    /// <summary>
+    /// Data Transfer Object for role permission.
+    /// </summary>
     public class RolePermissionDTO
     {
         public string RoleId { get; set; } = null!;
