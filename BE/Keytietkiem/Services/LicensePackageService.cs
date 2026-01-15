@@ -11,6 +11,7 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Repositories;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils; // ✅ add: call VariantStockRecalculator directly
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -556,17 +557,15 @@ namespace Keytietkiem.Services
                     _context.LicensePackages.Update(package);
                 }
 
-                var variant = await _context.ProductVariants
-                    .FirstOrDefaultAsync(v => v.VariantId == variantId, cancellationToken);
-
-                if (variant != null)
-                {
-                    variant.StockQty += successCount;
-                    variant.UpdatedAt = DateTime.UtcNow;
-                    _context.ProductVariants.Update(variant);
-                }
-
+                // ✅ KHÔNG cộng StockQty thủ công nữa.
+                // ✅ Sau khi insert keys xong -> tính lại stock/status theo inventory thực tế.
                 await _context.SaveChangesAsync(cancellationToken);
+
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    _context,
+                    variantId,
+                    _clock.UtcNow,
+                    cancellationToken);
 
                 result.PackageId = package.PackageId;
                 result.SuccessfullyImported = successCount;
@@ -593,7 +592,6 @@ namespace Keytietkiem.Services
                     result.Message += $". Có {result.Errors.Count} lỗi được tìm thấy.";
                 }
 
-                await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 _logger.LogInformation(

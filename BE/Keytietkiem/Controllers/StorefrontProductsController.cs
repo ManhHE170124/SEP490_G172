@@ -25,6 +25,10 @@ namespace Keytietkiem.Controllers
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
 
+        // Hide variants/products that were manually set inactive
+        // Keep as constants so EF can translate Contains(...) into SQL IN(...)
+        private static readonly string[] HiddenStatuses = new[] { "INACTIVE" };
+
         public StorefrontProductsController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
             IClock clock)
@@ -52,94 +56,62 @@ namespace Keytietkiem.Controllers
             return t.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase);
         }
 
+        // ===== Status helpers =====
+        // DB may store: Active / OutOfStock / INACTIVE
+        // Storefront expects: ACTIVE / OUT_OF_STOCK
+        private static string NormalizeStorefrontStatus(string? dbStatus)
+        {
+            var s = (dbStatus ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(s)) return "ACTIVE";
+
+            if (s.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("Active", StringComparison.OrdinalIgnoreCase))
+                return "ACTIVE";
+
+            if (s.Equals("OUT_OF_STOCK", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("OutOfStock", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("OUTOFSTOCK", StringComparison.OrdinalIgnoreCase))
+                return "OUT_OF_STOCK";
+
+            if (s.Equals("INACTIVE", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("Inactive", StringComparison.OrdinalIgnoreCase))
+                return "INACTIVE";
+
+            // fallback: keep a stable token to help FE logic
+            return s.ToUpperInvariant();
+        }
+
         private static async Task<Dictionary<Guid, int>> ComputeAvailableStockByVariantIdAsync(
             KeytietkiemDbContext db,
             List<VariantStockSeed> seeds,
             DateTime nowUtc,
             CancellationToken ct)
         {
+            // ✅ IMPORTANT: StockQty has been persisted in DB as the real available stock
+            // (jobs/services already recalc inventory + apply reservations). Storefront should
+            // read it directly to avoid double-subtracting reservations or re-counting items.
+            //
+            // NOTE: keep this helper signature to minimize changes in call sites.
+            _ = db;
+            _ = nowUtc;
+            _ = ct;
+
             var variantIds = seeds.Select(s => s.VariantId).Distinct().ToList();
             if (variantIds.Count == 0) return new Dictionary<Guid, int>();
 
-            var productTypeByVariantId = seeds
-                .GroupBy(s => s.VariantId)
-                .ToDictionary(g => g.Key, g => g.First().ProductType);
-
-            var fallbackStockByVariantId = seeds
+            var stockByVariantId = seeds
                 .GroupBy(s => s.VariantId)
                 .ToDictionary(g => g.Key, g => g.First().StockQtyFromDb);
 
-            var reservedByVariantId = await db.Set<OrderInventoryReservation>()
-                .AsNoTracking()
-                .Where(r => variantIds.Contains(r.VariantId)
-                            && r.ReservedUntilUtc > nowUtc
-                            && r.Status == "Reserved")
-                .GroupBy(r => r.VariantId)
-                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Quantity) })
-                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
-
-            var keyCountByVariantId = await db.Set<ProductKey>()
-                .AsNoTracking()
-                .Where(k => variantIds.Contains(k.VariantId)
-                            && k.Status == nameof(ProductKeyStatus.Available)
-                            && k.AssignedToOrderId == null
-                            && (!k.ExpiryDate.HasValue || k.ExpiryDate.Value >= nowUtc))
-                .GroupBy(k => k.VariantId)
-                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
-                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
-
-            var personalAccountCountByVariantId = await db.Set<ProductAccount>()
-                .AsNoTracking()
-                .Where(pa => variantIds.Contains(pa.VariantId)
-                             && pa.Status == nameof(ProductAccountStatus.Active)
-                             && pa.MaxUsers == 1
-                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc)
-                             && !pa.ProductAccountCustomers.Any(pac => pac.IsActive))
-                .GroupBy(pa => pa.VariantId)
-                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
-                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
-
-            var sharedAccountSlotsByVariantId = await db.Set<ProductAccount>()
-                .AsNoTracking()
-                .Where(pa => variantIds.Contains(pa.VariantId)
-                             && pa.Status == nameof(ProductAccountStatus.Active)
-                             && pa.MaxUsers > 1
-                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc))
-                .Select(pa => new
-                {
-                    pa.VariantId,
-                    Available = pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive)
-                })
-                .Where(x => x.Available > 0)
-                .GroupBy(x => x.VariantId)
-                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Available) })
-                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
-
             var result = new Dictionary<Guid, int>(variantIds.Count);
-
             foreach (var id in variantIds)
             {
-                productTypeByVariantId.TryGetValue(id, out var ptRaw);
-                var pt = (ptRaw ?? "").Trim();
-
-                int raw;
-                if (IsKeyType(pt))
-                    raw = keyCountByVariantId.TryGetValue(id, out var kq) ? kq : 0;
-                else if (IsPersonalAccountType(pt))
-                    raw = personalAccountCountByVariantId.TryGetValue(id, out var aq) ? aq : 0;
-                else if (IsSharedAccountType(pt))
-                    raw = sharedAccountSlotsByVariantId.TryGetValue(id, out var sq) ? sq : 0;
-                else
-                    raw = fallbackStockByVariantId.TryGetValue(id, out var fb) ? fb : 0;
-
-                var reserved = reservedByVariantId.TryGetValue(id, out var rq) ? rq : 0;
-                var available = raw - reserved;
-                if (available < 0) available = 0;
-
-                result[id] = available;
+                var stock = stockByVariantId.TryGetValue(id, out var s) ? s : 0;
+                if (stock < 0) stock = 0;
+                result[id] = stock;
             }
 
-            return result;
+            return await Task.FromResult(result);
         }
 
         [HttpGet("filters")]
@@ -174,7 +146,7 @@ namespace Keytietkiem.Controllers
             var ct = HttpContext.RequestAborted;
             var nowUtc = _clock.UtcNow;
 
-            // ===== Base query: chỉ ẩn INACTIVE, status ACTIVE/OUT sẽ derive theo stock thật =====
+            // ===== Base query: chỉ ẩn INACTIVE (case-insensitive) =====
             var q = db.ProductVariants
                 .AsNoTracking()
                 .Include(v => v.Product)
@@ -182,8 +154,8 @@ namespace Keytietkiem.Controllers
                 .Include(v => v.Product)
                     .ThenInclude(p => p.ProductBadges)
                 .Where(v =>
-                    (v.Product.Status == null || v.Product.Status != "INACTIVE") &&
-                    (v.Status == null || v.Status != "INACTIVE"));
+                    (v.Product.Status == null || !HiddenStatuses.Contains(v.Product.Status.ToUpper())) &&
+                    (v.Status == null || !HiddenStatuses.Contains(v.Status.ToUpper())));
 
             if (!string.IsNullOrWhiteSpace(query.Q))
             {
@@ -393,8 +365,8 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
-                    // ✅ status derive theo stock thật (INACTIVE đã bị filter)
-                    var status = i.StockQty <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
+                    // ✅ status hiển thị theo DB (đã filter INACTIVE
+                    var status = NormalizeStorefrontStatus(i.Status);
 
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
@@ -434,8 +406,8 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(x =>
                     x.ProductId == productId &&
                     x.VariantId == variantId &&
-                    (x.Product.Status == null || x.Product.Status != "INACTIVE") &&
-                    (x.Status == null || x.Status != "INACTIVE"), ct);
+                    (x.Product.Status == null || !HiddenStatuses.Contains(x.Product.Status.ToUpper())) &&
+                    (x.Status == null || !HiddenStatuses.Contains(x.Status.ToUpper())), ct);
 
             if (v is null) return NotFound();
 
@@ -455,7 +427,8 @@ namespace Keytietkiem.Controllers
             var stockLookup = await ComputeAvailableStockByVariantIdAsync(db, seed, nowUtc, ct);
             var avail = stockLookup.TryGetValue(v.VariantId, out var st) ? st : v.StockQty;
 
-            var detailStatus = avail <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
+            // ✅ status hiển thị theo DB
+            var detailStatus = NormalizeStorefrontStatus(v.Status);
 
             var categories = p.Categories
                 .Where(c => c.IsActive)
@@ -472,26 +445,19 @@ namespace Keytietkiem.Controllers
                 .AsNoTracking()
                 .Where(x =>
                     x.ProductId == productId &&
-                    (x.Status == null || x.Status != "INACTIVE"))
+                    (x.Status == null || !HiddenStatuses.Contains(x.Status.ToUpper())))
                 .OrderByDescending(x => x.ViewCount)
                 .ThenBy(x => x.Title)
-                .Select(x => new { x.VariantId, x.Title, x.StockQty })
+                .Select(x => new { x.VariantId, x.Title, x.Status, x.StockQty })
                 .ToListAsync(ct);
-
-            var siblingSeeds = siblingRaw
-                .Select(x => new VariantStockSeed(x.VariantId, p.ProductType, x.StockQty))
-                .ToList();
-
-            var siblingStock = await ComputeAvailableStockByVariantIdAsync(db, siblingSeeds, nowUtc, ct);
 
             var siblingVariants = siblingRaw
                 .Select(x =>
                 {
-                    var sAvail = siblingStock.TryGetValue(x.VariantId, out var sx) ? sx : x.StockQty;
                     return new StorefrontSiblingVariantDto(
                         x.VariantId,
                         x.Title,
-                        sAvail <= 0 ? "OUT_OF_STOCK" : "ACTIVE"
+                        NormalizeStorefrontStatus(x.Status)
                     );
                 })
                 .ToList();
@@ -587,8 +553,8 @@ namespace Keytietkiem.Controllers
                 .FirstOrDefaultAsync(v =>
                     v.ProductId == productId &&
                     v.VariantId == variantId &&
-                    (v.Product.Status == null || v.Product.Status != "INACTIVE") &&
-                    (v.Status == null || v.Status != "INACTIVE"), ct);
+                    (v.Product.Status == null || !HiddenStatuses.Contains(v.Product.Status.ToUpper())) &&
+                    (v.Status == null || !HiddenStatuses.Contains(v.Status.ToUpper())), ct);
 
             if (baseVariant is null) return NotFound();
 
@@ -618,8 +584,8 @@ namespace Keytietkiem.Controllers
                     .ThenInclude(p => p.ProductBadges)
                 .Where(v =>
                     v.ProductId != productId &&
-                    (v.Product.Status == null || v.Product.Status != "INACTIVE") &&
-                    (v.Status == null || v.Status != "INACTIVE") &&
+                    (v.Product.Status == null || !HiddenStatuses.Contains(v.Product.Status.ToUpper())) &&
+                    (v.Status == null || !HiddenStatuses.Contains(v.Status.ToUpper())) &&
 
                     (
                         (baseCategoryIds.Count == 0
@@ -744,7 +710,8 @@ namespace Keytietkiem.Controllers
                         })
                         .ToList();
 
-                    var status = i.StockQty <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
+                    // ✅ status hiển thị theo DB (đã filter INACTIVE
+                    var status = NormalizeStorefrontStatus(i.Status);
 
                     return new StorefrontVariantListItemDto(
                         i.VariantId,
