@@ -55,6 +55,24 @@ public class ProductAccountController : ControllerBase
     }
 
     /// <summary>
+    /// Get paginated list of expired product accounts
+    /// </summary>
+    [HttpGet("expired")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+    public async Task<IActionResult> GetExpired([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    {
+        try
+        {
+            var response = await _productAccountService.GetExpiredAccountsAsync(pageNumber, pageSize);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Get a single product account by ID (password masked)
     /// </summary>
     [HttpGet("{id}")]
@@ -435,6 +453,62 @@ public class ProductAccountController : ControllerBase
         catch (Exception ex)
         {
             // 400 business / lỗi khác – không audit để tránh spam
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Manually edit expiry date of a product account (Admin override)
+    /// </summary>
+    [HttpPut("{id}/edit-expiry")]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+    public async Task<IActionResult> EditExpiryDate(Guid id, [FromBody] EditProductAccountExpiryDto editDto)
+    {
+        if (id != editDto.ProductAccountId)
+        {
+            return BadRequest(new { message = "ID không khớp" });
+        }
+
+        try
+        {
+            var accountId = Guid.Parse(User.FindFirst("AccountId")!.Value);
+            var response = await _productAccountService.EditExpiryDateAsync(editDto, accountId);
+
+            // Audit Log
+            await _auditLogger.LogAsync(
+                HttpContext,
+                action: "EditProductAccountExpiry",
+                entityType: "ProductAccount",
+                entityId: editDto.ProductAccountId.ToString(),
+                before: null, 
+                after: response);
+
+            // Sync stock (status might change from Expired -> Active)
+            await using (var db = await _dbFactory.CreateDbContextAsync(HttpContext.RequestAborted))
+            {
+                await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                    db,
+                    response.VariantId,
+                    DateTime.UtcNow,
+                    HttpContext.RequestAborted);
+            }
+
+            return Ok(response);
+        }
+        catch (ValidationException ex)
+        {
+             return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+             return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
             return BadRequest(new { message = ex.Message });
         }
     }

@@ -1152,10 +1152,10 @@ export default function SupplierDetailPage() {
             <thead>
               <tr>
                 <th>Sản phẩm</th>
-                <th>Số lượng</th>
+                <th>Số lượng gói</th>
                 <th>Giá/gói</th>
                 <th>Đã nhập kho</th>
-                <th>Còn lại</th>
+                <th>Còn lại(chưa nhập kho)</th>
                 <th>Thao tác</th>
               </tr>
             </thead>

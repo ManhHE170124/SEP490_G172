@@ -44,7 +44,6 @@ namespace Keytietkiem.Controllers
          */
         [HttpPost("uploadImage")]
         [Consumes("multipart/form-data")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UploadImage([FromForm] ImageUploadRequest request)
         {
             try
@@ -69,7 +68,6 @@ namespace Keytietkiem.Controllers
          * Returns: 200 OK on success, 400 or 500 on error.
          */
         [HttpDelete("deleteImage")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteImage([FromBody] ImageDeleteRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PublicId))

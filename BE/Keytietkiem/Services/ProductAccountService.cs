@@ -684,45 +684,86 @@ public class ProductAccountService : IProductAccountService
 
         var now = _clock.UtcNow;
         var oldExpiryDate = account.ExpiryDate;
+        
+        // Base date for calculation: use current expiry if exists and active, otherwise use now.
+        // If account is expired, we might want to extend from NOW, or from old expiry?
+        // Usually if expired, you extend from NOW. If active, you extend from expiry.
+        // Let's stick to extending from current expiry if it's in the future, else from now?
+        // Or simple logic: base = expiry ?? now.
+        // If expiry is in the past (expired), adding days to it might still leave it expired or not give full value.
+        // Let's assume: if expired, extend from NOW. If active, extend from Expiry.
+        var baseDate = (account.ExpiryDate.HasValue && account.ExpiryDate.Value > now) ? account.ExpiryDate.Value : now;
 
-        // Determine days to extend: use provided value or variant's DurationDays
-        int daysToExtend;
+        int daysExtended = 0;
         string extensionSource;
 
-        if (extendDto.DaysToExtend.HasValue && extendDto.DaysToExtend.Value > 0)
+        if (extendDto.NewExpiryDate.HasValue)
         {
-            // Use custom days provided by user
-            daysToExtend = extendDto.DaysToExtend.Value;
-            extensionSource = "custom";
-        }
-        else if (account.Variant?.DurationDays.HasValue == true && account.Variant.DurationDays.Value > 0)
-        {
-            // Use variant's standard duration
-            daysToExtend = account.Variant.DurationDays.Value;
-            extensionSource = "variant";
+            if (extendDto.NewExpiryDate.Value <= baseDate)
+            {
+               throw new InvalidOperationException(
+                    "Ngày hết hạn mới phải lớn hơn ngày hiện tại.");
+            }
+            account.ExpiryDate = extendDto.NewExpiryDate.Value;
+            daysExtended = (int)(account.ExpiryDate.Value - (oldExpiryDate ?? now)).TotalDays;
+            extensionSource = "custom_date";
         }
         else
         {
-            throw new InvalidOperationException(
-                "Không thể xác định số ngày gia hạn. Vui lòng cung cấp số ngày hoặc đảm bảo sản phẩm có DurationDays.");
+            int daysToAdd = 0;
+            
+            if (extendDto.DaysToExtend.HasValue && extendDto.DaysToExtend.Value > 0)
+            {
+                daysToAdd = extendDto.DaysToExtend.Value;
+                extensionSource = "custom_days";
+            }
+            else if (account.Variant?.DurationDays.HasValue == true && account.Variant.DurationDays.Value > 0)
+            {
+                daysToAdd = account.Variant.DurationDays.Value;
+                extensionSource = "variant";
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "Không thể xác định số ngày gia hạn. Vui lòng cung cấp ngày hết hạn mới, số ngày gia hạn hoặc đảm bảo sản phẩm có thời hạn mặc định.");
+            }
+            
+            account.ExpiryDate = baseDate.AddDays(daysToAdd);
+            daysExtended = daysToAdd;
         }
 
-        // Extend from current expiry date if exists, otherwise from now
-        var baseDate = account.ExpiryDate ?? now;
-        account.ExpiryDate = baseDate.AddDays(daysToExtend);
         account.UpdatedAt = now;
         account.UpdatedBy = extendedBy;
+        
+        if (account.Status == nameof(ProductAccountStatus.Expired) && account.ExpiryDate > now)
+        {
+             var currentActiveUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive);
+             if (currentActiveUsers >= account.MaxUsers)
+                account.Status = nameof(ProductAccountStatus.Full);
+             else
+                account.Status = nameof(ProductAccountStatus.Active);
+        }
 
         _productAccountRepository.Update(account);
 
-        // Log history with source information
-        var extensionInfo = extensionSource == "variant"
-            ? $"Gia hạn {daysToExtend} ngày (theo gói sản phẩm)"
-            : $"Gia hạn {daysToExtend} ngày (tùy chỉnh)";
+        // Log history
+        string actionNote;
+        if (extensionSource == "custom_date")
+        {
+             actionNote = $"Gia hạn đến {account.ExpiryDate:dd/MM/yyyy} (tùy chỉnh ngày)";
+        }
+        else if (extensionSource == "variant")
+        {
+             actionNote = $"Gia hạn thêm {daysExtended} ngày (theo gói)";
+        }
+        else
+        {
+             actionNote = $"Gia hạn thêm {daysExtended} ngày (tùy chỉnh)";
+        }
 
         var notes = string.IsNullOrWhiteSpace(extendDto.Notes)
-            ? $"{extensionInfo}. Từ {oldExpiryDate:dd/MM/yyyy} đến {account.ExpiryDate:dd/MM/yyyy}"
-            : $"{extensionInfo}. Từ {oldExpiryDate:dd/MM/yyyy} đến {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {extendDto.Notes}";
+            ? $"{actionNote}. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}"
+            : $"{actionNote}. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {extendDto.Notes}";
 
         var history = new ProductAccountHistory
         {
@@ -853,6 +894,84 @@ public class ProductAccountService : IProductAccountService
         };
     }
     
+
+
+    public async Task<ProductAccountResponseDto> EditExpiryDateAsync(
+        EditProductAccountExpiryDto editDto,
+        Guid editedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _context.ProductAccounts
+            .Include(pa => pa.Variant)
+            .FirstOrDefaultAsync(pa => pa.ProductAccountId == editDto.ProductAccountId, cancellationToken);
+
+        if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
+
+        // Validate: new expiry date must be >= today + duration
+        var now = _clock.UtcNow;
+        var today = now.Date;
+        
+        // If variant has duration, use it. If not, maybe fallback to 0 or 30? Use 0 to be safe (min is just today)
+        var durationDays = account.Variant?.DurationDays ?? 0;
+        
+        // Calculate min date: Today + Duration
+        // Example: Today = 13/01. Duration = 30 days. Min = 12/02.
+        var minDate = today.AddDays(durationDays);
+
+        // Normalize input date to compare properly (ignore time part of input if needed, but DateTime usually has time)
+        // If user sends 2026-02-28 (midnight), and minDate is 2026-02-28, it matches.
+        if (editDto.NewExpiryDate.Date < minDate)
+        {
+            throw new InvalidOperationException(
+                $"Ngày hết hạn mới phải từ {minDate:dd/MM/yyyy} trở đi (Hôm nay + {durationDays} ngày theo gói).");
+        }
+
+        var oldExpiryDate = account.ExpiryDate;
+        
+        account.ExpiryDate = editDto.NewExpiryDate;
+        account.UpdatedAt = now;
+        account.UpdatedBy = editedBy;
+
+        // Auto-update status if expired account is now valid again
+        if (account.Status == nameof(ProductAccountStatus.Expired) && account.ExpiryDate > now)
+        {
+            // Check if full
+            var currentActiveUsers = await _productAccountCustomerRepository.Query()
+                .CountAsync(pac => pac.ProductAccountId == account.ProductAccountId && pac.IsActive, cancellationToken);
+                
+            if (currentActiveUsers >= account.MaxUsers)
+                account.Status = nameof(ProductAccountStatus.Full);
+            else
+                account.Status = nameof(ProductAccountStatus.Active);
+        }
+
+        _productAccountRepository.Update(account);
+
+        // Log history
+        var notes = string.IsNullOrWhiteSpace(editDto.Notes)
+            ? $"Sửa ngày hết hạn. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}"
+            : $"Sửa ngày hết hạn. Cũ: {oldExpiryDate:dd/MM/yyyy}, Mới: {account.ExpiryDate:dd/MM/yyyy}. Ghi chú: {editDto.Notes}";
+
+        var history = new ProductAccountHistory
+        {
+            ProductAccountId = account.ProductAccountId,
+            UserId = null,
+            Action = nameof(ProductAccountAction.UpdateSlot), // Reusing existing action enum for simplicity or "CredentialsUpdated"? 'UpdateSlot' works for admin override. Actually 'CredentialsUpdated' is better as generic update. Or just custom string "EditExpiry".
+            ActionBy = editedBy,
+            ActionAt = now,
+            Notes = notes
+        };
+        // Override action to be specific
+        history.Action = "EditExpiry";
+
+        await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Sync stock is handled by caller (Controller) using VariantStockRecalculator usually
+        // but we return the DTO so controller can do it.
+
+        return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
+    }
 
     private static void ValidateProductAccountEntity(ProductAccount account, bool requireExpiryDate)
     {

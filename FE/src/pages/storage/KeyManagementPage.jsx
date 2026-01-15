@@ -56,6 +56,7 @@ export default function KeyManagementPage() {
     try {
       const data = await ProductApi.list({
         pageNumber: 1,
+        productTypes: ["SHARED_KEY", "PERSONAL_KEY"],
         pageSize: 100,
       });
       setProducts(data.items || data.data || []);

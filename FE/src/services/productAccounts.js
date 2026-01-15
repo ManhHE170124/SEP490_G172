@@ -7,7 +7,9 @@ const PRODUCT_ACCOUNT_ENDPOINTS = {
   CUSTOMERS: (id) => `/ProductAccount/${id}/customers`,
   REMOVE_CUSTOMER: (id) => `/ProductAccount/${id}/customers/remove`,
   HISTORY: (id) => `/ProductAccount/${id}/history`,
+  HISTORY: (id) => `/ProductAccount/${id}/history`,
   EXTEND_EXPIRY: (id) => `/ProductAccount/${id}/extend-expiry`,
+  EDIT_EXPIRY: (id) => `/ProductAccount/${id}/edit-expiry`,
 };
 
 export const ProductAccountApi = {
@@ -44,6 +46,10 @@ export const ProductAccountApi = {
   // Extend expiry date of a product account
   extendExpiry: (id, data) =>
     axiosClient.post(PRODUCT_ACCOUNT_ENDPOINTS.EXTEND_EXPIRY(id), data),
+
+  // Manually edit expiry date (admin override)
+  editExpiryDate: (id, data) =>
+    axiosClient.put(PRODUCT_ACCOUNT_ENDPOINTS.EDIT_EXPIRY(id), data),
 
   // Get product accounts expiring soon (within specified days)
   getExpiringSoon: (days = 5) =>

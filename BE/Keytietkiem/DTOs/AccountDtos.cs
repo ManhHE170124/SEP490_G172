@@ -154,7 +154,6 @@ public class UpdateAccountProfileDto
     [StringLength(300)]
     public string? Address { get; set; }
 
-    [Url(ErrorMessage = "AvatarUrl phải là một URL hợp lệ")]
     [StringLength(500)]
     public string? AvatarUrl { get; set; }
 }
