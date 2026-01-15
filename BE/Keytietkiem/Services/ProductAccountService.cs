@@ -1,3 +1,4 @@
+// File: Services/ProductAccountService.cs
 using System.ComponentModel.DataAnnotations;
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Enums;
@@ -102,7 +103,7 @@ public class ProductAccountService : IProductAccountService
                 SellPrice = pa.Variant.SellPrice,
                 ExpiryDate = pa.ExpiryDate,
                 CreatedAt = pa.CreatedAt,
-                OrderId = pa.ProductAccountCustomers.FirstOrDefault(x=> x.OrderId.HasValue).OrderId
+                OrderId = pa.ProductAccountCustomers.FirstOrDefault(x => x.OrderId.HasValue).OrderId
             })
             .ToListAsync(cancellationToken);
 
@@ -117,7 +118,7 @@ public class ProductAccountService : IProductAccountService
 
     public async Task<(Guid?, bool)> CheckAccountEmailOrUsernameExists(Guid variantId, string email, string? username, CancellationToken cancellationToken = default)
     {
-        var existAccount = await _productAccountRepository.FirstOrDefaultAsync(x=> x.VariantId == variantId
+        var existAccount = await _productAccountRepository.FirstOrDefaultAsync(x => x.VariantId == variantId
             && (x.AccountEmail.ToLower().Equals(email.ToLower())
             || (!string.IsNullOrWhiteSpace(username)
                 && x.AccountUsername != null
@@ -215,8 +216,7 @@ public class ProductAccountService : IProductAccountService
             variant.CogsPrice = createDto.CogsPrice.Value;
         }
 
-        // Increment stock quantity for the variant
-        variant.StockQty += 1;
+        // ✅ KHÔNG cộng StockQty thủ công nữa (stock sẽ được tính lại từ inventory thực tế)
         variant.UpdatedAt = _clock.UtcNow;
         _productVariantRepository.Update(variant);
 
@@ -248,6 +248,13 @@ public class ProductAccountService : IProductAccountService
 
         await _productAccountRepository.AddAsync(account, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // ✅ Sync stock/status trực tiếp bằng VariantStockRecalculator
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
 
         return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
     }
@@ -356,6 +363,13 @@ public class ProductAccountService : IProductAccountService
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        // ✅ Sync stock/status trực tiếp bằng VariantStockRecalculator (không qua trung gian)
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
+
         return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
     }
 
@@ -372,8 +386,17 @@ public class ProductAccountService : IProductAccountService
         if (hasActiveCustomers)
             throw new InvalidOperationException("Không thể xóa tài khoản đang có khách hàng sử dụng");
 
+        var variantId = account.VariantId;
+
         _productAccountRepository.Remove(account);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // ✅ Sync stock/status sau khi xóa account
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            variantId,
+            _clock.UtcNow,
+            cancellationToken);
     }
 
     public async Task<ProductAccountCustomerDto> AddCustomerAsync(
@@ -451,6 +474,13 @@ public class ProductAccountService : IProductAccountService
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        // ✅ Sync stock/status (thay đổi số slot trống)
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
+
         var addedByUser = await _userRepository.GetByIdAsync(addedBy, cancellationToken);
 
         return new ProductAccountCustomerDto
@@ -519,6 +549,13 @@ public class ProductAccountService : IProductAccountService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // ✅ Sync stock/status
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
     }
 
     public async Task<ProductAccountHistoryResponseDto> GetHistoryAsync(
@@ -626,7 +663,7 @@ public class ProductAccountService : IProductAccountService
             AddedAt = now,
             AddedBy = assignedBy,
             IsActive = true,
-            OrderId =  assignDto.OrderId,
+            OrderId = assignDto.OrderId,
             Notes = $"Gán cho đơn hàng {assignDto.OrderId}"
         };
 
@@ -654,6 +691,13 @@ public class ProductAccountService : IProductAccountService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // ✅ Sync stock/status
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
 
         var addedByUser = await _userRepository.GetByIdAsync(assignedBy, cancellationToken);
 
@@ -684,14 +728,7 @@ public class ProductAccountService : IProductAccountService
 
         var now = _clock.UtcNow;
         var oldExpiryDate = account.ExpiryDate;
-        
-        // Base date for calculation: use current expiry if exists and active, otherwise use now.
-        // If account is expired, we might want to extend from NOW, or from old expiry?
-        // Usually if expired, you extend from NOW. If active, you extend from expiry.
-        // Let's stick to extending from current expiry if it's in the future, else from now?
-        // Or simple logic: base = expiry ?? now.
-        // If expiry is in the past (expired), adding days to it might still leave it expired or not give full value.
-        // Let's assume: if expired, extend from NOW. If active, extend from Expiry.
+
         var baseDate = (account.ExpiryDate.HasValue && account.ExpiryDate.Value > now) ? account.ExpiryDate.Value : now;
 
         int daysExtended = 0;
@@ -701,7 +738,7 @@ public class ProductAccountService : IProductAccountService
         {
             if (extendDto.NewExpiryDate.Value <= baseDate)
             {
-               throw new InvalidOperationException(
+                throw new InvalidOperationException(
                     "Ngày hết hạn mới phải lớn hơn ngày hiện tại.");
             }
             account.ExpiryDate = extendDto.NewExpiryDate.Value;
@@ -711,7 +748,7 @@ public class ProductAccountService : IProductAccountService
         else
         {
             int daysToAdd = 0;
-            
+
             if (extendDto.DaysToExtend.HasValue && extendDto.DaysToExtend.Value > 0)
             {
                 daysToAdd = extendDto.DaysToExtend.Value;
@@ -727,20 +764,20 @@ public class ProductAccountService : IProductAccountService
                 throw new InvalidOperationException(
                     "Không thể xác định số ngày gia hạn. Vui lòng cung cấp ngày hết hạn mới, số ngày gia hạn hoặc đảm bảo sản phẩm có thời hạn mặc định.");
             }
-            
+
             account.ExpiryDate = baseDate.AddDays(daysToAdd);
             daysExtended = daysToAdd;
         }
 
         account.UpdatedAt = now;
         account.UpdatedBy = extendedBy;
-        
+
         if (account.Status == nameof(ProductAccountStatus.Expired) && account.ExpiryDate > now)
         {
-             var currentActiveUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive);
-             if (currentActiveUsers >= account.MaxUsers)
+            var currentActiveUsers = account.ProductAccountCustomers.Count(pac => pac.IsActive);
+            if (currentActiveUsers >= account.MaxUsers)
                 account.Status = nameof(ProductAccountStatus.Full);
-             else
+            else
                 account.Status = nameof(ProductAccountStatus.Active);
         }
 
@@ -750,15 +787,15 @@ public class ProductAccountService : IProductAccountService
         string actionNote;
         if (extensionSource == "custom_date")
         {
-             actionNote = $"Gia hạn đến {account.ExpiryDate:dd/MM/yyyy} (tùy chỉnh ngày)";
+            actionNote = $"Gia hạn đến {account.ExpiryDate:dd/MM/yyyy} (tùy chỉnh ngày)";
         }
         else if (extensionSource == "variant")
         {
-             actionNote = $"Gia hạn thêm {daysExtended} ngày (theo gói)";
+            actionNote = $"Gia hạn thêm {daysExtended} ngày (theo gói)";
         }
         else
         {
-             actionNote = $"Gia hạn thêm {daysExtended} ngày (tùy chỉnh)";
+            actionNote = $"Gia hạn thêm {daysExtended} ngày (tùy chỉnh)";
         }
 
         var notes = string.IsNullOrWhiteSpace(extendDto.Notes)
@@ -777,6 +814,13 @@ public class ProductAccountService : IProductAccountService
 
         await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // ✅ Sync stock/status (expiry thay đổi có thể làm stock thay đổi)
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
 
         return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
     }
@@ -893,8 +937,6 @@ public class ProductAccountService : IProductAccountService
             CurrentPage = pageNumber
         };
     }
-    
-
 
     public async Task<ProductAccountResponseDto> EditExpiryDateAsync(
         EditProductAccountExpiryDto editDto,
@@ -907,19 +949,12 @@ public class ProductAccountService : IProductAccountService
 
         if (account == null) throw new KeyNotFoundException("Không tìm thấy tài khoản sản phẩm");
 
-        // Validate: new expiry date must be >= today + duration
         var now = _clock.UtcNow;
         var today = now.Date;
-        
-        // If variant has duration, use it. If not, maybe fallback to 0 or 30? Use 0 to be safe (min is just today)
+
         var durationDays = account.Variant?.DurationDays ?? 0;
-        
-        // Calculate min date: Today + Duration
-        // Example: Today = 13/01. Duration = 30 days. Min = 12/02.
         var minDate = today.AddDays(durationDays);
 
-        // Normalize input date to compare properly (ignore time part of input if needed, but DateTime usually has time)
-        // If user sends 2026-02-28 (midnight), and minDate is 2026-02-28, it matches.
         if (editDto.NewExpiryDate.Date < minDate)
         {
             throw new InvalidOperationException(
@@ -927,7 +962,7 @@ public class ProductAccountService : IProductAccountService
         }
 
         var oldExpiryDate = account.ExpiryDate;
-        
+
         account.ExpiryDate = editDto.NewExpiryDate;
         account.UpdatedAt = now;
         account.UpdatedBy = editedBy;
@@ -935,10 +970,9 @@ public class ProductAccountService : IProductAccountService
         // Auto-update status if expired account is now valid again
         if (account.Status == nameof(ProductAccountStatus.Expired) && account.ExpiryDate > now)
         {
-            // Check if full
             var currentActiveUsers = await _productAccountCustomerRepository.Query()
                 .CountAsync(pac => pac.ProductAccountId == account.ProductAccountId && pac.IsActive, cancellationToken);
-                
+
             if (currentActiveUsers >= account.MaxUsers)
                 account.Status = nameof(ProductAccountStatus.Full);
             else
@@ -956,19 +990,22 @@ public class ProductAccountService : IProductAccountService
         {
             ProductAccountId = account.ProductAccountId,
             UserId = null,
-            Action = nameof(ProductAccountAction.UpdateSlot), // Reusing existing action enum for simplicity or "CredentialsUpdated"? 'UpdateSlot' works for admin override. Actually 'CredentialsUpdated' is better as generic update. Or just custom string "EditExpiry".
+            Action = nameof(ProductAccountAction.UpdateSlot),
             ActionBy = editedBy,
             ActionAt = now,
             Notes = notes
         };
-        // Override action to be specific
         history.Action = "EditExpiry";
 
         await _productAccountHistoryRepository.AddAsync(history, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Sync stock is handled by caller (Controller) using VariantStockRecalculator usually
-        // but we return the DTO so controller can do it.
+        // ✅ Sync stock/status trực tiếp ở đây (không cần controller/stockasync trung gian)
+        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+            _context,
+            account.VariantId,
+            now,
+            cancellationToken);
 
         return await GetByIdAsync(account.ProductAccountId, false, cancellationToken);
     }

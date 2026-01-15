@@ -32,6 +32,7 @@ namespace Keytietkiem.Controllers
         private readonly IConfiguration _config;
         private readonly ILogger<PaymentsController> _logger;
         private readonly IInventoryReservationService _inventoryReservation;
+        private readonly INotificationSystemService _notificationSystemService;
 
         // ✅ dùng để fulfill order (gắn key/account + email) theo ProcessVariants
         private readonly IProductKeyService _productKeyService;
@@ -59,7 +60,8 @@ namespace Keytietkiem.Controllers
             IProductAccountService productAccountService,
             IEmailService emailService,
             IAuditLogger auditLogger,
-            IAccountService accountService)
+            IAccountService accountService,
+            INotificationSystemService notificationSystemService)
         {
             _dbFactory = dbFactory;
             _payOs = payOs;
@@ -72,6 +74,7 @@ namespace Keytietkiem.Controllers
             _emailService = emailService;
             _auditLogger = auditLogger;
             _accountService = accountService;
+            _notificationSystemService = notificationSystemService;
         }
 
         private Guid? GetCurrentUserIdOrNull()
@@ -1715,6 +1718,7 @@ namespace Keytietkiem.Controllers
             var userId = order.UserId!.Value;
 
             var orderProducts = new List<OrderProductEmailDto>();
+            var sharedAccountLines = new List<string>();
 
             // PERSONAL_KEY
             var personalKeyVariants = variants
@@ -1857,6 +1861,7 @@ namespace Keytietkiem.Controllers
 
                 var quantity = orderDetail.Quantity;
                 if (quantity <= 0) continue;
+                sharedAccountLines.Add($"{variant.Product!.ProductName} — {variant.Title} × {quantity}");
 
                 var availableAccounts = await db.Set<ProductAccount>()
                     .Where(pa => pa.VariantId == variant.VariantId
@@ -1932,6 +1937,44 @@ namespace Keytietkiem.Controllers
                 try
                 {
                     await _emailService.SendOrderProductsEmailAsync(userEmail, orderProducts);
+                    // ✅ Notify Storage Staff when order contains Shared Account items (best-effort)
+                    if (sharedAccountLines.Count > 0)
+                    {
+                        try
+                        {
+                            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+
+                            // NOTE: đổi route này đúng với FE của bạn
+                            var relatedUrl = $"{origin}/admin/orders/{order.OrderId}";
+
+                            var msg =
+                                "Có khách hàng mua tài khoản chia sẻ cần xử lý.\n" +
+                                $"- OrderId: {order.OrderId}\n" +
+                                $"- Email khách: {userEmail}\n" +
+                                "- Sản phẩm:\n" +
+                                string.Join("\n", sharedAccountLines.Select(x => $"  • {x}"));
+
+                            await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
+                            {
+                                Title = "Đơn hàng mới: mua tài khoản chia sẻ",
+                                Message = msg,
+                                Severity = 0, // Info
+                                CreatedByUserId = systemUserId,
+                                CreatedByEmail = "System",
+                                Type = "Order.SharedAccountPurchased",
+                                RelatedEntityType = "Order",
+                                RelatedEntityId = order.OrderId.ToString(),
+                                RelatedUrl = relatedUrl,
+                                TargetRoleCodes = new List<string> { RoleCodes.STORAGE_STAFF }
+                            }, ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex,
+                                "Failed to notify storage staff for shared-account order. OrderId={OrderId}",
+                                order.OrderId);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
