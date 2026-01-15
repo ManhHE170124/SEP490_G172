@@ -1,5 +1,6 @@
 /**
  * File: PostCommentsController.cs
+ * Author: HieuNDHE173169
  * Created: 2025-01-15
  * Purpose: Manage post comments (CRUD). Handles comment creation, updates, deletion,
  *          and approval with support for nested comments (replies).

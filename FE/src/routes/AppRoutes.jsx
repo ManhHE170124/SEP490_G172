@@ -287,19 +287,19 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/orders"
-        element={renderAdminPage(<AdminOrderListPage />, role(ROLES.ADMIN))}
+        element={renderAdminPage(<AdminOrderListPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       <Route
         path="/admin/payments"
-        element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN))}
+        element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       <Route
         path="/admin/payments/dashboard"
         element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN))}
       />
-<Route path="/admin/orders/dashboard"         
-element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
- />
+      <Route path="/admin/orders/dashboard"
+        element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
+      />
 
       <Route
         path="/admin/orders/:id"
@@ -401,12 +401,12 @@ element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
       />
       <Route
         path="/admin/support-dashboard"
-        element={renderAdminPage(<SupportDashboardAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<SupportDashboardAdminPage />, role(ROLES.ADMIN))}
       />
-<Route
-  path="/admin/system-insights"
-  element={renderAdminPage(<SystemInsightsDashboardPage />, role(ROLES.ADMIN))}
-/>
+      <Route
+        path="/admin/system-insights"
+        element={renderAdminPage(<SystemInsightsDashboardPage />, role(ROLES.ADMIN))}
+      />
 
 
       <Route
