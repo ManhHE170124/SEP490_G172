@@ -35,7 +35,7 @@ const BASE_NAV_ITEMS = [
         label: "Hướng dẫn sử dụng",
         path: "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
       },
-      { label: "Ticket hỗ trợ", path: "/tickets" },
+      { label: "Tạo phiếu hỗ trợ", path: "/tickets/create" },
     ],
   },
   {
@@ -433,7 +433,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     switch (action) {
       case "profile": navigate("/profile"); break;
       case "orders": navigate("/orders"); break;
-      case "support": navigate("/support"); break;
+      case "support": navigate("/tickets"); break;
       case "logout": handleLogout(); break;
       default: break;
     }
@@ -967,14 +967,14 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                         navigate(dashboardRoute);
                       }}
                     >
-                      Dashboard
+                      Bảng điều khiển quản trị
                     </button>
                   )}
                   <button
                     className="account-dropdown-item"
                     onClick={() => handleAccountAction("support")}
                   >
-                    Liên hệ hỗ trợ
+                    Phiếu hỗ trợ của tôi
                   </button>
                   <div className="account-dropdown-divider" />
                   <button className="account-dropdown-item logout" onClick={() => handleAccountAction("logout")}>

@@ -1,7 +1,7 @@
 /**
  * File: RequireRoleAttribute.cs
- * Author: Keytietkiem Team
- * Created: 2025
+ * Author: HieuNDHE173169
+ * Created: 31/12/2025
  * Purpose: Custom authorization attribute to check if user has specific role(s).
  *          Replaces the complex permission-based system with simple role-based checks.
  * Usage:

@@ -813,7 +813,7 @@ public class TicketsController : ControllerBase
         // 🔐 AUDIT LOG – ASSIGN TICKET
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Assign",
+            action: "AssignStaffToTicket",
             entityType: "Ticket",
             entityId: t.TicketId.ToString(),
             before: before,
@@ -1152,7 +1152,7 @@ public class TicketsController : ControllerBase
         // 🔐 AUDIT LOG – COMPLETE TICKET
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Complete",
+            action: "CompleteTicket",
             entityType: "Ticket",
             entityId: t.TicketId.ToString(),
             before: before,
@@ -1233,7 +1233,7 @@ public class TicketsController : ControllerBase
         // 🔐 AUDIT LOG – CLOSE TICKET
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Close",
+            action: "CloseTicket",
             entityType: "Ticket",
             entityId: t.TicketId.ToString(),
             before: before,

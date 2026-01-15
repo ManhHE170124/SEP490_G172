@@ -1,13 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿// File: Controllers/StorefrontHomepageController.cs
+using Keytietkiem.Constants;
+using Keytietkiem.DTOs.Enums;
 using Keytietkiem.DTOs.ProductClient;
+using Keytietkiem.DTOs.Products;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
+using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Keytietkiem.Controllers
 {
@@ -25,10 +31,134 @@ namespace Keytietkiem.Controllers
     public class StorefrontHomepageController : ControllerBase
     {
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
+        private readonly IClock _clock;
 
-        public StorefrontHomepageController(IDbContextFactory<KeytietkiemDbContext> dbFactory)
+        // ✅ giống StorefrontProductsController: ẩn các item bị admin set ẩn
+        private static readonly string[] HiddenStatuses = new[] { "INACTIVE" };
+
+        public StorefrontHomepageController(
+            IDbContextFactory<KeytietkiemDbContext> dbFactory,
+            IClock clock)
         {
             _dbFactory = dbFactory;
+            _clock = clock;
+        }
+
+        private static bool IsKeyType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
+                || t.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsPersonalAccountType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSharedAccountType(string? pt)
+        {
+            var t = (pt ?? "").Trim();
+            return t.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Stock "thật" cho storefront:
+        /// - KEY: count ProductKey Available, chưa assigned, chưa expiry
+        /// - PERSONAL_ACCOUNT: account Active, MaxUsers=1, chưa có customer active, chưa expiry
+        /// - SHARED_ACCOUNT: tổng slot trống (MaxUsers - active customers), chưa expiry
+        /// - Trừ OrderInventoryReservation (ReservedUntilUtc > nowUtc, Status="Reserved")
+        /// - Type khác: fallback StockQty - reserved (>=0)
+        /// </summary>
+        private static async Task<Dictionary<Guid, int>> ComputeAvailableStockByVariantIdAsync(
+            KeytietkiemDbContext db,
+            List<VariantStockSeed> seeds,
+            DateTime nowUtc,
+            CancellationToken ct)
+        {
+            var variantIds = seeds.Select(s => s.VariantId).Distinct().ToList();
+            if (variantIds.Count == 0) return new Dictionary<Guid, int>();
+
+            var productTypeByVariantId = seeds
+                .GroupBy(s => s.VariantId)
+                .ToDictionary(g => g.Key, g => g.First().ProductType);
+
+            var fallbackStockByVariantId = seeds
+                .GroupBy(s => s.VariantId)
+                .ToDictionary(g => g.Key, g => g.First().StockQtyFromDb);
+
+            var reservedByVariantId = await db.Set<OrderInventoryReservation>()
+                .AsNoTracking()
+                .Where(r => variantIds.Contains(r.VariantId)
+                            && r.ReservedUntilUtc > nowUtc
+                            && r.Status == "Reserved")
+                .GroupBy(r => r.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var keyCountByVariantId = await db.Set<ProductKey>()
+                .AsNoTracking()
+                .Where(k => variantIds.Contains(k.VariantId)
+                            && k.Status == nameof(ProductKeyStatus.Available)
+                            && k.AssignedToOrderId == null
+                            && (!k.ExpiryDate.HasValue || k.ExpiryDate.Value >= nowUtc))
+                .GroupBy(k => k.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var personalAccountCountByVariantId = await db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => variantIds.Contains(pa.VariantId)
+                             && pa.Status == nameof(ProductAccountStatus.Active)
+                             && pa.MaxUsers == 1
+                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc)
+                             && !pa.ProductAccountCustomers.Any(pac => pac.IsActive))
+                .GroupBy(pa => pa.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Count() })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var sharedAccountSlotsByVariantId = await db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => variantIds.Contains(pa.VariantId)
+                             && pa.Status == nameof(ProductAccountStatus.Active)
+                             && pa.MaxUsers > 1
+                             && (!pa.ExpiryDate.HasValue || pa.ExpiryDate.Value >= nowUtc))
+                .Select(pa => new
+                {
+                    pa.VariantId,
+                    Available = pa.MaxUsers - pa.ProductAccountCustomers.Count(pac => pac.IsActive)
+                })
+                .Where(x => x.Available > 0)
+                .GroupBy(x => x.VariantId)
+                .Select(g => new { VariantId = g.Key, Qty = g.Sum(x => x.Available) })
+                .ToDictionaryAsync(x => x.VariantId, x => x.Qty, ct);
+
+            var result = new Dictionary<Guid, int>(variantIds.Count);
+
+            foreach (var id in variantIds)
+            {
+                productTypeByVariantId.TryGetValue(id, out var ptRaw);
+                var pt = (ptRaw ?? "").Trim();
+
+                int raw;
+                if (IsKeyType(pt))
+                    raw = keyCountByVariantId.TryGetValue(id, out var kq) ? kq : 0;
+                else if (IsPersonalAccountType(pt))
+                    raw = personalAccountCountByVariantId.TryGetValue(id, out var aq) ? aq : 0;
+                else if (IsSharedAccountType(pt))
+                    raw = sharedAccountSlotsByVariantId.TryGetValue(id, out var sq) ? sq : 0;
+                else
+                    raw = fallbackStockByVariantId.TryGetValue(id, out var fb) ? fb : 0;
+
+                var reserved = reservedByVariantId.TryGetValue(id, out var rq) ? rq : 0;
+                var available = raw - reserved;
+                if (available < 0) available = 0;
+
+                result[id] = available;
+            }
+
+            return result;
         }
 
         [HttpGet("products")]
@@ -36,18 +166,17 @@ namespace Keytietkiem.Controllers
         public async Task<ActionResult<StorefrontHomepageProductsDto>> GetHomepageProducts()
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
+            var ct = HttpContext.RequestAborted;
+            var nowUtc = _clock.UtcNow;
 
-            // ===== Base query: lấy variant còn "hiển thị" (ACTIVE/OUT_OF_STOCK),
-            // nhưng các khối bên dưới sẽ lọc "còn hàng" bằng StockQty > 0 đúng mục đích =====
+            // ===== Base query: ẩn INACTIVE giống list variants =====
             var baseQuery = db.ProductVariants
                 .AsNoTracking()
                 .Include(v => v.Product)
                     .ThenInclude(p => p.ProductBadges)
                 .Where(v =>
-                    v.Product.Status != null &&
-                    (v.Product.Status == "ACTIVE" || v.Product.Status == "OUT_OF_STOCK") &&
-                    v.Status != null &&
-                    (v.Status == "ACTIVE" || v.Status == "OUT_OF_STOCK"));
+                    (v.Product.Status == null || !HiddenStatuses.Contains(v.Product.Status.ToUpper())) &&
+                    (v.Status == null || !HiddenStatuses.Contains(v.Status.ToUpper())));
 
             var rawItems = await baseQuery
                 .Select(v => new HomepageVariantRawItem(
@@ -68,9 +197,9 @@ namespace Keytietkiem.Controllers
                     0,    // Sold30d (compute below)
                     0,    // SoldAllTime (optional fallback; compute only when needed)
                     v.Product.ProductBadges.Select(pb => pb.Badge).ToList(),
-                    v.StockQty
+                    v.StockQty // StockQtyFromDb (sẽ replace = stock thật ngay bên dưới)
                 ))
-                .ToListAsync();
+                .ToListAsync(ct);
 
             if (rawItems.Count == 0)
             {
@@ -84,19 +213,32 @@ namespace Keytietkiem.Controllers
                 return Ok(empty);
             }
 
+            // ===== Replace StockQty = stock thật =====
+            var seeds = rawItems
+                .Select(i => new VariantStockSeed(i.VariantId, i.ProductType, i.StockQty))
+                .ToList();
+
+            var stockLookup = await ComputeAvailableStockByVariantIdAsync(db, seeds, nowUtc, ct);
+
+            rawItems = rawItems
+                .Select(i =>
+                {
+                    var avail = stockLookup.TryGetValue(i.VariantId, out var st) ? st : i.StockQty;
+                    return i with { StockQty = avail };
+                })
+                .ToList();
+
             // ===== DiscountPercent =====
             rawItems = rawItems
                 .Select(i => i with { DiscountPercent = ComputeDiscountPercent(i.SellPrice, i.ListPrice) })
                 .ToList();
 
             // ===== Sold30d / SoldAllTime (từ đơn thành công Status == "Paid") =====
-            var nowUtc = DateTime.UtcNow;
             var thirtyDaysAgo = nowUtc.AddDays(-30);
 
             var variantIds = rawItems.Select(i => i.VariantId).Distinct().ToList();
             var sold30dLookup = await LoadSoldLookupAsync(db, variantIds, thirtyDaysAgo);
 
-            // Chỉ fallback SoldAllTime nếu 30d toàn 0 (tránh query nặng khi hệ thống đã có data 30d)
             var hasAnySold30d = sold30dLookup.Values.Any(x => x > 0);
             var soldAllTimeLookup = hasAnySold30d
                 ? new Dictionary<Guid, int>()
@@ -115,37 +257,25 @@ namespace Keytietkiem.Controllers
                 })
                 .ToList();
 
-            // ===== Lọc “còn hàng” dùng StockQty =====
-            var inStockItems = rawItems.Where(i => i.StockQty > 0).ToList();
-
-            // Helper: chọn 1 variant tốt nhất per product (tránh homepage bị trùng nhiều variant cùng 1 product)
-            static List<HomepageVariantRawItem> PickTopVariantPerProduct(
-                IEnumerable<HomepageVariantRawItem> source,
-                Func<HomepageVariantRawItem, object?> primaryKey,
-                Func<HomepageVariantRawItem, object?>? secondaryKey = null,
-                Func<HomepageVariantRawItem, object?>? thirdKey = null,
-                Func<HomepageVariantRawItem, object?>? fourthKey = null)
-            {
-                // Group per ProductId → pick "best" inside group theo thứ tự keys (desc cho numeric/time)
-                // (trong LINQ, mình triển khai đúng từng section bên dưới cho rõ ràng)
-                return source.ToList();
-            }
+            // ===== Items visible (đã ẩn INACTIVE) =====
+            var visibleItems = rawItems.ToList();
 
             // =========================
             // 1) Ưu đãi hôm nay (Deals / On sale)
-            // Lấy còn hàng + DiscountPercent > 0
-            // Sort: DiscountPercent desc → Sold30d desc → ViewCount desc → CreatedAt desc
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
-            var todayDealsRaw = inStockItems
+            var todayDealsRaw = visibleItems
                 .Where(i => i.DiscountPercent > 0)
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.DiscountPercent)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.DiscountPercent)
                     .ThenByDescending(x => x.Sold30d)
                     .ThenByDescending(x => x.ViewCount)
                     .ThenByDescending(x => x.CreatedAt)
                     .First())
-                .OrderByDescending(i => i.DiscountPercent)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.DiscountPercent)
                 .ThenByDescending(i => i.Sold30d)
                 .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
@@ -154,18 +284,19 @@ namespace Keytietkiem.Controllers
 
             // =========================
             // 2) Bán chạy nhất (Best sellers)
-            // Lấy còn hàng
-            // Sort theo SoldQuantity từ đơn thành công (ưu tiên 30 ngày gần nhất)
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
-            var bestSellersRaw = inStockItems
+            var bestSellersRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.Sold30d)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.Sold30d)
                     .ThenByDescending(x => x.SoldAllTime)
                     .ThenByDescending(x => x.ViewCount)
                     .ThenByDescending(x => x.CreatedAt)
                     .First())
-                .OrderByDescending(i => i.Sold30d)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.Sold30d)
                 .ThenByDescending(i => i.SoldAllTime)
                 .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
@@ -174,44 +305,45 @@ namespace Keytietkiem.Controllers
 
             // =========================
             // 3) Mới ra mắt (New arrivals)
-            // Lấy còn hàng
-            // Sort: CreatedAt desc
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
-            var newArrivalsRaw = inStockItems
+            var newArrivalsRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.CreatedAt)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.CreatedAt)
                     .ThenByDescending(x => x.ViewCount)
                     .First())
-                .OrderByDescending(i => i.CreatedAt)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.CreatedAt)
                 .ThenByDescending(i => i.ViewCount)
                 .Take(4)
                 .ToList();
 
             // =========================
             // 4) Đang thịnh hành (Trending)
-            // Lấy còn hàng
-            // Sort: ViewCount desc
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
-            var trendingRaw = inStockItems
+            var trendingRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.ViewCount)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.ViewCount)
                     .ThenByDescending(x => x.CreatedAt)
                     .First())
-                .OrderByDescending(i => i.ViewCount)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
 
             // =========================
             // 5) Sắp hết hàng (Low stock)
-            // Lấy còn hàng + StockQty nhỏ (<= threshold)
-            // Sort: StockQty asc → Sold30d desc
+            // (giữ đúng nghĩa: chỉ lấy những cái còn hàng nhưng ít)
             // =========================
             const int LowStockThreshold = 5;
 
-            var lowStockRaw = inStockItems
+            var lowStockRaw = visibleItems
                 .Where(i => i.StockQty > 0 && i.StockQty <= LowStockThreshold)
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
@@ -242,7 +374,7 @@ namespace Keytietkiem.Controllers
                 ? new Dictionary<string, Badge>(StringComparer.OrdinalIgnoreCase)
                 : await db.Badges.AsNoTracking()
                     .Where(b => allBadgeCodes.Contains(b.BadgeCode))
-                    .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase);
+                    .ToDictionaryAsync(b => b.BadgeCode, StringComparer.OrdinalIgnoreCase, ct);
 
             StorefrontVariantListItemDto MapToDto(HomepageVariantRawItem i)
             {
@@ -269,8 +401,8 @@ namespace Keytietkiem.Controllers
                     })
                     .ToList();
 
-                var outOfStock = i.StockQty <= 0;
-                var status = outOfStock ? "OUT_OF_STOCK" : "ACTIVE";
+                // ✅ status derive theo stock thật (INACTIVE đã bị filter từ baseQuery)
+                var status = i.StockQty <= 0 ? "OUT_OF_STOCK" : "ACTIVE";
 
                 return new StorefrontVariantListItemDto(
                     VariantId: i.VariantId,
@@ -287,12 +419,6 @@ namespace Keytietkiem.Controllers
                 );
             }
 
-            // NOTE: Giữ tên field DTO để FE cũ không vỡ:
-            // - TodayBestDeals => Deals
-            // - BestSellers   => Best sellers
-            // - WeeklyTrends  => Trending
-            // - NewlyUpdated  => New arrivals
-            // + LowStock      => Low stock
             var dto = new StorefrontHomepageProductsDto(
                 TodayBestDeals: todayDealsRaw.Select(MapToDto).ToList(),
                 BestSellers: bestSellersRaw.Select(MapToDto).ToList(),
@@ -347,13 +473,18 @@ namespace Keytietkiem.Controllers
 
         private static decimal ComputeDiscountPercent(decimal sellPrice, decimal listPrice)
         {
-            // listPrice = giá niêm yết, sellPrice = giá bán thực tế
             if (sellPrice <= 0 || listPrice <= 0 || sellPrice >= listPrice)
                 return 0m;
 
             var percent = (listPrice - sellPrice) / listPrice * 100m;
             return Math.Round(percent, 2);
         }
+
+        private sealed record VariantStockSeed(
+            Guid VariantId,
+            string ProductType,
+            int StockQtyFromDb
+        );
 
         private sealed record HomepageVariantRawItem(
             Guid VariantId,
@@ -373,7 +504,7 @@ namespace Keytietkiem.Controllers
             int Sold30d,
             int SoldAllTime,
             List<string> BadgeCodes,
-            int StockQty
+            int StockQty // ✅ đã được replace = stock thật
         );
     }
 }

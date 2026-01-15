@@ -18,6 +18,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Post
 {
+    /// <summary>
+    /// Data Transfer Object for Tag operations.
+    /// </summary>
     public class TagDTO
     {
         public Guid TagId { get; set; }
@@ -27,6 +30,9 @@ namespace Keytietkiem.DTOs.Post
         public DateTime? UpdatedAt { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for creating a new tag.
+    /// </summary>
     public class CreateTagDTO
     {
         [Required(ErrorMessage = "Tên thẻ không được để trống.")]
@@ -39,6 +45,9 @@ namespace Keytietkiem.DTOs.Post
         public string Slug { get; set; } = null!;
     }
 
+    /// <summary>
+    /// Data Transfer Object for updating an existing tag.
+    /// </summary>
     public class UpdateTagDTO
     {
         [Required(ErrorMessage = "Tên thẻ không được để trống.")]

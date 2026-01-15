@@ -16,6 +16,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Post
 {
+    /// <summary>
+    /// Data Transfer Object for PostComment operations.
+    /// Represents a comment with nested replies support.
+    /// </summary>
     public class PostCommentDTO
     {
         public Guid CommentId { get; set; }
@@ -32,6 +36,10 @@ namespace Keytietkiem.DTOs.Post
         public int ReplyCount { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for PostComment list items.
+    /// Represents a simplified comment view for list displays.
+    /// </summary>
     public class PostCommentListItemDTO
     {
         public Guid CommentId { get; set; }
@@ -46,6 +54,9 @@ namespace Keytietkiem.DTOs.Post
         public int ReplyCount { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for creating a new post comment.
+    /// </summary>
     public class CreatePostCommentDTO
     {
         public Guid PostId { get; set; }
@@ -57,6 +68,9 @@ namespace Keytietkiem.DTOs.Post
         public Guid? ParentCommentId { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for updating an existing post comment.
+    /// </summary>
     public class UpdatePostCommentDTO
     {
         public string Content { get; set; } = null!;
@@ -64,6 +78,9 @@ namespace Keytietkiem.DTOs.Post
         public bool? IsApproved { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for post comment response with post title.
+    /// </summary>
     public class PostCommentResponseDTO : PostCommentDTO
     {
         public string? PostTitle { get; set; }

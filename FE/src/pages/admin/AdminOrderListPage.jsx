@@ -2,25 +2,17 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { orderApi } from "../../services/orderApi";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import "./AdminOrderListPage.css";
+import formatDatetime from "../../utils/formatDatetime";
 
 const formatMoneyVnd = (v) => {
   const n = Number(v ?? 0);
   return n.toLocaleString("vi-VN") + " đ";
 };
 
-const formatDateTime = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mi}:${ss}  ${dd}/${mm}/${yyyy}`;
-};
+const formatDateTime = (iso) => formatDatetime(iso);
 
 /**
  * ✅ Order statuses đúng theo BE:
@@ -122,8 +114,8 @@ export default function AdminOrderListPage() {
   const DEFAULT_FILTERS = useMemo(
     () => ({
       search: "",
-      createdFrom: "",
-      createdTo: "",
+      createdFrom: null,
+      createdTo: null,
       orderStatus: "",
       minTotal: "",
       maxTotal: "",
@@ -181,9 +173,21 @@ export default function AdminOrderListPage() {
 
   const applyFilters = () => {
     setPaged((p) => ({ ...p, pageIndex: 1 }));
+    const fmtYmd = (d) => {
+      if (!d) return "";
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return "";
+      const yy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${yy}-${mm}-${dd}`;
+    };
+
     setFilters({
       ...draft,
       search: String(draft.search || "").trim(),
+      createdFrom: fmtYmd(draft.createdFrom),
+      createdTo: fmtYmd(draft.createdTo),
     });
   };
 
@@ -276,19 +280,23 @@ export default function AdminOrderListPage() {
 
             <div className="op-group">
               <span>Từ ngày</span>
-              <input
-                type="date"
-                value={draft.createdFrom}
-                onChange={(e) => onDraftChange("createdFrom", e.target.value)}
+              <DatePicker
+                selected={draft.createdFrom}
+                onChange={(d) => onDraftChange("createdFrom", d)}
+                className="aol-dateInput"
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Chọn ngày"
               />
             </div>
 
             <div className="op-group">
               <span>Đến ngày</span>
-              <input
-                type="date"
-                value={draft.createdTo}
-                onChange={(e) => onDraftChange("createdTo", e.target.value)}
+              <DatePicker
+                selected={draft.createdTo}
+                onChange={(d) => onDraftChange("createdTo", d)}
+                className="aol-dateInput"
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Chọn ngày"
               />
             </div>
 
@@ -403,7 +411,7 @@ export default function AdminOrderListPage() {
 
                     <td>
                       <div className="op-cell-main">
-                        <div className="op-cell-title">{buyerName}</div>
+                        <div className="op-cell-title" style={{ fontWeight: 800 }}>{buyerName}</div>
                         <div className="op-cell-sub">{buyerEmail || "—"}</div>
                       </div>
                     </td>

@@ -174,7 +174,7 @@ namespace Keytietkiem.Controllers
                 // 🔐 AUDIT LOG – SAVE WEBSITE SETTINGS (chỉ log summary, không log mật khẩu)
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Save",
+                    action: "SaveWebsiteSettings",
                     entityType: "WebsiteSettings",
                     entityId: "global",
                     before: null,

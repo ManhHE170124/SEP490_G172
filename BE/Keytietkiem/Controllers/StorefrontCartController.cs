@@ -1,20 +1,19 @@
-﻿using Keytietkiem.DTOs.Cart;
+﻿// File: Controllers/StorefrontCartController.cs
+using Keytietkiem.DTOs.Cart;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
-using Keytietkiem.Services;
 using Keytietkiem.Utils;
-using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using System;
 using System.Linq;
 using System.Net.Mail;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.Data.SqlClient;
+
 namespace Keytietkiem.Controllers
 {
     [ApiController]
@@ -81,20 +80,50 @@ namespace Keytietkiem.Controllers
             if (variant == null || variant.Product == null)
                 return NotFound(new { message = "Variant not found." });
 
-            if (!IsVariantActive(variant.Status))
+            // ✅ FIX: check cả Variant + Product status
+            if (!IsActiveStatus(variant.Status) || !IsActiveStatus(variant.Product.Status))
                 return BadRequest(new { message = "Sản phẩm không tồn tại hoặc ngừng kinh doanh." });
+
+            // ✅ FIX: check stock khả dụng (key/account) trước khi tăng số lượng trong cart
+            if (RequiresInventory(variant.Product.ProductType))
+            {
+                var available = await GetAvailableQuantityForVariantAsync(db, variant.VariantId, variant.Product.ProductType);
+
+                // nếu hệ thống có inventory mà đang 0 => chặn luôn
+                if (available <= 0)
+                {
+                    var name = variant.Product?.ProductName ?? variant.Title ?? "Sản phẩm";
+                    return Conflict(new { message = $"\"{name}\" hiện đã hết hàng. Vui lòng chọn biến thể khác hoặc quay lại sau." });
+                }
+
+                // lấy qty hiện tại trong cart (DB) để tránh stale collection khi có concurrent update
+                var currentQty = await db.CartItems.AsNoTracking()
+                    .Where(ci => ci.CartId == cart.CartId && ci.VariantId == req.VariantId)
+                    .Select(ci => (int?)ci.Quantity)
+                    .FirstOrDefaultAsync() ?? 0;
+
+                var newQty = currentQty + req.Quantity;
+                if (newQty > available)
+                {
+                    var name = variant.Product?.ProductName ?? variant.Title ?? "Sản phẩm";
+                    return Conflict(new
+                    {
+                        message = $"\"{name}\" không đủ hàng. Bạn đang chọn {newQty} nhưng hiện chỉ còn {available} khả dụng. Vui lòng giảm số lượng."
+                    });
+                }
+            }
 
             // ✅ PATCH: Upsert chống race condition
             if (db.Database.IsRelational())
             {
                 // 1) Atomic UPDATE trước (nếu row đã tồn tại)
                 var updated = await db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE [dbo].[CartItem]
-            SET [Quantity] = [Quantity] + {req.Quantity},
-                [UpdatedAt] = {now}
-            WHERE [CartId] = {cart.CartId}
-              AND [VariantId] = {req.VariantId};
-        ");
+                    UPDATE [dbo].[CartItem]
+                    SET [Quantity] = [Quantity] + {req.Quantity},
+                        [UpdatedAt] = {now}
+                    WHERE [CartId] = {cart.CartId}
+                      AND [VariantId] = {req.VariantId};
+                ");
 
                 // 2) Nếu chưa có row => thử INSERT
                 if (updated == 0)
@@ -120,12 +149,12 @@ namespace Keytietkiem.Controllers
                         db.Entry(newItem).State = EntityState.Detached;
 
                         await db.Database.ExecuteSqlInterpolatedAsync($@"
-                    UPDATE [dbo].[CartItem]
-                    SET [Quantity] = [Quantity] + {req.Quantity},
-                        [UpdatedAt] = {now}
-                    WHERE [CartId] = {cart.CartId}
-                      AND [VariantId] = {req.VariantId};
-                ");
+                            UPDATE [dbo].[CartItem]
+                            SET [Quantity] = [Quantity] + {req.Quantity},
+                                [UpdatedAt] = {now}
+                            WHERE [CartId] = {cart.CartId}
+                              AND [VariantId] = {req.VariantId};
+                        ");
                     }
                 }
 
@@ -162,7 +191,6 @@ namespace Keytietkiem.Controllers
             return Ok(ToCartDto(full));
         }
 
-
         [HttpPut("items/{variantId}")]
         public async Task<ActionResult<StorefrontCartDto>> UpdateItem(Guid variantId, [FromBody] UpdateCartItemRequestDto req)
         {
@@ -182,6 +210,41 @@ namespace Keytietkiem.Controllers
 
             var item = cart.CartItems.FirstOrDefault(i => i.VariantId == variantId);
             if (item == null) return NotFound(new { message = "Sản phẩm không có trong giỏ." });
+
+            // ✅ FIX: nếu set qty > 0 => check lại status/stock
+            if (req.Quantity > 0)
+            {
+                var variant = await db.ProductVariants
+                    .Include(v => v.Product)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(v => v.VariantId == variantId);
+
+                if (variant == null || variant.Product == null)
+                    return NotFound(new { message = "Variant not found." });
+
+                if (!IsActiveStatus(variant.Status) || !IsActiveStatus(variant.Product.Status))
+                    return BadRequest(new { message = "Sản phẩm không tồn tại hoặc ngừng kinh doanh." });
+
+                if (RequiresInventory(variant.Product.ProductType))
+                {
+                    var available = await GetAvailableQuantityForVariantAsync(db, variantId, variant.Product.ProductType);
+
+                    if (available <= 0)
+                    {
+                        var name = variant.Product?.ProductName ?? variant.Title ?? "Sản phẩm";
+                        return Conflict(new { message = $"\"{name}\" hiện đã hết hàng. Vui lòng chọn biến thể khác hoặc quay lại sau." });
+                    }
+
+                    if (req.Quantity > available)
+                    {
+                        var name = variant.Product?.ProductName ?? variant.Title ?? "Sản phẩm";
+                        return Conflict(new
+                        {
+                            message = $"\"{name}\" không đủ hàng. Bạn đang chọn {req.Quantity} nhưng hiện chỉ còn {available} khả dụng. Vui lòng giảm số lượng."
+                        });
+                    }
+                }
+            }
 
             if (req.Quantity <= 0)
             {
@@ -308,9 +371,9 @@ namespace Keytietkiem.Controllers
                     .FirstOrDefaultAsync(c =>
                         c.UserId == userId.Value &&
                         (c.Status == "Active" || c.Status == "Converting"));
-                    }
-                    else
-                    {
+            }
+            else
+            {
                 cart = await db.Carts
                     .Include(c => c.CartItems)
                     .FirstOrDefaultAsync(c =>
@@ -471,6 +534,7 @@ namespace Keytietkiem.Controllers
                     .ToList()
             };
         }
+
         private static bool IsSqlServerUniqueViolation(DbUpdateException ex)
         {
             if (ex.InnerException is SqlException sqlEx)
@@ -513,11 +577,78 @@ namespace Keytietkiem.Controllers
             catch { return false; }
         }
 
-        private static bool IsVariantActive(string? status)
+        // ========================= Inventory helpers (NEW) =========================
+
+        // chỉ enforce inventory cho nhóm bán key/account (tránh block các loại không có kho như SupportPlan)
+        private static bool RequiresInventory(string? productType)
+        {
+            if (string.IsNullOrWhiteSpace(productType)) return true;
+            return !productType.Contains("supportplan", StringComparison.OrdinalIgnoreCase)
+                && !productType.Contains("support plan", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsActiveStatus(string? status)
         {
             if (string.IsNullOrWhiteSpace(status)) return false;
             return status.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase)
                 || status.Equals("Active", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAccountProductType(string? productType)
+        {
+            if (string.IsNullOrWhiteSpace(productType)) return false;
+            return productType.Contains("account", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<int> GetAvailableQuantityForVariantAsync(KeytietkiemDbContext db, Guid variantId, string? productType)
+        {
+            if (IsAccountProductType(productType))
+                return await CountAvailableAccountsAsync(db, variantId);
+
+            return await CountAvailableKeysAsync(db, variantId);
+        }
+
+        private static async Task<int> CountAvailableKeysAsync(KeytietkiemDbContext db, Guid variantId)
+        {
+            // ✅ giả định chuẩn kho: ProductKey.Status: Available/InStock/Reserved/Sold
+            // chỉ đếm Available/InStock và chưa AssignedToOrderId
+            return await db.Set<ProductKey>()
+                .AsNoTracking()
+                .Where(k => k.VariantId == variantId
+                            && (k.Status == "Available" || k.Status == "InStock")
+                            && k.AssignedToOrderId == null)
+                .CountAsync();
+        }
+
+        private static async Task<int> CountAvailableAccountsAsync(KeytietkiemDbContext db, Guid variantId)
+        {
+            // ✅ account khả dụng = account Active (nếu có Status/IsActive) và chưa từng được gán (chưa có ProductAccountCustomer)
+            var q = db.Set<ProductAccount>()
+                .AsNoTracking()
+                .Where(pa => pa.VariantId == variantId);
+
+            // optional filter Status/IsActive nếu schema có
+            var ent = db.Model.FindEntityType(typeof(ProductAccount));
+            var hasStatus = ent?.FindProperty("Status") != null;
+            var hasIsActive = ent?.FindProperty("IsActive") != null;
+
+            if (hasStatus)
+            {
+                q = q.Where(pa =>
+                    EF.Property<string>(pa, "Status") == "Active" ||
+                    EF.Property<string>(pa, "Status") == "ACTIVE" ||
+                    EF.Property<string>(pa, "Status") == "Available");
+            }
+            else if (hasIsActive)
+            {
+                q = q.Where(pa => EF.Property<bool>(pa, "IsActive") == true);
+            }
+
+            q = q.Where(pa => !db.Set<ProductAccountCustomer>()
+                .AsNoTracking()
+                .Any(pac => pac.ProductAccountId == pa.ProductAccountId));
+
+            return await q.CountAsync();
         }
     }
 }

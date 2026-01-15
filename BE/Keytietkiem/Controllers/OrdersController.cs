@@ -279,11 +279,19 @@ namespace Keytietkiem.Controllers
 
                 if (!db.Database.IsRelational())
                 {
-                    (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
-                        await GuardAndRepriceCartAsync(db, validItems, HttpContext.RequestAborted);
+                    try
+                    {
+                        (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
+                            await GuardAndRepriceCartAsync(db, validItems, HttpContext.RequestAborted);
 
-                    totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
-                    totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                        totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
+                        totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        // thiếu hàng / ngừng bán / kho không đủ
+                        return Conflict(new { message = ex.Message });
+                    }
                 }
 
                 Order order;
@@ -336,12 +344,20 @@ namespace Keytietkiem.Controllers
                         return BadRequest(new { message = "Giỏ hàng rỗng" });
                     }
 
-                    // ✅ Reprice + Guard snapshot SAU claim (đúng nghiệp vụ)
-                    (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
-                        await GuardAndRepriceCartAsync(db, txItems, HttpContext.RequestAborted);
+                    try
+                    {
+                        (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
+                            await GuardAndRepriceCartAsync(db, txItems, HttpContext.RequestAborted);
 
-                    totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
-                    totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                        totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
+                        totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        await tx.RollbackAsync();
+                        return Conflict(new { message = ex.Message });
+                    }
+
 
                     order = new Order
                     {
@@ -629,7 +645,10 @@ namespace Keytietkiem.Controllers
                     PaymentAttemptCount = 0
                 })
                 .ToListAsync();
-
+            foreach (var it in items)
+            {
+                it.CreatedAt = EnsureUtc(it.CreatedAt);
+            }
             // (optional) gán OrderNumber (nếu bạn muốn)
             foreach (var it in items)
                 it.OrderNumber = FormatOrderNumber(it.OrderId, it.CreatedAt);
@@ -760,6 +779,7 @@ namespace Keytietkiem.Controllers
                 }
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
+                orderDto.CreatedAt = EnsureUtc(orderDto.CreatedAt);
 
                 // ✅ Bổ sung payment summary + attempts (giữ nguyên logic cũ của bạn)
                 var nowUtc = DateTime.UtcNow;
@@ -783,7 +803,11 @@ namespace Keytietkiem.Controllers
                                     && nowUtc > p.CreatedAt.Add(PaymentTimeout)
                     })
                     .ToListAsync();
-
+                foreach (var a in attempts)
+                {
+                    a.CreatedAt = EnsureUtc(a.CreatedAt);
+                    a.ExpiresAtUtc = EnsureUtc(a.ExpiresAtUtc);
+                }
                 var best = attempts
                     .OrderByDescending(x => IsPaidLike(x.Status))
                     .ThenByDescending(x => string.Equals(x.Status, PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase))
@@ -1086,6 +1110,22 @@ namespace Keytietkiem.Controllers
             if (claim == null) return null;
             return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
         }
+        // ✅ FIX UTC+Z: normalize DateTime Kind from SQL/EF (Unspecified) -> Utc
+        private static DateTime EnsureUtc(DateTime dt)
+        {
+            if (dt == default) return dt;
+
+            if (dt.Kind == DateTimeKind.Utc) return dt;
+
+            if (dt.Kind == DateTimeKind.Local)
+                return dt.ToUniversalTime();
+
+            // Unspecified (thường từ SQL Server datetime/datetime2) => coi là UTC và chỉ set Kind
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        }
+
+        private static DateTime? EnsureUtc(DateTime? dt)
+            => dt.HasValue ? EnsureUtc(dt.Value) : null;
 
         private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
         {
@@ -1111,7 +1151,7 @@ namespace Keytietkiem.Controllers
             {
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: includesCredentials ? "OrderDetail.ViewWithCredentials" : "OrderDetail.View",
+                    action: includesCredentials ? "ViewOrderDetailWithCredentials" : "ViewOrderDetail",
                     entityType: "Order",
                     entityId: order.OrderId.ToString(),
                     before: null,
@@ -1294,7 +1334,7 @@ namespace Keytietkiem.Controllers
                 DiscountAmount = order.DiscountAmount,
                 FinalAmount = (order.TotalAmount - order.DiscountAmount),
                 Status = displayStatus,
-                CreatedAt = order.CreatedAt,
+                CreatedAt = EnsureUtc(order.CreatedAt),
                 OrderDetails = details
             };
         }
@@ -1835,6 +1875,13 @@ namespace Keytietkiem.Controllers
             decimal total = 0m;
 
             var lines = new List<(Guid VariantId, int Quantity)>();
+            // ✅ NEW: check tồn kho (key/account) trước khi tạo Order
+            var needByVariantId = validItems
+                .Where(x => x.Quantity > 0)
+                .GroupBy(x => x.VariantId)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+            await EnsureInventoryAvailableBeforeCreateOrderAsync(db, needByVariantId, map, ct);
 
             foreach (var item in validItems)
             {
@@ -1863,6 +1910,122 @@ namespace Keytietkiem.Controllers
             total = Math.Round(total, 2, MidpointRounding.AwayFromZero);
 
             return (lines, unitPriceByVariantId, totalList, total);
+        }
+        // ✅ NEW: chỉ enforce inventory cho nhóm bán key/account (tránh block SupportPlan)
+        private static bool RequiresInventoryForCheckout(string? productType)
+        {
+            if (string.IsNullOrWhiteSpace(productType)) return true;
+            return !productType.Contains("supportplan", StringComparison.OrdinalIgnoreCase)
+                && !productType.Contains("support plan", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAccountType(string? productType)
+        {
+            if (string.IsNullOrWhiteSpace(productType)) return false;
+            return productType.Contains("account", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task EnsureInventoryAvailableBeforeCreateOrderAsync(
+            KeytietkiemDbContext db,
+            Dictionary<Guid, int> needByVariantId,
+            Dictionary<Guid, ProductVariant> variantMap,
+            CancellationToken ct)
+        {
+            if (needByVariantId == null || needByVariantId.Count == 0) return;
+
+            // phân loại variant theo productType
+            var keyVariantIds = needByVariantId.Keys
+                .Where(vid =>
+                {
+                    if (!variantMap.TryGetValue(vid, out var v) || v.Product == null) return false;
+                    if (!RequiresInventoryForCheckout(v.Product.ProductType)) return false;
+                    return !IsAccountType(v.Product.ProductType);
+                })
+                .ToList();
+
+            var accountVariantIds = needByVariantId.Keys
+                .Where(vid =>
+                {
+                    if (!variantMap.TryGetValue(vid, out var v) || v.Product == null) return false;
+                    if (!RequiresInventoryForCheckout(v.Product.ProductType)) return false;
+                    return IsAccountType(v.Product.ProductType);
+                })
+                .ToList();
+
+            var availableByVariantId = needByVariantId.Keys.ToDictionary(k => k, _ => 0);
+
+            // ✅ keys: Available/InStock và chưa AssignedToOrderId
+            if (keyVariantIds.Count > 0)
+            {
+                var keyCounts = await db.Set<ProductKey>()
+                    .AsNoTracking()
+                    .Where(k => keyVariantIds.Contains(k.VariantId)
+                                && (k.Status == "Available" || k.Status == "InStock")
+                                && k.AssignedToOrderId == null)
+                    .GroupBy(k => k.VariantId)
+                    .Select(g => new { VariantId = g.Key, Count = g.Count() })
+                    .ToListAsync(ct);
+
+                foreach (var row in keyCounts)
+                    availableByVariantId[row.VariantId] = row.Count;
+            }
+
+            // ✅ accounts: Active/Available (nếu schema có) và chưa có ProductAccountCustomer
+            if (accountVariantIds.Count > 0)
+            {
+                var acc = db.Set<ProductAccount>()
+                    .AsNoTracking()
+                    .Where(pa => accountVariantIds.Contains(pa.VariantId));
+
+                // schema optional
+                var ent = db.Model.FindEntityType(typeof(ProductAccount));
+                var hasStatus = ent?.FindProperty("Status") != null;
+                var hasIsActive = ent?.FindProperty("IsActive") != null;
+
+                if (hasStatus)
+                {
+                    acc = acc.Where(pa =>
+                        EF.Property<string>(pa, "Status") == "Active" ||
+                        EF.Property<string>(pa, "Status") == "ACTIVE" ||
+                        EF.Property<string>(pa, "Status") == "Available");
+                }
+                else if (hasIsActive)
+                {
+                    acc = acc.Where(pa => EF.Property<bool>(pa, "IsActive") == true);
+                }
+
+                acc = acc.Where(pa => !db.Set<ProductAccountCustomer>()
+                    .AsNoTracking()
+                    .Any(pac => pac.ProductAccountId == pa.ProductAccountId));
+
+                var accCounts = await acc
+                    .GroupBy(pa => pa.VariantId)
+                    .Select(g => new { VariantId = g.Key, Count = g.Count() })
+                    .ToListAsync(ct);
+
+                foreach (var row in accCounts)
+                    availableByVariantId[row.VariantId] = row.Count;
+            }
+
+            // ✅ so sánh need vs available
+            foreach (var kv in needByVariantId)
+            {
+                var variantId = kv.Key;
+                var need = kv.Value;
+
+                if (!variantMap.TryGetValue(variantId, out var v) || v.Product == null)
+                    throw new InvalidOperationException("Sản phẩm/biến thể không tồn tại.");
+
+                if (!RequiresInventoryForCheckout(v.Product.ProductType))
+                    continue; // bỏ qua loại không có kho
+
+                var available = availableByVariantId.TryGetValue(variantId, out var a) ? a : 0;
+                if (need > available)
+                {
+                    var name = v.Product?.ProductName ?? v.Title ?? variantId.ToString();
+                    throw new InvalidOperationException($"\"{name}\" không đủ hàng. Cần {need}, còn {available}. Vui lòng giảm số lượng trong giỏ.");
+                }
+            }
         }
 
         private async Task EnsureOrderReservedAsync(KeytietkiemDbContext db, Guid orderId, DateTime nowUtc, CancellationToken ct)

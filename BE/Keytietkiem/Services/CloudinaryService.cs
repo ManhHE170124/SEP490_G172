@@ -3,16 +3,37 @@ using CloudinaryDotNet;
 
 namespace Keytietkiem.Services
 {
+    /// <summary>
+    /// Service interface for photo operations using Cloudinary.
+    /// </summary>
     public interface IPhotoService
     {
+        /// <summary>
+        /// Uploads a photo to Cloudinary.
+        /// </summary>
+        /// <param name="file">The file to upload.</param>
+        /// <returns>The secure URL of the uploaded photo.</returns>
         Task<string> UploadPhotoAsync(IFormFile file);
+        
+        /// <summary>
+        /// Deletes a photo from Cloudinary.
+        /// </summary>
+        /// <param name="publicId">The public ID of the photo to delete.</param>
         Task DeletePhotoAsync(string publicId);
     }
+    
+    /// <summary>
+    /// Service implementation for photo operations using Cloudinary cloud storage.
+    /// </summary>
     public class CloudinaryService : IPhotoService
     {
 
         private readonly Cloudinary _cloudinary;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="CloudinaryService"/> class.
+        /// </summary>
+        /// <param name="configuration">The configuration containing Cloudinary credentials.</param>
         public CloudinaryService(IConfiguration configuration)
         {
             var acc = new Account(
@@ -24,6 +45,13 @@ namespace Keytietkiem.Services
             _cloudinary = new Cloudinary(acc);
         }
 
+        /// <summary>
+        /// Uploads a photo to Cloudinary with validation and optimization.
+        /// </summary>
+        /// <param name="file">The file to upload (JPEG, PNG, or GIF, max 5MB).</param>
+        /// <returns>The secure URL of the uploaded photo.</returns>
+        /// <exception cref="ArgumentException">Thrown when file is invalid or exceeds size limit.</exception>
+        /// <exception cref="Exception">Thrown when upload fails.</exception>
         public async Task<string> UploadPhotoAsync(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -66,6 +94,11 @@ namespace Keytietkiem.Services
             return uploadResult.SecureUrl.ToString();
         }
 
+        /// <summary>
+        /// Deletes a photo from Cloudinary.
+        /// </summary>
+        /// <param name="publicId">The public ID of the photo to delete.</param>
+        /// <exception cref="Exception">Thrown when deletion fails.</exception>
         public async Task DeletePhotoAsync(string publicId)
         {
             if (string.IsNullOrEmpty(publicId))
