@@ -87,7 +87,13 @@ namespace Keytietkiem.Controllers
             // ✅ FIX: check stock khả dụng (key/account) trước khi tăng số lượng trong cart
             if (RequiresInventory(variant.Product.ProductType))
             {
-                var available = await GetAvailableQuantityForVariantAsync(db, variant.VariantId, variant.Product.ProductType);
+                // ✅ IMPORTANT:
+                // Đồng bộ cách tính stock giữa các API storefront.
+                // FE hiển thị tồn kho dựa trên ProductVariant.StockQty (được service/job tính ra "stock thật").
+                // Vì vậy Cart cũng phải dùng StockQty để tránh:
+                // - Đếm sai với tài khoản chia sẻ (shared account): stock là số slot còn lại, không phải số account chưa từng gán.
+                // - FE thấy còn hàng nhưng BE lại chặn do dùng cách đếm khác.
+                var available = Math.Max(0, variant.StockQty);
 
                 // nếu hệ thống có inventory mà đang 0 => chặn luôn
                 if (available <= 0)
@@ -106,9 +112,10 @@ namespace Keytietkiem.Controllers
                 if (newQty > available)
                 {
                     var name = variant.Product?.ProductName ?? variant.Title ?? "Sản phẩm";
+                    var canAddMore = Math.Max(0, available - currentQty);
                     return Conflict(new
                     {
-                        message = $"\"{name}\" không đủ hàng. Bạn đang chọn {newQty} nhưng hiện chỉ còn {available} khả dụng. Vui lòng giảm số lượng."
+                        message = $"\"{name}\" không đủ hàng. Trong giỏ đã có {currentQty}, bạn đang thêm {req.Quantity} (tổng {newQty}) nhưng hiện chỉ còn {available} khả dụng. Bạn chỉ có thể thêm tối đa {canAddMore} nữa."
                     });
                 }
             }
@@ -227,7 +234,8 @@ namespace Keytietkiem.Controllers
 
                 if (RequiresInventory(variant.Product.ProductType))
                 {
-                    var available = await GetAvailableQuantityForVariantAsync(db, variantId, variant.Product.ProductType);
+                    // ✅ đồng bộ như AddItem: luôn dùng StockQty
+                    var available = Math.Max(0, variant.StockQty);
 
                     if (available <= 0)
                     {
@@ -240,7 +248,7 @@ namespace Keytietkiem.Controllers
                         var name = variant.Product?.ProductName ?? variant.Title ?? "Sản phẩm";
                         return Conflict(new
                         {
-                            message = $"\"{name}\" không đủ hàng. Bạn đang chọn {req.Quantity} nhưng hiện chỉ còn {available} khả dụng. Vui lòng giảm số lượng."
+                            message = $"\"{name}\" không đủ hàng. Trong giỏ hiện có {item.Quantity}, bạn đang đặt {req.Quantity} nhưng hiện chỉ còn {available} khả dụng. Vui lòng giảm số lượng."
                         });
                     }
                 }
@@ -600,55 +608,23 @@ namespace Keytietkiem.Controllers
             return productType.Contains("account", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// ✅ IMPORTANT (2026-01): Luôn dùng ProductVariant.StockQty làm "stock thật" cho storefront.
+        /// Tránh các cách đếm inventory thuần (key/account) vì sẽ sai với tài khoản chia sẻ (shared account)
+        /// khi một account có thể bán nhiều "slot".
+        /// </summary>
         private async Task<int> GetAvailableQuantityForVariantAsync(KeytietkiemDbContext db, Guid variantId, string? productType)
         {
-            if (IsAccountProductType(productType))
-                return await CountAvailableAccountsAsync(db, variantId);
+            var stock = await db.ProductVariants
+                .AsNoTracking()
+                .Where(v => v.VariantId == variantId)
+                .Select(v => (int?)v.StockQty)
+                .FirstOrDefaultAsync();
 
-            return await CountAvailableKeysAsync(db, variantId);
+            return Math.Max(0, stock ?? 0);
         }
 
-        private static async Task<int> CountAvailableKeysAsync(KeytietkiemDbContext db, Guid variantId)
-        {
-            // ✅ giả định chuẩn kho: ProductKey.Status: Available/InStock/Reserved/Sold
-            // chỉ đếm Available/InStock và chưa AssignedToOrderId
-            return await db.Set<ProductKey>()
-                .AsNoTracking()
-                .Where(k => k.VariantId == variantId
-                            && (k.Status == "Available" || k.Status == "InStock")
-                            && k.AssignedToOrderId == null)
-                .CountAsync();
-        }
-
-        private static async Task<int> CountAvailableAccountsAsync(KeytietkiemDbContext db, Guid variantId)
-        {
-            // ✅ account khả dụng = account Active (nếu có Status/IsActive) và chưa từng được gán (chưa có ProductAccountCustomer)
-            var q = db.Set<ProductAccount>()
-                .AsNoTracking()
-                .Where(pa => pa.VariantId == variantId);
-
-            // optional filter Status/IsActive nếu schema có
-            var ent = db.Model.FindEntityType(typeof(ProductAccount));
-            var hasStatus = ent?.FindProperty("Status") != null;
-            var hasIsActive = ent?.FindProperty("IsActive") != null;
-
-            if (hasStatus)
-            {
-                q = q.Where(pa =>
-                    EF.Property<string>(pa, "Status") == "Active" ||
-                    EF.Property<string>(pa, "Status") == "ACTIVE" ||
-                    EF.Property<string>(pa, "Status") == "Available");
-            }
-            else if (hasIsActive)
-            {
-                q = q.Where(pa => EF.Property<bool>(pa, "IsActive") == true);
-            }
-
-            q = q.Where(pa => !db.Set<ProductAccountCustomer>()
-                .AsNoTracking()
-                .Any(pac => pac.ProductAccountId == pa.ProductAccountId));
-
-            return await q.CountAsync();
-        }
+        // NOTE: Các hàm CountAvailableKeys/Accounts trước đây đã được loại bỏ khỏi flow storefront
+        // vì không đủ đúng cho SHARED_ACCOUNT (1 account có thể bán nhiều slot).
     }
 }
