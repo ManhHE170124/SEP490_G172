@@ -33,6 +33,9 @@ namespace Keytietkiem.Controllers
         private readonly IDbContextFactory<KeytietkiemDbContext> _dbFactory;
         private readonly IClock _clock;
 
+        // ✅ giống StorefrontProductsController: ẩn các item bị admin set ẩn
+        private static readonly string[] HiddenStatuses = new[] { "INACTIVE" };
+
         public StorefrontHomepageController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
             IClock clock)
@@ -166,14 +169,14 @@ namespace Keytietkiem.Controllers
             var ct = HttpContext.RequestAborted;
             var nowUtc = _clock.UtcNow;
 
-            // ===== Base query: chỉ ẩn INACTIVE (admin set). ACTIVE/OUT_OF_STOCK sẽ do stock thật quyết định =====
+            // ===== Base query: ẩn INACTIVE giống list variants =====
             var baseQuery = db.ProductVariants
                 .AsNoTracking()
                 .Include(v => v.Product)
                     .ThenInclude(p => p.ProductBadges)
                 .Where(v =>
-                    (v.Product.Status == null || v.Product.Status != "INACTIVE") &&
-                    (v.Status == null || v.Status != "INACTIVE"));
+                    (v.Product.Status == null || !HiddenStatuses.Contains(v.Product.Status.ToUpper())) &&
+                    (v.Status == null || !HiddenStatuses.Contains(v.Status.ToUpper())));
 
             var rawItems = await baseQuery
                 .Select(v => new HomepageVariantRawItem(
@@ -254,22 +257,25 @@ namespace Keytietkiem.Controllers
                 })
                 .ToList();
 
-            // ===== Lọc “còn hàng” dùng stock thật =====
+            // ===== Items visible (đã ẩn INACTIVE) =====
             var visibleItems = rawItems.ToList();
 
             // =========================
             // 1) Ưu đãi hôm nay (Deals / On sale)
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
             var todayDealsRaw = visibleItems
                 .Where(i => i.DiscountPercent > 0)
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.DiscountPercent)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.DiscountPercent)
                     .ThenByDescending(x => x.Sold30d)
                     .ThenByDescending(x => x.ViewCount)
                     .ThenByDescending(x => x.CreatedAt)
                     .First())
-                .OrderByDescending(i => i.DiscountPercent)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.DiscountPercent)
                 .ThenByDescending(i => i.Sold30d)
                 .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
@@ -278,16 +284,19 @@ namespace Keytietkiem.Controllers
 
             // =========================
             // 2) Bán chạy nhất (Best sellers)
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
             var bestSellersRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.Sold30d)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.Sold30d)
                     .ThenByDescending(x => x.SoldAllTime)
                     .ThenByDescending(x => x.ViewCount)
                     .ThenByDescending(x => x.CreatedAt)
                     .First())
-                .OrderByDescending(i => i.Sold30d)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.Sold30d)
                 .ThenByDescending(i => i.SoldAllTime)
                 .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
@@ -296,34 +305,41 @@ namespace Keytietkiem.Controllers
 
             // =========================
             // 3) Mới ra mắt (New arrivals)
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
             var newArrivalsRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.CreatedAt)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.CreatedAt)
                     .ThenByDescending(x => x.ViewCount)
                     .First())
-                .OrderByDescending(i => i.CreatedAt)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.CreatedAt)
                 .ThenByDescending(i => i.ViewCount)
                 .Take(4)
                 .ToList();
 
             // =========================
             // 4) Đang thịnh hành (Trending)
+            // ✅ ưu tiên còn hàng trước, rồi mới out_of_stock
             // =========================
             var trendingRaw = visibleItems
                 .GroupBy(i => i.ProductId)
                 .Select(g => g
-                    .OrderByDescending(x => x.ViewCount)
+                    .OrderByDescending(x => x.StockQty > 0)     // ✅ in-stock first (per product)
+                    .ThenByDescending(x => x.ViewCount)
                     .ThenByDescending(x => x.CreatedAt)
                     .First())
-                .OrderByDescending(i => i.ViewCount)
+                .OrderByDescending(i => i.StockQty > 0)         // ✅ in-stock first (overall)
+                .ThenByDescending(i => i.ViewCount)
                 .ThenByDescending(i => i.CreatedAt)
                 .Take(4)
                 .ToList();
 
             // =========================
             // 5) Sắp hết hàng (Low stock)
+            // (giữ đúng nghĩa: chỉ lấy những cái còn hàng nhưng ít)
             // =========================
             const int LowStockThreshold = 5;
 

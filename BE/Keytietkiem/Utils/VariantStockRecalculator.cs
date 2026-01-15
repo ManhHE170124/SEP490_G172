@@ -41,7 +41,6 @@ namespace Keytietkiem.Utils
     {
         private static void TrySetUpdatedAt(object entity, DateTime nowUtc)
         {
-            // Avoid compile-time dependency on UpdatedAt property.
             var prop = entity.GetType().GetProperty("UpdatedAt", BindingFlags.Public | BindingFlags.Instance);
             if (prop != null && prop.CanWrite && prop.PropertyType == typeof(DateTime))
             {
@@ -51,13 +50,11 @@ namespace Keytietkiem.Utils
 
         private static void TrySetStockQty(object entity, int stockQty)
         {
-            // Avoid compile-time dependency on StockQty property.
             var prop = entity.GetType().GetProperty("StockQty", BindingFlags.Public | BindingFlags.Instance);
             if (prop == null || !prop.CanWrite) return;
 
             var t = prop.PropertyType;
 
-            // Common cases
             if (t == typeof(int)) { prop.SetValue(entity, stockQty); return; }
             if (t == typeof(int?)) { prop.SetValue(entity, (int?)stockQty); return; }
             if (t == typeof(long)) { prop.SetValue(entity, (long)stockQty); return; }
@@ -65,7 +62,6 @@ namespace Keytietkiem.Utils
             if (t == typeof(short)) { prop.SetValue(entity, (short)stockQty); return; }
             if (t == typeof(short?)) { prop.SetValue(entity, (short?)stockQty); return; }
 
-            // Fallback: try Convert.ChangeType for other numeric types (decimal, etc.)
             try
             {
                 var targetType = Nullable.GetUnderlyingType(t) ?? t;
@@ -78,9 +74,6 @@ namespace Keytietkiem.Utils
             }
         }
 
-        /// <summary>
-        /// Bulk sync convenience wrapper.
-        /// </summary>
         public static async Task SyncVariantStockAndStatusAsync(
             KeytietkiemDbContext db,
             IEnumerable<Guid> variantIds,
@@ -97,28 +90,12 @@ namespace Keytietkiem.Utils
             }
         }
 
-        /// <summary>
-        /// Sync stock for a single variant and persist:
-        /// - ProductVariant.StockQty
-        /// - ProductVariant.Status (ACTIVE / OUT_OF_STOCK; keep INACTIVE only when stock > 0)
-        /// - Product.Status (ACTIVE / OUT_OF_STOCK; keep INACTIVE only when stock > 0)
-        ///
-        /// Rules:
-        /// PERSONAL_KEY      : count keys Available, not assigned, not expired
-        /// PERSONAL_ACCOUNT  : count accounts Active, MaxUsers=1, not expired, no active customer
-        /// SHARED_ACCOUNT    : sum available slots of Active accounts MaxUsers>1, not expired
-        ///
-        /// Reservations substract:
-        /// - Reserved   : count only when ReservedUntilUtc > nowUtc
-        /// - Finalized  : always count (Paid but not yet fulfilled); will be "Consumed" after fulfill
-        /// </summary>
         public static async Task<VariantStockSyncResult?> SyncVariantStockAndStatusAsync(
             KeytietkiemDbContext db,
             Guid variantId,
             DateTime nowUtc,
             CancellationToken ct = default)
         {
-            // Load tracked variant + product
             var variant = await db.ProductVariants
                 .Include(v => v.Product)
                 .FirstOrDefaultAsync(v => v.VariantId == variantId, ct);
@@ -129,17 +106,18 @@ namespace Keytietkiem.Utils
             var product = variant.Product;
             var productType = (product.ProductType ?? string.Empty).Trim();
 
-            // Only support key/account product types
-            var isSupported = productType == ProductEnums.PERSONAL_KEY
-                              || productType == ProductEnums.PERSONAL_ACCOUNT
-                              || productType == ProductEnums.SHARED_ACCOUNT;
+            // ✅ Support BOTH PERSONAL_KEY and SHARED_KEY if your system uses it
+            var isSupported = productType.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
+                              || productType.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase)
+                              || productType.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase)
+                              || productType.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase);
 
             if (!isSupported)
                 return null;
 
-            // Reserved quantity:
-            // - Reserved: still valid only when ReservedUntilUtc > nowUtc
-            // - Finalized: always count until consumed after fulfill
+            // ✅ Reserved quantity:
+            // - Reserved: only counts when ReservedUntilUtc > nowUtc
+            // - Finalized: always counts until consumed after fulfill
             var reservedQty = await db.Set<OrderInventoryReservation>()
                 .AsNoTracking()
                 .Where(r => r.VariantId == variantId
@@ -156,7 +134,9 @@ namespace Keytietkiem.Utils
 
             int rawQty = 0;
 
-            if (productType == ProductEnums.PERSONAL_KEY)
+            // ✅ Keys
+            if (productType.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
+                || productType.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase))
             {
                 rawQty = await db.Set<ProductKey>()
                     .AsNoTracking()
@@ -166,7 +146,8 @@ namespace Keytietkiem.Utils
                                 && (!k.ExpiryDate.HasValue || k.ExpiryDate.Value >= nowUtc))
                     .CountAsync(ct);
             }
-            else if (productType == ProductEnums.PERSONAL_ACCOUNT)
+            // ✅ Personal account = count accounts free (MaxUsers=1, no active customer)
+            else if (productType.Equals(ProductEnums.PERSONAL_ACCOUNT, StringComparison.OrdinalIgnoreCase))
             {
                 rawQty = await db.Set<ProductAccount>()
                     .AsNoTracking()
@@ -177,7 +158,8 @@ namespace Keytietkiem.Utils
                                  && !pa.ProductAccountCustomers.Any(pac => pac.IsActive))
                     .CountAsync(ct);
             }
-            else if (productType == ProductEnums.SHARED_ACCOUNT)
+            // ✅ Shared account = sum free slots
+            else if (productType.Equals(ProductEnums.SHARED_ACCOUNT, StringComparison.OrdinalIgnoreCase))
             {
                 rawQty = await db.Set<ProductAccount>()
                     .AsNoTracking()
@@ -212,7 +194,7 @@ namespace Keytietkiem.Utils
             // Update variant stock
             variant.StockQty = newStock;
 
-            // ✅ Status rule (3 statuses only)
+            // ✅ Variant status rule (ACTIVE/OUT_OF_STOCK/INACTIVE)
             var curVariantStatus = (variant.Status ?? string.Empty).Trim().ToUpperInvariant();
             if (newStock <= 0)
             {
@@ -223,8 +205,7 @@ namespace Keytietkiem.Utils
                 variant.Status = (curVariantStatus == "INACTIVE") ? "INACTIVE" : "ACTIVE";
             }
 
-            // Recalc product total stock (sum of all variants) and persist to DB if Product has StockQty.
-            // Use "otherStock + newStock" so current variant uses freshly computed value.
+            // Recalc product total stock
             var otherStock = await db.ProductVariants
                 .AsNoTracking()
                 .Where(v => v.ProductId == product.ProductId && v.VariantId != variantId)
@@ -235,7 +216,7 @@ namespace Keytietkiem.Utils
 
             TrySetStockQty(product, totalStock);
 
-            // ✅ Product status rule (3 statuses only)
+            // ✅ Product status rule
             var curProductStatus = (product.Status ?? string.Empty).Trim().ToUpperInvariant();
             if (totalStock <= 0)
             {
