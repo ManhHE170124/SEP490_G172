@@ -158,10 +158,10 @@ const getUserRoles = () => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
-      const roles = Array.isArray(parsedUser?.roles) 
-        ? parsedUser.roles 
-        : parsedUser?.role 
-          ? [parsedUser.role] 
+      const roles = Array.isArray(parsedUser?.roles)
+        ? parsedUser.roles
+        : parsedUser?.role
+          ? [parsedUser.role]
           : [];
       return roles.map(r => {
         if (typeof r === "string") return r.toUpperCase();
@@ -178,7 +178,7 @@ const getUserRoles = () => {
 // Helper function to get dashboard route based on user roles
 const getDashboardRoute = (userRoles) => {
   if (!userRoles || userRoles.length === 0) return null;
-  
+
   // Check roles in priority order
   if (userRoles.includes("ADMIN")) {
     return "/admin/home";
@@ -190,9 +190,9 @@ const getDashboardRoute = (userRoles) => {
     return "/key-monitor";
   }
   if (userRoles.includes("CUSTOMER_CARE")) {
-    return "/admin/support-dashboard";
+    return "/staff/tickets";
   }
-  
+
   // Customer or no matching role - return null (don't show button)
   return null;
 };
@@ -656,7 +656,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     );
 
     observer.observe(sentinelEl);
-    return () => { try { observer.disconnect(); } catch {} };
+    return () => { try { observer.disconnect(); } catch { } };
   }, [isNotifWidgetOpen]);
 
   // ===== SignalR notifications =====
@@ -716,7 +716,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       try {
         const total = await NotificationsApi.getMyUnreadCount();
         setUnreadCount(typeof total === "number" ? total : 0);
-      } catch {}
+      } catch { }
 
       fetchNotificationHistory({ append: false });
     });
@@ -729,7 +729,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       if (notifConnectionRef.current) {
         notifConnectionRef.current.off("ReceiveNotification");
         notifConnectionRef.current.off("ReceiveGlobalNotification");
-        notifConnectionRef.current.stop().catch(() => {});
+        notifConnectionRef.current.stop().catch(() => { });
         notifConnectionRef.current = null;
       }
     };

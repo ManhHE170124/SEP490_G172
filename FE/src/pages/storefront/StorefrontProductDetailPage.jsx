@@ -90,6 +90,10 @@ const StorefrontProductDetailPage = () => {
   // ✅ chống +view nhiều lần khi reload (cart update / re-render)
   const viewedRef = useRef(new Set()); // key: `${productId}:${variantId}`
 
+  // ✅ snapshot giỏ hàng để tính trần thêm = stock - qtyInCart
+  const [cartSnapshot, setCartSnapshot] = useState(null);
+  const ignoreNextCartEventRef = useRef(false);
+
 
   // Toast state
   const [toasts, setToasts] = useState([]);
@@ -108,9 +112,24 @@ const StorefrontProductDetailPage = () => {
     [removeToast]
   );
 
-  const [customer, setCustomer] = useState(() =>
-    readCustomerFromStorage()
-  );
+  const [customer, setCustomer] = useState(() => readCustomerFromStorage());
+
+  // ====== Cart snapshot (for max addable = stock - qtyInCart) ======
+  const fetchCartSnapshot = useCallback(async () => {
+    try {
+      // getCart() sẽ dispatch CART_UPDATED_EVENT; flag để tránh loop reload detail
+      ignoreNextCartEventRef.current = true;
+
+      const cart = customer
+        ? await StorefrontCartApi.getCart()
+        : await GuestCartService.getCart();
+
+      setCartSnapshot(cart ?? null);
+    } catch (err) {
+      console.error("Fetch cart snapshot failed:", err);
+      setCartSnapshot(null);
+    }
+  }, [customer]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -170,13 +189,27 @@ const StorefrontProductDetailPage = () => {
 
     loadDetail(productId, currentVariantId, { countView: shouldCountView });
     loadRelated(productId, currentVariantId);
-  }, [productId, currentVariantId, loadDetail, loadRelated]);
 
-  // Khi giỏ hàng thay đổi (Add/Update/Remove/Clear) -> reload lại detail
+    // ✅ load giỏ để tính qtyInCart / maxAddableQty
+    fetchCartSnapshot();
+  }, [productId, currentVariantId, loadDetail, loadRelated, fetchCartSnapshot]);
+
+  // Khi giỏ hàng thay đổi (Add/Update/Remove/Clear):
+  // - cập nhật snapshot để tính qtyInCart
+  // - (tuỳ chọn) reload detail để đồng bộ stock server
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleCartUpdated = () => {
+    const handleCartUpdated = (ev) => {
+      const cart = ev?.detail?.cart;
+      if (cart) setCartSnapshot(cart);
+
+      // getCart() của chính page này cũng dispatch event; bỏ qua 1 lần để tránh reload detail vòng lặp
+      if (ignoreNextCartEventRef.current) {
+        ignoreNextCartEventRef.current = false;
+        return;
+      }
+
       if (productId && currentVariantId) {
         loadDetail(productId, currentVariantId, { countView: false });
       }
@@ -184,12 +217,38 @@ const StorefrontProductDetailPage = () => {
 
     window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
     return () => {
-      window.removeEventListener(
-        CART_UPDATED_EVENT,
-        handleCartUpdated
-      );
+      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
     };
   }, [productId, currentVariantId, loadDetail]);
+
+  // ====== Compute qtyInCart / max addable ======
+  const qtyInCart = useMemo(() => {
+    const vid = detail?.variantId;
+    if (!vid || !cartSnapshot?.items) return 0;
+    const found = cartSnapshot.items.find((it) => it.variantId === vid);
+    return found?.quantity ? Number(found.quantity) : 0;
+  }, [cartSnapshot, detail?.variantId]);
+
+  const stockQty = useMemo(() => {
+    const s = detail?.stockQty;
+    return typeof s === "number" && !Number.isNaN(s) ? s : 0;
+  }, [detail?.stockQty]);
+
+  // Trần có thể thêm tại trang chi tiết = stock trong kho - số lượng đã có trong giỏ
+  const maxAddableQty = useMemo(
+    () => Math.max(0, stockQty - qtyInCart),
+    [stockQty, qtyInCart]
+  );
+
+  // Clamp quantity theo maxAddableQty khi reload detail/cart
+  useEffect(() => {
+    if (!detail) return;
+    if (maxAddableQty <= 0) {
+      setQuantity(1);
+      return;
+    }
+    setQuantity((prev) => Math.max(1, Math.min(prev, maxAddableQty)));
+  }, [detail?.variantId, maxAddableQty]);
 
   // ====== Quantity control ======
   const handleIncreaseQuantity = () => {
@@ -198,16 +257,25 @@ const StorefrontProductDetailPage = () => {
       return;
     }
 
-    const max = detail.stockQty ?? 0;
+    const max = maxAddableQty;
+
+    if (max <= 0) {
+      addToast(
+        "warning",
+        "Đã đạt tối đa",
+        `Trong giỏ đã có ${qtyInCart}. Kho còn ${stockQty}. Bạn không thể thêm thêm sản phẩm này nữa.`
+      );
+      return;
+    }
 
     setQuantity((prevQuantity) => {
       const next = prevQuantity + 1;
 
-      if (max > 0 && next > max) {
+      if (next > max) {
         addToast(
           "warning",
-          "Vượt số lượng tồn kho",
-          `Chỉ còn ${max} sản phẩm trong kho.`
+          "Vượt số lượng có thể thêm",
+          `Trong giỏ đã có ${qtyInCart}. Kho còn ${stockQty}. Bạn chỉ có thể thêm tối đa ${max} nữa.`
         );
         return prevQuantity;
       }
@@ -227,7 +295,7 @@ const StorefrontProductDetailPage = () => {
     ? !!(
         detail.isOutOfStock ||
         (detail.status || "").toString().toUpperCase() === "OUT_OF_STOCK" ||
-        (typeof detail.stockQty === "number" && detail.stockQty <= 0)
+        stockQty <= 0
       )
     : false;
 
@@ -282,6 +350,26 @@ const StorefrontProductDetailPage = () => {
       return;
     }
 
+    // ✅ Trần thêm = stock - qtyInCart
+    if (maxAddableQty <= 0) {
+      addToast(
+        "warning",
+        "Đã đạt tối đa trong giỏ",
+        `Bạn đã có ${qtyInCart} trong giỏ. Kho còn ${stockQty}. Bạn không thể thêm thêm sản phẩm này nữa.`
+      );
+      return;
+    }
+
+    if (quantity > maxAddableQty) {
+      addToast(
+        "warning",
+        "Vượt số lượng có thể thêm",
+        `Bạn đang chọn ${quantity} nhưng chỉ có thể thêm tối đa ${maxAddableQty} (trong giỏ đã có ${qtyInCart}, kho còn ${stockQty}).`
+      );
+      setQuantity(Math.max(1, maxAddableQty));
+      return;
+    }
+
     setAddingToCart(true);
     try {
       if (customer) {
@@ -329,6 +417,27 @@ const StorefrontProductDetailPage = () => {
         "Sản phẩm đã hết hàng",
         "Hiện tại sản phẩm này đã hết hàng. Vui lòng chọn sản phẩm khác hoặc quay lại sau."
       );
+      return;
+    }
+
+    // ✅ Nếu đã đạt tối đa trong giỏ thì đi thẳng tới Cart
+    if (maxAddableQty <= 0) {
+      addToast(
+        "warning",
+        "Đã đạt tối đa trong giỏ",
+        `Bạn đã có ${qtyInCart} trong giỏ. Kho còn ${stockQty}.`
+      );
+      navigate("/cart");
+      return;
+    }
+
+    if (quantity > maxAddableQty) {
+      addToast(
+        "warning",
+        "Vượt số lượng có thể mua",
+        `Bạn đang chọn ${quantity} nhưng chỉ có thể thêm tối đa ${maxAddableQty} (trong giỏ đã có ${qtyInCart}, kho còn ${stockQty}).`
+      );
+      setQuantity(Math.max(1, maxAddableQty));
       return;
     }
 
@@ -483,8 +592,12 @@ const StorefrontProductDetailPage = () => {
                         Kho còn:
                       </span>{" "}
                       <span className="sf-detail-meta-value">
-                        <strong>{detail.stockQty ?? 0}</strong> sản
-                        phẩm
+                        <strong>{stockQty}</strong> sản phẩm
+                        {(qtyInCart > 0 || maxAddableQty === 0) && (
+                          <span style={{ marginLeft: 8, fontSize: 13 }}>
+                            (Trong giỏ: {qtyInCart} · Có thể thêm: {maxAddableQty})
+                          </span>
+                        )}
                       </span>
                     </div>
                   )}
@@ -612,7 +725,7 @@ const StorefrontProductDetailPage = () => {
                     type="button"
                     className="sf-btn sf-btn-outline sf-btn-lg"
                     onClick={handleAddToCart}
-                    disabled={isOutOfStock || addingToCart}
+                    disabled={isOutOfStock || addingToCart || maxAddableQty <= 0}
                   >
                     Thêm vào giỏ
                   </button>

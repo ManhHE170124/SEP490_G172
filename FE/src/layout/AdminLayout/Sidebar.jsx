@@ -114,6 +114,16 @@ const Sidebar = () => {
           ),
         },
         {
+          id: "order-dashboard-admin",
+          label: "Dashboard đơn hàng",
+          to: "/admin/orders/dashboard",
+          allowedRoles: [ROLE_ADMIN],
+          isActive:
+            currentPage === "admin/orders/dashboard",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 32 32"><path fill="#000000" d="M24 21h2v5h-2zm-4-5h2v10h-2zm-9 10a5.006 5.006 0 0 1-5-5h2a3 3 0 1 0 3-3v-2a5 5 0 0 1 0 10z" /><path fill="#000000" d="M28 2H4a2.002 2.002 0 0 0-2 2v24a2.002 2.002 0 0 0 2 2h24a2.003 2.003 0 0 0 2-2V4a2.002 2.002 0 0 0-2-2Zm0 9H14V4h14ZM12 4v7H4V4ZM4 28V13h24l.002 15Z" /></svg>),
+        },
+        {
           id: "payments-dashboard-admin",
           label: "Dashboard thanh toán",
           to: "/admin/payments/dashboard",
@@ -122,6 +132,17 @@ const Sidebar = () => {
             currentPage === "admin/payments/dashboard",
           icon: (
             <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 512 512" fill="#000000"><g fill="#000000" fill-rule="evenodd" clip-rule="evenodd"><path d="M426.667 125.489H85.333v20.078h341.334zM85.333 386.508V185.724h341.334v200.784zM42.667 85.332v341.333h426.666V85.332zm320 149.333v128h42.666v-128zm-64 128v-85.333h42.666v85.333zm-64-21.333v21.333h42.666v-21.333z" /><path d="M170.667 362.665c41.237 0 74.666-33.429 74.666-74.666c0-41.238-33.429-74.667-74.666-74.667c-41.238 0-74.667 33.429-74.667 74.667s33.429 74.666 74.667 74.666m35.476-50.962a42.67 42.67 0 0 0 7.19-23.704h-42.666v-42.667a42.66 42.66 0 0 0-39.419 26.339a42.664 42.664 0 0 0 31.095 58.175a42.67 42.67 0 0 0 43.8-18.143" /></g></svg>),
+        },
+        {
+          id: "system-insights-dashboard-admin",
+          label: "Giám sát hệ thống",
+          to: "/admin/system-insights",
+          allowedRoles: [ROLE_ADMIN],
+          isActive:
+            currentPage === "admin/system-insights",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24"><path fill="#000000" fill-rule="evenodd" d="M15 8h4v12H5V10h4V4h6v4Zm-2-2h-2v12h2V6Zm2 4v8h2v-8h-2Zm-6 2v6H7v-6h2Z" clip-rule="evenodd" /></svg>
+          ),
         },
         {
           id: "user-dashboard",
@@ -270,7 +291,7 @@ const Sidebar = () => {
           id: "orders-admin-list",
           label: "Danh sách đơn hàng",
           to: "/admin/orders",
-          allowedRoles: [ROLE_ADMIN],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive:
             currentPage === "admin/orders" ||
             currentPage.startsWith("admin/orders/"),
@@ -311,7 +332,7 @@ const Sidebar = () => {
           id: "payments-admin",
           label: "Danh sách giao dịch",
           to: "/admin/payments",
-          allowedRoles: [ROLE_ADMIN],
+          allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive:
             currentPage === "admin/payments",
           icon: (

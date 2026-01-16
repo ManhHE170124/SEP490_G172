@@ -12,7 +12,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthService } from "../../services/authService";
 import { NotificationsApi } from "../../services/notifications";
-import axiosClient from "../../api/axiosClient"; 
+import axiosClient from "../../api/axiosClient";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr"; // ✅ thêm
 import "./Header.css";
 
@@ -43,7 +43,7 @@ const Header = ({ profile }) => {
   const notifBodyRef = useRef(null);
   const notifSentinelRef = useRef(null);
   const isNotifLoadingRef = useRef(false);
-// Toast khi có thông báo mới
+  // Toast khi có thông báo mới
   const [toastQueue, setToastQueue] = useState([]);
   const [activeToast, setActiveToast] = useState(null);
 
@@ -52,8 +52,16 @@ const Header = ({ profile }) => {
     isNotifLoadingRef.current = isNotifLoading;
   }, [isNotifLoading]);
 
-const notifConnectionRef = useRef(null);
-
+  const notifConnectionRef = useRef(null);
+  
+  // ===== NEW: current date label (dd/MM/yyyy) =====
+  const currentDateLabel = React.useMemo(() => {
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }, []);
 
   // ===== COMMON HELPERS =====
   const loadUser = () => {
@@ -267,110 +275,110 @@ const notifConnectionRef = useRef(null);
     return () => {
       try {
         observer.disconnect();
-      } catch {}
+      } catch { }
     };
   }, [isNotifWidgetOpen]);
 
-// ===== REALTIME SIGNALR: nhận "ReceiveNotification" từ NotificationHub =====
-useEffect(() => {
-  const token = localStorage.getItem("access_token");
-  if (!token) {
-    return;
-  }
+  // ===== REALTIME SIGNALR: nhận "ReceiveNotification" từ NotificationHub =====
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      return;
+    }
 
-  // Lấy baseURL từ axiosClient, ví dụ: https://localhost:7292/api
-  const apiBase = axiosClient.defaults.baseURL || "";
-  // Bỏ đuôi /api => https://localhost:7292 rồi thêm /hubs/notifications
-  const hubUrl = apiBase
-    ? apiBase.replace(/\/api\/?$/, "") + "/hubs/notifications"
-    : "https://localhost:7292/hubs/notifications"; // fallback khi thiếu baseURL
+    // Lấy baseURL từ axiosClient, ví dụ: https://localhost:7292/api
+    const apiBase = axiosClient.defaults.baseURL || "";
+    // Bỏ đuôi /api => https://localhost:7292 rồi thêm /hubs/notifications
+    const hubUrl = apiBase
+      ? apiBase.replace(/\/api\/?$/, "") + "/hubs/notifications"
+      : "https://localhost:7292/hubs/notifications"; // fallback khi thiếu baseURL
 
-  const connection = new HubConnectionBuilder()
-    .withUrl(hubUrl, {
-      accessTokenFactory: () => localStorage.getItem("access_token") || "",
-    })
-    .withAutomaticReconnect()
-    .configureLogging(LogLevel.Information)
-    .build();
+    const connection = new HubConnectionBuilder()
+      .withUrl(hubUrl, {
+        accessTokenFactory: () => localStorage.getItem("access_token") || "",
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Information)
+      .build();
 
-  notifConnectionRef.current = connection;
+    notifConnectionRef.current = connection;
 
-  connection.on("ReceiveNotification", (n) => {
-    const id = extractNotificationId(n);
-    if (!id) return;
+    connection.on("ReceiveNotification", (n) => {
+      const id = extractNotificationId(n);
+      if (!id) return;
 
-    const isRead = n.isRead ?? n.IsRead ?? false;
+      const isRead = n.isRead ?? n.IsRead ?? false;
 
-    // Cập nhật list trong widget (prepend, tránh trùng)
-    setNotifications((prev) => {
-      const existingIds = new Set(
-        prev.map((x) => extractNotificationId(x)).filter(Boolean)
-      );
-      if (existingIds.has(id)) {
-        return prev;
+      // Cập nhật list trong widget (prepend, tránh trùng)
+      setNotifications((prev) => {
+        const existingIds = new Set(
+          prev.map((x) => extractNotificationId(x)).filter(Boolean)
+        );
+        if (existingIds.has(id)) {
+          return prev;
+        }
+        return [n, ...prev];
+      });
+
+      // Tăng unread nếu thông báo mới chưa đọc
+      if (!isRead) {
+        setUnreadCount((prev) => prev + 1);
       }
-      return [n, ...prev];
+
+      // Đẩy vào toast queue
+      setToastQueue((prev) => [
+        ...prev,
+        {
+          id,
+          title: n.title || n.Title,
+          message: n.message || n.Message,
+          severity: n.severity ?? n.Severity ?? 0,
+          createdAt: n.createdAtUtc || n.CreatedAtUtc,
+        },
+      ]);
     });
 
-    // Tăng unread nếu thông báo mới chưa đọc
-    if (!isRead) {
-      setUnreadCount((prev) => prev + 1);
-    }
+    connection.on("ReceiveGlobalNotification", async (n) => {
+      const id = extractNotificationId(n) || `global-${Date.now()}-${Math.random()}`;
+      const title = n.title || n.Title;
+      const message = n.message || n.Message;
 
-    // Đẩy vào toast queue
-    setToastQueue((prev) => [
-      ...prev,
-      {
-        id,
-        title: n.title || n.Title,
-        message: n.message || n.Message,
-        severity: n.severity ?? n.Severity ?? 0,
-        createdAt: n.createdAtUtc || n.CreatedAtUtc,
-      },
-    ]);
-  });
+      setToastQueue((prev) => [
+        ...prev,
+        {
+          id,
+          title,
+          message,
+          severity: n.severity ?? n.Severity ?? 0,
+          createdAt: n.createdAtUtc || n.CreatedAtUtc,
+        },
+      ]);
 
-  connection.on("ReceiveGlobalNotification", async (n) => {
-    const id = extractNotificationId(n) || `global-${Date.now()}-${Math.random()}`;
-    const title = n.title || n.Title;
-    const message = n.message || n.Message;
+      try {
+        const total = await NotificationsApi.getMyUnreadCount();
+        setUnreadCount(typeof total === "number" ? total : 0);
+      } catch { }
 
-    setToastQueue((prev) => [
-      ...prev,
-      {
-        id,
-        title,
-        message,
-        severity: n.severity ?? n.Severity ?? 0,
-        createdAt: n.createdAtUtc || n.CreatedAtUtc,
-      },
-    ]);
-
-    try {
-      const total = await NotificationsApi.getMyUnreadCount();
-      setUnreadCount(typeof total === "number" ? total : 0);
-    } catch {}
-
-    fetchNotificationHistory({ append: false });
-  });
+      fetchNotificationHistory({ append: false });
+    });
 
 
 
-  connection
-    .start()
-    .catch((err) =>
-      console.error("Failed to connect NotificationHub:", err)
-    );
+    connection
+      .start()
+      .catch((err) =>
+        console.error("Failed to connect NotificationHub:", err)
+      );
 
-  return () => {
-    if (notifConnectionRef.current) {
-      notifConnectionRef.current.off("ReceiveNotification");
-      notifConnectionRef.current.off("ReceiveGlobalNotification");
-      notifConnectionRef.current.stop().catch(() => {});
-      notifConnectionRef.current = null;
-    }
-  };
-}, []);
+    return () => {
+      if (notifConnectionRef.current) {
+        notifConnectionRef.current.off("ReceiveNotification");
+        notifConnectionRef.current.off("ReceiveGlobalNotification");
+        notifConnectionRef.current.stop().catch(() => { });
+        notifConnectionRef.current = null;
+      }
+    };
+  }, []);
 
   // ===== TOAST QUEUE =====
   useEffect(() => {
@@ -428,7 +436,7 @@ useEffect(() => {
           notifConnectionRef.current.off("ReceiveNotification");
           notifConnectionRef.current.off("ReceiveGlobalNotification");
           await notifConnectionRef.current.stop();
-        } catch {}
+        } catch { }
         notifConnectionRef.current = null;
       }
 
@@ -578,7 +586,7 @@ useEffect(() => {
             title="Tháng hiện tại"
             aria-label="Tháng hiện tại"
           >
-            10/2025
+            {currentDateLabel}
           </span>
 
           {/* ====== NÚT CHUÔNG THÔNG BÁO (MỞ WIDGET) ====== */}
@@ -830,7 +838,7 @@ useEffect(() => {
         </div>
       )}
 
-       {/* ====== TOAST THÔNG BÁO MỚI (tự ẩn sau 5s, cho đóng thủ công) ====== */}
+      {/* ====== TOAST THÔNG BÁO MỚI (tự ẩn sau 5s, cho đóng thủ công) ====== */}
       {activeToast && (
         <div className="alh-toast" role="status" aria-live="polite">
           <div className="alh-toast-inner">
