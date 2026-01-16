@@ -156,7 +156,7 @@ const Sidebar = () => {
         },
         {
           id: "key-monitor-main",
-          label: "Theo dõi tình trạng",
+          label: "Quản lý tình trạng kho",
           to: "/key-monitor",
           allowedRoles: [ROLE_ADMIN, ROLE_STORAGE_STAFF],
           isActive: currentPage === "key-monitor",
