@@ -149,7 +149,7 @@ namespace Keytietkiem.Controllers
 
         [HttpGet]
         [Authorize]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetPayments(
      [FromQuery] string? search,
      [FromQuery] DateTime? createdFrom,
