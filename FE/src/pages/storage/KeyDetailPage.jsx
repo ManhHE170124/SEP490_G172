@@ -244,7 +244,9 @@ export default function KeyDetailPage() {
           cogsPrice: Number.isNaN(cogsPriceValue) ? null : cogsPriceValue,
         });
         showSuccess("Thành công", "Key đã được tạo thành công");
-        navigate("/keys");
+        setTimeout(() => {
+          navigate("/keys");
+        }, 1500);
       } else {
         // Only allow updating notes for existing keys
         await ProductKeyApi.update(id, {
@@ -277,7 +279,9 @@ export default function KeyDetailPage() {
         try {
           await ProductKeyApi.delete(id);
           showSuccess("Thành công", "Key đã được xóa thành công");
-          navigate("/keys");
+          setTimeout(() => {
+            navigate("/keys");
+          }, 1500);
         } catch (err) {
           console.error("Failed to delete key:", err);
           const errorMsg =
@@ -501,36 +505,45 @@ export default function KeyDetailPage() {
               </div>
             )}
 
-            {isNew && (
-              <div className="group" style={{ flex: "1 1 300px" }}>
-                <span>Giá vốn (COGS)</span>
-                <div>
-                  <input
-                    className="input"
-                    type="text"
-                    min="0"
-                    value={formData.cogsPrice ? Number(formData.cogsPrice).toLocaleString('vi-VN') : ''}
-                    onChange={(e) => {
-                        const val = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
-                        handleChange("cogsPrice", val);
-                    }}
-                    placeholder="Nhập giá vốn (COGS)"
-                  />
-                  {errors.cogsPrice && (
-                    <small style={{ color: "red" }}>{errors.cogsPrice}</small>
-                  )}
-                </div>
+            <div className="group" style={{ flex: "1 1 300px" }}>
+              <span>Giá nhập</span>
+              <div>
+                <input
+                  className="input"
+                  type="text"
+                  min="0"
+                  value={
+                    formData.cogsPrice
+                      ? Number(formData.cogsPrice).toLocaleString("vi-VN")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                      .replace(/\./g, "")
+                      .replace(/[^0-9]/g, "");
+                    handleChange("cogsPrice", val);
+                  }}
+                  placeholder="Nhập giá nhập"
+                  disabled={!isNew}
+                />
+                {errors.cogsPrice && (
+                  <small style={{ color: "red" }}>{errors.cogsPrice}</small>
+                )}
               </div>
-            )}
+            </div>
 
             <div className="group" style={{ flex: "1 1 300px" }}>
               <span>Ngày hết hạn</span>
               <div>
                 <input
                   className="input"
-                  type="date"
+                  type={!isNew ? "text" : "date"}
                   min={minExpiryDate}
-                  value={formData.expiryDate}
+                  value={
+                    !isNew && formData.expiryDate
+                      ? formData.expiryDate.split("-").reverse().join("/")
+                      : formData.expiryDate
+                  }
                   onChange={(e) => handleChange("expiryDate", e.target.value)}
                   disabled={!isNew}
                 />

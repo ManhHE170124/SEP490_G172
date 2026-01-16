@@ -78,7 +78,8 @@ namespace Keytietkiem.Services
                     Type = pk.Type,
                     UpdatedAt = pk.UpdatedAt,
                     ImportedAt = pk.ImportedAt,
-                    AssignToOrder = pk.AssignedToOrderId
+                    AssignToOrder = pk.AssignedToOrderId,
+                    ExpiryDate = pk.ExpiryDate
                 })
                 .ToListAsync(cancellationToken);
 
@@ -467,7 +468,8 @@ namespace Keytietkiem.Services
                     Type = pk.Type,
                     UpdatedAt = pk.UpdatedAt,
                     ImportedAt = pk.ImportedAt,
-                    AssignToOrder = pk.AssignedToOrderId
+                    AssignToOrder = pk.AssignedToOrderId,
+                    ExpiryDate = pk.ExpiryDate
                 })
                 .ToListAsync(cancellationToken);
 

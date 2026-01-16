@@ -514,7 +514,9 @@ export default function AccountDetailPage() {
         payload.accountPassword = formData.accountPassword;
         await ProductAccountApi.create(payload);
         showSuccess("Thành công", "Tài khoản đã được tạo thành công");
-        navigate("/accounts");
+        setTimeout(() => {
+          navigate("/accounts");
+        }, 1500);
       } else {
         payload.productAccountId = id;
         payload.variantId = formData.variantId;
@@ -550,7 +552,9 @@ export default function AccountDetailPage() {
         try {
           await ProductAccountApi.delete(id);
           showSuccess("Thành công", "Tài khoản đã được xóa thành công");
-          navigate("/accounts");
+          setTimeout(() => {
+            navigate("/accounts");
+          }, 1500);
         } catch (err) {
           console.error("Failed to delete account:", err);
           const errorMsg =

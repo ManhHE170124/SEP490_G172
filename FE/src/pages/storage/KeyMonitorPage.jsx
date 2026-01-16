@@ -304,6 +304,7 @@ export default function KeyMonitorPage() {
   };
 
   const closeImportModal = () => {
+    setUploading(false);
     setShowImportModal(false);
     setImportProduct(null);
     setCsvFile(null);

@@ -580,6 +580,7 @@ export default function SupplierDetailPage() {
         err.message ||
         "Không thể upload file CSV";
       showError("Lỗi upload", errorMsg);
+    } finally {
       setUploading(false);
     }
   };
@@ -590,6 +591,7 @@ export default function SupplierDetailPage() {
   };
 
   const closeUploadModal = () => {
+    setUploading(false);
     setShowUploadModal(false);
     setCsvFile(null);
     setCsvKeyType("Individual");
