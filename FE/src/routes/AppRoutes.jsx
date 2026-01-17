@@ -303,7 +303,7 @@ export default function AppRoutes() {
 
       <Route
         path="/admin/orders/:id"
-        element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN))}
+        element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       {/* FAQs */}
       <Route

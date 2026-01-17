@@ -221,7 +221,7 @@ export default function LoginPage() {
               <hr />
             </div>
 
-            <div className="form-row">
+            {/* <div className="form-row">
               <button
                 className="btn"
                 type="button"
@@ -235,7 +235,7 @@ export default function LoginPage() {
               >
                 Đăng nhập bằng Google
               </button>
-            </div>
+            </div> */}
 
             <p
               className="helper"
