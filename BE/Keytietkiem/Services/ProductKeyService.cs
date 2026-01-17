@@ -228,7 +228,7 @@ namespace Keytietkiem.Services
 
             var oldStatus = key.Status;
 
-            key.ExpiryDate = dto.ExpiryDate;
+            //key.ExpiryDate = dto.ExpiryDate;
             key.Status = dto.Status;
             if (key.ExpiryDate.HasValue && key.ExpiryDate < DateTime.UtcNow)
                 key.Status = nameof(ProductKeyStatus.Expired);
