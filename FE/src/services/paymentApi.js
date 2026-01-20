@@ -27,4 +27,17 @@ export const paymentApi = {
     const cfg = params ? { params } : undefined;
     return axiosClient.get(`${END.PAYMENTS}/${paymentId}`, cfg);
   },
+
+  /**
+   * ✅ Admin/CustomerCare: đổi trạng thái payment
+   * BE: PATCH /api/payments/{paymentId}/admin/status
+   * Body: { status, note? }
+   */
+  adminUpdateStatus: (paymentId, status, note) =>
+    axiosClient
+      .patch(`${END.PAYMENTS}/${paymentId}/admin/status`, {
+        status,
+        note: note ?? "",
+      })
+      .then(unwrap),
 };

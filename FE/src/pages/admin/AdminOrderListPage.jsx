@@ -15,13 +15,14 @@ const formatMoneyVnd = (v) => {
 const formatDateTime = (iso) => formatDatetime(iso);
 
 /**
- * ✅ Order statuses đúng theo BE:
- * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction
+ * ✅ Order statuses đúng theo BE (hiển thị ở admin list):
+ * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction, Refunded
  */
 const ORDER_STATUS_OPTIONS = [
   { value: "", label: "Tất cả trạng thái" },
   { value: "PendingPayment", label: "Chờ thanh toán" },
   { value: "Paid", label: "Đã thanh toán" },
+  { value: "Refunded", label: "Đã hoàn tiền" },
   { value: "NeedsManualAction", label: "Cần xử lý thủ công" },
   { value: "CancelledByTimeout", label: "Đã hủy do quá hạn" },
   { value: "Cancelled", label: "Đã hủy" },
@@ -39,6 +40,8 @@ const statusPillClass = (statusRaw) => {
   const v = normalizeStatusKey(statusRaw);
 
   if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED") return "payment-paid";
+
+  if (v === "REFUNDED") return "payment-refunded";
 
   if (v === "PENDINGPAYMENT" || v === "PENDING") return "payment-pending";
   if (v === "NEEDSMANUALACTION") return "payment-pending";

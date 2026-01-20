@@ -20,7 +20,7 @@ const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
 /**
  * ✅ Map đúng Order status theo BE:
- * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction
+ * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction, Refunded
  * (vẫn tolerant thêm Timeout/Success/Completed nếu dữ liệu legacy)
  */
 const statusVi = (s) => {
@@ -32,6 +32,7 @@ const statusVi = (s) => {
   if (v === "NEEDSMANUALACTION") return "Cần xử lý thủ công";
   if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "Hủy do quá hạn";
   if (v === "CANCELLED") return "Đã hủy";
+  if (v === "REFUNDED") return "Đã hoàn tiền";
 
   // fallback
   return String(s);
@@ -45,6 +46,7 @@ const statusPillClass = (s) => {
   if (v === "NEEDSMANUALACTION") return "aod-pill aod-pending";
   if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "aod-pill aod-cancelled";
   if (v === "CANCELLED") return "aod-pill aod-cancelled";
+  if (v === "REFUNDED") return "aod-pill aod-refunded";
 
   return "aod-pill aod-unknown";
 };

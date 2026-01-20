@@ -48,6 +48,7 @@ namespace Keytietkiem.Controllers
         private const string PayStatus_NeedReview = "NeedReview";
         private const string PayStatus_DupCancelled = "DupCancelled";
         private const string PayStatus_Replaced = "Replaced";
+        private const string PayStatus_Refunded = "Refunded";
 
         private sealed class PaymentLite
         {
@@ -527,6 +528,37 @@ namespace Keytietkiem.Controllers
 
                     db.Payments.Add(payment);
                     await db.SaveChangesAsync();
+
+                    // ✅ Audit: order created + payment attempt created (InMemory/unit test path)
+                    // (In relational DB path, audit is written after transaction commit.)
+                    try
+                    {
+                        await _auditLogger.LogAsync(
+                            HttpContext,
+                            action: "CheckoutFromCart",
+                            entityType: "Order",
+                            entityId: order.OrderId.ToString(),
+                            before: null,
+                            after: new
+                            {
+                                order.OrderId,
+                                order.Status,
+                                payment.PaymentId,
+                                PaymentStatus = payment.Status,
+                                payment.Provider,
+                                payment.ProviderOrderCode,
+                                payment.PaymentLinkId,
+                                payment.TargetType,
+                                payment.TargetId,
+                                CartId = cart.CartId,
+                                CartStatus = cart.Status,
+                                cart.ConvertedOrderId
+                            });
+                    }
+                    catch
+                    {
+                        // audit fail must not fail API
+                    }
 
                     return Ok(new CheckoutFromCartResponseDto
                     {
@@ -1170,6 +1202,50 @@ namespace Keytietkiem.Controllers
         }
 
 
+        // ✅ NEW: Audit every Order.Status change that happens inside OrdersController.
+        // Note: Other status changes (Paid/Cancelled/Refunded...) are synced from PaymentsController.
+        private async Task TryAuditOrderStatusChangeAsync(
+            Order order,
+            string? beforeStatus,
+            string? afterStatus,
+            string reason,
+            object? extra = null)
+        {
+            if (order == null) return;
+
+            var b = beforeStatus?.Trim();
+            var a = afterStatus?.Trim();
+
+            if (string.Equals(b, a, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "ChangeOrderStatus",
+                    entityType: "Order",
+                    entityId: order.OrderId.ToString(),
+                    before: new
+                    {
+                        OrderId = order.OrderId,
+                        Status = b
+                    },
+                    after: new
+                    {
+                        OrderId = order.OrderId,
+                        Status = a,
+                        Reason = reason,
+                        Extra = extra
+                    });
+            }
+            catch
+            {
+                // audit fail must not fail API
+            }
+        }
+
+
         private async Task<bool> TryClaimCartForCheckoutAsync(KeytietkiemDbContext db, Guid cartId, DateTime nowUtc)
         {
             if (!db.Database.IsRelational())
@@ -1606,10 +1682,24 @@ namespace Keytietkiem.Controllers
                 {
                     await EnsureOrderReservedAsync(db, orderId, nowUtc, HttpContext.RequestAborted);
                 }
-                catch (InvalidOperationException)
+                catch (InvalidOperationException ex)
                 {
+                    var beforeStatus = order.Status;
                     order.Status = "NeedsManualAction";
                     await db.SaveChangesAsync();
+
+                    // ✅ Audit when we auto switch the order to manual action state.
+                    await TryAuditOrderStatusChangeAsync(
+                        order,
+                        beforeStatus,
+                        order.Status,
+                        reason: "EnsureOrderReservedFailed",
+                        extra: new
+                        {
+                            orderId,
+                            ex = ex.Message,
+                            source = "BuildCheckoutResponseFromExistingOrderAsync"
+                        });
                 }
             }
 
@@ -1762,7 +1852,8 @@ namespace Keytietkiem.Controllers
             return s.Equals("Paid", StringComparison.OrdinalIgnoreCase)
                 || s.Equals("Cancelled", StringComparison.OrdinalIgnoreCase)
                 || s.Equals("CancelledByTimeout", StringComparison.OrdinalIgnoreCase)
-                || s.Equals("NeedsManualAction", StringComparison.OrdinalIgnoreCase);
+                || s.Equals("NeedsManualAction", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("Refunded", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsPaidLike(string? paymentStatus)
@@ -1791,6 +1882,7 @@ namespace Keytietkiem.Controllers
                     if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return "Cancelled";
                     if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return "CancelledByTimeout";
                     if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return "NeedsManualAction";
+                    if (ps.Equals(PayStatus_Refunded, StringComparison.OrdinalIgnoreCase)) return "Refunded";
                 }
 
                 return os;
