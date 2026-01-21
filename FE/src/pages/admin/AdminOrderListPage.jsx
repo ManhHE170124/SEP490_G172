@@ -1,21 +1,59 @@
 // File: src/pages/admin/AdminOrderListPage.jsx
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { orderApi } from "../../services/orderApi";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { orderApi } from "../../services/orderApi";
+import axiosClient from "../../api/axiosClient";
 import "./AdminOrderListPage.css";
 import formatDatetime from "../../utils/formatDatetime";
+import ToastContainer from "../../components/Toast/ToastContainer";
+
+/** ===== Icons (SVG inline) ===== */
+const Ico = {
+  Filter: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 .8 1.6L14 13.5V20a1 1 0 0 1-1.447.894l-3-1.5A1 1 0 0 1 9 18.5v-5L3.2 5.6A1 1 0 0 1 3 5z"
+      />
+    </svg>
+  ),
+  Refresh: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M20 12a8 8 0 0 1-14.314 4.906l-1.43 1.43A1 1 0 0 1 2.5 17.5V13a1 1 0 0 1 1-1H8a1 1 0 0 1 .707 1.707L7.19 15.224A6 6 0 1 0 6 12a1 1 0 1 1-2 0 8 8 0 1 1 16 0z"
+      />
+    </svg>
+  ),
+  Eye: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...p}>
+      <path
+        fill="currentColor"
+        d="M12 5c5.5 0 9.5 4.5 10.8 6.2a1.5 1.5 0 0 1 0 1.6C21.5 14.5 17.5 19 12 19S2.5 14.5 1.2 12.8a1.5 1.5 0 0 1 0-1.6C2.5 9.5 6.5 5 12 5zm0 2c-4.2 0-7.6 3.4-8.7 5 1.1 1.6 4.5 5 8.7 5s7.6-3.4 8.7-5c-1.1-1.6-4.5-5-8.7-5zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"
+      />
+    </svg>
+  ),
+  Caret: (p) => (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...p}>
+      <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+    </svg>
+  ),
+};
+
+const fmtDateTime = (d) => formatDatetime(d);
 
 const formatMoneyVnd = (v) => {
   const n = Number(v ?? 0);
   return n.toLocaleString("vi-VN") + " đ";
 };
 
-const formatDateTime = (iso) => formatDatetime(iso);
+const normalizeText = (v) => String(v ?? "").trim();
+const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
 /**
- * ✅ Order statuses đúng theo BE (hiển thị ở admin list):
+ * ✅ Order statuses đúng theo BE:
  * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction, Refunded
  */
 const ORDER_STATUS_OPTIONS = [
@@ -28,87 +66,26 @@ const ORDER_STATUS_OPTIONS = [
   { value: "Cancelled", label: "Đã hủy" },
 ];
 
-const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
+const mapOrderStatusToUi = (s) => {
+  const v = normalizeStatusKey(s);
 
-const getOrderStatusLabel = (statusRaw) => {
-  const s = String(statusRaw || "").trim();
-  const hit = ORDER_STATUS_OPTIONS.find((x) => x.value === s);
-  return hit?.label || "Không rõ";
-};
+  if (v === "PENDINGPAYMENT" || v === "PENDING")
+    return { label: "Chờ thanh toán", cls: "pending", value: "PendingPayment" };
 
-const statusPillClass = (statusRaw) => {
-  const v = normalizeStatusKey(statusRaw);
+  if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED")
+    return { label: "Đã thanh toán", cls: "paid", value: "Paid" };
 
-  if (v === "PAID" || v === "SUCCESS" || v === "COMPLETED") return "payment-paid";
+  if (v === "REFUNDED") return { label: "Đã hoàn tiền", cls: "refunded", value: "Refunded" };
 
-  if (v === "REFUNDED") return "payment-refunded";
+  if (v === "NEEDSMANUALACTION")
+    return { label: "Cần xử lý thủ công", cls: "manual", value: "NeedsManualAction" };
 
-  if (v === "PENDINGPAYMENT" || v === "PENDING") return "payment-pending";
-  if (v === "NEEDSMANUALACTION") return "payment-pending";
+  if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT")
+    return { label: "Đã hủy do quá hạn", cls: "cancelled", value: "CancelledByTimeout" };
 
-  if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "payment-timeout";
-  if (v === "CANCELLED") return "payment-cancelled";
+  if (v === "CANCELLED") return { label: "Đã hủy", cls: "cancelled", value: "Cancelled" };
 
-  return "payment-unknown";
-};
-
-const Icon = ({ name, size = 18 }) => {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-  };
-
-  if (name === "eye") {
-    return (
-      <svg {...common}>
-        <path
-          d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <path
-          d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "filter") {
-    return (
-      <svg {...common}>
-        <path
-          d="M4 6h16M7 12h10M10 18h4"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
-
-  // reset
-  return (
-    <svg {...common}>
-      <path
-        d="M21 12a9 9 0 1 1-3-6.7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M21 3v7h-7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return { label: s ? String(s) : "Không rõ", cls: "other", value: s || "Unknown" };
 };
 
 export default function AdminOrderListPage() {
@@ -129,10 +106,11 @@ export default function AdminOrderListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ draft để người dùng nhập, bấm icon “lọc” mới áp dụng
+  // draft filters
   const [draft, setDraft] = useState(DEFAULT_FILTERS);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
+  // sort/paged
   const [sort, setSort] = useState({ sortBy: "createdat", sortDir: "desc" });
   const [paged, setPaged] = useState({
     pageIndex: 1,
@@ -146,9 +124,61 @@ export default function AdminOrderListPage() {
     return Math.max(1, Math.ceil((paged.totalItems || 0) / ps));
   }, [paged.pageSize, paged.totalItems]);
 
+  /** ====== Toast & ConfirmDialog ====== */
+  const [toasts, setToasts] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const toastIdRef = useRef(1);
+
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const addToast = useCallback(
+    (type, title, message) => {
+      const id = toastIdRef.current++;
+      setToasts((prev) => [...prev, { id, type, message, title: title || undefined }]);
+      setTimeout(() => removeToast(id), 5000);
+      return id;
+    },
+    [removeToast]
+  );
+
+  const openConfirm = useCallback(({ title, message, onConfirm }) => {
+    setConfirmDialog({
+      title,
+      message,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        await onConfirm?.();
+      },
+      onCancel: () => setConfirmDialog(null),
+    });
+  }, []);
+
+  /** ====== Manual change gate (ẩn khỏi UI) ====== */
+  // manualGate[orderId] = { state: 'checking'|'ok'|'blocked'|'unknown', checkedAt }
+  const [manualGate, setManualGate] = useState({});
+  const [updatingOrderId, setUpdatingOrderId] = useState("");
+
+  // dropdown status menu
+  const [openStatusMenuId, setOpenStatusMenuId] = useState("");
+  const statusMenuRef = useRef(null);
+
+  // close menu when clicking outside
+  useEffect(() => {
+    if (!openStatusMenuId) return;
+    const onDown = (e) => {
+      if (!statusMenuRef.current) return;
+      if (!statusMenuRef.current.contains(e.target)) setOpenStatusMenuId("");
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [openStatusMenuId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const res = await orderApi.listPaged({
         ...filters,
@@ -165,6 +195,7 @@ export default function AdminOrderListPage() {
       }));
     } catch (e) {
       setError(e?.message || "Không thể tải danh sách đơn hàng");
+      setPaged((p) => ({ ...p, totalItems: 0, items: [] }));
     } finally {
       setLoading(false);
     }
@@ -174,18 +205,18 @@ export default function AdminOrderListPage() {
     load();
   }, [load]);
 
+  const fmtYmd = (d) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  };
+
   const applyFilters = () => {
     setPaged((p) => ({ ...p, pageIndex: 1 }));
-    const fmtYmd = (d) => {
-      if (!d) return "";
-      const dt = new Date(d);
-      if (Number.isNaN(dt.getTime())) return "";
-      const yy = dt.getFullYear();
-      const mm = String(dt.getMonth() + 1).padStart(2, "0");
-      const dd = String(dt.getDate()).padStart(2, "0");
-      return `${yy}-${mm}-${dd}`;
-    };
-
     setFilters({
       ...draft,
       search: String(draft.search || "").trim(),
@@ -199,11 +230,10 @@ export default function AdminOrderListPage() {
     setPaged((p) => ({ ...p, pageIndex: 1, pageSize: 10 }));
     setDraft(DEFAULT_FILTERS);
     setFilters(DEFAULT_FILTERS);
+    setOpenStatusMenuId("");
   };
 
-  const onDraftChange = (key, val) => {
-    setDraft((f) => ({ ...f, [key]: val }));
-  };
+  const onDraftChange = (key, val) => setDraft((f) => ({ ...f, [key]: val }));
 
   const toggleSort = (sortBy) => {
     setPaged((p) => ({ ...p, pageIndex: 1 }));
@@ -212,6 +242,178 @@ export default function AdminOrderListPage() {
       return { sortBy, sortDir: nextDir };
     });
   };
+
+  const onEnterApply = (e) => {
+    if (e.key === "Enter") applyFilters();
+  };
+
+  /** ✅ Gate check: nếu Order NeedsManualAction thì check /payments NeedReview (không hiển thị lên UI) */
+  useEffect(() => {
+    const items = Array.isArray(paged.items) ? paged.items : [];
+
+    const needCheck = items
+      .map((o) => {
+        const orderId = normalizeText(o.orderId ?? o.OrderId);
+        const st = normalizeText(o.status ?? o.Status);
+        return { orderId, st };
+      })
+      .filter((x) => x.orderId && normalizeStatusKey(x.st) === "NEEDSMANUALACTION")
+      .map((x) => x.orderId);
+
+    if (needCheck.length === 0) {
+      setManualGate({});
+      return;
+    }
+
+    let cancelled = false;
+
+    // set checking (chỉ cho các id cần check)
+    setManualGate((prev) => {
+      const next = { ...(prev || {}) };
+      for (const id of needCheck) {
+        const p = prev?.[id];
+        if (p?.state === "ok" || p?.state === "blocked") continue;
+        next[id] = { state: "checking" };
+      }
+      return next;
+    });
+
+    const parseTotalItems = (data) => {
+      const t = data?.totalItems ?? data?.TotalItems;
+      if (typeof t === "number") return t;
+      const it = data?.items ?? data?.Items;
+      return Array.isArray(it) ? it.length : 0;
+    };
+
+    (async () => {
+      const results = await Promise.all(
+        needCheck.map(async (orderId) => {
+          try {
+            const res = await axiosClient.get("payments", {
+              params: {
+                search: orderId,
+                transactionType: "Order",
+                paymentStatus: "NeedReview",
+                pageIndex: 1,
+                pageSize: 1,
+              },
+            });
+
+            const data = res?.data ?? res;
+            const total = parseTotalItems(data);
+            return { orderId, state: total > 0 ? "blocked" : "ok" };
+          } catch {
+            return { orderId, state: "unknown" };
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      setManualGate((prev) => {
+        const next = { ...(prev || {}) };
+        for (const r of results) next[r.orderId] = { state: r.state, checkedAt: Date.now() };
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [paged.items]);
+
+  /** ✅ Allowed next statuses for Order */
+  const getAllowedNextOrderStatuses = useCallback((orderStatusRaw, gateState) => {
+    const cur = mapOrderStatusToUi(orderStatusRaw).value;
+    const k = normalizeStatusKey(cur);
+
+    // chỉ đổi khi NeedsManualAction
+    if (k !== "NEEDSMANUALACTION") return [];
+
+    // Payment NeedReview => bị chặn
+    if (gateState === "blocked") return [];
+
+    // ok hoặc unknown => cho phép đổi (unknown: BE sẽ chặn nếu thật sự cần)
+    return ["Paid", "Cancelled"];
+  }, []);
+
+  const buildMenuOptions = useCallback(
+    (orderStatusRaw, gateState) => {
+      const allow = getAllowedNextOrderStatuses(orderStatusRaw, gateState);
+      const cur = mapOrderStatusToUi(orderStatusRaw).value;
+
+      return allow
+        .filter((x) => x && normalizeStatusKey(x) !== normalizeStatusKey(cur))
+        .map((v) => {
+          const ui = mapOrderStatusToUi(v);
+          return { value: v, label: ui.label, ui };
+        });
+    },
+    [getAllowedNextOrderStatuses]
+  );
+
+  const doManualUpdateOrderStatus = useCallback(
+    async (orderId, desiredStatus) => {
+      if (!orderId || !desiredStatus) return;
+
+      setUpdatingOrderId(orderId);
+      try {
+        // OrdersController: PATCH /orders/{orderId}/status, body: { Status, Note }
+        await axiosClient.patch(`orders/${orderId}/status`, {
+          Status: desiredStatus,
+          Note: "",
+        });
+
+        // update nhanh UI
+        setPaged((p) => ({
+          ...p,
+          items: (p.items || []).map((x) => {
+            const id = normalizeText(x.orderId ?? x.OrderId);
+            if (id !== orderId) return x;
+            return { ...x, status: desiredStatus, Status: desiredStatus };
+          }),
+        }));
+
+        await load();
+
+        const desiredUi = mapOrderStatusToUi(desiredStatus);
+        addToast("success", "Thành công", `Đã đổi trạng thái đơn "${orderId}" sang "${desiredUi.label}".`);
+      } catch (e) {
+        const msg =
+          e?.response?.data?.message ||
+          e?.response?.data?.Message ||
+          e?.message ||
+          "Không thể cập nhật trạng thái đơn.";
+        addToast("error", "Thất bại", msg);
+      } finally {
+        setUpdatingOrderId("");
+      }
+    },
+    [load, addToast]
+  );
+
+  const confirmAndChange = useCallback(
+    (orderId, currentStatusRaw, desiredStatus, gateState) => {
+      setOpenStatusMenuId("");
+
+      const currentUi = mapOrderStatusToUi(currentStatusRaw);
+      const desiredUi = mapOrderStatusToUi(desiredStatus);
+
+      const warn =
+        gateState === "unknown"
+          ? "\n(Lưu ý: không kiểm tra được Payment NeedReview — nếu BE chặn thì thao tác sẽ thất bại.)"
+          : "";
+
+      openConfirm({
+        title: "Xác nhận đổi trạng thái?",
+        message: `Đổi trạng thái từ "${currentUi.label}" sang "${desiredUi.label}"?${warn}`,
+        onConfirm: async () => {
+          await doManualUpdateOrderStatus(orderId, desiredStatus);
+        },
+      });
+    },
+    [openConfirm, doManualUpdateOrderStatus]
+  );
 
   const buildPageButtons = () => {
     const current = paged.pageIndex;
@@ -231,13 +433,7 @@ export default function AdminOrderListPage() {
       );
     };
 
-    const pushDots = (key) => {
-      btns.push(
-        <span key={key} className="aol-dots">
-          …
-        </span>
-      );
-    };
+    const pushDots = (key) => btns.push(<span key={key} className="aol-dots">…</span>);
 
     if (total <= 7) {
       for (let i = 1; i <= total; i++) pushBtn(i);
@@ -258,257 +454,335 @@ export default function AdminOrderListPage() {
     return btns;
   };
 
-  const onEnterApply = (e) => {
-    if (e.key === "Enter") applyFilters();
-  };
-
   return (
-    <div className="aol-page">
-      <div className="order-payment-header">
-        <h2>Danh sách đơn hàng</h2>
-      </div>
+    <>
+      <div className="aol-page">
+        <div className="aol-top">
+          <div>
+            <div className="aol-title">Danh sách đơn hàng</div>
+            <div className="aol-sub">Quản lý, lọc và xem chi tiết đơn hàng</div>
+          </div>
+        </div>
 
-      <div className="aol-card">
-        <div className="op-toolbar">
-          <div className="op-filters">
-            <div className="op-group">
-              <span>Tìm kiếm (mã đơn / email)</span>
-              <input
-                value={draft.search}
-                onChange={(e) => onDraftChange("search", e.target.value)}
-                onKeyDown={onEnterApply}
-                placeholder="VD: 1ffa... hoặc mail@example.com"
-              />
+        <div className="aol-card">
+          {/* ===== Filters (style cũ aol-*) ===== */}
+          <div style={{ padding: "12px 14px 0" }}>
+            <div className="aol-toolbar aol-toolbar-row1">
+              <div className="aol-field">
+                <label>Tìm kiếm (mã đơn / email)</label>
+                <input
+                  className="aol-input"
+                  value={draft.search}
+                  onChange={(e) => onDraftChange("search", e.target.value)}
+                  onKeyDown={onEnterApply}
+                  placeholder="VD: 1ffa... hoặc mail@example.com"
+                />
+              </div>
+
+              <div className="aol-field">
+                <label>Trạng thái</label>
+                <select
+                  className="aol-select"
+                  value={draft.orderStatus}
+                  onChange={(e) => onDraftChange("orderStatus", e.target.value)}
+                >
+                  {ORDER_STATUS_OPTIONS.map((o) => (
+                    <option key={o.value || "all"} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="aol-field">
+                <label>Từ ngày</label>
+                <DatePicker
+                  selected={draft.createdFrom}
+                  onChange={(d) => onDraftChange("createdFrom", d)}
+                  className="aol-dateInput"
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Chọn ngày"
+                />
+              </div>
+
+              <div className="aol-field">
+                <label>Đến ngày</label>
+                <DatePicker
+                  selected={draft.createdTo}
+                  onChange={(d) => onDraftChange("createdTo", d)}
+                  className="aol-dateInput"
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Chọn ngày"
+                />
+              </div>
+
+              <div className="aol-field aol-field-actions">
+                <button
+                  type="button"
+                  className="aol-btn icon primary"
+                  onClick={applyFilters}
+                  title="Lọc"
+                  aria-label="Lọc"
+                >
+                  <Ico.Filter />
+                </button>
+                <button
+                  type="button"
+                  className="aol-btn icon"
+                  onClick={resetFilters}
+                  title="Đặt lại"
+                  aria-label="Đặt lại"
+                >
+                  <Ico.Refresh />
+                </button>
+              </div>
             </div>
 
-            <div className="op-group">
-              <span>Từ ngày</span>
-              <DatePicker
-                selected={draft.createdFrom}
-                onChange={(d) => onDraftChange("createdFrom", d)}
-                className="aol-dateInput"
-                dateFormat="dd/MM/yyyy"
-                placeholderText="Chọn ngày"
-              />
-            </div>
+            <div className="aol-toolbar aol-toolbar-row2">
+              <div className="aol-field">
+                <label>Tổng tiền</label>
+                <div className="aol-amountRange">
+                  <input
+                    className="aol-input"
+                    inputMode="numeric"
+                    placeholder="Từ"
+                    value={draft.minTotal}
+                    onChange={(e) => onDraftChange("minTotal", e.target.value)}
+                    onKeyDown={onEnterApply}
+                  />
+                  <input
+                    className="aol-input"
+                    inputMode="numeric"
+                    placeholder="Đến"
+                    value={draft.maxTotal}
+                    onChange={(e) => onDraftChange("maxTotal", e.target.value)}
+                    onKeyDown={onEnterApply}
+                  />
+                </div>
+              </div>
 
-            <div className="op-group">
-              <span>Đến ngày</span>
-              <DatePicker
-                selected={draft.createdTo}
-                onChange={(d) => onDraftChange("createdTo", d)}
-                className="aol-dateInput"
-                dateFormat="dd/MM/yyyy"
-                placeholderText="Chọn ngày"
-              />
+              <div />
             </div>
+          </div>
 
-            <div className="op-group">
-              <span>Trạng thái</span>
-              <select
-                value={draft.orderStatus}
-                onChange={(e) => onDraftChange("orderStatus", e.target.value)}
+          <div className="aol-cardTop" style={{ marginTop: 10 }}>
+            <div>
+              <div className="aol-cardTitle">Kết quả</div>
+              <div className="aol-meta">
+                {loading
+                  ? "Đang tải..."
+                  : `Tổng: ${paged.totalItems} • Trang ${paged.pageIndex}/${totalPages}`}
+              </div>
+            </div>
+          </div>
+
+          {error ? <div className="aol-inlineError">{error}</div> : null}
+
+          {/* ===== Table (style cũ) ===== */}
+          <div className="aol-tableWrap">
+            <table className="aol-table">
+              <thead>
+                <tr>
+                  <th>Mã đơn</th>
+                  <th>Người mua</th>
+                  <th>Tổng tiền</th>
+                  <th>Trạng thái</th>
+                  <th>
+                    <button
+                      className="aol-sortBtn"
+                      type="button"
+                      onClick={() => toggleSort("createdat")}
+                      title="Sắp xếp theo ngày tạo"
+                    >
+                      Ngày tạo {sort.sortBy === "createdat" ? (sort.sortDir === "asc" ? "▲" : "▼") : ""}
+                    </button>
+                  </th>
+                  <th style={{ textAlign: "right" }}>Chi tiết</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {(paged.items || []).map((o) => {
+                  const orderId = normalizeText(o.orderId ?? o.OrderId);
+                  const buyerName = o.userName ?? o.UserName ?? "—";
+                  const buyerEmail = o.userEmail ?? o.UserEmail ?? o.email ?? o.Email ?? "";
+
+                  const totalAmount = Number(o.totalAmount ?? o.TotalAmount ?? 0);
+                  const finalAmount = Number(o.finalAmount ?? o.FinalAmount ?? totalAmount);
+
+                  const statusRaw = o.status ?? o.Status ?? "";
+                  const statusUi = mapOrderStatusToUi(statusRaw);
+                  const createdAt = o.createdAt ?? o.CreatedAt;
+
+                  const gateState = manualGate?.[orderId]?.state || "";
+                  const menuOptions = buildMenuOptions(statusRaw, gateState);
+
+                  const isUpdating = updatingOrderId === orderId;
+                  const isMenuOpen = openStatusMenuId === orderId;
+
+                  const canOpen =
+                    !!orderId &&
+                    !isUpdating &&
+                    menuOptions.length > 0 &&
+                    gateState !== "checking" &&
+                    gateState !== "blocked";
+
+                  const titleHint =
+                    gateState === "checking"
+                      ? "Đang kiểm tra Payment NeedReview..."
+                      : gateState === "blocked"
+                      ? "Payment đang NeedReview → không được đổi thủ công Order"
+                      : canOpen
+                      ? "Đổi trạng thái"
+                      : "Không thể đổi trạng thái";
+
+                  return (
+                    <tr key={orderId || JSON.stringify(o)}>
+                      <td>
+                        <span className="aol-orderId mono">{orderId || "—"}</span>
+                      </td>
+
+                      <td>
+                        <div className="aol-buyerName">{buyerName}</div>
+                        <div className="aol-buyerEmail">{buyerEmail || "—"}</div>
+                      </td>
+
+                      <td className="aol-amount">
+                        {formatMoneyVnd(finalAmount)}
+                        {totalAmount && totalAmount !== finalAmount ? (
+                          <div className="aol-buyerEmail" style={{ marginTop: 4 }}>
+                            {formatMoneyVnd(totalAmount)}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      {/* ✅ Status pill dropdown if can change */}
+                      <td>
+                        {menuOptions.length > 0 ? (
+                          <div className="aol-statusMenuWrap" ref={isMenuOpen ? statusMenuRef : null}>
+                            <button
+                              type="button"
+                              className={`status-pill aol-pillDropdown ${statusUi.cls} ${
+                                canOpen ? "" : "disabled"
+                              }`}
+                              title={titleHint}
+                              disabled={!canOpen}
+                              onClick={() => {
+                                if (!canOpen) return;
+                                setOpenStatusMenuId((prev) => (prev === orderId ? "" : orderId));
+                              }}
+                            >
+                              <span className="aol-pillText">{statusUi.label}</span>
+                              <span className="aol-pillCaret" aria-hidden="true">
+                                <Ico.Caret />
+                              </span>
+                            </button>
+
+                            {isMenuOpen ? (
+                              <div className="aol-statusMenu" role="menu" aria-label="Chọn trạng thái đơn">
+                                {menuOptions.map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    role="menuitem"
+                                    className={`aol-statusMenuItem ${opt.ui.cls}`}
+                                    onClick={() => confirmAndChange(orderId, statusRaw, opt.value, gateState)}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className={`status-pill ${statusUi.cls}`} title={titleHint}>
+                            {statusUi.label}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="mono">{fmtDateTime(createdAt)}</td>
+
+                      <td style={{ textAlign: "right" }}>
+                        <div className="aol-actions">
+                          <button
+                            className="aol-miniActionBtn"
+                            type="button"
+                            title="Xem chi tiết"
+                            onClick={() => nav(`/admin/orders/${orderId}`)}
+                            disabled={!orderId}
+                          >
+                            <Ico.Eye />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {!loading && (!paged.items || paged.items.length === 0) ? (
+                  <tr>
+                    <td colSpan={6} className="aol-empty">
+                      Không có dữ liệu
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ===== Pager (style cũ) ===== */}
+          <div className="aol-pager">
+            <div className="aol-pager-center">
+              <button
+                className="aol-pageBtn"
+                type="button"
+                onClick={() => setPaged((p) => ({ ...p, pageIndex: Math.max(1, p.pageIndex - 1) }))}
+                disabled={paged.pageIndex <= 1}
+                title="Trang trước"
               >
-                {ORDER_STATUS_OPTIONS.map((o) => (
-                  <option key={o.value || "all"} value={o.value}>
-                    {o.label}
+                ← Trước
+              </button>
+
+              {buildPageButtons()}
+
+              <button
+                className="aol-pageBtn"
+                type="button"
+                onClick={() => setPaged((p) => ({ ...p, pageIndex: Math.min(totalPages, p.pageIndex + 1) }))}
+                disabled={paged.pageIndex >= totalPages}
+                title="Trang sau"
+              >
+                Sau →
+              </button>
+            </div>
+
+            <div className="aol-pager-right">
+              <select
+                className="aol-select"
+                value={paged.pageSize}
+                onChange={(e) =>
+                  setPaged((p) => ({
+                    ...p,
+                    pageIndex: 1,
+                    pageSize: Number(e.target.value || 10),
+                  }))
+                }
+                title="Số dòng mỗi trang"
+              >
+                {[10, 20, 30, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
                   </option>
                 ))}
               </select>
             </div>
-
-            <div className="op-group">
-              <span>Tổng tiền</span>
-              <div className="aol-amountRange">
-                <input
-                  inputMode="numeric"
-                  placeholder="Từ"
-                  value={draft.minTotal}
-                  onChange={(e) => onDraftChange("minTotal", e.target.value)}
-                  onKeyDown={onEnterApply}
-                />
-                <input
-                  inputMode="numeric"
-                  placeholder="Đến"
-                  value={draft.maxTotal}
-                  onChange={(e) => onDraftChange("maxTotal", e.target.value)}
-                  onKeyDown={onEnterApply}
-                />
-              </div>
-            </div>
-
-            <div className="aol-filterActions">
-              <button
-                type="button"
-                className="aol-iconActionBtn primary"
-                onClick={applyFilters}
-                title="Lọc"
-                aria-label="Lọc"
-              >
-                <Icon name="filter" />
-              </button>
-              <button
-                type="button"
-                className="aol-iconActionBtn"
-                onClick={resetFilters}
-                title="Đặt lại"
-                aria-label="Đặt lại"
-              >
-                <Icon name="reset" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="aol-topInfo">
-          {loading ? "Đang tải..." : `Tổng: ${paged.totalItems} • Trang ${paged.pageIndex}/${totalPages}`}
-        </div>
-
-        {error ? (
-          <div style={{ marginTop: 10, color: "#b91c1c", fontWeight: 800 }}>{error}</div>
-        ) : null}
-
-        <div className="aol-tableWrap">
-          <table className="op-table table">
-            <thead>
-              <tr>
-                <th>Mã đơn</th>
-                <th>Người mua</th>
-                <th>Tổng tiền</th>
-                <th>Trạng thái</th>
-                <th>
-                  <button
-                    className="table-sort-header"
-                    type="button"
-                    onClick={() => toggleSort("createdat")}
-                    title="Sắp xếp theo ngày tạo"
-                  >
-                    Ngày tạo {sort.sortBy === "createdat" ? (sort.sortDir === "asc" ? "▲" : "▼") : ""}
-                  </button>
-                </th>
-                <th className="op-th-actions">Chi tiết</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {(paged.items || []).map((o) => {
-                const orderId = String(o.orderId ?? o.OrderId ?? "");
-                const buyerName = o.userName ?? o.UserName ?? "—";
-                const buyerEmail = o.userEmail ?? o.UserEmail ?? o.email ?? o.Email ?? "";
-
-                const totalAmount = Number(o.totalAmount ?? o.TotalAmount ?? 0);
-                const finalAmount = Number(o.finalAmount ?? o.FinalAmount ?? totalAmount);
-
-                const status = o.status ?? o.Status ?? "";
-                const createdAt = o.createdAt ?? o.CreatedAt;
-
-                return (
-                  <tr key={orderId || Math.random()}>
-                    <td>
-                      <div className="op-cell-main">
-                        <div className="op-cell-title">
-                          <span className="aol-orderId mono">{orderId || "—"}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="op-cell-main">
-                        <div className="op-cell-title" style={{ fontWeight: 800 }}>{buyerName}</div>
-                        <div className="op-cell-sub">{buyerEmail || "—"}</div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="aol-price">
-                        <div className="aol-price-new">{formatMoneyVnd(finalAmount)}</div>
-                        {totalAmount && totalAmount !== finalAmount ? (
-                          <div className="aol-price-old">{formatMoneyVnd(totalAmount)}</div>
-                        ) : null}
-                      </div>
-                    </td>
-
-                    <td>
-                      <span className={`status-pill ${statusPillClass(status)}`}>
-                        {getOrderStatusLabel(status)}
-                      </span>
-                    </td>
-
-                    <td className="mono">{formatDateTime(createdAt)}</td>
-
-                    <td className="op-td-actions">
-                      <button
-                        className="op-icon-btn"
-                        type="button"
-                        title="Xem chi tiết"
-                        onClick={() => nav(`/admin/orders/${orderId}`)}
-                        disabled={!orderId}
-                      >
-                        <Icon name="eye" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {!loading && (!paged.items || paged.items.length === 0) ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 16, color: "#6b7280", fontWeight: 700 }}>
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="aol-pager">
-          <div className="aol-pager-center">
-            <button
-              className="aol-navBtn"
-              type="button"
-              onClick={() => setPaged((p) => ({ ...p, pageIndex: Math.max(1, p.pageIndex - 1) }))}
-              disabled={paged.pageIndex <= 1}
-              title="Trang trước"
-            >
-              ← Trước
-            </button>
-
-            {buildPageButtons()}
-
-            <button
-              className="aol-navBtn"
-              type="button"
-              onClick={() => setPaged((p) => ({ ...p, pageIndex: Math.min(totalPages, p.pageIndex + 1) }))}
-              disabled={paged.pageIndex >= totalPages}
-              title="Trang sau"
-            >
-              Sau →
-            </button>
-          </div>
-
-          <div className="aol-pager-right">
-            <select
-              className="aol-pageSizeSelect"
-              value={paged.pageSize}
-              onChange={(e) =>
-                setPaged((p) => ({
-                  ...p,
-                  pageIndex: 1,
-                  pageSize: Number(e.target.value || 10),
-                }))
-              }
-              title="Số dòng mỗi trang"
-            >
-              {[10, 20, 30, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* ✅ Toast + Confirm Dialog */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} confirmDialog={confirmDialog} />
+    </>
   );
 }
