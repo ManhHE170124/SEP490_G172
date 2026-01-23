@@ -46,7 +46,7 @@ const BASE_NAV_ITEMS = [
   {
     label: "Hướng dẫn",
     anchor: "docs",
-    path: "/docs",
+    path: "/tai-lieu",
   },
 ];
 

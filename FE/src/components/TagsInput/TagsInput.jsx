@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './TagsInput.css';
 
-const TagsInput = ({ 
-  tags = [], 
-  setTags, 
-  availableTags = [], 
-  onCreateNewTag 
+const TagsInput = ({
+  tags = [],
+  setTags,
+  availableTags = [],
+  onCreateNewTag
 }) => {
   const [tagInput, setTagInput] = useState('');
   const [filteredTags, setFilteredTags] = useState([]);
@@ -22,17 +22,17 @@ const TagsInput = ({
       const filtered = availableTags.filter(tag => {
         // Check if the tag is not already selected
         const isNotSelected = !tags.some(t => t.tagName === tag.tagName || t === tag.tagName);
-        
+
         if (!isNotSelected) return false;
 
         // Get or generate slug for comparison
         const tagSlug = tag.slug || toSlug(tag.tagName);
-        
+
         // Check if either the name or slug contains the search term
-        return tagSlug.includes(searchSlug) || 
-               tag.tagName.toLowerCase().includes(tagInput.toLowerCase());
+        return tagSlug.includes(searchSlug) ||
+          tag.tagName.toLowerCase().includes(tagInput.toLowerCase());
       });
-      
+
       setFilteredTags(filtered);
       setShowDropdown(filtered.length > 0);
     } else {
@@ -49,23 +49,23 @@ const TagsInput = ({
         setShowDropdown(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Generate slug from Vietnamese text
- const toSlug = (text) => {
-  return text
-    .normalize('NFD') 
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd').replace(/Đ/g, 'D') 
-    .replace(/[^a-zA-Z0-9\s-]/g, '') 
-    .trim() 
-    .replace(/\s+/g, '-') 
-    .replace(/-+/g, '-') 
-    .toLowerCase(); 
-};
+  const toSlug = (text) => {
+    return text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .toLowerCase();
+  };
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -86,9 +86,9 @@ const TagsInput = ({
 
   const handleCreateNewTag = async () => {
     const trimmedInput = tagInput.trim();
-    
+
     if (!trimmedInput) {
-      setError('Tag không được để trống');
+      setError('Tên thẻ không được để trống');
       return;
     }
 
@@ -99,17 +99,17 @@ const TagsInput = ({
     });
 
     if (isDuplicate) {
-      setError('Tag này đã tồn tại');
+      setError('Tên thẻ đã tồn tại');
       return;
     }
 
     if (trimmedInput.length > 100) {
-      setError('Tag không được vượt quá 100 ký tự');
+      setError('Tên thẻ không được vượt quá 100 ký tự');
       return;
     }
 
     if (trimmedInput.length < 2) {
-      setError('Tag không được dưới 2 ký tự');
+      setError('Tên thẻ không được dưới 2 ký tự');
       return;
     }
     // Check if it's an existing tag in database
@@ -128,36 +128,36 @@ const TagsInput = ({
       if (onCreateNewTag) {
         const slug = toSlug(trimmedInput);
         const newTag = await onCreateNewTag(trimmedInput, slug);
-        
+
         // Validate newTag before adding to tags
         if (!newTag) {
-          setError('Không thể tạo tag mới. Vui lòng thử lại.');
+          setError('Không thể tạo thẻ mới. Vui lòng thử lại.');
           return;
         }
-        
+
         // Ensure newTag has required properties
         if (typeof newTag !== 'string' && (!newTag.tagName && !newTag.name)) {
-          setError('Dữ liệu tag không hợp lệ.');
+          setError('Dữ liệu thẻ không hợp lệ.');
           return;
         }
-        
+
         setTags(prev => [...prev, newTag]);
         setTagInput('');
         setError('');
       } else {
         // If no create handler, user doesn't have permission to create tags
-        setError('Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.');
+        setError('Bạn không có quyền tạo thẻ mới. Vui lòng chọn thẻ từ danh sách có sẵn.');
       }
     } catch (err) {
       // Error message should already be shown by the parent component
-      setError(err.message || 'Không thể tạo tag mới. Vui lòng thử lại.');
+      setError(err.message || 'Không thể tạo thẻ mới. Vui lòng thử lại.');
     }
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      
+
       if (showDropdown && selectedIndex >= 0 && selectedIndex < filteredTags.length) {
         // Select highlighted tag from dropdown
         handleSelectTag(filteredTags[selectedIndex]);
@@ -166,12 +166,12 @@ const TagsInput = ({
         handleCreateNewTag();
       } else {
         // If no permission, show error
-        setError('Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.');
+        setError('Bạn không có quyền tạo thẻ mới. Vui lòng chọn thẻ từ danh sách có sẵn.');
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (showDropdown) {
-        setSelectedIndex(prev => 
+        setSelectedIndex(prev =>
           prev < filteredTags.length - 1 ? prev + 1 : prev
         );
       }
@@ -200,7 +200,7 @@ const TagsInput = ({
         <input
           ref={inputRef}
           type="text"
-          placeholder={onCreateNewTag ? "Nhập tag (có dấu được)... Ấn Enter để tạo" : "Tìm và chọn tag từ danh sách có sẵn"}
+          placeholder={onCreateNewTag ? "Nhập thẻ (có dấu được)... Ấn Enter để tạo" : "Tìm và chọn thẻ từ danh sách có sẵn"}
           value={tagInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -209,7 +209,7 @@ const TagsInput = ({
           }}
           className={error ? 'error' : ''}
         />
-        
+
         {showDropdown && filteredTags.length > 0 && (
           <div className="tags-dropdown">
             {filteredTags.map((tag, index) => (
@@ -233,12 +233,12 @@ const TagsInput = ({
         {tags.map((tag, index) => {
           const tagName = typeof tag === 'string' ? tag : tag.tagName;
           const isNew = typeof tag === 'string' || !tag.tagId;
-          
+
           return (
-            <div 
-              key={index} 
+            <div
+              key={index}
               className={`tag-item ${isNew ? 'new-tag' : 'existing-tag'}`}
-              title={isNew ? 'Tag mới' : 'Tag có sẵn'}
+              title={isNew ? 'Thẻ mới' : 'Thẻ có sẵn'}
             >
               {tagName}
               {isNew && <span className="new-badge">Mới</span>}

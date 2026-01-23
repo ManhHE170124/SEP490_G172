@@ -15,8 +15,6 @@ import ProtectedRoute from "./ProtectedRoute";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
-//Role Management Pages
-import RoleManage from "../pages/RoleManage/RoleManage";
 // Post Management Pages
 import AdminPostList from "../pages/PostManage/AdminPostList";
 import PostCreateEdit from "../pages/PostManage/CreateEditPost";
@@ -324,10 +322,7 @@ export default function AppRoutes() {
         path="/admin/user-dashboard"
         element={renderAdminPage(<UserDashboardAdminPage />, role(ROLES.ADMIN))}
       />
-      <Route
-        path="/role-manage"
-        element={renderAdminPage(<RoleManage />, role(ROLES.ADMIN))}
-      />
+
       {/* Post Routes */}
       <Route
         path="/post-dashboard"
