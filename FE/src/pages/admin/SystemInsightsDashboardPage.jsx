@@ -986,7 +986,6 @@ export default function SystemInsightsDashboardPage() {
                     Số thông báo theo thời gian
                   </div>
                   <div className="sid-panel-sub">
-                    Tổng + tách Hệ thống/Thủ công
                   </div>
                 </div>
                 <div className="sid-unit">Thông báo</div>
@@ -1083,7 +1082,6 @@ export default function SystemInsightsDashboardPage() {
               </div>
 
               <div className="sid-note">
-                Ghi chú: biểu đồ hiển thị phần trăm (0–100%).
               </div>
             </div>
           </div>
@@ -1109,7 +1107,6 @@ export default function SystemInsightsDashboardPage() {
                 <div>
                   <div className="sid-panel-title">Mức độ thông báo theo ngày</div>
                   <div className="sid-panel-sub">
-                    So sánh Info / Success / Warning / Error
                   </div>
                 </div>
               </div>
@@ -1131,8 +1128,6 @@ export default function SystemInsightsDashboardPage() {
               </div>
 
               <div className="sid-note">
-                Nhìn nhanh ngày nào có nhiều Cảnh báo/Lỗi để ưu tiên xử lý vận
-                hành.
               </div>
             </div>
           </div>

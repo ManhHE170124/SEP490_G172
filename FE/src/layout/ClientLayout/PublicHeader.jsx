@@ -6,6 +6,7 @@ import StorefrontCartApi, { CART_UPDATED_EVENT } from "../../services/storefront
 import { NotificationsApi } from "../../services/notifications";
 import StorefrontProductApi from "../../services/storefrontProductService";
 import axiosClient from "../../api/axiosClient";
+import formatDatetime from "../../utils/formatDatetime";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 import "./PublicHeader.css";
 
@@ -143,14 +144,7 @@ const getNotifSeverityLabel = (sev) => {
   }
 };
 
-const formatNotificationTime = (value) => {
-  if (!value) return "";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return "";
-  }
-};
+const formatNotificationTime = (value) => (value ? formatDatetime(value) : "");
 
 // Helper function to get user roles from localStorage
 const getUserRoles = () => {

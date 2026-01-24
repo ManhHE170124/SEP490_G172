@@ -3,6 +3,7 @@ import React from "react";
 import { AuditLogsApi } from "../../services/auditLogs";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import "./AuditLogsPage.css";
+import formatDatetime from "../../utils/formatDatetime";
 
 /* =========================
    VN MAPPING (FE-only)
@@ -47,8 +48,6 @@ const ACTION_VI = {
   // ===== ORDER / PAYMENT =====
   CheckoutFromCart: "Thanh toán từ giỏ hàng",
   ViewOrderDetail: "Xem chi tiết đơn hàng",
-  ChangeOrderStatus: "Nhân viên đổi trạng thái đơn hàng",                    // <-- thêm
-  OrderStatusChanged: "Đồng bộ trạng thái đơn hàng theo thanh toán",
   ViewOrderDetailWithCredentials: "Xem chi tiết đơn hàng",
   PaymentStatusChanged: "Cập nhật trạng thái thanh toán",
   CreateSupportPlanPayOSPayment: "Tạo thanh toán PayOS cho gói hỗ trợ",
@@ -253,19 +252,9 @@ const displayActorEmail = (email) => {
 };
 
 /* =========================
-   Time formatting: force UTC+7
+   Time formatting: UI display in UTC+7 (using shared util)
    ========================= */
-const BKK_TZ = "Asia/Bangkok";
-const formatDateTimeBkk = (value) => {
-  if (!value) return "";
-  try {
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleString("vi-VN", { timeZone: BKK_TZ });
-  } catch {
-    return String(value);
-  }
-};
+const formatDateTimeBkk = (value) => (value ? formatDatetime(value) : "");
 
 /* =========================
    DatePicker (calendar) + display dd/MM/yyyy
