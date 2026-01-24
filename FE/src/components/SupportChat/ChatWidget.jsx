@@ -8,11 +8,40 @@ import "./support-chat-widget.css";
 function formatTime(value) {
   if (!value) return "";
   try {
-    const d = new Date(value);
-    return d.toLocaleTimeString("vi-VN", {
+    const DISPLAY_TZ = "Asia/Bangkok"; // UTC+7 (FE only)
+
+    const hasTimeZoneDesignator = (s) =>
+      /[zZ]$/.test(s) ||
+      /[+\-]\d{2}:\d{2}$/.test(s) ||
+      /[+\-]\d{2}\d{2}$/.test(s);
+
+    let d = null;
+
+    if (value instanceof Date) {
+      d = value;
+    } else if (typeof value === "number") {
+      d = new Date(value);
+    } else {
+      let s = String(value).trim();
+      if (!s) return "";
+
+      // .NET đôi khi trả fractional seconds 7 digits (vd: .1234567) => JS có thể parse lỗi
+      // Trim về tối đa 3 digits để chắc chắn parse được.
+      s = s.replace(/(\.\d{3})\d+/, "$1");
+
+      // Nếu API/DB trả "2026-01-24T01:23:45" (không Z/offset) => coi là UTC
+      const iso = hasTimeZoneDesignator(s) ? s : `${s}Z`;
+      d = new Date(iso);
+    }
+
+    if (!d || Number.isNaN(d.getTime())) return String(value);
+
+    // Luôn format theo UTC+7 để hiển thị nhất quán (kể cả sau reload)
+    return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ,
       hour: "2-digit",
       minute: "2-digit",
-    });
+    }).format(d);
   } catch {
     return String(value);
   }
@@ -24,8 +53,7 @@ function normalizeSession(raw) {
   return {
     chatSessionId: raw.chatSessionId || raw.ChatSessionId,
     status: raw.status || raw.Status || "",
-    assignedStaffName:
-      raw.assignedStaffName || raw.AssignedStaffName || "",
+    assignedStaffName: raw.assignedStaffName || raw.AssignedStaffName || "",
   };
 }
 
@@ -35,9 +63,7 @@ function normalizeMessage(raw) {
     messageId: raw.messageId || raw.MessageId,
     chatSessionId: raw.chatSessionId || raw.ChatSessionId,
     isFromStaff:
-      typeof raw.isFromStaff === "boolean"
-        ? raw.isFromStaff
-        : !!raw.IsFromStaff,
+      typeof raw.isFromStaff === "boolean" ? raw.isFromStaff : !!raw.IsFromStaff,
     senderName: raw.senderName || raw.SenderName || "",
     content: raw.content || raw.Content || "",
     sentAt: raw.sentAt || raw.SentAt || null,
@@ -159,9 +185,7 @@ export default function ChatWidget() {
 
     try {
       const res = await supportChatApi.getMessages(chatSessionId);
-      const items = Array.isArray(res)
-        ? res
-        : res?.items ?? res?.Items ?? [];
+      const items = Array.isArray(res) ? res : res?.items ?? res?.Items ?? [];
 
       const mapped = items.map(normalizeMessage).filter(Boolean);
 
@@ -253,10 +277,7 @@ export default function ChatWidget() {
 
       setMessages((prev) => {
         const list = prev || [];
-        if (
-          msg.messageId &&
-          list.some((x) => x.messageId === msg.messageId)
-        ) {
+        if (msg.messageId && list.some((x) => x.messageId === msg.messageId)) {
           return prev;
         }
         return [...list, msg];
@@ -473,16 +494,11 @@ export default function ChatWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={
-                canSend
-                  ? "Nhập tin nhắn của bạn..."
-                  : "Phiên chat đã kết thúc."
+                canSend ? "Nhập tin nhắn của bạn..." : "Phiên chat đã kết thúc."
               }
               disabled={!canSend || sending}
             />
-            <button
-              type="submit"
-              disabled={!canSend || sending || !input.trim()}
-            >
+            <button type="submit" disabled={!canSend || sending || !input.trim()}>
               Gửi
             </button>
           </form>
