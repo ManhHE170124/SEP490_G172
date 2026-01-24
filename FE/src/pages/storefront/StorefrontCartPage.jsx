@@ -684,15 +684,27 @@ const StorefrontCartPage = () => {
                   </div>
 
                   <div className="sf-cart-actions-main">
-                    <button
-                      type="button"
-                      className="sf-btn sf-btn-primary sf-btn-lg"
-                      onClick={handleCheckoutWithConfirm}
-                      disabled={checkingOut || isCartLocked}
-                    >
-                      {checkingOut ? "Đang chuyển đến cổng thanh toán..." : "Tiến hành thanh toán"}
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        className="sf-btn sf-btn-primary sf-btn-lg"
+                        onClick={handleCheckoutWithConfirm}
+                        disabled={checkingOut || isCartLocked}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 10 }}
+                      >
+                        {!checkingOut && (
+                          <img
+                            src="https://payos.vn/docs/img/logo.svg"
+                            alt="PayOS"
+                            style={{ height: 30, width: "auto", display: "block" }}
+                          />
+                        )}
+
+                        <span>
+                          {checkingOut ? "Đang chuyển đến cổng thanh toán..." : "Tiến hành thanh toán"}
+                        </span>
+                      </button>
+                    </div>
+
                 </>
               )}
 
