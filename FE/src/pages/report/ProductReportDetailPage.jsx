@@ -41,6 +41,7 @@ export default function ProductReportDetailPage() {
   const [itemSearchTerm, setItemSearchTerm] = useState("");
   const [itemSearchResults, setItemSearchResults] = useState([]);
   const [itemSearchLoading, setItemSearchLoading] = useState(false);
+  const [selectedItemDisplay, setSelectedItemDisplay] = useState("");
 
   // User search state
   const [userSearchTerm, setUserSearchTerm] = useState("");
@@ -229,7 +230,7 @@ export default function ProductReportDetailPage() {
         const res = await ProductKeyApi.list({
           pageNumber: 1,
           pageSize: 20,
-          productVariantId: formData.variantId,
+          variantId: formData.variantId,
           searchTerm: itemSearchTerm,
         });
         results = res.items || [];
@@ -239,7 +240,7 @@ export default function ProductReportDetailPage() {
         const res = await ProductAccountApi.list({
           pageNumber: 1,
           pageSize: 50,
-          productVariantId: formData.variantId,
+          variantId: formData.variantId,
           searchTerm: itemSearchTerm,
         });
         results = res.items || [];
@@ -299,9 +300,9 @@ export default function ProductReportDetailPage() {
           <h1 style={{ margin: 0 }}>
             {isNew ? "Tạo Báo cáo Mới" : "Chi tiết Báo cáo"}
           </h1>
-          <Link className="btn" to="/reports">
+          <button className="btn" onClick={() => navigate(-1)}>
             ← Quay lại
-          </Link>
+          </button>
         </div>
 
         {isNew ? (
@@ -360,6 +361,7 @@ export default function ProductReportDetailPage() {
                                     variantId: "",
                                     itemId: "",
                                   });
+                                  setSelectedItemDisplay("");
                                   setItemSearchResults([]);
                                   setShowProductList(false);
                               }}
@@ -451,17 +453,7 @@ export default function ProductReportDetailPage() {
                     fontSize: 14,
                     color: "#166534"
                   }}>
-                    ✓ Đã chọn: {(() => {
-                      const selectedProduct = products.find(p => p.productId === formData.productId);
-                      const isKey = selectedProduct?.productType === 'PERSONAL_KEY';
-                      const selectedItem = itemSearchResults.find(item =>
-                        (isKey ? item.keyId : item.productAccountId) === formData.itemId
-                      );
-                      if (!selectedItem) return formData.itemId;
-                      return isKey
-                        ? `Key: ${selectedItem.keyString}`
-                        : `Account: ${selectedItem.accountUsername || selectedItem.accountEmail}`;
-                    })()}
+                    ✓ Đã chọn: {selectedItemDisplay || formData.itemId}
                   </div>
                 )}
                 {itemSearchResults.length > 0 && (
@@ -482,6 +474,8 @@ export default function ProductReportDetailPage() {
 
                       const handleItemClick = () => {
                         setFormData(prev => ({...prev, itemId: val}));
+                        setSelectedItemDisplay(isKey ? item.keyString : item.accountEmail);
+                        setItemSearchResults([]);
                       };
 
                       return (
@@ -506,14 +500,6 @@ export default function ProductReportDetailPage() {
                             <div>
                               <div style={{ fontWeight: 600, marginBottom: 4 }}>
                                 Key: {item.keyString}
-                              </div>
-                              <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                                Order: <a
-                                  href={`http://localhost:3000/orders/${item.assignToOrder}`}
-                                  target="_blank"
-                                  onClick={(e) => e.stopPropagation()}
-                                  rel="noreferrer"
-                                >{item.assignToOrder}</a>
                               </div>
                               <div style={{ fontSize: 13, color: "var(--muted)" }}>
                                 Trạng thái: {item.status || "—"}
@@ -598,6 +584,7 @@ export default function ProductReportDetailPage() {
                           onClick={() => {
                             setFormData({...formData, userId: u.userId});
                             setSelectedUser(u);
+                            setUserSearchTerm(u.email);
                           }}
                           style={{
                             padding: "12px",
