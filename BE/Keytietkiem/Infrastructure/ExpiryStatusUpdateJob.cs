@@ -5,7 +5,7 @@
 //   ✅ IMPORTANT FIX: for SHARED_KEY / SHARED_ACCOUNT => count by AVAILABLE SLOTS (capacity - used)
 // - IMPORTANT: do NOT override Product/ProductVariant status if they were manually set to INACTIVE
 
-using Keytietkiem.Constants;
+using Keytietkiem.Utils.Constants;
 using Keytietkiem.DTOs.Enums;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Models;

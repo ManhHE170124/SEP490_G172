@@ -1,6 +1,5 @@
 ﻿// File: Controllers/PaymentsController.cs
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs;
 using Keytietkiem.DTOs.Payments;
 using Keytietkiem.DTOs.Products;
@@ -20,6 +19,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Keytietkiem.Utils;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {

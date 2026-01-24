@@ -21,8 +21,8 @@ using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Utils.Constants;
 namespace Keytietkiem.Controllers
 {
     [Route("api/[controller]")]

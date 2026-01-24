@@ -6,8 +6,7 @@
  * Purpose: Centralized constants for roles.
  *          These constants are fixed and should not be changed without proper migration.
  */
-
-namespace Keytietkiem.Constants
+namespace Keytietkiem.Utils.Constants
 {
     /// <summary>
     /// Predefined role codes in the system. These are fixed constants.

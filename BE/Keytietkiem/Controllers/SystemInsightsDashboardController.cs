@@ -1,8 +1,8 @@
 ﻿// File: Controllers/SystemInsightsDashboardController.cs
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.SystemInsights;
 using Keytietkiem.Services;
 using Keytietkiem.Utils;
+using Keytietkiem.Utils.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;

@@ -1,5 +1,4 @@
 ﻿using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -18,7 +17,8 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.RoleCodes;
+using static Keytietkiem.Utils.Constants.RoleCodes;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {

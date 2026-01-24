@@ -4,7 +4,7 @@ using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
+using Keytietkiem.Utils.Constants;
 using Keytietkiem.Services.Background;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
