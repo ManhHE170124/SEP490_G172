@@ -33,10 +33,46 @@ const MAP_PRIORITY = {
   2: "VIP",
 };
 
+// ✅ FE-only timezone display: luôn hiển thị theo UTC+7 (Asia/Bangkok)
+// - BE/DB giữ UTC như hiện tại
+// - Nếu chuỗi datetime không có timezone (không có Z / offset) => coi như UTC
+const DISPLAY_TZ = "Asia/Bangkok";
+
+function hasTimeZoneDesignator(s) {
+  // ends with Z or has +HH:mm / -HH:mm / +HHmm / -HHmm
+  return (
+    /[zZ]$/.test(s) ||
+    /[+\-]\d{2}:\d{2}$/.test(s) ||
+    /[+\-]\d{2}\d{2}$/.test(s)
+  );
+}
+
+function parseApiDateAssumeUtcIfNoTz(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+
+  if (typeof v === "number") {
+    const dNum = new Date(v);
+    return Number.isNaN(dNum.getTime()) ? null : dNum;
+  }
+
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // Nếu API trả "2026-01-24T01:23:45" (không Z) thì append Z để JS hiểu là UTC
+  const iso = hasTimeZoneDesignator(s) ? s : `${s}Z`;
+
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function fmtDateTime(v) {
   try {
-    const d = typeof v === "string" || typeof v === "number" ? new Date(v) : v;
+    const d = parseApiDateAssumeUtcIfNoTz(v);
+    if (!d) return "";
+
     return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ, // ✅ cố định UTC+7
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

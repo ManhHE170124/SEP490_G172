@@ -72,6 +72,65 @@ const formatCurrency = (value) => {
   }
 };
 
+// ===== FE display timezone (UTC+7) =====
+// Backend + DB vẫn lưu/đẩy dữ liệu theo UTC.
+// FE chỉ đổi cách HIỂN THỊ (không thay đổi dữ liệu gửi lên BE).
+const DISPLAY_TZ = "Asia/Bangkok"; // UTC+7
+
+const hasTimeZoneDesignator = (s) =>
+  /[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s) || /[+\-]\d{2}\d{2}$/.test(s);
+
+// Parse datetime server (UTC) -> Date; nếu thiếu timezone thì assume UTC (append 'Z')
+function parseUtcDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+
+  let s = String(value).trim();
+  if (!s) return null;
+
+  // .NET đôi khi trả fractional seconds 7 digits (vd: .1234567) => JS parse có thể không ổn định
+  // Trim về tối đa 3 digits để chắc chắn parse được.
+  s = s.replace(/(\.\d{3})\d+/, "$1");
+
+  const iso = hasTimeZoneDesignator(s) ? s : `${s}Z`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function fmtVNDateTimeUTC7(value) {
+  const d = parseUtcDate(value);
+  if (!d) return "-";
+  try {
+    return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  } catch {
+    return "-";
+  }
+}
+
+function fmtVNDateOnlyUTC7(value) {
+  const d = parseUtcDate(value);
+  if (!d) return "-";
+  try {
+    return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(d);
+  } catch {
+    return "-";
+  }
+}
+
 export default function AdminUserManagement() {
   const { toasts, showSuccess, showError, removeToast } = useToast();
 
@@ -149,9 +208,7 @@ export default function AdminUserManagement() {
   const fetchRoles = async () => {
     try {
       const res = await usersApi.roles();
-      setRoles(
-        (res || []).filter((r) => !((r.name || "").toLowerCase().includes("admin")))
-      );
+      setRoles((res || []).filter((r) => !((r.name || "").toLowerCase().includes("admin"))));
     } catch (err) {
       setErrorMsg(err.message || "Không tải được danh sách vai trò.");
     }
@@ -174,9 +231,7 @@ export default function AdminUserManagement() {
         const res = await usersApi.list(take);
         const filtered = {
           ...res,
-          items: (res?.items || []).filter(
-            (x) => !((x.roleName || "").toLowerCase().includes("admin"))
-          ),
+          items: (res?.items || []).filter((x) => !((x.roleName || "").toLowerCase().includes("admin"))),
         };
         setData(
           filtered || {
@@ -350,18 +405,15 @@ export default function AdminUserManagement() {
 
     const fn = trim(currentForm.firstName);
     if (!fn) errors.firstName = "Họ không được để trống.";
-    else if (fn.length > FIELD_LIMITS.firstName)
-      errors.firstName = `Họ tối đa ${FIELD_LIMITS.firstName} ký tự.`;
+    else if (fn.length > FIELD_LIMITS.firstName) errors.firstName = `Họ tối đa ${FIELD_LIMITS.firstName} ký tự.`;
 
     const ln = trim(currentForm.lastName);
     if (!ln) errors.lastName = "Tên không được để trống.";
-    else if (ln.length > FIELD_LIMITS.lastName)
-      errors.lastName = `Tên tối đa ${FIELD_LIMITS.lastName} ký tự.`;
+    else if (ln.length > FIELD_LIMITS.lastName) errors.lastName = `Tên tối đa ${FIELD_LIMITS.lastName} ký tự.`;
 
     const email = trim(currentForm.email);
     if (!email) errors.email = "Email không được để trống.";
-    else if (email.length > FIELD_LIMITS.email)
-      errors.email = `Email tối đa ${FIELD_LIMITS.email} ký tự.`;
+    else if (email.length > FIELD_LIMITS.email) errors.email = `Email tối đa ${FIELD_LIMITS.email} ký tự.`;
     else if (!emailRegex.test(email)) errors.email = "Email không hợp lệ.";
 
     const username = trim(currentForm.username);
@@ -370,15 +422,13 @@ export default function AdminUserManagement() {
 
     const phone = trim(currentForm.phone);
     if (phone) {
-      if (phone.length > FIELD_LIMITS.phone)
-        errors.phone = `Điện thoại tối đa ${FIELD_LIMITS.phone} ký tự.`;
+      if (phone.length > FIELD_LIMITS.phone) errors.phone = `Điện thoại tối đa ${FIELD_LIMITS.phone} ký tự.`;
       else if (!/^[0-9+\s\-()]+$/.test(phone))
         errors.phone = "Số điện thoại chỉ được chứa số và các ký tự + - ( ) khoảng trắng.";
     }
 
     const address = trim(currentForm.address);
-    if (address && address.length > FIELD_LIMITS.address)
-      errors.address = `Địa chỉ tối đa ${FIELD_LIMITS.address} ký tự.`;
+    if (address && address.length > FIELD_LIMITS.address) errors.address = `Địa chỉ tối đa ${FIELD_LIMITS.address} ký tự.`;
 
     if (!currentForm.roleId) errors.roleId = "Vui lòng chọn vai trò.";
 
@@ -446,6 +496,7 @@ export default function AdminUserManagement() {
     };
 
     const passwordValue = trim(form.newPassword);
+
     try {
       if (mode === "add") {
         await usersApi.create({ ...payloadBase, newPassword: passwordValue });
@@ -492,25 +543,14 @@ export default function AdminUserManagement() {
     }
   };
 
-  const formatDate = (d) => {
-    if (!d) return "-";
-    try {
-      return new Date(d).toLocaleDateString();
-    } catch {
-      return "-";
-    }
-  };
+  const formatDate = (d) => fmtVNDateOnlyUTC7(d);
 
   const paidSupportPlans = useMemo(
-    () =>
-      (supportPlans || []).filter((p) =>
-        typeof p.priorityLevel === "number" ? p.priorityLevel > 0 : true
-      ),
+    () => (supportPlans || []).filter((p) => (typeof p.priorityLevel === "number" ? p.priorityLevel > 0 : true)),
     [supportPlans]
   );
 
-  const fromIndex =
-    data.totalItems === 0 ? 0 : (applied.page - 1) * applied.pageSize + 1;
+  const fromIndex = data.totalItems === 0 ? 0 : (applied.page - 1) * applied.pageSize + 1;
   const toIndex = Math.min(data.totalItems || 0, applied.page * applied.pageSize);
 
   // Show loading while checking permission
@@ -521,9 +561,7 @@ export default function AdminUserManagement() {
           <div className="ktk-um-cardHeader">
             <h2>Quản lý người dùng</h2>
           </div>
-          <div style={{ padding: "20px", textAlign: "center" }}>
-            Đang kiểm tra quyền truy cập...
-          </div>
+          <div style={{ padding: "20px", textAlign: "center" }}>Đang kiểm tra quyền truy cập...</div>
         </div>
       </div>
     );
@@ -539,10 +577,7 @@ export default function AdminUserManagement() {
           </div>
           <div style={{ padding: "20px" }}>
             <h2>Không có quyền truy cập</h2>
-            <p>
-              Bạn không có quyền xem danh sách người dùng. Vui lòng liên hệ quản trị viên để
-              được cấp quyền.
-            </p>
+            <p>Bạn không có quyền xem danh sách người dùng. Vui lòng liên hệ quản trị viên để được cấp quyền.</p>
           </div>
         </div>
       </div>
@@ -558,30 +593,16 @@ export default function AdminUserManagement() {
             <div className="ktk-um-left">
               <h2>Quản lý người dùng</h2>
               <p className="ktk-um-muted">
-                Quản lý tài khoản khách hàng / nhân viên, trạng thái, vai trò, mức độ ưu tiên hỗ trợ
-                và gói hỗ trợ.
+                Quản lý tài khoản khách hàng / nhân viên, trạng thái, vai trò, mức độ ưu tiên hỗ trợ và gói hỗ trợ.
               </p>
             </div>
           </div>
 
           {/* Filter bar + Add button trên cùng 1 hàng */}
-          <div
-            className="ktk-um-row"
-            style={{
-              gap: 10,
-              marginTop: 14,
-              alignItems: "flex-end",
-              flexWrap: "nowrap",
-            }}
-          >
+          <div className="ktk-um-row" style={{ gap: 10, marginTop: 14, alignItems: "flex-end", flexWrap: "nowrap" }}>
             <form
               className="ktk-um-row"
-              style={{
-                flex: 1,
-                gap: 10,
-                alignItems: "flex-end",
-                flexWrap: "wrap",
-              }}
+              style={{ flex: 1, gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}
               onSubmit={onApply}
             >
               <div className="ktk-um-group" style={{ flex: 1, minWidth: 260 }}>
@@ -596,10 +617,7 @@ export default function AdminUserManagement() {
 
               <div className="ktk-um-group" style={{ width: 180 }}>
                 <span>Vai trò</span>
-                <select
-                  value={uiFilters.roleId}
-                  onChange={(e) => setUiFilters({ ...uiFilters, roleId: e.target.value })}
-                >
+                <select value={uiFilters.roleId} onChange={(e) => setUiFilters({ ...uiFilters, roleId: e.target.value })}>
                   <option value="">Tất cả vai trò</option>
                   {roles.map((r) => (
                     <option key={r.roleId} value={r.roleId}>
@@ -611,10 +629,7 @@ export default function AdminUserManagement() {
 
               <div className="ktk-um-group" style={{ width: 180 }}>
                 <span>Trạng thái</span>
-                <select
-                  value={uiFilters.status}
-                  onChange={(e) => setUiFilters({ ...uiFilters, status: e.target.value })}
-                >
+                <select value={uiFilters.status} onChange={(e) => setUiFilters({ ...uiFilters, status: e.target.value })}>
                   {USER_STATUS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -647,24 +662,12 @@ export default function AdminUserManagement() {
                 </select>
               </div>
 
-              <div
-                className="ktk-um-row"
-                style={{
-                  gap: 8,
-                  alignItems: "flex-end",
-                  flexShrink: 0,
-                }}
-              >
+              <div className="ktk-um-row" style={{ gap: 8, alignItems: "flex-end", flexShrink: 0 }}>
                 {loading && <span className="ktk-um-muted">Đang tải…</span>}
                 <button className="ktk-um-btn ktk-um-btn--ghost" type="submit" disabled={loading}>
                   Áp dụng
                 </button>
-                <button
-                  className="ktk-um-btn ktk-um-btn--ghost"
-                  type="button"
-                  onClick={onReset}
-                  disabled={loading}
-                >
+                <button className="ktk-um-btn ktk-um-btn--ghost" type="button" onClick={onReset} disabled={loading}>
                   Đặt lại
                 </button>
               </div>
@@ -716,16 +719,14 @@ export default function AdminUserManagement() {
                   <td>{u.email}</td>
                   <td>{u.roleName || "-"}</td>
                   <td>
-                    <span className="ktk-um-badge ktk-um-badge--purple">
-                      Level {u.supportPriorityLevel ?? 0}
-                    </span>
+                    <span className="ktk-um-badge ktk-um-badge--purple">Level {u.supportPriorityLevel ?? 0}</span>
                     {u.isTemp && (
                       <span className="ktk-um-badge ktk-um-badge--gray" style={{ marginLeft: 6 }}>
                         Temp
                       </span>
                     )}
                   </td>
-                  <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "-"}</td>
+                  <td>{u.lastLoginAt ? fmtVNDateTimeUTC7(u.lastLoginAt) : "-"}</td>
                   <td>
                     <span
                       className={`ktk-um-status ${
@@ -809,11 +810,7 @@ export default function AdminUserManagement() {
             <div className="ktk-um-modal" onClick={(e) => e.stopPropagation()}>
               <div className="ktk-um-modalHeader">
                 <h3 className="ktk-um-modalTitle">
-                  {mode === "add"
-                    ? "Thêm người dùng"
-                    : mode === "edit"
-                    ? "Cập nhật người dùng"
-                    : "Chi tiết người dùng"}
+                  {mode === "add" ? "Thêm người dùng" : mode === "edit" ? "Cập nhật người dùng" : "Chi tiết người dùng"}
                 </h3>
                 <button className="ktk-um-modalClose" onClick={() => setOpen(false)}>
                   ×
@@ -836,9 +833,7 @@ export default function AdminUserManagement() {
                       placeholder="Nhập họ"
                       maxLength={FIELD_LIMITS.firstName}
                     />
-                    {fieldErrors.firstName && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.firstName}</div>
-                    )}
+                    {fieldErrors.firstName && <div className="ktk-um-errorMessage">{fieldErrors.firstName}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -855,9 +850,7 @@ export default function AdminUserManagement() {
                       placeholder="Nhập tên"
                       maxLength={FIELD_LIMITS.lastName}
                     />
-                    {fieldErrors.lastName && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.lastName}</div>
-                    )}
+                    {fieldErrors.lastName && <div className="ktk-um-errorMessage">{fieldErrors.lastName}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -874,9 +867,7 @@ export default function AdminUserManagement() {
                       placeholder="Nhập email"
                       maxLength={FIELD_LIMITS.email}
                     />
-                    {fieldErrors.email && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.email}</div>
-                    )}
+                    {fieldErrors.email && <div className="ktk-um-errorMessage">{fieldErrors.email}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -890,9 +881,7 @@ export default function AdminUserManagement() {
                       placeholder="Để trống sẽ mặc định dùng email"
                       maxLength={FIELD_LIMITS.username}
                     />
-                    {fieldErrors.username && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.username}</div>
-                    )}
+                    {fieldErrors.username && <div className="ktk-um-errorMessage">{fieldErrors.username}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -906,9 +895,7 @@ export default function AdminUserManagement() {
                       placeholder="Nhập số điện thoại"
                       maxLength={FIELD_LIMITS.phone}
                     />
-                    {fieldErrors.phone && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.phone}</div>
-                    )}
+                    {fieldErrors.phone && <div className="ktk-um-errorMessage">{fieldErrors.phone}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -922,9 +909,7 @@ export default function AdminUserManagement() {
                       placeholder="Nhập địa chỉ"
                       maxLength={FIELD_LIMITS.address}
                     />
-                    {fieldErrors.address && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.address}</div>
-                    )}
+                    {fieldErrors.address && <div className="ktk-um-errorMessage">{fieldErrors.address}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -944,9 +929,7 @@ export default function AdminUserManagement() {
                         </option>
                       ))}
                     </select>
-                    {fieldErrors.roleId && (
-                      <div className="ktk-um-errorMessage">{fieldErrors.roleId}</div>
-                    )}
+                    {fieldErrors.roleId && <div className="ktk-um-errorMessage">{fieldErrors.roleId}</div>}
                   </div>
 
                   <div className="ktk-um-formGroup">
@@ -968,24 +951,14 @@ export default function AdminUserManagement() {
                   {mode === "view" && (
                     <div className="ktk-um-formGroup">
                       <label className="ktk-um-formLabel">Mức độ ưu tiên hiện tại</label>
-                      <input
-                        type="text"
-                        className="ktk-um-formInput"
-                        value={String(form.supportPriorityLevel || "0")}
-                        disabled
-                      />
+                      <input type="text" className="ktk-um-formInput" value={String(form.supportPriorityLevel || "0")} disabled />
                     </div>
                   )}
 
                   {mode !== "add" && (
                     <div className="ktk-um-formGroup">
                       <label className="ktk-um-formLabel">Người dùng tạm thời</label>
-                      <input
-                        type="text"
-                        className="ktk-um-formInput"
-                        value={form.isTemp ? "Có" : "Không"}
-                        disabled
-                      />
+                      <input type="text" className="ktk-um-formInput" value={form.isTemp ? "Có" : "Không"} disabled />
                     </div>
                   )}
 
@@ -1027,9 +1000,7 @@ export default function AdminUserManagement() {
                         minLength={FIELD_LIMITS.passwordMin}
                         maxLength={FIELD_LIMITS.passwordMax}
                       />
-                      {fieldErrors.newPassword && (
-                        <div className="ktk-um-errorMessage">{fieldErrors.newPassword}</div>
-                      )}
+                      {fieldErrors.newPassword && <div className="ktk-um-errorMessage">{fieldErrors.newPassword}</div>}
                     </div>
                   )}
 
@@ -1076,9 +1047,7 @@ export default function AdminUserManagement() {
                   {mode !== "view" && (
                     <div className="ktk-um-formGroup ktk-um-formGroupFull">
                       <label className="ktk-um-formLabel">
-                        {mode === "add"
-                          ? "Gán gói hỗ trợ (tùy chọn)"
-                          : "Chọn gói hỗ trợ mới / xóa gói (tùy chọn)"}
+                        {mode === "add" ? "Gán gói hỗ trợ (tùy chọn)" : "Chọn gói hỗ trợ mới / xóa gói (tùy chọn)"}
                       </label>
                       <select
                         className="ktk-um-formInput"
@@ -1114,8 +1083,8 @@ export default function AdminUserManagement() {
                             - <strong>Xóa gói hỗ trợ</strong>: huỷ subscription hiện tại (người dùng không còn gói).
                           </div>
                           <div>
-                            - <strong>Chọn một gói trong danh sách</strong> (kể cả trùng với gói hiện tại): hệ thống
-                            sẽ tạo subscription mới và <strong>làm mới thời hạn gói</strong>.
+                            - <strong>Chọn một gói trong danh sách</strong> (kể cả trùng với gói hiện tại): hệ thống sẽ
+                            tạo subscription mới và <strong>làm mới thời hạn gói</strong>.
                           </div>
                         </div>
                       )}
@@ -1133,11 +1102,7 @@ export default function AdminUserManagement() {
                   Đóng
                 </button>
                 {mode !== "view" && (
-                  <button
-                    type="button"
-                    className="ktk-um-btnModal ktk-um-btnModal--primary"
-                    onClick={submit}
-                  >
+                  <button type="button" className="ktk-um-btnModal ktk-um-btnModal--primary" onClick={submit}>
                     Lưu
                   </button>
                 )}
