@@ -279,9 +279,9 @@ namespace Keytietkiem.Controllers
             {
                 return (false, new BadRequestObjectResult(new { code = "WARRANTY_INVALID", message = "Bảo hành (ngày) phải lớn hơn hoặc bằng 0." }));
             }
-            if (durationDays.HasValue && warrantyDays.HasValue && durationDays.Value <= warrantyDays.Value)
+            if (durationDays.HasValue && warrantyDays.HasValue && durationDays.Value < warrantyDays.Value)
             {
-                return (false, new BadRequestObjectResult(new { code = "DURATION_LE_WARRANTY", message = "Thời lượng (ngày) phải lớn hơn số ngày bảo hành." }));
+                return (false, new BadRequestObjectResult(new { code = "DURATION_LE_WARRANTY", message = "Thời lượng (ngày) phải lớn hơn hoặc bằng số ngày bảo hành." }));
             }
 
             return (true, null);

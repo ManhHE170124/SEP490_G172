@@ -474,10 +474,10 @@ export default function VariantsPanel({
     if (
       durationDays != null &&
       warrantyDays != null &&
-      durationDays <= warrantyDays
+      durationDays < warrantyDays
     ) {
       errors.durationDays =
-        "Thời lượng (ngày) phải lớn hơn số ngày bảo hành.";
+        "Thời lượng (ngày) phải lớn hơn hoặc bằng số ngày bảo hành.";
     }
 
     // ===== Validate giá niêm yết / giá bán (khớp với decimal(18,2) + rule Sell <= List) =====
