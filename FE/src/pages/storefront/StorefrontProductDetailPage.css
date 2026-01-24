@@ -353,6 +353,7 @@
 
 .sf-btn-primary:hover:not(:disabled) {
   filter: brightness(1.05);
+  color: #000000
 }
 
 .sf-btn-outline {
