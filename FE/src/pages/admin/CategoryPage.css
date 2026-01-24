@@ -503,3 +503,12 @@ textarea:focus {
 .faq-table td:nth-child(2) {
   word-break: break-word;
 }
+
+/* ===== NEW: Căn hàng cho nút xem / xoá / bật tắt trạng thái trong cột Thao tác ===== */
+.td-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}

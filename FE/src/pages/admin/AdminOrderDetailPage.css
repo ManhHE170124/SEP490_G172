@@ -157,34 +157,44 @@
 /* filters */
 .aod-filters {
   display: grid;
-  grid-template-columns: 1.8fr 1fr 1fr 0.55fr;
-  gap: 10px;
+  grid-template-columns: 1.2fr 0.8fr 0.8fr 0.15fr;
+  gap: 8px;
   align-items: end;
   margin-bottom: 10px;
 }
 
-.aod-fieldWide {
-  grid-column: span 1;
+.aod-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.aod-field:first-child {
+  grid-column: 1;
 }
 
 .aod-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   color: var(--aod-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
+  display: block;
 }
 
 .aod-filters input {
-  height: 40px;
-  border-radius: 12px;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
   border: 1px solid var(--aod-line);
-  padding: 0 12px;
+  padding: 0 8px;
   outline: none;
   background: #f9fafb;
   color: var(--aod-ink);
+  box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font-size: 12px;
 }
 
 .aod-filters input:focus {
@@ -193,14 +203,26 @@
   background: #fff;
 }
 
+.aod-fieldActions {
+  grid-column: 4;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
 .aod-fieldActions .aod-label {
-  opacity: 0;
+  display: none;
+}
+
+.aod-filterBtns {
+  display: flex;
+  gap: 5px;
+  width: 100%;
 }
 
 .aod-filterBtns {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
 }
 
 /* ===== BUTTONS ===== */
