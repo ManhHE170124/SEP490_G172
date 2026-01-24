@@ -1152,7 +1152,6 @@ export default function AdminPaymentsDashboardPage() {
           <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Top lý do thất bại</div>
-              <div className="apd-panel-sub">Hiển thị thuần Việt</div>
             </div>
 
             <div className="apd-chart apd-rechart">
@@ -1182,7 +1181,6 @@ export default function AdminPaymentsDashboardPage() {
             <div className="apd-panel-head">
               <div className="apd-panel-title">Giao dịch thành công theo giờ</div>
               <div className="apd-panel-sub">
-                Theo múi giờ trình duyệt (UTC+{Math.round(tzOffsetMinutesAdd / 60)})
               </div>
             </div>
 

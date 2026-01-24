@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthService } from "../../services/authService";
 import { NotificationsApi } from "../../services/notifications";
 import axiosClient from "../../api/axiosClient";
+import formatDatetime from "../../utils/formatDatetime";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr"; // ✅ thêm
 import "./Header.css";
 
@@ -477,14 +478,7 @@ const Header = ({ profile }) => {
     return v;
   };
 
-  const formatTime = (value) => {
-    if (!value) return "";
-    try {
-      return new Date(value).toLocaleString();
-    } catch {
-      return "";
-    }
-  };
+  const formatTime = (value) => (value ? formatDatetime(value) : "");
 
   // Click item => mark read + điều hướng (tránh mark-read khi hover)
   const markNotificationReadOptimistic = (notifUserId) => {

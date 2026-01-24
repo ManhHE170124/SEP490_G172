@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
+import formatDatetime from "../../utils/formatDatetime";
 
 const severityOptions = [
   { value: "", label: "Tất cả mức độ" },
@@ -927,7 +928,7 @@ const AdminNotificationsPage = () => {
                   <tr key={n.id}>
                     <td className="col-created">
                       <span className="notif-date">
-                        {new Date(n.createdAtUtc).toLocaleString("vi-VN")}
+                        {formatDatetime(n.createdAtUtc)}
                       </span>
                     </td>
                     <td className="col-title notif-title-cell">
@@ -1486,9 +1487,7 @@ const AdminNotificationsPage = () => {
                     <div className="detail-row">
                       <span className="detail-label">Thời gian tạo:</span>
                       <span className="detail-value">
-                        {new Date(
-                          selectedNotification.createdAtUtc
-                        ).toLocaleString("vi-VN")}
+                        {formatDatetime(selectedNotification.createdAtUtc)}
                       </span>
                     </div>
 
