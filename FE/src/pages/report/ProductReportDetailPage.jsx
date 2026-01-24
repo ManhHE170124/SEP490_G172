@@ -619,6 +619,7 @@ export default function ProductReportDetailPage() {
                             setFormData({...formData, userId: u.userId});
                             setSelectedUser(u);
                             setUserSearchTerm(u.email);
+                            setUserSearchResults([]);
                           }}
                           style={{
                             padding: "12px",
