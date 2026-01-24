@@ -39,10 +39,7 @@ namespace Keytietkiem.Services
 
             var tz = GetBangkokTimeZone();
 
-            // ✅ FIX: chuẩn hoá lọc thời gian theo style OrdersDashboard
-            // - default 30 ngày gần nhất
-            // - nếu to <= from -> to = from + 1 day
-            // - clamp tối đa 180 ngày
+            // ✅ Chuẩn hoá range giống OrdersDashboard
             var (fromL, toLExclusive, fromUtc, toUtc) = NormalizeRange(fromLocal, toLocalExclusive, tz);
 
             await using var db = await _dbFactory.CreateDbContextAsync(ct);
@@ -160,7 +157,7 @@ namespace Keytietkiem.Services
                 localEvents.GroupBy(e => BucketStart(e.Local, bucket)).ToDictionary(g => g.Key, g => g.Count()),
                 dt => new TimePointDto { BucketStartLocal = FormatBucket(dt, bucket), Count = 0 });
 
-            // 2) Stacked by role
+            // 2) Stacked by role (giữ để có thể dùng mở rộng sau này)
             var roleGroups = localEvents
                 .GroupBy(e => new { B = BucketStart(e.Local, bucket), e.Role })
                 .Select(g => new { g.Key.B, g.Key.Role, C = g.Count() })
@@ -212,15 +209,7 @@ namespace Keytietkiem.Services
                         Count = heat.TryGetValue((d, h), out var c) ? c : 0
                     });
 
-            // 6) Top IP
-            res.TopAuditIpAddresses = localEvents
-                .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
-                .GroupBy(x => x.Ip)
-                .Select(g => new NameCountDto { Name = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .ThenBy(x => x.Name)
-                .Take(10)
-                .ToList();
+            // ✅ Không build TopAuditIpAddresses nữa (dashboard đã tinh gọn còn 4 chart)
         }
 
         // -------------------------
@@ -244,7 +233,7 @@ namespace Keytietkiem.Services
             public byte Severity { get; set; }
             public string? Type { get; set; }
 
-            // ✅ computed like NotificationsController (NOT columns)
+            // computed như NotificationsController
             public int TotalTargetUsers { get; set; }
             public int ReadCount { get; set; }
             public int TargetRolesCount { get; set; }
@@ -295,7 +284,7 @@ namespace Keytietkiem.Services
 
             var ids = baseNotis.Select(x => x.Id).ToList();
 
-            // total active users for IsGlobal notifications (same logic as NotificationsController)
+            // total active users cho IsGlobal (same logic as NotificationsController)
             var totalActiveUsers = await db.Users.AsNoTracking()
                 .CountAsync(u => u.Status == "Active", ct);
 
@@ -401,7 +390,7 @@ namespace Keytietkiem.Services
                 .GroupBy(x => x.Date)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            // ✅ FIX: enumerate ngày theo toLocalExclusive (nếu to có time -> vẫn tính tới hết ngày đó)
+            // 1) NotificationsDaily: tổng + System/Manual
             foreach (var d in EnumerateDays(fromLocal, toLocalExclusive))
             {
                 if (!dailyAll.TryGetValue(d, out var list))
@@ -419,6 +408,7 @@ namespace Keytietkiem.Services
                 });
             }
 
+            // 2) NotificationsSeverityDaily
             foreach (var d in EnumerateDays(fromLocal, toLocalExclusive))
             {
                 if (!dailyAll.TryGetValue(d, out var list))
@@ -472,26 +462,7 @@ namespace Keytietkiem.Services
                 });
             }
 
-            // 6) Histogram recipients
-            var bins = new (string label, Func<int, bool> pred)[]
-            {
-                ("0", x => x == 0),
-                ("1-9", x => x >= 1 && x <= 9),
-                ("10-49", x => x >= 10 && x <= 49),
-                ("50-99", x => x >= 50 && x <= 99),
-                ("100-199", x => x >= 100 && x <= 199),
-                ("200-499", x => x >= 200 && x <= 499),
-                ("500+", x => x >= 500),
-            };
-
-            foreach (var b in bins)
-            {
-                res.NotificationRecipientsHistogram.Add(new HistogramBucketDto
-                {
-                    Label = b.label,
-                    Count = localNotis.Count(x => b.pred(x.TotalTargetUsers))
-                });
-            }
+            // ✅ Không build NotificationRecipientsHistogram nữa (dashboard chỉ giữ 4 chart core)
         }
 
         // -------------------------
@@ -505,26 +476,22 @@ namespace Keytietkiem.Services
             catch { return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); }
         }
 
-        // ✅ FIX: NormalizeRange theo style OrdersDashboard
         private static (DateTime fromLocal, DateTime toLocalExclusive, DateTime fromUtc, DateTime toUtc)
             NormalizeRange(DateTime? fromLocal, DateTime? toLocalExclusive, TimeZoneInfo tz)
         {
             var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
 
             var fromL = fromLocal ?? nowLocal.AddDays(-30);
-            var toL = toLocalExclusive ?? nowLocal; // exclusive; nếu FE không gửi thì dùng "now"
+            var toL = toLocalExclusive ?? nowLocal; // exclusive
 
-            // Treat as "local unspecified"
             fromL = DateTime.SpecifyKind(fromL, DateTimeKind.Unspecified);
             toL = DateTime.SpecifyKind(toL, DateTimeKind.Unspecified);
 
-            // giống OrdersDashboard: đảm bảo tối thiểu 1 ngày
             if (toL <= fromL)
             {
                 toL = fromL.AddDays(1);
             }
 
-            // clamp tối đa 180 ngày
             if ((toL - fromL).TotalDays > 180)
             {
                 toL = fromL.AddDays(180);
@@ -570,7 +537,6 @@ namespace Keytietkiem.Services
             return dow == DayOfWeek.Sunday ? 6 : ((int)dow - 1);
         }
 
-        // ✅ NEW: floor/ceil theo bucket để không hụt giờ/ngày khi toLocalExclusive có time
         private static DateTime FloorToBucket(DateTime local, string bucket)
         {
             if (bucket == "hour")
@@ -634,7 +600,7 @@ namespace Keytietkiem.Services
         private static IEnumerable<DateTime> EnumerateDays(DateTime fromLocal, DateTime toLocalExclusive)
         {
             var d = fromLocal.Date;
-            var end = CeilToBucketExclusive(toLocalExclusive, "day"); // midnight boundary
+            var end = CeilToBucketExclusive(toLocalExclusive, "day");
             while (d < end)
             {
                 yield return d;

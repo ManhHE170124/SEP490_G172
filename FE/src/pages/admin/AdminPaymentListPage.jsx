@@ -1,10 +1,11 @@
 // File: src/pages/admin/AdminPaymentListPage.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { paymentApi } from "../../services/paymentApi";
 import "./AdminPaymentListPage.css";
 import formatDatetime from "../../utils/formatDatetime";
+import ToastContainer from "../../components/Toast/ToastContainer";
 
 /** ===== Icons (SVG inline) - tránh phụ thuộc react-icons ===== */
 const Ico = {
@@ -50,6 +51,11 @@ const Ico = {
       <path fill="currentColor" d="M12 16l-6-6h12l-6 6z" />
     </svg>
   ),
+  Caret: (p) => (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...p}>
+      <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+    </svg>
+  ),
 };
 
 const formatVnd = (n) => {
@@ -59,6 +65,51 @@ const formatVnd = (n) => {
 
 const normalizeText = (v) => String(v ?? "").trim();
 const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
+
+/**
+ * Parse tiền VN: loại bỏ dấu ngàn (.) và chuyển dấu thập phân (,) thành (.)
+ */
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const s = String(value).trim();
+  if (!s) return { num: null, raw: "" };
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return { num: null, raw: s };
+  return { num, raw: s };
+};
+
+/**
+ * Format số để hiển thị trong input: dùng định dạng VN (ngàn dùng ., thập phân dùng ,)
+ */
+const formatForInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return s;
+  return num.toLocaleString("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
+
+/**
+ * Validate format tiền: tối đa 18 chữ số phần nguyên, 2 chữ số phần thập phân
+ */
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = String(raw).trim().replace(/\./g, "").replace(/,/g, ".");
+  if (!normalized) return false;
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  if (fracPart.length > 2) return false;
+  return true;
+};
 
 const getPaymentId = (p) => p?.paymentId ?? p?.PaymentId ?? p?.id ?? p?.Id ?? "";
 const getCreatedAt = (p) =>
@@ -105,7 +156,7 @@ const mapTargetToUi = (t) => {
 
 /**
  * ✅ Map đúng Payment Status theo BE hiện tại:
- * Pending, Paid, Cancelled, Timeout, NeedReview, DupCancelled, Replaced
+ * Pending, Paid, Cancelled, Timeout, NeedReview, DupCancelled, Replaced, Refunded
  */
 const mapStatusToUi = (s) => {
   const v = normalizeStatusKey(s);
@@ -128,6 +179,9 @@ const mapStatusToUi = (s) => {
 
   if (v === "REPLACED")
     return { label: "Đã thay thế", cls: "payment-cancelled", value: "Replaced" };
+
+  if (v === "REFUNDED")
+    return { label: "Đã hoàn tiền", cls: "payment-refunded", value: "Refunded" };
 
   return { label: s ? String(s) : "Không rõ", cls: "payment-unknown", value: s || "Unknown" };
 };
@@ -169,10 +223,53 @@ export default function AdminPaymentListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // ===== Inline status update (Admin/CustomerCare) =====
+  const [updatingPaymentId, setUpdatingPaymentId] = useState("");
+  const [updateStatusErr, setUpdateStatusErr] = useState("");
+
+  // ===== Status dropdown-pill menu =====
+  const [openStatusMenuId, setOpenStatusMenuId] = useState("");
+  const statusMenuRef = useRef(null);
+
   // ===== Modal =====
   const [open, setOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState(null);
+
+  // ====== Toast & ConfirmDialog (giống ProductsPage) ======
+  const [toasts, setToasts] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const toastIdRef = useRef(1);
+
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const addToast = useCallback(
+    (type, title, message) => {
+      const id = toastIdRef.current++;
+      setToasts((prev) => [...prev, { id, type, message, title: title || undefined }]);
+
+      setTimeout(() => {
+        removeToast(id);
+      }, 5000);
+
+      return id;
+    },
+    [removeToast]
+  );
+
+  const openConfirm = useCallback(({ title, message, onConfirm }) => {
+    setConfirmDialog({
+      title,
+      message,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        await onConfirm?.();
+      },
+      onCancel: () => setConfirmDialog(null),
+    });
+  }, []);
 
   const STATUS_OPTIONS = useMemo(
     () => [
@@ -184,6 +281,7 @@ export default function AdminPaymentListPage() {
       { value: "Cancelled", label: "Đã hủy" },
       { value: "DupCancelled", label: "Hủy do trùng" },
       { value: "Replaced", label: "Đã thay thế" },
+      { value: "Refunded", label: "Đã hoàn tiền" },
     ],
     []
   );
@@ -199,9 +297,9 @@ export default function AdminPaymentListPage() {
 
   const fetchPayments = useCallback(async () => {
     setError("");
+    setUpdateStatusErr("");
     setLoading(true);
     try {
-      // map params theo paymentApi bạn đang dùng
       const params = {
         search: q || undefined,
         createdFrom: from || undefined,
@@ -317,11 +415,127 @@ export default function AdminPaymentListPage() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") closeModal();
+      if (e.key === "Escape") {
+        closeModal();
+        setOpenStatusMenuId("");
+        // (optional) đóng confirm dialog nếu muốn
+        // setConfirmDialog(null);
+      }
     };
     if (open) window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, closeModal]);
+
+  // ✅ Close status menu when clicking outside
+  useEffect(() => {
+    if (!openStatusMenuId) return;
+    const onDown = (e) => {
+      if (!statusMenuRef.current) return;
+      if (!statusMenuRef.current.contains(e.target)) {
+        setOpenStatusMenuId("");
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [openStatusMenuId]);
+
+  const getAllowedNextStatuses = useCallback((currentStatus) => {
+    const cur = mapStatusToUi(currentStatus).value;
+    const key = normalizeStatusKey(cur);
+
+    // Refunded là trạng thái cuối
+    if (key === "REFUNDED") return [];
+
+    // NeedReview: chỉ có thể resolve sang Paid/Cancelled
+    if (key === "NEEDREVIEW") return ["Paid", "Cancelled"];
+
+    // Các trạng thái khác: chỉ cho chuyển sang Refunded
+    return ["Refunded"];
+  }, []);
+
+  const buildMenuOptions = useCallback(
+    (currentStatus) => {
+      const cur = mapStatusToUi(currentStatus).value;
+      const allow = getAllowedNextStatuses(cur);
+
+      // chỉ show các trạng thái khác current
+      return allow
+        .filter((x) => x && x !== cur)
+        .map((v) => ({ value: v, label: mapStatusToUi(v).label, ui: mapStatusToUi(v) }));
+    },
+    [getAllowedNextStatuses]
+  );
+
+  const handleAdminChangeStatus = useCallback(
+    async (payment, desiredStatus) => {
+      const paymentId = getPaymentId(payment);
+      if (!paymentId) return;
+
+      const current = mapStatusToUi(getStatus(payment)).value;
+      if (!desiredStatus || desiredStatus === current) return;
+
+      setUpdateStatusErr("");
+      setUpdatingPaymentId(paymentId);
+
+      try {
+        await paymentApi.adminUpdateStatus(paymentId, desiredStatus, "");
+
+        // update nhanh UI, rồi refetch để đồng bộ
+        setItems((prev) =>
+          prev.map((x) => {
+            const id = getPaymentId(x);
+            if (id !== paymentId) return x;
+            return { ...x, status: desiredStatus, Status: desiredStatus };
+          })
+        );
+
+        await fetchPayments();
+
+        // ✅ Toast thành công (theo yêu cầu)
+        const desiredUi = mapStatusToUi(desiredStatus);
+        addToast(
+          "success",
+          "Thành công",
+          `Đã đổi trạng thái thanh toán "${paymentId}" sang "${desiredUi.label}".`
+        );
+      } catch (e) {
+        const msg =
+          e?.response?.data?.message ||
+          e?.response?.data?.Message ||
+          e?.message ||
+          "Không thể cập nhật trạng thái thanh toán.";
+        setUpdateStatusErr(msg);
+      } finally {
+        setUpdatingPaymentId("");
+      }
+    },
+    [fetchPayments, addToast]
+  );
+
+  // ✅ Confirm dialog giống ProductsPage (không dùng window.confirm)
+  const confirmAndChange = useCallback(
+    (payment, desiredStatus) => {
+      const currentUi = mapStatusToUi(getStatus(payment));
+      const desiredUi = mapStatusToUi(desiredStatus);
+
+      setOpenStatusMenuId("");
+
+      const isRefund = normalizeStatusKey(desiredUi.value) === "REFUNDED";
+      const title = "Xác nhận đổi trạng thái?";
+      const message = isRefund
+        ? `Đổi trạng thái từ "${currentUi.label}" sang "${desiredUi.label}"?\nLưu ý: thao tác này không thể hoàn tác.`
+        : `Đổi trạng thái từ "${currentUi.label}" sang "${desiredUi.label}"?`;
+
+      openConfirm({
+        title,
+        message,
+        onConfirm: async () => {
+          await handleAdminChangeStatus(payment, desiredStatus);
+        },
+      });
+    },
+    [openConfirm, handleAdminChangeStatus]
+  );
 
   const renderPages = () => {
     const pages = [];
@@ -364,288 +578,368 @@ export default function AdminPaymentListPage() {
   };
 
   return (
-    <div className="apl-page">
-      <div className="order-payment-header">
-        <h2>Danh sách giao dịch</h2>
-      </div>
+    <>
+      <div className="apl-page">
+        <div className="order-payment-header">
+          <h2>Danh sách giao dịch</h2>
+        </div>
 
-      <div className="apl-card">
-        {/* ===== Toolbar (2 rows) ===== */}
-        <div className="apl-toolbar">
-          <div className="apl-toolbarRows">
-            <div className="apl-row1">
-              <div className="apl-group">
-                <span>Tìm kiếm</span>
-                <input
-                  value={qDraft}
-                  onChange={(e) => setQDraft(e.target.value)}
-                  placeholder="VD: mã thanh toán... hoặc email@example.com"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") applyFilters();
-                  }}
-                />
-              </div>
+        <div className="apl-card">
+          {/* ===== Toolbar (2 rows) ===== */}
+          <div className="apl-toolbar">
+            <div className="apl-toolbarRows">
+              <div className="apl-row1">
+                <div className="apl-group">
+                  <span>Tìm kiếm</span>
+                  <input
+                    value={qDraft}
+                    onChange={(e) => setQDraft(e.target.value)}
+                    placeholder="VD: mã thanh toán... hoặc email@example.com"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") applyFilters();
+                    }}
+                  />
+                </div>
 
-              <div className="apl-group">
-                <span>Từ ngày</span>
-                <DatePicker
-                  selected={fromDraft}
-                  onChange={(d) => setFromDraft(d)}
-                  className="apl-dateInput"
-                  dateFormat="dd/MM/yyyy"
-                  placeholderText="Chọn ngày"
-                />
-              </div>
+                <div className="apl-group">
+                  <span>Từ ngày</span>
+                  <DatePicker
+                    selected={fromDraft}
+                    onChange={(d) => setFromDraft(d)}
+                    className="apl-dateInput"
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Chọn ngày"
+                  />
+                </div>
 
-              <div className="apl-group">
-                <span>Đến ngày</span>
-                <DatePicker
-                  selected={toDraft}
-                  onChange={(d) => setToDraft(d)}
-                  className="apl-dateInput"
-                  dateFormat="dd/MM/yyyy"
-                  placeholderText="Chọn ngày"
-                />
-              </div>
-            </div>
-
-            <div className="apl-row2">
-              <div className="apl-group">
-                <span>Trạng thái</span>
-                <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value)}>
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value || "all"} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="apl-group">
-                <span>Loại thanh toán</span>
-                <select value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)}>
-                  {TYPE_OPTIONS.map((o) => (
-                    <option key={o.value || "all"} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="apl-group">
-                <span>Số tiền</span>
-                <div className="apl-amountRange">
-                  <input value={minDraft} onChange={(e) => setMinDraft(e.target.value)} placeholder="Từ" inputMode="numeric" />
-                  <input value={maxDraft} onChange={(e) => setMaxDraft(e.target.value)} placeholder="Đến" inputMode="numeric" />
+                <div className="apl-group">
+                  <span>Đến ngày</span>
+                  <DatePicker
+                    selected={toDraft}
+                    onChange={(d) => setToDraft(d)}
+                    className="apl-dateInput"
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Chọn ngày"
+                  />
                 </div>
               </div>
 
-              <div className="apl-filterActions">
-                <button className="apl-iconActionBtn primary" onClick={applyFilters} title="Lọc">
-                  <Ico.Filter />
-                </button>
-                <button className="apl-iconActionBtn" onClick={resetFilters} title="Đặt lại">
-                  <Ico.Refresh />
-                </button>
+              <div className="apl-row2">
+                <div className="apl-group">
+                  <span>Trạng thái</span>
+                  <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value)}>
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value || "all"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="apl-group">
+                  <span>Loại thanh toán</span>
+                  <select value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)}>
+                    {TYPE_OPTIONS.map((o) => (
+                      <option key={o.value || "all"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="apl-group">
+                  <span>Số tiền</span>
+                  <div className="apl-amountRange">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatForInput(minDraft)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (/^[0-9.,]*$/.test(raw) && isValidDecimal18_2(raw)) {
+                          setMinDraft(raw);
+                        } else if (raw === "") {
+                          setMinDraft("");
+                        }
+                      }}
+                      placeholder="Từ"
+                    />
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatForInput(maxDraft)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (/^[0-9.,]*$/.test(raw) && isValidDecimal18_2(raw)) {
+                          setMaxDraft(raw);
+                        } else if (raw === "") {
+                          setMaxDraft("");
+                        }
+                      }}
+                      placeholder="Đến"
+                    />
+                  </div>
+                </div>
+
+                <div className="apl-filterActions">
+                  <button className="apl-iconActionBtn primary" onClick={applyFilters} title="Lọc">
+                    <Ico.Filter />
+                  </button>
+                  <button className="apl-iconActionBtn" onClick={resetFilters} title="Đặt lại">
+                    <Ico.Refresh />
+                  </button>
+                </div>
               </div>
             </div>
+
+            <div className="apl-topInfo">
+              {loading ? "Đang tải..." : `Tổng: ${total} • Trang ${page}/${totalPages}`}
+            </div>
+
+            {updateStatusErr ? <div className="apl-inlineError">{updateStatusErr}</div> : null}
           </div>
 
-          <div className="apl-topInfo">
-            {loading ? "Đang tải..." : `Tổng: ${total} • Trang ${page}/${totalPages}`}
-          </div>
-        </div>
-
-        {/* ===== Table ===== */}
-        <div className="apl-tableWrap">
-          <table className="apl-table">
-            <thead>
-              <tr>
-                <th>
-                  <button className="apl-sortBtn" onClick={() => toggleSort("paymentId")}>
-                    Mã thanh toán {sortIcon("paymentId")}
-                  </button>
-                </th>
-                <th>
-                  <button className="apl-sortBtn" onClick={() => toggleSort("transactionType")}>
-                    Loại thanh toán {sortIcon("transactionType")}
-                  </button>
-                </th>
-                <th>
-                  <button className="apl-sortBtn" onClick={() => toggleSort("amount")}>
-                    Số tiền {sortIcon("amount")}
-                  </button>
-                </th>
-                <th>
-                  <button className="apl-sortBtn" onClick={() => toggleSort("status")}>
-                    Trạng thái {sortIcon("status")}
-                  </button>
-                </th>
-                <th>
-                  <button className="apl-sortBtn" onClick={() => toggleSort("createdAt")}>
-                    Ngày tạo {sortIcon("createdAt")}
-                  </button>
-                </th>
-                <th className="apl-th-actions">Chi tiết</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {!loading && error ? (
+          {/* ===== Table ===== */}
+          <div className="apl-tableWrap">
+            <table className="apl-table">
+              <thead>
                 <tr>
-                  <td colSpan={6} style={{ padding: 14, color: "#b91c1c", fontWeight: 800 }}>
-                    {error}
-                  </td>
+                  <th>
+                    <button className="apl-sortBtn" onClick={() => toggleSort("paymentId")}>
+                      Mã thanh toán {sortIcon("paymentId")}
+                    </button>
+                  </th>
+                  <th>
+                    <button className="apl-sortBtn" onClick={() => toggleSort("transactionType")}>
+                      Loại thanh toán {sortIcon("transactionType")}
+                    </button>
+                  </th>
+                  <th>
+                    <button className="apl-sortBtn" onClick={() => toggleSort("amount")}>
+                      Số tiền {sortIcon("amount")}
+                    </button>
+                  </th>
+                  <th>
+                    <button className="apl-sortBtn" onClick={() => toggleSort("status")}>
+                      Trạng thái {sortIcon("status")}
+                    </button>
+                  </th>
+                  <th>
+                    <button className="apl-sortBtn" onClick={() => toggleSort("createdAt")}>
+                      Ngày tạo {sortIcon("createdAt")}
+                    </button>
+                  </th>
+                  <th className="apl-th-actions">Chi tiết</th>
                 </tr>
-              ) : null}
+              </thead>
 
-              {!loading && !error && items.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 14, color: "#6b7280", fontWeight: 800 }}>
-                    Không có giao dịch phù hợp.
-                  </td>
-                </tr>
-              ) : null}
-
-              {items.map((p) => {
-                const pid = getPaymentId(p);
-                const created = getCreatedAt(p);
-                const amount = getAmount(p);
-                const statusUi = mapStatusToUi(getStatus(p));
-                const typeUi = mapTargetToUi(getTargetType(p));
-
-                return (
-                  <tr key={pid || JSON.stringify(p)}>
-                    <td>
-                      <span className="apl-paymentId" title={pid}>
-                        {pid || "—"}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span className={`apl-pill ${typeUi.cls}`}>{typeUi.label}</span>
-                    </td>
-
-                    <td style={{ fontWeight: 900 }}>{formatVnd(amount)}</td>
-
-                    <td>
-                      <span className={`apl-pill ${statusUi.cls}`}>{statusUi.label}</span>
-                    </td>
-
-                    <td style={{ fontWeight: 800 }}>{fmtDateTime(created)}</td>
-
-                    <td className="apl-td-actions">
-                      <button className="apl-icon-btn" title="Xem chi tiết" onClick={() => openDetail(p)}>
-                        <Ico.Eye />
-                      </button>
+              <tbody>
+                {!loading && error ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: 14, color: "#b91c1c", fontWeight: 800 }}>
+                      {error}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ) : null}
 
-        {/* ===== Pager ===== */}
-        <div className="apl-pager">
-          <div className="apl-pager-center">
-            <button className="apl-navBtn" onClick={() => setPage((x) => Math.max(1, x - 1))} disabled={page <= 1}>
-              ← Trước
-            </button>
+                {!loading && !error && items.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: 14, color: "#6b7280", fontWeight: 800 }}>
+                      Không có giao dịch phù hợp.
+                    </td>
+                  </tr>
+                ) : null}
 
-            {renderPages()}
+                {items.map((p) => {
+                  const pid = getPaymentId(p);
+                  const created = getCreatedAt(p);
+                  const amount = getAmount(p);
+                  const statusUi = mapStatusToUi(getStatus(p));
+                  const typeUi = mapTargetToUi(getTargetType(p));
 
-            <button className="apl-navBtn" onClick={() => setPage((x) => Math.min(totalPages, x + 1))} disabled={page >= totalPages}>
-              Sau →
-            </button>
+                  const menuOptions = buildMenuOptions(statusUi.value);
+                  const isFinal = normalizeStatusKey(statusUi.value) === "REFUNDED";
+                  const isUpdating = updatingPaymentId === pid;
+                  const canOpen = !!pid && !isUpdating && !isFinal && menuOptions.length > 0;
+
+                  const isMenuOpen = openStatusMenuId === pid;
+
+                  return (
+                    <tr key={pid || JSON.stringify(p)}>
+                      <td>
+                        <span className="apl-paymentId" title={pid}>
+                          {pid || "—"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className={`apl-pill ${typeUi.cls}`}>{typeUi.label}</span>
+                      </td>
+
+                      <td style={{ fontWeight: 900 }}>{formatVnd(amount)}</td>
+
+                      <td>
+                        <div className="apl-statusMenuWrap" ref={isMenuOpen ? statusMenuRef : null}>
+                          <button
+                            type="button"
+                            className={`apl-pill apl-pillDropdown ${statusUi.cls} ${
+                              canOpen ? "" : "disabled"
+                            } ${isMenuOpen ? "open" : ""}`}
+                            title={
+                              canOpen
+                                ? "Đổi trạng thái"
+                                : isFinal
+                                  ? "Trạng thái cuối (không thể đổi)"
+                                  : "Không có trạng thái khả thi để đổi"
+                            }
+                            disabled={!canOpen}
+                            onClick={() => {
+                              if (!canOpen) return;
+                              setOpenStatusMenuId((prev) => (prev === pid ? "" : pid));
+                            }}
+                          >
+                            <span className="apl-pillText">{statusUi.label}</span>
+                            <span className="apl-pillCaret" aria-hidden="true">
+                              <Ico.Caret />
+                            </span>
+                          </button>
+
+                          {isMenuOpen ? (
+                            <div className="apl-statusMenu" role="menu" aria-label="Chọn trạng thái">
+                              {menuOptions.map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  role="menuitem"
+                                  className={`apl-statusMenuItem ${opt.ui.cls}`}
+                                  onClick={() => confirmAndChange(p, opt.value)}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+
+                      <td style={{ fontWeight: 800 }}>{fmtDateTime(created)}</td>
+
+                      <td className="apl-td-actions">
+                        <button className="apl-icon-btn" title="Xem chi tiết" onClick={() => openDetail(p)}>
+                          <Ico.Eye />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          <div className="apl-pager-right">
-            <select
-              className="apl-pageSizeSelect"
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              title="Kích thước trang"
-            >
-              {[10, 20, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+          {/* ===== Pager ===== */}
+          <div className="apl-pager">
+            <div className="apl-pager-center">
+              <button className="apl-navBtn" onClick={() => setPage((x) => Math.max(1, x - 1))} disabled={page <= 1}>
+                ← Trước
+              </button>
 
-      {/* ===== Modal centered ===== */}
-      {open ? (
-        <div
-          className="apl-modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closeModal();
-          }}
-        >
-          <div className="apl-modal">
-            <div className="apl-modal-header">
-              <h3 className="apl-modal-title">Chi tiết thanh toán</h3>
-              <button className="apl-modal-close" onClick={closeModal} title="Đóng">
-                <Ico.X />
+              {renderPages()}
+
+              <button className="apl-navBtn" onClick={() => setPage((x) => Math.min(totalPages, x + 1))} disabled={page >= totalPages}>
+                Sau →
               </button>
             </div>
 
-            <div className="apl-modal-body">
-              {detailLoading ? (
-                <div style={{ padding: 8, fontWeight: 800, color: "#6b7280" }}>Đang tải chi tiết...</div>
-              ) : (
-                (() => {
-                  const d = detail || {};
-                  const pid = getPaymentId(d);
-                  const created = getCreatedAt(d);
-                  const amount = getAmount(d);
-                  const statusUi = mapStatusToUi(getStatus(d));
-                  const typeUi = mapTargetToUi(getTargetType(d));
-
-                  return (
-                    <div className="apl-modal-grid">
-                      <div className="apl-field">
-                        <div className="apl-field-label">Mã thanh toán</div>
-                        <div className="apl-field-value">{pid || "—"}</div>
-                      </div>
-
-                      <div className="apl-field">
-                        <div className="apl-field-label">Trạng thái</div>
-                        <div className="apl-field-value">
-                          <span className={`apl-pill ${statusUi.cls}`}>{statusUi.label}</span>
-                        </div>
-                      </div>
-
-                      <div className="apl-field">
-                        <div className="apl-field-label">Loại thanh toán</div>
-                        <div className="apl-field-value">
-                          <span className={`apl-pill ${typeUi.cls}`}>{typeUi.label}</span>
-                        </div>
-                      </div>
-
-                      <div className="apl-field">
-                        <div className="apl-field-label">Số tiền</div>
-                        <div className="apl-field-value">{formatVnd(amount)}</div>
-                      </div>
-
-                      <div className="apl-field">
-                        <div className="apl-field-label">Ngày tạo</div>
-                        <div className="apl-field-value">{fmtDateTime(created)}</div>
-                      </div>
-                    </div>
-                  );
-                })()
-              )}
+            <div className="apl-pager-right">
+              <select
+                className="apl-pageSizeSelect"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                title="Kích thước trang"
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
-      ) : null}
-    </div>
+
+        {/* ===== Modal centered ===== */}
+        {open ? (
+          <div
+            className="apl-modal-backdrop"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) closeModal();
+            }}
+          >
+            <div className="apl-modal">
+              <div className="apl-modal-header">
+                <h3 className="apl-modal-title">Chi tiết thanh toán</h3>
+                <button className="apl-modal-close" onClick={closeModal} title="Đóng">
+                  <Ico.X />
+                </button>
+              </div>
+
+              <div className="apl-modal-body">
+                {detailLoading ? (
+                  <div style={{ padding: 8, fontWeight: 800, color: "#6b7280" }}>Đang tải chi tiết...</div>
+                ) : (
+                  (() => {
+                    const d = detail || {};
+                    const pid = getPaymentId(d);
+                    const created = getCreatedAt(d);
+                    const amount = getAmount(d);
+                    const statusUi = mapStatusToUi(getStatus(d));
+                    const typeUi = mapTargetToUi(getTargetType(d));
+
+                    return (
+                      <div className="apl-modal-grid">
+                        <div className="apl-field">
+                          <div className="apl-field-label">Mã thanh toán</div>
+                          <div className="apl-field-value">{pid || "—"}</div>
+                        </div>
+
+                        <div className="apl-field">
+                          <div className="apl-field-label">Trạng thái</div>
+                          <div className="apl-field-value">
+                            <span className={`apl-pill ${statusUi.cls}`}>{statusUi.label}</span>
+                          </div>
+                        </div>
+
+                        <div className="apl-field">
+                          <div className="apl-field-label">Loại thanh toán</div>
+                          <div className="apl-field-value">
+                            <span className={`apl-pill ${typeUi.cls}`}>{typeUi.label}</span>
+                          </div>
+                        </div>
+
+                        <div className="apl-field">
+                          <div className="apl-field-label">Số tiền</div>
+                          <div className="apl-field-value">{formatVnd(amount)}</div>
+                        </div>
+
+                        <div className="apl-field">
+                          <div className="apl-field-label">Ngày tạo</div>
+                          <div className="apl-field-value">{fmtDateTime(created)}</div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* ✅ Toast + Confirm Dialog (giống ProductsPage) */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} confirmDialog={confirmDialog} />
+    </>
   );
 }

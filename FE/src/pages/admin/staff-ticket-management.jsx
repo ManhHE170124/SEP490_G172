@@ -37,12 +37,49 @@ const PRIORITY_OPTIONS = [
 const PAGE_SIZE = 10;
 
 // ---- helpers hiển thị ----
+// ✅ FE-only timezone display: luôn hiển thị theo UTC+7 (Asia/Bangkok)
+// - BE/DB giữ UTC như hiện tại
+// - Nếu chuỗi datetime không có timezone (không có Z / offset) => coi như UTC
+const DISPLAY_TZ = "Asia/Bangkok";
+
+function hasTimeZoneDesignator(s) {
+  // ends with Z or has +HH:mm / -HH:mm / +HHmm / -HHmm
+  return (
+    /[zZ]$/.test(s) ||
+    /[+\-]\d{2}:\d{2}$/.test(s) ||
+    /[+\-]\d{2}\d{2}$/.test(s)
+  );
+}
+
+function parseApiDateAssumeUtcIfNoTz(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+
+  if (typeof v === "number") {
+    const dNum = new Date(v);
+    return Number.isNaN(dNum.getTime()) ? null : dNum;
+  }
+
+  let s = String(v).trim();
+  if (!s) return null;
+
+  // .NET đôi khi trả fractional seconds 7 digits (vd: .1234567) => JS có thể parse lỗi
+  // Trim về tối đa 3 digits để chắc chắn parse được.
+  s = s.replace(/(\.\d{3})\d+/, "$1");
+
+  // Nếu API/DB trả "2026-01-24T01:23:45" (không Z) thì append Z để JS hiểu là UTC
+  const iso = hasTimeZoneDesignator(s) ? s : `${s}Z`;
+
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function fmtVNDate(dt) {
   try {
-    if (!dt) return "";
-    const d =
-      typeof dt === "string" || typeof dt === "number" ? new Date(dt) : dt;
+    const d = parseApiDateAssumeUtcIfNoTz(dt);
+    if (!d) return "";
     return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ, // ✅ cố định UTC+7
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -132,8 +169,8 @@ function sortForUnassigned(items) {
       (SEVERITY_WEIGHT[String(a.severity)] || 0);
     if (s2 !== 0) return s2;
 
-    const ta = new Date(a.createdAt || 0).getTime();
-    const tb = new Date(b.createdAt || 0).getTime();
+    const ta = parseApiDateAssumeUtcIfNoTz(a.createdAt)?.getTime?.() ?? 0;
+    const tb = parseApiDateAssumeUtcIfNoTz(b.createdAt)?.getTime?.() ?? 0;
     return ta - tb;
   });
 }
@@ -150,8 +187,8 @@ function sortForMine(items) {
     const s2 = sb - sa; // InProgress trước New
     if (s2 !== 0) return s2;
 
-    const ta = new Date(a.createdAt || 0).getTime();
-    const tb = new Date(b.createdAt || 0).getTime();
+    const ta = parseApiDateAssumeUtcIfNoTz(a.createdAt)?.getTime?.() ?? 0;
+    const tb = parseApiDateAssumeUtcIfNoTz(b.createdAt)?.getTime?.() ?? 0;
     return ta - tb;
   });
 }

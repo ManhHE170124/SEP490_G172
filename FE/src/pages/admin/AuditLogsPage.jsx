@@ -47,6 +47,8 @@ const ACTION_VI = {
   // ===== ORDER / PAYMENT =====
   CheckoutFromCart: "Thanh toán từ giỏ hàng",
   ViewOrderDetail: "Xem chi tiết đơn hàng",
+  ChangeOrderStatus: "Nhân viên đổi trạng thái đơn hàng",                    // <-- thêm
+  OrderStatusChanged: "Đồng bộ trạng thái đơn hàng theo thanh toán",
   ViewOrderDetailWithCredentials: "Xem chi tiết đơn hàng",
   PaymentStatusChanged: "Cập nhật trạng thái thanh toán",
   CreateSupportPlanPayOSPayment: "Tạo thanh toán PayOS cho gói hỗ trợ",

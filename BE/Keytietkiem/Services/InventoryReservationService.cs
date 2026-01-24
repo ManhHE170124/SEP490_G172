@@ -73,7 +73,7 @@ namespace Keytietkiem.Services
         ///     + stock > 0  => giữ INACTIVE nếu đang INACTIVE, còn lại => ACTIVE
         /// - Product.StockQty = sum(variant.StockQty)
         /// </summary>
-        private static async Task SyncStockAndStatusesAsync(
+        public static async Task SyncStockAndStatusesAsync(
             KeytietkiemDbContext db,
             IEnumerable<Guid> variantIds,
             DateTime nowUtc,

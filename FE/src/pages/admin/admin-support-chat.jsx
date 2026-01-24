@@ -23,11 +23,35 @@ import Toast from "../../components/Toast/Toast";
 function formatTimeShort(value) {
   if (!value) return "";
   try {
-    const d = new Date(value);
-    return d.toLocaleTimeString("vi-VN", {
+    const DISPLAY_TZ = "Asia/Bangkok"; // UTC+7 (FE only)
+
+    const hasTimeZoneDesignator = (s) =>
+      /[zZ]$/.test(s) ||
+      /[+\-]\d{2}:\d{2}$/.test(s) ||
+      /[+\-]\d{2}\d{2}$/.test(s);
+
+    let d = null;
+
+    if (value instanceof Date) {
+      d = value;
+    } else if (typeof value === "number") {
+      d = new Date(value);
+    } else {
+      const s = String(value).trim();
+      if (!s) return "";
+      // Nếu API/DB trả "2026-01-24T01:23:45" (không Z/offset) => coi là UTC
+      const iso = hasTimeZoneDesignator(s) ? s : `${s}Z`;
+      d = new Date(iso);
+    }
+
+    if (!d || Number.isNaN(d.getTime())) return String(value);
+
+    // Luôn format theo UTC+7 để hiển thị nhất quán (kể cả sau reload)
+    return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ,
       hour: "2-digit",
       minute: "2-digit",
-    });
+    }).format(d);
   } catch {
     return String(value);
   }

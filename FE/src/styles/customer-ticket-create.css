@@ -11,6 +11,24 @@
   --primary: #0d6efd;
 }
 
+/* ===== Error colors (ensure error lines are red even without Bootstrap) ===== */
+.ctc-page .text-danger {
+  color: #dc2626 !important; /* đỏ rõ */
+}
+
+.ctc-page .alert {
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ctc-page .alert-danger {
+  background: #fef2f2;       /* đỏ nhạt */
+  border-color: #fecaca;     /* viền đỏ nhạt */
+  color: #b91c1c;            /* chữ đỏ đậm */
+}
+
 /* Trang tạo ticket khách hàng */
 .ctc-page {
   padding: 24px;

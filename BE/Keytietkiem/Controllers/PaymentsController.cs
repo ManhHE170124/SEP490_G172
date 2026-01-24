@@ -48,6 +48,7 @@ namespace Keytietkiem.Controllers
         private const string PaymentStatusTimeout = "Timeout";
         private const string PaymentStatusDupCancelled = "DupCancelled";
         private const string PaymentStatusNeedReview = "NeedReview";
+        private const string PaymentStatusRefunded = "Refunded";
         private const string PaymentStatusReplaced = "Replaced";
 
         public PaymentsController(
@@ -105,13 +106,12 @@ namespace Keytietkiem.Controllers
             HttpContext.Items["Audit:ActorEmail"] = "";
             HttpContext.Items["Audit:ActorRole"] = "System";
         }
-
         private Task AuditPaymentStatusChangeAsync(string action, Payment payment, string? prevStatus, object? meta = null)
         {
             var before = new
             {
                 payment.PaymentId,
-                Status = prevStatus,
+                PrevStatus = prevStatus,
                 payment.Amount,
                 payment.Provider,
                 payment.ProviderOrderCode,
@@ -143,6 +143,77 @@ namespace Keytietkiem.Controllers
                 before: before,
                 after: after
             );
+        }
+
+        private Task AuditOrderStatusChangeAsync(string action, Order order, string? prevStatus, object? meta = null)
+        {
+            var before = new
+            {
+                order.OrderId,
+                PrevStatus = prevStatus,
+                order.Email,
+                order.TotalAmount,
+                order.DiscountAmount,
+                CurrentStatus = order.Status
+            };
+
+            var after = new
+            {
+                order.OrderId,
+                order.Email,
+                order.TotalAmount,
+                order.DiscountAmount,
+                Status = order.Status,
+                Meta = meta
+            };
+
+            return _auditLogger.LogAsync(
+                HttpContext,
+                action: action,
+                entityType: "Order",
+                entityId: order.OrderId.ToString(),
+                before: before,
+                after: after
+            );
+        }
+
+        // ================== NEED REVIEW NOTIFICATION (best-effort) ==================
+        private async Task NotifyPaymentNeedReviewAsync(Payment payment, string reason, object? meta = null, CancellationToken ct = default)
+        {
+            try
+            {
+                // NotificationSystemService là best-effort, nhưng vẫn wrap để không làm fail webhook.
+                var systemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+                var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+
+                // Mặc định dẫn về danh sách payments; FE có thể tự highlight theo query.
+                var relatedUrl = $"{origin}/admin/payments?search={payment.PaymentId}";
+
+                var msg =
+                    "Có giao dịch cần review thủ công.\n" +
+                    $"- PaymentId: {payment.PaymentId}\n" +
+                    $"- ProviderOrderCode: {payment.ProviderOrderCode}\n" +
+                    $"- Email: {payment.Email}\n" +
+                    $"- Reason: {reason}";
+
+                await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
+                {
+                    Title = "Giao dịch cần review thủ công",
+                    Message = msg,
+                    Severity = 1, // Warning
+                    CreatedByUserId = systemUserId,
+                    CreatedByEmail = "System",
+                    Type = "Payment.NeedReview",
+                    RelatedEntityType = "Payment",
+                    RelatedEntityId = payment.PaymentId.ToString(),
+                    RelatedUrl = relatedUrl,
+                    TargetRoleCodes = new List<string> { RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE }
+                }, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify roles for NeedReview. PaymentId={PaymentId}", payment.PaymentId);
+            }
         }
 
         // ================== ADMIN LIST/DETAIL ==================
@@ -645,7 +716,7 @@ namespace Keytietkiem.Controllers
 
         [HttpGet("{paymentId:guid}")]
         [Authorize]
-        [RequireRole(RoleCodes.ADMIN)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetPaymentById(Guid paymentId,
         [FromQuery] bool includeCheckoutUrl = false,
             [FromQuery] bool includeAttempts = true)
@@ -785,6 +856,110 @@ namespace Keytietkiem.Controllers
         }
 
 
+        public class PaymentAdminUpdateStatusRequestDto
+        {
+            public string Status { get; set; } = "";
+            public string? Note { get; set; }
+        }
+
+        [HttpPatch("{paymentId:guid}/admin/status")]
+        [Authorize]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
+        public async Task<IActionResult> AdminUpdatePaymentStatusSimple(
+            Guid paymentId,
+            [FromBody] PaymentAdminUpdateStatusRequestDto req,
+            CancellationToken ct = default)
+        {
+            var desired = (req?.Status ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(desired))
+                return BadRequest(new { message = "Thiếu status." });
+
+            await using var db = _dbFactory.CreateDbContext();
+            var payment = await db.Payments.FirstOrDefaultAsync(p => p.PaymentId == paymentId, ct);
+            if (payment == null) return NotFound(new { message = "Payment không tồn tại" });
+
+            var current = (payment.Status ?? "").Trim();
+
+            // Refunded là trạng thái cuối, không cho đổi ngược
+            if (string.Equals(current, PaymentStatusRefunded, StringComparison.OrdinalIgnoreCase))
+                return Conflict(new { message = "Payment đã Refunded, không thể đổi trạng thái khác." });
+
+            // NeedReview -> chỉ Paid/Cancelled
+            if (string.Equals(current, PaymentStatusNeedReview, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(desired, PaymentStatusRefunded, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { message = "Payment đang NeedReview không thể Refund (phải resolve Paid/Cancelled trước)." });
+
+                if (!string.Equals(desired, PaymentStatusPaid, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(desired, PaymentStatusCancelled, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { message = "NeedReview chỉ có thể đổi sang Paid hoặc Cancelled." });
+            }
+            else
+            {
+                // các trạng thái khác: chỉ cho chuyển sang Refunded
+                if (!string.Equals(desired, PaymentStatusRefunded, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { message = "Chỉ cho phép chuyển sang Refunded cho trạng thái hiện tại." });
+            }
+
+            // Refund cho ADMIN hoặc CUSTOMER_CARE (đã RequireRole ở attribute)
+            if (string.Equals(desired, PaymentStatusRefunded, StringComparison.OrdinalIgnoreCase)
+                && !(User.IsInRole(RoleCodes.ADMIN) || User.IsInRole(RoleCodes.CUSTOMER_CARE)))
+            {
+                return Forbid();
+            }
+
+            var prevStatus = payment.Status;
+            payment.Status = desired;
+
+            // nếu payment gắn Order -> sync Order.Status
+            Order? order = null;
+            string? prevOrderStatus = null;
+            if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParse(payment.TargetId, out var oid))
+            {
+                order = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == oid, ct);
+                if (order != null)
+                {
+                    prevOrderStatus = order.Status;
+                    if (string.Equals(desired, PaymentStatusRefunded, StringComparison.OrdinalIgnoreCase))
+                        order.Status = "Refunded";
+                    else if (string.Equals(desired, PaymentStatusPaid, StringComparison.OrdinalIgnoreCase))
+                        order.Status = "Paid";
+                    else if (string.Equals(desired, PaymentStatusCancelled, StringComparison.OrdinalIgnoreCase))
+                        order.Status = "Cancelled";
+                }
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            await AuditPaymentStatusChangeAsync(
+                action: "PaymentStatusChanged",
+                payment: payment,
+                prevStatus: prevStatus,
+                meta: new { note = req?.Note, by = User?.Identity?.Name }
+            );
+
+            if (order != null && prevOrderStatus != order.Status)
+            {
+                await AuditOrderStatusChangeAsync(
+                    action: "OrderStatusChanged",
+                    order: order,
+                    prevStatus: prevOrderStatus,
+                    meta: new { reason = "SyncedFromPayment", paymentId = payment.PaymentId, paymentStatus = desired }
+                );
+            }
+
+            return Ok(new
+            {
+                paymentId = payment.PaymentId,
+                status = payment.Status,
+                targetType = payment.TargetType,
+                targetId = payment.TargetId,
+                orderStatus = order?.Status
+            });
+        }
+
+
         // ================== PAYOS WEBHOOK ==================
 
         [HttpPost("payos/webhook")]
@@ -828,12 +1003,19 @@ namespace Keytietkiem.Controllers
 
                 var prevStatus = payment.Status;
 
+                Order? order = null;
+                string? prevOrderStatus = null;
+
                 // đánh dấu NeedReview + nếu Order thì NeedsManualAction
                 if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                     && Guid.TryParse(payment.TargetId, out var oid))
                 {
-                    var o = await db.Orders.FirstOrDefaultAsync(x => x.OrderId == oid);
-                    if (o != null) o.Status = "NeedsManualAction";
+                    order = await db.Orders.FirstOrDefaultAsync(x => x.OrderId == oid);
+                    if (order != null)
+                    {
+                        prevOrderStatus = order.Status;
+                        order.Status = "NeedsManualAction";
+                    }
                 }
 
                 payment.Status = PaymentStatusNeedReview;
@@ -852,6 +1034,25 @@ namespace Keytietkiem.Controllers
                         payloadLink = payload.Data.PaymentLinkId
                     });
 
+                if (order != null && prevOrderStatus != order.Status)
+                {
+                    await AuditOrderStatusChangeAsync(
+                        "OrderStatusChanged",
+                        order,
+                        prevOrderStatus,
+                        new { reason = "SyncedFromPaymentNeedReview", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+                }
+
+                // ✅ Notify Admin + Customer Care when NeedReview happens (only on transition)
+                if (!string.Equals(prevStatus ?? "", PaymentStatusNeedReview, StringComparison.OrdinalIgnoreCase))
+                {
+                    await NotifyPaymentNeedReviewAsync(
+                        payment,
+                        reason: "PaymentLinkIdMismatch",
+                        meta: new { orderCode, dbLink = payment.PaymentLinkId, payloadLink = payload.Data.PaymentLinkId },
+                        ct: HttpContext.RequestAborted);
+                }
+
                 return Ok(new { message = "Webhook processed - paymentLinkId mismatch (NeedReview)." });
             }
 
@@ -859,6 +1060,9 @@ namespace Keytietkiem.Controllers
             var dataCode = !string.IsNullOrWhiteSpace(payload.Data.Code) ? payload.Data.Code : topCode;
             var isSuccess = topCode == "00" && dataCode == "00";
             var gatewayAmount = (long)payload.Data.Amount;
+
+            if (string.Equals(payment.Status ?? "", PaymentStatusRefunded, StringComparison.OrdinalIgnoreCase))
+                return Ok(new { message = "Already refunded." });
 
             if (string.Equals(payment.Status ?? "", PaymentStatusPaid, StringComparison.OrdinalIgnoreCase))
                 return Ok(new { message = "Already paid." });
@@ -873,14 +1077,20 @@ namespace Keytietkiem.Controllers
 
                 var prevStatus = payment.Status;
 
+                Order? orderMismatch = null;
+                string? prevOrderStatus = null;
+
                 payment.Status = PaymentStatusNeedReview;
 
                 if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                     && Guid.TryParse(payment.TargetId, out var orderIdMismatch))
                 {
-                    var orderMismatch = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == orderIdMismatch);
+                    orderMismatch = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == orderIdMismatch);
                     if (orderMismatch != null)
+                    {
+                        prevOrderStatus = orderMismatch.Status;
                         orderMismatch.Status = "NeedsManualAction";
+                    }
                 }
 
                 await db.SaveChangesAsync();
@@ -897,6 +1107,25 @@ namespace Keytietkiem.Controllers
                         expectedAmount,
                         gatewayAmount
                     });
+
+                if (orderMismatch != null && prevOrderStatus != orderMismatch.Status)
+                {
+                    await AuditOrderStatusChangeAsync(
+                        "OrderStatusChanged",
+                        orderMismatch,
+                        prevOrderStatus,
+                        new { reason = "SyncedFromPaymentNeedReview", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+                }
+
+                // ✅ Notify Admin + Customer Care when NeedReview happens (only on transition)
+                if (!string.Equals(prevStatus ?? "", PaymentStatusNeedReview, StringComparison.OrdinalIgnoreCase))
+                {
+                    await NotifyPaymentNeedReviewAsync(
+                        payment,
+                        reason: "AmountMismatch",
+                        meta: new { orderCode, expectedAmount, gatewayAmount },
+                        ct: HttpContext.RequestAborted);
+                }
 
                 return Ok(new { message = "Webhook processed - amount mismatch (NeedReview)." });
             }
@@ -984,6 +1213,7 @@ namespace Keytietkiem.Controllers
                                 string.Equals(order.Status, "CancelledByTimeout", StringComparison.OrdinalIgnoreCase)))
                         {
                             var prevStatus = payment.Status;
+                            var prevOrderStatus = order.Status;
 
                             payment.Status = PaymentStatusPaid;
                             order.Status = "NeedsManualAction";
@@ -997,6 +1227,16 @@ namespace Keytietkiem.Controllers
                                 prevStatus,
                                 new { reason = "PaidLate", orderCode, topCode, dataCode, orderStatus = order.Status });
 
+                            // ✅ Audit: Order status changed (Paid late)
+                            if (!string.Equals(prevOrderStatus, order.Status, StringComparison.OrdinalIgnoreCase))
+                            {
+                                await AuditOrderStatusChangeAsync(
+                                    "OrderStatusChanged",
+                                    order,
+                                    prevOrderStatus,
+                                    new { reason = "PaidLate", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+                            }
+
                             // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
                             await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, order);
 
@@ -1006,6 +1246,7 @@ namespace Keytietkiem.Controllers
                         if (order != null && string.Equals(order.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
                         {
                             var prevStatus = payment.Status;
+                            var prevOrderStatus = order.Status;
 
                             var lines = await db.OrderDetails
                                 .AsNoTracking()
@@ -1060,6 +1301,16 @@ namespace Keytietkiem.Controllers
                                 prevStatus,
                                 new { reason = "WebhookPaid", targetType = payment.TargetType, orderCode, topCode, dataCode, orderStatus = order.Status });
 
+                            // ✅ Audit: Order status changed (Paid)
+                            if (!string.Equals(prevOrderStatus, order.Status, StringComparison.OrdinalIgnoreCase))
+                            {
+                                await AuditOrderStatusChangeAsync(
+                                    "OrderStatusChanged",
+                                    order,
+                                    prevOrderStatus,
+                                    new { reason = "SyncedFromPaymentPaid", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+                            }
+
                             // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
                             await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, order);
 
@@ -1076,9 +1327,14 @@ namespace Keytietkiem.Controllers
                         // Order không ở PendingPayment => vẫn set Paid nhưng order/manual để staff xử lý
                         {
                             var prevStatus = payment.Status;
+                            string? prevOrderStatus = order?.Status;
 
                             payment.Status = PaymentStatusPaid;
-                            if (order != null) order.Status = "NeedsManualAction";
+                            if (order != null)
+                            {
+                                prevOrderStatus = order.Status;
+                                order.Status = "NeedsManualAction";
+                            }
                             await db.SaveChangesAsync();
                             await tx.CommitAsync();
 
@@ -1088,6 +1344,16 @@ namespace Keytietkiem.Controllers
                                 payment,
                                 prevStatus,
                                 new { reason = "WebhookPaidNeedsManualAction", orderCode, topCode, dataCode, orderStatus = order?.Status });
+
+                            // ✅ Audit: Order status changed (Paid but manual)
+                            if (order != null && !string.Equals(prevOrderStatus, order.Status, StringComparison.OrdinalIgnoreCase))
+                            {
+                                await AuditOrderStatusChangeAsync(
+                                    "OrderStatusChanged",
+                                    order,
+                                    prevOrderStatus,
+                                    new { reason = "SyncedFromPaymentPaidNeedsManualAction", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+                            }
 
                             // ✅ NEW: tự động cập nhật TotalProductSpend + SupportPriorityLevel (best-effort)
                             await BestEffortRecalculateUserSpendAndPriorityAfterOrderPaidAsync(db, payment, order);
@@ -1099,14 +1365,16 @@ namespace Keytietkiem.Controllers
                     {
                         // ===== CANCEL / FAIL =====
                         var prevStatus = payment.Status;
+                        Order? cancelOrder = null;
+                        string? prevOrderStatus = null;
 
                         payment.Status = PaymentStatusCancelled;
 
                         if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                             && Guid.TryParse(payment.TargetId, out var cancelOrderId))
                         {
-                            var order = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == cancelOrderId);
-                            if (order != null && string.Equals(order.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
+                            cancelOrder = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == cancelOrderId);
+                            if (cancelOrder != null && string.Equals(cancelOrder.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
                             {
                                 var hasOtherActiveAttempt = await db.Payments.AnyAsync(p =>
                                     p.TargetType == "Order"
@@ -1116,7 +1384,8 @@ namespace Keytietkiem.Controllers
 
                                 if (!hasOtherActiveAttempt)
                                 {
-                                    order.Status = "Cancelled";
+                                    prevOrderStatus = cancelOrder.Status;
+                                    cancelOrder.Status = "Cancelled";
                                     await _inventoryReservation.ReleaseReservationAsync(db, cancelOrderId, nowUtc, HttpContext.RequestAborted);
                                 }
                             }
@@ -1132,6 +1401,16 @@ namespace Keytietkiem.Controllers
                             prevStatus,
                             new { reason = "WebhookCancelledOrFailed", orderCode, topCode, dataCode });
 
+                        // ✅ Audit: Order status changed (Cancelled/Fail)
+                        if (cancelOrder != null && !string.Equals(prevOrderStatus, cancelOrder.Status, StringComparison.OrdinalIgnoreCase))
+                        {
+                            await AuditOrderStatusChangeAsync(
+                                "OrderStatusChanged",
+                                cancelOrder,
+                                prevOrderStatus,
+                                new { reason = "SyncedFromPaymentCancelledOrFailed", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+                        }
+
                         return Ok(new { message = "Webhook processed - Cancelled." });
                     }
                 }
@@ -1146,13 +1425,20 @@ namespace Keytietkiem.Controllers
                     {
                         var prevStatus = payment.Status;
 
+                        Order? exOrder = null;
+                        string? prevOrderStatus = null;
+
                         payment.Status = PaymentStatusNeedReview;
 
                         if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                             && Guid.TryParse(payment.TargetId, out var oid))
                         {
-                            var o = await db.Orders.FirstOrDefaultAsync(x => x.OrderId == oid);
-                            if (o != null) o.Status = "NeedsManualAction";
+                            exOrder = await db.Orders.FirstOrDefaultAsync(x => x.OrderId == oid);
+                            if (exOrder != null)
+                            {
+                                prevOrderStatus = exOrder.Status;
+                                exOrder.Status = "NeedsManualAction";
+                            }
                         }
 
                         await db.SaveChangesAsync();
@@ -1163,6 +1449,26 @@ namespace Keytietkiem.Controllers
                             payment,
                             prevStatus,
                             new { reason = "WebhookExceptionNeedReview", orderCode, error = ex.Message });
+
+                        // ✅ Audit: Order status changed (Exception -> NeedsManualAction)
+                        if (exOrder != null && !string.Equals(prevOrderStatus, exOrder.Status, StringComparison.OrdinalIgnoreCase))
+                        {
+                            await AuditOrderStatusChangeAsync(
+                                "OrderStatusChanged",
+                                exOrder,
+                                prevOrderStatus,
+                                new { reason = "SyncedFromPaymentNeedReview", paymentId = payment.PaymentId, paymentStatus = payment.Status, error = ex.Message });
+                        }
+
+                        // ✅ Notify Admin + Customer Care when NeedReview happens (only on transition)
+                        if (!string.Equals(prevStatus ?? "", PaymentStatusNeedReview, StringComparison.OrdinalIgnoreCase))
+                        {
+                            await NotifyPaymentNeedReviewAsync(
+                                payment,
+                                reason: "WebhookExceptionNeedReview",
+                                meta: new { orderCode, error = ex.Message },
+                                ct: HttpContext.RequestAborted);
+                        }
                     }
                     catch { }
 
@@ -1275,10 +1581,15 @@ namespace Keytietkiem.Controllers
 
             var nowUtc = DateTime.UtcNow;
 
+            Order? orderToAudit = null;
+            string? prevOrderStatus = null;
+
             if (string.Equals(payment.TargetType, "Order", StringComparison.OrdinalIgnoreCase)
                 && Guid.TryParse(payment.TargetId, out var orderId))
             {
                 var order = await db.Orders.FirstOrDefaultAsync(o => o.OrderId == orderId);
+                orderToAudit = order;
+                prevOrderStatus = order?.Status;
                 if (order != null && string.Equals(order.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
                 {
                     var hasOtherActiveAttempt = await db.Payments.AnyAsync(p =>
@@ -1293,6 +1604,7 @@ namespace Keytietkiem.Controllers
                         await _inventoryReservation.ReleaseReservationAsync(db, orderId, nowUtc, HttpContext.RequestAborted);
                     }
                 }
+
             }
 
             await db.SaveChangesAsync();
@@ -1303,6 +1615,16 @@ namespace Keytietkiem.Controllers
                 payment,
                 prevStatus,
                 new { reason = "CancelFromReturn" });
+
+            // ✅ Audit: Order status changed (Cancelled from return)
+            if (orderToAudit != null && !string.Equals(prevOrderStatus, orderToAudit.Status, StringComparison.OrdinalIgnoreCase))
+            {
+                await AuditOrderStatusChangeAsync(
+                    "OrderStatusChanged",
+                    orderToAudit,
+                    prevOrderStatus,
+                    new { reason = "CancelFromReturn", paymentId = payment.PaymentId, paymentStatus = payment.Status });
+            }
 
             return Ok(new { message = "Payment status", status = payment.Status });
         }

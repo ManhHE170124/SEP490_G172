@@ -126,4 +126,8 @@ export const orderApi = {
       .get(`${END.ORDERS}/${orderId}/details/${orderDetailId}/credentials`, cfg)
       .then(unwrap);
   },
+   manualUpdateStatus: (orderId, payload) => {
+    if (!orderId) return Promise.reject(new Error("OrderId is required"));
+    return axiosClient.patch(`${END.ORDERS}/${orderId}/status`, payload).then(unwrap);
+  },
 };

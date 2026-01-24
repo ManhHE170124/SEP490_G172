@@ -96,10 +96,8 @@ public class ProductReportController : ControllerBase
                 after: report
             );
 
-            // ✅ System notification: tạo báo cáo -> notify STORAGE_STAFF (best-effort)
             try
             {
-                // Map status sang tiếng Việt (theo FE)
                 static string StatusVi(string? s)
                 {
                     var v = (s ?? "").Trim();
@@ -111,7 +109,7 @@ public class ProductReportController : ControllerBase
                 }
 
                 var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
-                var relatedUrl = $"{origin}/reports/{report.Id}"; // ✅ route FE: /reports/:id
+                var relatedUrl = $"{origin}/reports/{report.Id}"; // route FE: /reports/:id
 
                 await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
                 {
@@ -146,7 +144,7 @@ public class ProductReportController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/status")]
-    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> UpdateProductReportStatus(Guid id, [FromBody] UpdateProductReportDto dto)
     {
         if (id != dto.Id)
