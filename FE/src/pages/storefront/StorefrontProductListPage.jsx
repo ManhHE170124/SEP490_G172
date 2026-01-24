@@ -31,6 +31,46 @@ const formatCurrency = (value) => {
   }
 };
 
+// Helper: parse tiền (supports vi-VN formatted numbers like 1.234.567)
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const s = String(value).trim();
+  if (!s) return { num: null, raw: "" };
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return { num: null, raw: s };
+  return { num, raw: s };
+};
+
+// Helper: validate decimal(18,2)
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = String(raw).trim().replace(/\./g, "").replace(/,/g, ".");
+  if (!normalized) return false;
+
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  if (fracPart.length > 2) return false;
+
+  return true;
+};
+
+// Format cho input (vi-VN style, thousands '.' và decimal ',')
+const formatForInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return s;
+  return num.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+};
+
 const PAGE_SIZE = 8;
 
 // Helper: build query object từ URL (KHÔNG đẩy page / pageSize lên URL nữa)
@@ -47,12 +87,19 @@ const buildQueryFromSearch = (search) => {
   const page = 1;
   const pageSize = PAGE_SIZE;
 
+  // Parse money strings (handle vi-VN format with . as thousand separator)
+  const parsePrice = (str) => {
+    if (!str) return undefined;
+    const { num } = parseMoney(str);
+    return num != null ? num : undefined;
+  };
+
   return {
     q,
     categoryId: categoryIdStr ? Number(categoryIdStr) : undefined,
     productType: productType || undefined,
-    minPrice: minPriceStr ? Number(minPriceStr) : undefined,
-    maxPrice: maxPriceStr ? Number(maxPriceStr) : undefined,
+    minPrice: parsePrice(minPriceStr),
+    maxPrice: parsePrice(maxPriceStr),
     sort,
     page,
     pageSize,
@@ -184,11 +231,21 @@ const StorefrontProductListPage = () => {
     if (form.productType) params.set("productType", form.productType);
     else params.delete("productType");
 
-    if (form.minPrice) params.set("minPrice", form.minPrice);
-    else params.delete("minPrice");
+    if (form.minPrice) {
+      const { num } = parseMoney(form.minPrice);
+      if (num != null) params.set("minPrice", String(num));
+      else params.delete("minPrice");
+    } else {
+      params.delete("minPrice");
+    }
 
-    if (form.maxPrice) params.set("maxPrice", form.maxPrice);
-    else params.delete("maxPrice");
+    if (form.maxPrice) {
+      const { num } = parseMoney(form.maxPrice);
+      if (num != null) params.set("maxPrice", String(num));
+      else params.delete("maxPrice");
+    } else {
+      params.delete("maxPrice");
+    }
 
     if (form.sort && form.sort !== "default") params.set("sort", form.sort);
     else params.delete("sort");
@@ -268,26 +325,36 @@ const StorefrontProductListPage = () => {
               <div className="sf-field">
                 <label className="sf-label">Giá từ</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   className="sf-input"
                   placeholder="0"
                   name="minPrice"
-                  value={form.minPrice}
-                  onChange={handleChangeField}
-                  min="0"
+                  value={formatForInput(form.minPrice)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (/^[0-9.,]*$/.test(raw) && (raw === "" || isValidDecimal18_2(raw))) {
+                      setForm((prev) => ({ ...prev, minPrice: raw }));
+                    }
+                  }}
                 />
               </div>
 
               <div className="sf-field">
                 <label className="sf-label">Đến</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   className="sf-input"
                   placeholder="0"
                   name="maxPrice"
-                  value={form.maxPrice}
-                  onChange={handleChangeField}
-                  min="0"
+                  value={formatForInput(form.maxPrice)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (/^[0-9.,]*$/.test(raw) && (raw === "" || isValidDecimal18_2(raw))) {
+                      setForm((prev) => ({ ...prev, maxPrice: raw }));
+                    }
+                  }}
                 />
               </div>
 

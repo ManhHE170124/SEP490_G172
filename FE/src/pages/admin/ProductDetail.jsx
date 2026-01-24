@@ -553,7 +553,6 @@ export default function ProductDetail() {
                 }}
               >
                 <option value="PERSONAL_KEY">Mã cá nhân</option>
-                <option value="SHARED_KEY">Mã dùng chung</option>
                 <option value="PERSONAL_ACCOUNT">Tài khoản cá nhân</option>
                 <option value="SHARED_ACCOUNT">Tài khoản dùng chung</option>
               </select>

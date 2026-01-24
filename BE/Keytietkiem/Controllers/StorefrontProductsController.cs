@@ -40,8 +40,7 @@ namespace Keytietkiem.Controllers
         private static bool IsKeyType(string? pt)
         {
             var t = (pt ?? "").Trim();
-            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
-                || t.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase);
+            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsPersonalAccountType(string? pt)

@@ -70,8 +70,7 @@ namespace Keytietkiem.Controllers
         private static bool IsKeyType(string? pt)
         {
             var t = (pt ?? "").Trim();
-            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase)
-                || t.Equals(ProductEnums.SHARED_KEY, StringComparison.OrdinalIgnoreCase);
+            return t.Equals(ProductEnums.PERSONAL_KEY, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsAccountType(string? pt)
@@ -737,7 +736,7 @@ namespace Keytietkiem.Controllers
                 var t = type.Trim().ToUpperInvariant();
                 if (t == "KEYS")
                 {
-                    query = query.Where(p => p.ProductType == ProductEnums.PERSONAL_KEY || p.ProductType == ProductEnums.SHARED_KEY);
+                    query = query.Where(p => p.ProductType == ProductEnums.PERSONAL_KEY);
                 }
                 else if (t == "ACCOUNTS")
                 {

@@ -29,14 +29,13 @@ namespace Keytietkiem.DTOs.Products
 {
     public static class ProductEnums
     {
-        public const string SHARED_KEY = "SHARED_KEY";
         public const string PERSONAL_KEY = "PERSONAL_KEY";
         public const string SHARED_ACCOUNT = "SHARED_ACCOUNT";
         public const string PERSONAL_ACCOUNT = "PERSONAL_ACCOUNT";
 
         public static readonly HashSet<string> Types =
             new(StringComparer.OrdinalIgnoreCase)
-            { SHARED_KEY, PERSONAL_KEY, SHARED_ACCOUNT, PERSONAL_ACCOUNT };
+            { PERSONAL_KEY, SHARED_ACCOUNT, PERSONAL_ACCOUNT };
 
         public static readonly HashSet<string> Statuses =
             new(StringComparer.OrdinalIgnoreCase)
