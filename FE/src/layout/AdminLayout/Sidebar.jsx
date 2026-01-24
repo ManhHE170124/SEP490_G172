@@ -293,8 +293,7 @@ const Sidebar = () => {
           to: "/admin/orders",
           allowedRoles: [ROLE_ADMIN, ROLE_CUSTOMER_CARE],
           isActive:
-            currentPage === "admin/orders" ||
-            currentPage.startsWith("admin/orders/"),
+            currentPage === "admin/orders",
           icon: (
             <svg
               xmlns="http://www.w3.org/2000/svg"

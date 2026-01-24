@@ -23,7 +23,7 @@ const DocumentationViewPage = () => {
     const loadPosts = async () => {
       try {
         const response = await specificDocumentationApi.getAllSpecificDocumentation();
-        
+
         // Handle multiple response structures
         let data = [];
         if (Array.isArray(response)) {
@@ -35,7 +35,7 @@ const DocumentationViewPage = () => {
           const values = Object.values(response.data);
           data = values.filter(item => Array.isArray(item)).flat() || [];
         }
-        
+
         setPosts(data);
 
         // If no slug, navigate to first post or 404 if no posts
@@ -86,7 +86,7 @@ const DocumentationViewPage = () => {
       setError(null);
 
       // Try to find post in the list first
-      const foundPost = postsList.find(p => 
+      const foundPost = postsList.find(p =>
         (p.slug || p.Slug) === postSlug
       );
 
@@ -190,10 +190,10 @@ const DocumentationViewPage = () => {
                   const postSlug = post.slug || post.Slug;
                   const postTitle = post.title || post.Title || '';
                   const isActive = currentPost && (currentPost.slug || currentPost.Slug) === postSlug;
-                  
+
                   return (
                     <li key={post.postId || post.PostId || index} className={isActive ? 'active' : ''}>
-                      <Link 
+                      <Link
                         to={`/tai-lieu/${postSlug}`}
                         className="sidebar-link"
                       >
@@ -216,14 +216,14 @@ const DocumentationViewPage = () => {
                 <div className="content-actions">
                   <button className="copy-button" title="Copy">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M6 6h4M6 9h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      <path d="M4 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M6 6h4M6 9h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </button>
                 </div>
               </div>
 
-              <div 
+              <div
                 className="content-body"
                 dangerouslySetInnerHTML={{ __html: currentPost.content || currentPost.Content || '' }}
               />
@@ -231,15 +231,15 @@ const DocumentationViewPage = () => {
               {/* Navigation */}
               <div className="content-navigation">
                 {previous ? (
-                  <Link 
+                  <Link
                     to={`/tai-lieu/${previous.slug || previous.Slug}`}
                     className="nav-button nav-previous"
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <div className="nav-button-content">
-                      <span className="nav-button-label">Previous</span>
+                      <span className="nav-button-label">Trang trước</span>
                       <span className="nav-button-title">{previous.title || previous.Title}</span>
                     </div>
                   </Link>
@@ -248,16 +248,16 @@ const DocumentationViewPage = () => {
                 )}
 
                 {next ? (
-                  <Link 
+                  <Link
                     to={`/tai-lieu/${next.slug || next.Slug}`}
                     className="nav-button nav-next"
                   >
                     <div className="nav-button-content">
-                      <span className="nav-button-label">Next</span>
+                      <span className="nav-button-label">Trang sau</span>
                       <span className="nav-button-title">{next.title || next.Title}</span>
                     </div>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </Link>
                 ) : (
@@ -269,7 +269,7 @@ const DocumentationViewPage = () => {
               {currentPost.updatedAt || currentPost.UpdatedAt ? (
                 <div className="content-footer">
                   <p className="last-updated">
-                    Last updated {formatDate(currentPost.updatedAt || currentPost.UpdatedAt)}
+                    Cập nhật lần cuối: {formatDate(currentPost.updatedAt || currentPost.UpdatedAt)}
                   </p>
                 </div>
               ) : null}

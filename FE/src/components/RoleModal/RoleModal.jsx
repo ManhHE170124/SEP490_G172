@@ -20,17 +20,17 @@ import './RoleModal.css';
  * @param {boolean} props.submitting - Whether form is being submitted
  * @returns {JSX.Element|null} - Modal form element or null if not open
  */
-const RoleModal = ({ 
-  isOpen, 
-  title, 
-  fields, 
-  onClose, 
-  onSubmit, 
-  submitting = false 
+const RoleModal = ({
+  isOpen,
+  title,
+  fields,
+  onClose,
+  onSubmit,
+  submitting = false
 }) => {
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
-  
+
   // Utility: generate slug from text
   const toSlug = (text) => {
     if (!text) return "";
@@ -46,7 +46,7 @@ const RoleModal = ({
       .toLowerCase();
   };
 
-  
+
   /**
    * @summary: Initialize form data when modal opens.
    * Effect: Resets form data and errors based on field configurations.
@@ -78,17 +78,17 @@ const RoleModal = ({
     // Auto-convert to uppercase for code fields
     const field = fields.find(f => f.name === name);
     let processedValue = value;
-    
+
     if (field && field.format === 'code' && typeof value === 'string') {
       // Convert to uppercase and remove invalid characters
       processedValue = value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
     }
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: processedValue
     }));
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -112,31 +112,31 @@ const RoleModal = ({
    */
   const validateForm = () => {
     const newErrors = {};
-    
+
     fields.forEach(field => {
       const value = formData[field.name];
       const valueStr = value ? value.toString().trim() : '';
-      
+
       // Required validation
       if (field.required && valueStr === '') {
         newErrors[field.name] = `${field.label} là bắt buộc`;
         return;
       }
-      
+
       // Skip further validation if field is empty and not required
       if (valueStr === '') return;
-      
+
       // Length validation
       if (field.minLength && valueStr.length < field.minLength) {
         newErrors[field.name] = `${field.label} phải có ít nhất ${field.minLength} ký tự`;
         return;
       }
-      
+
       if (field.maxLength && valueStr.length > field.maxLength) {
         newErrors[field.name] = `${field.label} không được vượt quá ${field.maxLength} ký tự`;
         return;
       }
-      
+
       // Format validation (for Code fields - uppercase, numbers, underscore)
       if (field.format === 'code' && valueStr) {
         const codeRegex = /^[A-Z0-9_]+$/;
@@ -145,7 +145,7 @@ const RoleModal = ({
           return;
         }
       }
-      
+
       // Format validation (for Slug fields - lowercase, numbers, hyphen)
       if (field.format === 'slug' && valueStr) {
         const slugRegex = /^[a-z0-9-]+$/;
@@ -155,7 +155,7 @@ const RoleModal = ({
         }
       }
     });
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -166,7 +166,7 @@ const RoleModal = ({
    */
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (validateForm()) {
       onSubmit(formData);
     }
@@ -192,14 +192,14 @@ const RoleModal = ({
             ×
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="modal-body">
           {fields.map((field) => {
             const fieldValue = formData[field.name] || '';
             const currentLength = fieldValue.toString().length;
             const maxLength = field.maxLength;
             const showCharCount = maxLength && field.type !== 'checkbox';
-            
+
             return (
               <div key={field.name} className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -213,7 +213,7 @@ const RoleModal = ({
                     </div>
                   )}
                 </div>
-              
+
                 {field.type === 'textarea' ? (
                   <textarea
                     className={`form-input form-textarea ${errors[field.name] ? 'error' : ''}`}
@@ -260,10 +260,9 @@ const RoleModal = ({
                     disabled={field.disabled || field.readonly}
                     readOnly={field.readonly}
                     maxLength={maxLength}
-                    style={field.readonly ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
                   />
                 )}
-              
+
                 {errors[field.name] && (
                   <div className="error-message">{errors[field.name]}</div>
                 )}
@@ -271,7 +270,7 @@ const RoleModal = ({
             );
           })}
         </form>
-        
+
         <div className="modal-footer">
           <button
             type="button"
