@@ -175,7 +175,7 @@ export default function CsvUploadModal({
             }}
           >
             <option value="Individual">Cá nhân (Individual)</option>
-            <option value="Pool">Dùng chung (Pool)</option>
+            {/* <option value="Pool">Dùng chung (Pool)</option> */}
           </select>
         </div>
 

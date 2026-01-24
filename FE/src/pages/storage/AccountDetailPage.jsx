@@ -12,6 +12,7 @@ import formatDateTime from "../../utils/formatDatetime";
 import { formatVietnameseDate } from "../../utils/formatDate";
 import { getAccountStatusLabel } from "../../utils/productAccountHelper";
 import "../admin/admin.css";
+import formatDateTimevn from "../../utils/formatDateTimevn";
 
 export default function AccountDetailPage() {
   const { id } = useParams();
@@ -1332,12 +1333,12 @@ export default function AccountDetailPage() {
                 </div>
                 <div>
                   <small className="muted">Ngày tạo:</small>
-                  <div>{formatDateTime(accountInfo.createdAt)}</div>
+                  <div>{formatDateTimevn(accountInfo.createdAt)}</div>
                 </div>
                 {accountInfo.updatedAt && (
                   <div>
                     <small className="muted">Cập nhật lần cuối:</small>
-                    <div>{formatDateTime(accountInfo.updatedAt)}</div>
+                    <div>{formatDateTimevn(accountInfo.updatedAt)}</div>
                   </div>
                 )}
               </div>
@@ -1457,9 +1458,9 @@ export default function AccountDetailPage() {
                       <tr key={c.productAccountCustomerId}>
                         <td>{c.userFullName || "-"}</td>
                         <td>{c.userEmail}</td>
-                        <td>{c.addedAt ? formatDateTime(c.addedAt) : "-"}</td>
+                        <td>{c.addedAt ? formatDateTimevn(c.addedAt) : "-"}</td>
                         <td>
-                          {c.removedAt ? formatDateTime(c.removedAt) : "-"}
+                          {c.removedAt ? formatDateTimevn(c.removedAt) : "-"}
                         </td>
                         <td>
                           {c.isActive ? (
@@ -1566,7 +1567,7 @@ export default function AccountDetailPage() {
                       <tbody>
                         {pagedHistory.map((h, idx) => (
                           <tr key={h.historyId || idx}>
-                            <td>{formatDateTime(h.actionAt || h.ActionAt)}</td>
+                            <td>{formatDateTimevn(h.actionAt || h.ActionAt)}</td>
                             <td>{h.userFullName || h.UserFullName || "-"}</td>
                             <td>{h.userEmail || h.UserEmail || "-"}</td>
                             <td>{h.notes || h.Notes || "-"}</td>

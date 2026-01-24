@@ -10,6 +10,7 @@ import { usersApi } from "../../api/usersApi";
 import ToastContainer from "../../components/Toast/ToastContainer";
 import useToast from "../../hooks/useToast";
 import "../admin/admin.css";
+import formatDateTimevn from "../../utils/formatDateTimevn";
 
 export default function ProductReportDetailPage() {
   const { id } = useParams();
@@ -774,11 +775,7 @@ export default function ProductReportDetailPage() {
               <span>Ngày tạo</span>
               <input
                 className="input"
-                value={
-                  report.createdAt
-                    ? new Date(report.createdAt).toLocaleString("vi-VN")
-                    : "—"
-                }
+                value={report.createdAt ? formatDateTimevn(report.createdAt) : "—"}
                 readOnly
                 disabled
               />
