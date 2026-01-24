@@ -85,8 +85,12 @@ namespace Keytietkiem.DTOs.Tickets
     public class LatestOrderMiniDto
     {
         public Guid OrderId { get; set; }
+        /// <summary>
+        /// Mã đơn hiển thị (theo format ORD-yyyyMMdd-XXXX)
+        /// </summary>
+        public string OrderNumber { get; set; } = "";
         public decimal TotalAmount { get; set; }
-        public decimal FinalAmount { get; set; }
+        public decimal? FinalAmount { get; set; }
         public string Status { get; set; } = "";
         public DateTime CreatedAt { get; set; }
     }
@@ -140,6 +144,11 @@ namespace Keytietkiem.DTOs.Tickets
 
         public List<TicketReplyDto> Replies { get; set; } = new();
         public List<RelatedTicketDto> RelatedTickets { get; set; } = new();
+
+        /// <summary>
+        /// Toàn bộ đơn hàng của người tạo ticket (sắp xếp CreatedAt giảm dần).
+        /// </summary>
+        public List<LatestOrderMiniDto> CustomerOrders { get; set; } = new();
 
         public LatestOrderMiniDto? LatestOrder { get; set; }
     }

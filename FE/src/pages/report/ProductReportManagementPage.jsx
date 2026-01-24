@@ -102,7 +102,7 @@ export default function ProductReportManagementPage() {
             marginBottom: 16,
           }}
         >
-          <h1 style={{ margin: 0 }}>Quản lý Báo cáo Sản phẩm</h1>
+          <h1 style={{ margin: 0 }}>Báo cáo Sản phẩm</h1>
           <Link className="btn primary" to="/reports/add">
             + Tạo báo cáo mới
           </Link>
