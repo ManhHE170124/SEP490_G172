@@ -790,7 +790,7 @@ namespace Keytietkiem.Controllers
 
                 bool hasPermission = false;
 
-                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
+                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF) || roleCodes.Contains(RoleCodes.CUSTOMER_CARE))
                 {
                     hasPermission = true;
                 }
@@ -958,7 +958,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{id:guid}/details")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetOrderDetails(
             Guid id,
             [FromQuery] string? search = null,

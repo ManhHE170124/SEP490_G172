@@ -178,10 +178,10 @@ export default function AppRoutes() {
       <Route path="/staff/profile" element={renderAdminPage(<AdminProfilePage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF, ROLES.CUSTOMER_CARE, ROLES.CONTENT_CREATOR))} />
 
       {/* Admin Home Dashboard */}
-      <Route
+      {/* <Route
         path="/admin/home"
         element={renderAdminPage(<AdminHomePage />, role(ROLES.ADMIN))}
-      />
+      /> */}
 
       {/* Admin Tickets */}
       <Route

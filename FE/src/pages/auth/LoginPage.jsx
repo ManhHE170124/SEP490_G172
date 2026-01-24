@@ -83,7 +83,7 @@ export default function LoginPage() {
       if (
         firstRole === "ADMIN"
       ) {
-        navigate("/admin/home");
+        navigate("/admin/orders/dashboard");
       } else if (
         firstRole === "CUSTOMER_CARE"
       ) {
