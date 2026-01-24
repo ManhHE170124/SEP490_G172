@@ -54,7 +54,6 @@ namespace Keytietkiem.Controllers
         // ✅ cap range theo FE: FE có thể chọn theo năm và clamp days tới 3660
         private const int MaxRangeDays = 3660;
 
-        // ===== Vietnamese mapping =====
         private static readonly Dictionary<string, string> StatusViMap = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Pending"] = "Đang chờ",
@@ -72,8 +71,15 @@ namespace Keytietkiem.Controllers
             ["Error"] = "Giao dịch lỗi",
             ["Refunded"] = "Hoàn tiền",
             ["Refund"] = "Hoàn tiền",
+
+            // ✅ bổ sung cho các trạng thái mới
+            ["NeedReview"] = "Cần kiểm tra",
+            ["DupCancelled"] = "Hủy do trùng",
+            ["Replaced"] = "Đã thay thế",
+
             ["Unknown"] = "Không rõ"
         };
+
 
         public PaymentsDashboardAdminController(
             IDbContextFactory<KeytietkiemDbContext> dbFactory,
@@ -645,8 +651,7 @@ namespace Keytietkiem.Controllers
             return StatusViMap.TryGetValue(status.Trim(), out var vi) ? vi : status.Trim();
         }
 
-        // ✅ Map “reason” hiển thị: nếu reason là status -> tiếng Việt; nếu không thì giữ nguyên (nhưng chuẩn hóa Unknown)
-        private static string ToVietnameseFailureReason(string raw, out string code)
+        static string ToVietnameseFailureReason(string raw, out string code)
         {
             code = (raw ?? "").Trim();
             if (string.IsNullOrWhiteSpace(code))
@@ -655,11 +660,77 @@ namespace Keytietkiem.Controllers
                 return StatusViMap["Unknown"];
             }
 
-            // nếu raw đúng là status
+            // Nếu raw trùng luôn với status (Pending / Paid / Timeout / ...)
             if (StatusViMap.TryGetValue(code, out var vi))
                 return vi;
 
-            // vài trường hợp hay gặp: "Cancel" / "Canceled" / "Timeout" viết thường...
+            // ✅ Map các mã reason kỹ thuật sang mô tả tiếng Việt ngắn gọn
+            switch (code)
+            {
+                case "AmountMismatch":
+                    // hệ thống & PayOS lệch số tiền
+                    code = "AmountMismatch";
+                    return "Sai số tiền giữa hệ thống và PayOS";
+
+                case "PaymentLinkIdMismatch":
+                    code = "PaymentLinkIdMismatch";
+                    return "Sai PaymentLinkId (PayOS ↔ hệ thống)";
+
+                case "WebhookCancelledOrFailed":
+                    code = "WebhookCancelledOrFailed";
+                    return "Webhook PayOS báo hủy / thất bại";
+
+                case "WebhookCancelledOrFailed_NonRelational":
+                    code = "WebhookCancelledOrFailed_NonRelational";
+                    return "Webhook PayOS hủy/thất bại (không khớp bản ghi)";
+
+                case "WebhookExceptionNeedReview":
+                    code = "WebhookExceptionNeedReview";
+                    return "Lỗi xử lý webhook - cần kiểm tra";
+
+                case "WebhookPaid":
+                    code = "WebhookPaid";
+                    return "Webhook PayOS báo đã thanh toán";
+
+                case "WebhookPaidNeedsManualAction":
+                    code = "WebhookPaidNeedsManualAction";
+                    return "Webhook PayOS thanh toán nhưng cần kiểm tra";
+
+                case "WebhookPaid_NonRelational":
+                    code = "WebhookPaid_NonRelational";
+                    return "Webhook PayOS thanh toán (không khớp bản ghi)";
+
+                case "CancelFromReturn":
+                    code = "CancelFromReturn";
+                    return "Hủy payment do hoàn trả gói hỗ trợ";
+
+                case "PaidLate":
+                    code = "PaidLate";
+                    return "Thanh toán trễ hạn";
+
+                // Các reason dạng đồng bộ (có thể hữu ích nếu tái sử dụng cho log khác)
+                case "SyncedFromPayment":
+                    code = "SyncedFromPayment";
+                    return "Đồng bộ từ payment";
+
+                case "SyncedFromPaymentCancelledOrFailed":
+                    code = "SyncedFromPaymentCancelledOrFailed";
+                    return "Đồng bộ payment: hủy/thất bại";
+
+                case "SyncedFromPaymentNeedReview":
+                    code = "SyncedFromPaymentNeedReview";
+                    return "Đồng bộ payment: cần kiểm tra";
+
+                case "SyncedFromPaymentPaid":
+                    code = "SyncedFromPaymentPaid";
+                    return "Đồng bộ payment: đã thanh toán";
+
+                case "SyncedFromPaymentPaidNeedsManualAction":
+                    code = "SyncedFromPaymentPaidNeedsManualAction";
+                    return "Đồng bộ payment: thanh toán nhưng cần xử lý";
+            }
+
+            // Các trường hợp hay gặp viết kiểu "Canceled" / "Timed out" ...
             var norm = code.Replace("_", " ").Trim();
 
             if (string.Equals(norm, "Canceled", StringComparison.OrdinalIgnoreCase) ||
@@ -684,9 +755,10 @@ namespace Keytietkiem.Controllers
                 return StatusViMap["Unknown"];
             }
 
-            // không map được => giữ nguyên (nếu meta.reason đã là tiếng Việt thì OK)
+            // Không map được => giữ nguyên (trường hợp meta.reason đã là tiếng Việt)
             return code;
         }
+
 
         private static List<DashboardAlertDto> BuildAlerts(
             int createdCount,

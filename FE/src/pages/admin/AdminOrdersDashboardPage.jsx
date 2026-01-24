@@ -37,23 +37,25 @@ const addDaysUtc = (d, days) => new Date(d.getTime() + days * 86400000);
 const addMonthsUtc = (d, m) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + m, 1, 0, 0, 0, 0));
 const addYearsUtc = (d, y) => new Date(Date.UTC(d.getUTCFullYear() + y, 0, 1, 0, 0, 0, 0));
 
-const viOrderStatus = (s) => {
-  const x = String(s || "").trim();
-  switch (x) {
+const viOrderStatus = (status) => {
+  switch (status) {
     case "Paid":
       return "Đã thanh toán";
+    case "Cancelled":
+      return "Đã huỷ";
     case "PendingPayment":
       return "Chờ thanh toán";
-    case "Cancelled":
-      return "Đã hủy";
     case "CancelledByTimeout":
       return "Hết hạn";
+    case "Refunded":
+      return "Đã hoàn tiền";
     case "NeedsManualAction":
       return "Cần xử lý";
     default:
-      return x ? `Khác (${x})` : "Khác";
+      return status ? `Khác (${status})` : "Khác";
   }
 };
+
 
 const bucketLabel = (bucket, startUtcIso) => {
   const d = new Date(startUtcIso);

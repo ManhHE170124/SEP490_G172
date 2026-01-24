@@ -60,7 +60,7 @@
 /* Sections */
 .sid-section {
   background: transparent;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 .sid-section-title {
   font-weight: 950;
@@ -173,7 +173,7 @@
 .sid-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 14px;
 }
 
 .sid-card {
@@ -204,12 +204,12 @@
 .sid-grid-3 {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr;
-  gap: 10px;
+  gap: 16px;
 }
 .sid-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 16px; /* tăng gap giữa các chart và giữa các dòng trong grid */
 }
 .sid-span-2 {
   grid-column: span 2;
@@ -218,6 +218,14 @@
 /* span 3 for full-row panels in grid-3 */
 .sid-span-3 {
   grid-column: span 3;
+}
+
+/* Row wrapper để tách khoảng cách giữa các hàng chart */
+.sid-row {
+  margin-bottom: 18px;
+}
+.sid-row:last-child {
+  margin-bottom: 0;
 }
 
 .sid-panel {
@@ -253,14 +261,7 @@
   margin-top: 8px;
   padding-top: 12px;
   padding-bottom: 12px;
-  margin-bottom: 12px;
-}
-
-/* Wider 2-column grid: first column narrow, second column wider */
-.sid-grid-2-wide {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 10px;
+  margin-bottom: 4px;
 }
 
 .sid-note {
@@ -380,7 +381,7 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-/* Severity table */
+/* Severity table (nếu còn dùng biến thể bảng) */
 .sid-sev-table {
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -413,7 +414,8 @@
   border-bottom: none;
 }
 .sid-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 .sid-strong {
   font-weight: 900;
@@ -425,27 +427,6 @@
 .sid-err {
   color: rgba(239, 68, 68, 0.95);
   font-weight: 900;
-}
-
-/* Foot */
-.sid-foot {
-  margin-top: 16px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  color: rgba(0, 0, 0, 0.65);
-  font-size: 12px;
-}
-.sid-foot-badge {
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(34, 197, 94, 0.25);
-  background: rgba(34, 197, 94, 0.08);
-  color: rgba(21, 128, 61, 0.95);
-  font-weight: 800;
-}
-.sid-foot-text {
-  flex: 1;
 }
 
 /* Responsive */

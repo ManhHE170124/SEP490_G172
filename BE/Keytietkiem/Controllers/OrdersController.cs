@@ -2339,18 +2339,16 @@ namespace Keytietkiem.Controllers
         }
 
         private async Task EnsureInventoryAvailableBeforeCreateOrderAsync(
-          KeytietkiemDbContext db,
-          Dictionary<Guid, int> needByVariantId,
-          Dictionary<Guid, ProductVariant> variantMap,
-          CancellationToken ct)
+            KeytietkiemDbContext db,
+            Dictionary<Guid, int> needByVariantId,
+            Dictionary<Guid, ProductVariant> variantMap,
+            CancellationToken ct)
         {
-            _ = db; // Stock check theo StockQty nên không cần query DB ở đây
-
             if (needByVariantId == null || needByVariantId.Count == 0) return;
 
-            // ✅ Option A: Đồng nhất kiểm tra tồn kho theo ProductVariant.StockQty
-            // - Key cá nhân / account cá nhân: StockQty = số item còn bán được
-            // - Account dùng chung: StockQty = tổng slot còn trống (đúng theo yêu cầu)
+            // Đảm bảo mỗi variant chỉ bị sync fallback tối đa 1 lần / 1 lần checkout
+            var syncedVariantIds = new HashSet<Guid>();
+
             foreach (var kv in needByVariantId)
             {
                 ct.ThrowIfCancellationRequested();
@@ -2366,12 +2364,53 @@ namespace Keytietkiem.Controllers
                 if (!RequiresInventoryForCheckout(v.Product.ProductType))
                     continue;
 
+                // Đọc tồn kho hiện tại từ StockQty
                 int available;
                 try { available = Convert.ToInt32(v.StockQty); }
                 catch { available = 0; }
-
                 if (available < 0) available = 0;
 
+                // Nếu có vẻ không đủ hàng thì fallback: sync lại stock 1 lần cho variant này
+                if (need > available)
+                {
+                    if (!syncedVariantIds.Contains(variantId))
+                    {
+                        var nowUtc = DateTime.UtcNow;
+
+                        // Fallback: sync lại tồn kho + status từ raw inventory + reservations
+                        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                            db,
+                            new[] { variantId },
+                            nowUtc,
+                            ct);
+
+                        // Reload lại variant từ DB để lấy StockQty mới nhất
+                        var fresh = await db.ProductVariants
+                            .Include(x => x.Product)
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(x => x.VariantId == variantId, ct);
+
+                        if (fresh != null)
+                        {
+                            // Cập nhật lại entry trong map để phía sau dùng cũng là dữ liệu mới
+                            v.StockQty = fresh.StockQty;
+                            v.Status = fresh.Status;
+
+                            if (v.Product != null && fresh.Product != null)
+                            {
+                                v.Product.Status = fresh.Product.Status;
+                            }
+
+                            try { available = Convert.ToInt32(fresh.StockQty); }
+                            catch { available = 0; }
+                            if (available < 0) available = 0;
+                        }
+
+                        syncedVariantIds.Add(variantId);
+                    }
+                }
+
+                // Sau khi fallback (nếu có) mà vẫn thiếu thì mới báo lỗi
                 if (need > available)
                 {
                     var name = v.Product?.ProductName ?? v.Title ?? variantId.ToString();
@@ -2379,10 +2418,8 @@ namespace Keytietkiem.Controllers
                         $"\"{name}\" không đủ hàng. Cần {need}, còn {available}. Vui lòng giảm số lượng trong giỏ.");
                 }
             }
-
-            // tránh warning "async method lacks await"
-            await Task.CompletedTask;
         }
+
 
         private async Task EnsureOrderReservedAsync(KeytietkiemDbContext db, Guid orderId, DateTime nowUtc, CancellationToken ct)
         {
