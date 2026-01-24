@@ -1,20 +1,24 @@
 /* ===== Design Tokens ===== */
-:root{
-  --ink:#0b1220;               /* text chính (gần đen) */
-  --muted:#6b7280;             /* text phụ */
-  --line:#e5e7eb;              /* viền nhạt */
-  --page:#f3f6fa;              /* nền trang */
-  --card:#ffffff;              /* nền thẻ */
-  --primary:#2563eb;           /* xanh chủ đạo */
-  --danger:#ef4444;
-  --success:#10b981;
-  --warning:#f59e0b;
-  --radius:16px;
-  --shadow:0 8px 24px rgba(2,6,23,.06);
+:root {
+  --ink: #0b1220;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --page: #f3f6fa;
+  --card: #ffffff;
+  --primary: #2563eb;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(2, 6, 23, .06);
 }
 
 /* ===== Main content ===== */
-.cep-main{ padding:20px; display:grid; gap:16px; }
+.cep-main {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
 
 /* ===== Page Header ===== */
 .cep-page-header {
@@ -38,8 +42,8 @@
   max-width: 1400px;
 }
 
-@media (max-width: 1200px) {
-  .blog-create-container {
+@media (max-width: 1024px) {
+  .cep-blog-create-container {
     grid-template-columns: 1fr;
   }
 }
@@ -160,7 +164,7 @@
   border: 1px solid #e0e0e0;
   border-bottom: 2px solid #e0e0e0;
   border-radius: 8px 8px 0 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .cep-rich-text-editor .cep-editor-toolbar.disabled {
@@ -673,9 +677,8 @@
   }
 }
 
-/* ===== Responsive ===== */
 @media (max-width: 768px) {
-  .blog-create-container {
+  .cep-blog-create-container {
     grid-template-columns: 1fr;
     gap: 16px;
   }

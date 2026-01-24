@@ -3,9 +3,12 @@ import PropTypes from "prop-types";
 import { Navigate } from "react-router-dom";
 
 /**
- * ProtectedRoute kiểm tra đăng nhập và role.
- * - Nếu chưa đăng nhập → redirect /login
- * - Nếu đã đăng nhập nhưng không có role phù hợp → redirect /not-found
+ * File: ProtectedRoute.jsx
+ * Author: HieuNDHE173169
+ * Created: 01/01/2026
+ * Version: 1.0.0
+ * Purpose: Protected route wrapper component that handles authentication and role-based authorization.
+ *          Redirects unauthenticated users to login page and unauthorized users to not-found page.
  */
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
@@ -36,16 +39,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
     if (accessToken && userStr) {
       setIsAuthenticated(true);
-      
+
       // Check role nếu allowedRoles được truyền vào
       if (allowedRoles && allowedRoles.length > 0) {
         try {
           const user = JSON.parse(userStr);
           // Parse user roles - handle both array and single role formats
-          const roles = Array.isArray(user?.roles) 
-            ? user.roles 
-            : user?.role 
-              ? [user.role] 
+          const roles = Array.isArray(user?.roles)
+            ? user.roles
+            : user?.role
+              ? [user.role]
               : [];
           // Normalize roles to uppercase for comparison
           const userRoles = roles.map(r => {
@@ -53,10 +56,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
             if (typeof r === "object") return (r.code || r.roleCode || r.name || "").toUpperCase();
             return "";
           }).filter(Boolean);
-          
+
           // Normalize allowedRoles to uppercase
           const normalizedAllowedRoles = allowedRoles.map(r => r.toUpperCase());
-          
+
           // Check if user has any of the allowed roles
           const hasRole = userRoles.some((role) => normalizedAllowedRoles.includes(role));
           setHasRequiredRole(hasRole);

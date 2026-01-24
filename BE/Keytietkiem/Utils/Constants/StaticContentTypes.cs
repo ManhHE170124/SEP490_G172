@@ -6,7 +6,7 @@
  * Purpose: Constants for static content PostTypes (Policy, UserGuide, AboutUs).
  *          These PostTypes have special validation rules: only 1 Post per type, cannot delete PostType.
  */
-namespace Keytietkiem.Constants;
+namespace Keytietkiem.Utils.Constants;
 
 /// <summary>
 /// Constants for static content PostTypes.

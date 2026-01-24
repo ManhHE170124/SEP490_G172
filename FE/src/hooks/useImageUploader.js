@@ -79,8 +79,8 @@ export const useImageUploader = ({
         console.error("Upload image failed", err);
         onError?.(
           err?.response?.data?.message ||
-            err?.message ||
-            "Kh�ng th? t?i ?nh. Vui l�ng th? l?i."
+          err?.message ||
+          "Không thể tải ảnh. Vui lòng thử lại."
         );
         setPreview(initialUrl || "");
         return null;
@@ -121,7 +121,7 @@ export const useImageUploader = ({
               const file = await urlToFile(url);
               await handleUpload(file);
             } catch (err) {
-            onError?.("Kh�ng th? tai ?nh t? URL n�y.");
+              onError?.("Không thể tải ảnh từ URL này.");
             }
           });
           return;
@@ -149,7 +149,7 @@ export const useImageUploader = ({
                 const file = await urlToFile(text);
                 await handleUpload(file);
               } catch (err) {
-                onError?.("Kh�ng th? tai ?nh t? URL n�y.");
+                onError?.("Không thể tải ảnh từ URL này.");
               }
             }
           });
@@ -167,7 +167,7 @@ export const useImageUploader = ({
         const file = await urlToFile(url);
         await handleUpload(file);
       } catch (err) {
-        onError?.("Kh�ng th? tai ?nh t? URL n�y.");
+        onError?.("Không thể tải ảnh từ URL này.");
       }
     },
     [handleUpload, onError]
@@ -186,7 +186,7 @@ export const useImageUploader = ({
         }
       }
     } catch (err) {
-      console.error("Failed to delete image", err);
+      console.error("Không thể xóa ảnh", err);
     } finally {
       setValue("");
       setPreview("");

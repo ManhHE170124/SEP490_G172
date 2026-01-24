@@ -1,5 +1,4 @@
 ﻿using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
@@ -18,7 +17,8 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.RoleCodes;
+using static Keytietkiem.Utils.Constants.RoleCodes;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -790,7 +790,7 @@ namespace Keytietkiem.Controllers
 
                 bool hasPermission = false;
 
-                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
+                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF) || roleCodes.Contains(RoleCodes.CUSTOMER_CARE))
                 {
                     hasPermission = true;
                 }
@@ -958,7 +958,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{id:guid}/details")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetOrderDetails(
             Guid id,
             [FromQuery] string? search = null,

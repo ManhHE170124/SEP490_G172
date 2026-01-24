@@ -109,6 +109,13 @@
   box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
 }
 
+.form-input:disabled,
+.form-input[readonly] {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  color: #6c757d;
+}
+
 .form-textarea {
   min-height: 80px;
   resize: vertical;
@@ -170,29 +177,29 @@
     margin: 20px;
     padding: 16px;
   }
-  
+
   .modal-header {
     margin-bottom: 16px;
     padding-bottom: 12px;
   }
-  
+
   .modal-title {
     font-size: 16px;
   }
-  
+
   .modal-body {
     margin-bottom: 16px;
   }
-  
+
   .form-group {
     margin-bottom: 16px;
   }
-  
+
   .modal-footer {
     flex-direction: column;
     gap: 8px;
   }
-  
+
   .btn-modal {
     width: 100%;
     padding: 12px 20px;

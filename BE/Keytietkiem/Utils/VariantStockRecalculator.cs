@@ -5,7 +5,7 @@
 // - Keeps INACTIVE if admin explicitly set (only when stock > 0).
 // - Uses OUT_OF_STOCK when stock <= 0 (always overrides INACTIVE).
 
-using Keytietkiem.Constants;
+using Keytietkiem.Utils.Constants;
 using Keytietkiem.DTOs.Products;
 using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;

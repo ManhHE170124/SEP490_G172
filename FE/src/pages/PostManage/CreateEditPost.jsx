@@ -38,7 +38,7 @@ const CreateEditPost = () => {
   const [posttypes, setPosttypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({ title: '', description: '' });
+  const [errors, setErrors] = useState({ title: '', description: '', content: '', posttype: '' });
   const [tags, setTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
   const [featuredImage, setFeaturedImage] = useState(null);
@@ -75,7 +75,7 @@ const CreateEditPost = () => {
     setContent('');
     setStatus('Draft');
     setPosttypeId('');
-    setErrors({ title: '', description: '' });
+    setErrors({ title: '', description: '', content: '', posttype: '' });
     setTags([]);
     setFeaturedImage(null);
     setFeaturedImageUrl(null);
@@ -123,7 +123,7 @@ const CreateEditPost = () => {
             showError('Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối.');
           }
         } else {
-          showError('Lỗi tải tags', 'Không thể tải danh sách tags.');
+          showError('Lỗi tải thẻ', 'Không thể tải danh sách thẻ.');
         }
       }
     };
@@ -218,9 +218,9 @@ const CreateEditPost = () => {
         setCommentsLoading(true);
         const response = await postsApi.getComments(postId, commentPage, commentPageSize);
         const data = response?.data || response || {};
-        
+
         console.log('Comments API Response:', data); // Debug log
-        
+
         // Handle paginated response
         if (data.comments) {
           setComments(data.comments || []);
@@ -276,7 +276,7 @@ const CreateEditPost = () => {
         setOpenDropdown(null);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -309,17 +309,17 @@ const CreateEditPost = () => {
   // Handle comment actions
   const handleShowComment = async (commentId) => {
     // Check if comment has a parent and if parent is hidden
-    const comment = filteredComments.find(c => 
+    const comment = filteredComments.find(c =>
       (c.commentId || c.CommentId) === commentId
     );
-    
+
     if (comment) {
       const parentId = comment.parentCommentId || comment.ParentCommentId;
       if (parentId) {
-        const parent = filteredComments.find(c => 
+        const parent = filteredComments.find(c =>
           (c.commentId || c.CommentId) === parentId
         );
-        
+
         if (parent && !(parent.isApproved ?? parent.IsApproved ?? false)) {
           showError('Lỗi', 'Không thể hiển thị bình luận con khi bình luận cha đang bị ẩn.');
           return;
@@ -394,10 +394,10 @@ const CreateEditPost = () => {
     }
 
     // Check if parent comment is visible
-    const parentComment = filteredComments.find(c => 
+    const parentComment = filteredComments.find(c =>
       (c.commentId || c.CommentId) === parentCommentId
     );
-    
+
     if (parentComment && !(parentComment.isApproved ?? parentComment.IsApproved ?? false)) {
       showError('Lỗi', 'Không thể trả lời bình luận đã bị ẩn.');
       return;
@@ -432,7 +432,7 @@ const CreateEditPost = () => {
       showSuccess('Thành công', 'Bình luận đã được gửi.');
       setReplyContent('');
       setReplyingTo(null);
-      
+
       // Refresh comments
       const response = await postsApi.getComments(postId, commentPage, commentPageSize);
       const data = response?.data || response || {};
@@ -484,7 +484,7 @@ const CreateEditPost = () => {
 
       showSuccess('Thành công', 'Bình luận đã được gửi.');
       setNewCommentContent('');
-      
+
       // Refresh comments and reset to first page
       setCommentPage(1);
       const response = await postsApi.getComments(postId, 1, commentPageSize);
@@ -524,33 +524,33 @@ const CreateEditPost = () => {
   const groupedComments = useMemo(() => {
     const groups = new Map();
     const commentMap = new Map(); // Map commentId to comment for quick lookup
-    
+
     // Build comment map
     filteredComments.forEach(comment => {
       const commentId = comment.commentId || comment.CommentId;
       commentMap.set(commentId, comment);
     });
-    
+
     filteredComments.forEach(comment => {
       const commentId = comment.commentId || comment.CommentId;
-      
+
       // Find root comment ID (traverse up the parent chain)
       let rootId = commentId;
       const visited = new Set();
       let current = comment;
-      
+
       while (current) {
         const currentId = current.commentId || current.CommentId;
         if (visited.has(currentId)) break; // Prevent infinite loop
         visited.add(currentId);
-        
+
         const parentId = current.parentCommentId || current.ParentCommentId;
         if (!parentId) {
           // This is a root comment
           rootId = currentId;
           break;
         }
-        
+
         // Find parent in comment map
         const parent = commentMap.get(parentId);
         if (parent) {
@@ -564,13 +564,13 @@ const CreateEditPost = () => {
           break;
         }
       }
-      
+
       if (!groups.has(rootId)) {
         groups.set(rootId, []);
       }
       groups.get(rootId).push(comment);
     });
-    
+
     // Sort each thread by creation time
     groups.forEach((thread, rootId) => {
       thread.sort((a, b) => {
@@ -579,7 +579,7 @@ const CreateEditPost = () => {
         return timeA - timeB; // Chronological order
       });
     });
-    
+
     return groups;
   }, [filteredComments]);
 
@@ -595,9 +595,9 @@ const CreateEditPost = () => {
     const isChild = !!parentId;
 
     return (
-      <div 
-        key={commentId} 
-        style={{ 
+      <div
+        key={commentId}
+        style={{
           marginBottom: '12px',
           position: 'relative'
         }}
@@ -630,11 +630,11 @@ const CreateEditPost = () => {
             }} />
           </div>
         )}
-        <div 
-          style={{ 
+        <div
+          style={{
             marginLeft: isChild ? '32px' : '0',
-            padding: '12px', 
-            border: '1px solid #e5e7eb', 
+            padding: '12px',
+            border: '1px solid #e5e7eb',
             borderRadius: '8px',
             background: isChild ? '#f9fafb' : '#ffffff',
             position: 'relative'
@@ -644,18 +644,18 @@ const CreateEditPost = () => {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                 <span style={{ fontWeight: 600, fontSize: '14px' }}>{userName}</span>
-              {userEmail && (
-                <span style={{ fontSize: '12px', color: '#6b7280' }}>({userEmail})</span>
-              )}
-              {isVisible ? (
-                <span style={{ padding: '2px 8px', background: '#d1fae5', color: '#065f46', borderRadius: '4px', fontSize: '11px', marginLeft: '8px' }}>
-                  Hiển thị
-                </span>
-              ) : (
-                <span style={{ padding: '2px 8px', background: '#fee2e2', color: '#991b1b', borderRadius: '4px', fontSize: '11px', marginLeft: '8px' }}>
-                  Đã ẩn
-                </span>
-              )}
+                {userEmail && (
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>({userEmail})</span>
+                )}
+                {isVisible ? (
+                  <span style={{ padding: '2px 8px', background: '#d1fae5', color: '#065f46', borderRadius: '4px', fontSize: '11px', marginLeft: '8px' }}>
+                    Hiển thị
+                  </span>
+                ) : (
+                  <span style={{ padding: '2px 8px', background: '#fee2e2', color: '#991b1b', borderRadius: '4px', fontSize: '11px', marginLeft: '8px' }}>
+                    Đã ẩn
+                  </span>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -780,21 +780,21 @@ const CreateEditPost = () => {
       });
       const tagsList = await postsApi.getTags();
       setAvailableTags(tagsList || []);
-      showSuccess('Tag mới', `Tag "${tagName}" đã được tạo thành công!`);
+      showSuccess('Thẻ mới', `Thẻ "${tagName}" đã được tạo thành công!`);
       return newTag;
     } catch (err) {
       console.error('Failed to create tag:', err);
-      
+
       // Check if it's a permission error (403 Forbidden)
       if (err?.response?.status === 403) {
-        const errorMessage = err?.response?.data?.message || 'Bạn không có quyền tạo tag mới. Vui lòng chọn tag từ danh sách có sẵn.';
+        const errorMessage = err?.response?.data?.message || 'Bạn không có quyền tạo thẻ mới. Vui lòng chọn thẻ từ danh sách có sẵn.';
         showError('Không có quyền', errorMessage);
         throw new Error(errorMessage);
       }
-      
+
       // Other errors
-      const errorMessage = err?.response?.data?.message || err?.message || 'Không thể tạo tag mới. Vui lòng thử lại.';
-      showError('Lỗi tạo tag mới', errorMessage);
+      const errorMessage = err?.response?.data?.message || err?.message || 'Không thể tạo thẻ mới. Vui lòng thử lại.';
+      showError('Lỗi tạo thẻ mới', errorMessage);
       throw new Error(errorMessage);
     }
   };
@@ -866,7 +866,7 @@ const CreateEditPost = () => {
     e.stopPropagation();
 
     const items = Array.from(e.dataTransfer.items);
-    
+
     for (const item of items) {
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         const file = item.getAsFile();
@@ -937,16 +937,19 @@ const CreateEditPost = () => {
   // Validation
   const validateForm = (postStatus = null) => {
     let isValid = true;
-    const newErrors = { title: '', description: '' };
+    const newErrors = { title: '', description: '', content: '', posttype: '' };
 
     // Title validation
     if (title.length === 0) {
+      showError('Trường dữ liệu không hợp lệ', 'Tiêu đề bài viết không được để trống khi đăng bài.');
       newErrors.title = 'Tiêu đề không được để trống';
       isValid = false;
     } else if (title.length < 10) {
+      showError('Trường dữ liệu không hợp lệ', 'Tiêu đề bài viết phải có ít nhất 10 ký tự.');
       newErrors.title = 'Tiêu đề phải có ít nhất 10 ký tự';
       isValid = false;
     } else if (title.length > 250) {
+      showError('Trường dữ liệu không hợp lệ', 'Tiêu đề bài viết không được vượt quá 250 ký tự.');
       newErrors.title = 'Tiêu đề không được vượt quá 250 ký tự';
       isValid = false;
     }
@@ -959,13 +962,15 @@ const CreateEditPost = () => {
 
     // Content validation (required for publish)
     if ((postStatus === 'Published' || postStatus === 'Public') && (!content || content.trim() === '' || content === '<p></p>')) {
-      showError('Lỗi validation', 'Nội dung bài viết không được để trống khi đăng bài.');
+      showError('Trường dữ liệu không hợp lệ', 'Nội dung bài viết không được để trống khi đăng bài.');
+      newErrors.content = 'Nội dung không được để trống';
       isValid = false;
     }
 
     // PostType validation (required for publish)
     if ((postStatus === 'Published' || postStatus === 'Public') && !posttypeId) {
-      showError('Lỗi validation', 'Vui lòng chọn danh mục bài viết khi đăng bài.');
+      showError('Trường dữ liệu không hợp lệ', 'Vui lòng chọn danh mục bài viết khi đăng bài.');
+      newErrors.category = 'Vui lòng chọn danh mục';
       isValid = false;
     }
 
@@ -976,7 +981,6 @@ const CreateEditPost = () => {
   // Save post (draft or publish)
   const handlePostAction = async (postStatus, successTitle, successMessage) => {
     if (!validateForm(postStatus)) {
-      showError('Validation lỗi', 'Vui lòng kiểm tra lại thông tin bài viết.');
       return;
     }
 
@@ -1047,18 +1051,18 @@ const CreateEditPost = () => {
     } catch (err) {
       console.error(err);
       const errorMessage = err.response?.data?.message || err.message || '';
-      
+
       // Kiểm tra lỗi trùng title
-      if (errorMessage.includes('Tiêu đề đã tồn tại') || 
-          errorMessage.toLowerCase().includes('duplicate') ||
-          errorMessage.toLowerCase().includes('unique')) {
-        setErrors(prev => ({ 
-          ...prev, 
-          title: 'Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác.' 
+      if (errorMessage.includes('Tiêu đề đã tồn tại') ||
+        errorMessage.toLowerCase().includes('duplicate') ||
+        errorMessage.toLowerCase().includes('unique')) {
+        setErrors(prev => ({
+          ...prev,
+          title: 'Tiêu đề đã tồn tại. Vui lòng chọn tiêu đề khác.'
         }));
         return; // Không show toast error chung
       }
-      
+
       // Các lỗi khác vẫn show toast như cũ
       showError(
         'Lỗi xử lý bài viết',
@@ -1070,34 +1074,34 @@ const CreateEditPost = () => {
   };
 
   const handleSaveDraft = () =>
-  handlePostAction(
-    'Draft',
-    'Lưu nháp thành công',
-    'Bài viết đã được lưu nháp.'
-  );
+    handlePostAction(
+      'Draft',
+      'Lưu nháp thành công',
+      'Bài viết đã được lưu nháp.'
+    );
 
-const handlePublish = () =>
-  handlePostAction(
-    'Published',
-    'Đăng bài thành công',
-    'Bài viết đã được đăng công khai!'
-  );
+  const handlePublish = () =>
+    handlePostAction(
+      'Published',
+      'Đăng bài thành công',
+      'Bài viết đã được đăng công khai!'
+    );
 
   const handleSaveChange = () =>
-  handlePostAction(
-    status, // Use current status
-    'Cập nhật thành công',
-    'Cập nhật thông tin bài viết thành công'
-  );
+    handlePostAction(
+      status, // Use current status
+      'Cập nhật thành công',
+      'Cập nhật thông tin bài viết thành công'
+    );
 
   const handlePreview = () => {
-    
+
     // In edit mode, use stored slug
     if (isEditMode && postSlug) {
       window.open(`/blog/${postSlug}`, '_blank');
       return;
     }
-    
+
     // In create mode, generate slug from title
     if (!isEditMode && title.trim()) {
       const slug = toSlug(title);
@@ -1109,7 +1113,7 @@ const handlePublish = () =>
       }
       return;
     }
-    
+
     showError('Lỗi', 'Không thể xem trước bài viết. Vui lòng kiểm tra lại thông tin.');
   };
 
@@ -1136,16 +1140,16 @@ const handlePublish = () =>
   };
 
   const toSlug = (text) => {
-  return text
-    .normalize('NFD') 
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd').replace(/Đ/g, 'D') 
-    .replace(/[^a-zA-Z0-9\s-]/g, '') 
-    .trim() 
-    .replace(/\s+/g, '-') 
-    .replace(/-+/g, '-') 
-    .toLowerCase(); 
-};
+    return text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .toLowerCase();
+  };
 
   // Helper function để xác định màu sắc dựa trên điểm SEO (thang 10)
   const getSeoScoreTone = (score) => {
@@ -1231,7 +1235,7 @@ const handlePublish = () =>
 
     // Tách từ khóa bằng dấu phẩy
     const keywordList = metaTitle.split(',').map(k => k.trim()).filter(k => k);
-    
+
     if (keywordList.length >= 3 && keywordList.length <= 5) {
       score += 5;
     } else if (keywordList.length < 3) {
@@ -1296,7 +1300,7 @@ const handlePublish = () =>
       const keywordList = metaTitle.toLowerCase().split(',').map(k => k.trim()).filter(k => k);
       const descLower = description.toLowerCase();
       const hasKeyword = keywordList.length > 0 && keywordList.some(k => descLower.includes(k));
-      
+
       if (hasKeyword) {
         score += 4;
       } else {
@@ -1333,7 +1337,7 @@ const handlePublish = () =>
     // Extract text from HTML
     const textContent = content.replace(/<[^>]*>/g, ' ').trim();
     const wordCount = textContent.split(/\s+/).filter(w => w.length > 0).length;
-    
+
     // Độ dài nội dung
     if (wordCount >= 800) {
       score += 6;
@@ -1355,7 +1359,7 @@ const handlePublish = () =>
         const contentLower = textContent.toLowerCase();
         const keywordCount = (contentLower.match(new RegExp(mainKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
         const density = wordCount > 0 ? (keywordCount / wordCount) * 100 : 0;
-        
+
         if (density >= 1 && density <= 2.5) {
           score += 6;
         } else if (density < 1) {
@@ -1414,7 +1418,7 @@ const handlePublish = () =>
     }
 
     // Tìm tên danh mục
-    const category = posttypes.find(t => 
+    const category = posttypes.find(t =>
       (t.posttypeId || t.postTypeId || t.PosttypeId || t.id) === posttypeId
     );
     const categoryName = category ? (category.posttypeName || category.postTypeName || category.PosttypeName || category.PostTypeName || '') : '';
@@ -1443,7 +1447,7 @@ const handlePublish = () =>
     }
 
     const tagList = Array.isArray(tags) ? tags : [];
-    
+
     // Số lượng tags tối ưu 3-7
     if (tagList.length >= 3 && tagList.length <= 7) {
       score += 5;
@@ -1464,7 +1468,7 @@ const handlePublish = () =>
         const tagName = (tag.tagName || tag.name || tag || '').toLowerCase();
         return keywordList.some(kw => tagName.includes(kw) || kw.includes(tagName));
       });
-      
+
       if (hasRelatedTags) {
         score += 5;
       } else {
@@ -1521,7 +1525,7 @@ const handlePublish = () =>
     // Thu thập tất cả issues và suggestions
     const allIssues = [];
     const allSuggestions = [];
-    
+
     Object.entries(scores).forEach(([key, data]) => {
       if (data.issues && data.issues.length > 0) {
         allIssues.push(...data.issues);
@@ -1555,7 +1559,7 @@ const handlePublish = () =>
   // Hàm xử lý đánh giá SEO
   const handleEvaluateSeo = () => {
     setIsEvaluatingSeo(true);
-    
+
     // Sử dụng setTimeout để tạo delay và hiển thị loading
     setTimeout(() => {
       try {
@@ -1570,10 +1574,10 @@ const handlePublish = () =>
           featuredImageUrl,
           posttypes
         });
-        
+
         setSeoScore(result);
         setIsEvaluatingSeo(false);
-        
+
         // Hiển thị toast thông báo thành công
         const scoreLabel = getSeoScoreLabel(result.score);
         showSuccess(
@@ -1762,14 +1766,14 @@ const handlePublish = () =>
           {isEditMode ? 'Cập nhật bài viết' : 'Tạo bài viết mới'}
         </h1>
       </div>
-      
+
       <div className="cep-blog-create-container">
         {/* Left Column */}
         <div className="cep-main-content">
           {/* Title */}
           <div className="cep-post-title-section">
             <div className="cep-label-row">
-              <label htmlFor="cep-post-title">Tiêu đề bài viết</label>
+              <label htmlFor="cep-post-title">Tiêu đề bài viết <span style={{ color: 'red' }}>*</span></label>
               <div className="cep-field-meta">{title.length}/250</div>
             </div>
             <input
@@ -1806,7 +1810,7 @@ const handlePublish = () =>
             <input
               type="text"
               id="post-meta-title"
-              placeholder="Nhập từ khóa bài viết (Meta Title)"
+              placeholder="Nhập từ khóa bài viết "
               value={metaTitle}
               maxLength={60}
               onChange={(e) => {
@@ -1815,9 +1819,6 @@ const handlePublish = () =>
               }}
               disabled={saving}
             />
-            <div className="cep-field-hint" style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-              Từ khóa này sẽ hiển thị trong thẻ title của trang web (SEO)
-            </div>
           </div>
 
           {/* Description */}
@@ -1849,7 +1850,7 @@ const handlePublish = () =>
 
           {/* Content */}
           <div className="cep-post-content-section">
-            <label htmlFor="cep-post-content">Nội dung bài viết</label>
+            <label htmlFor="cep-post-content">Nội dung bài viết <span style={{ color: 'red' }}>*</span></label>
             <div className="cep-rich-text-editor">
               <div ref={editorContainerRef} className="cep-editor-content" />
               <input
@@ -1860,6 +1861,7 @@ const handlePublish = () =>
                 onChange={handleQuillImage}
               />
             </div>
+            {errors.content && <div className="cep-error-message">{errors.content}</div>}
           </div>
 
           {/* Comments Section - Only in Edit Mode */}
@@ -1907,7 +1909,7 @@ const handlePublish = () =>
                       const rootComment = thread.find(c => !(c.parentCommentId || c.ParentCommentId)) || thread[0];
                       const rootCommentId = rootComment?.commentId || rootComment?.CommentId || rootId;
                       const isRootVisible = rootComment ? (rootComment.isApproved ?? rootComment.IsApproved ?? false) : false;
-                      
+
                       return (
                         <div key={rootId} style={{ marginBottom: '24px' }}>
                           {thread.map((comment) => renderComment(comment))}
@@ -2015,13 +2017,13 @@ const handlePublish = () =>
                             } else {
                               pageNum = commentPage - 2 + i;
                             }
-                            
+
                             return (
                               <button
                                 key={pageNum}
                                 className={commentPage === pageNum ? 'btn primary' : 'btn secondary'}
-                                style={{ 
-                                  fontSize: '14px', 
+                                style={{
+                                  fontSize: '14px',
                                   padding: '8px 12px',
                                   minWidth: '40px'
                                 }}
@@ -2073,7 +2075,7 @@ const handlePublish = () =>
                       </div>
                     ) : null}
                   </div>
-                  
+
                   {/* New Comment Form - Always show when in edit mode */}
                   <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', marginTop: '16px', background: '#ffffff' }}>
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '14px' }}>
@@ -2207,6 +2209,8 @@ const handlePublish = () =>
                 onChange={(e) => setStatus(e.target.value)}
                 disabled={saving}
               >
+                {/* Only show Draft option if current status is Draft */}
+                {status === 'Draft' && <option value="Draft">Bản nháp</option>}
                 <option value="Private">Riêng tư</option>
                 <option value="Published">Công khai</option>
               </select>
@@ -2215,7 +2219,7 @@ const handlePublish = () =>
 
           {/* Category */}
           <div className="cep-sidebar-section">
-            <label htmlFor="post-category">Danh mục</label>
+            <label htmlFor="post-category">Danh mục <span style={{ color: 'red' }}>*</span></label>
             {loading ? (
               <div className="loading-text">Đang tải...</div>
             ) : (
@@ -2227,8 +2231,8 @@ const handlePublish = () =>
               >
                 <option value="">Chọn danh mục</option>
                 {posttypes.map((type) => (
-                  <option 
-                    key={type.posttypeId || type.postTypeId || type.PosttypeId || type.id} 
+                  <option
+                    key={type.posttypeId || type.postTypeId || type.PosttypeId || type.id}
                     value={type.posttypeId || type.postTypeId || type.PosttypeId || type.id}
                   >
                     {type.posttypeName || type.postTypeName || type.PosttypeName || type.PostTypeName}
@@ -2236,11 +2240,12 @@ const handlePublish = () =>
                 ))}
               </select>
             )}
+            {errors.posttype && <div className="cep-error-message">{errors.posttype}</div>}
           </div>
 
           {/* Tags */}
           <div className="cep-sidebar-section">
-            <label>Tags</label>
+            <label>Thẻ</label>
             <TagsInput
               tags={tags}
               setTags={setTags}
@@ -2300,7 +2305,7 @@ const handlePublish = () =>
           {/* SEO Score Section */}
           <div className="cep-sidebar-section">
             <label>Đánh giá SEO</label>
-            
+
             {isEvaluatingSeo ? (
               // Đang đánh giá - hiển thị loading
               <div className="cep-seo-loading">
@@ -2326,10 +2331,10 @@ const handlePublish = () =>
                   </div>
                   <div className="cep-seo-score-label">{getSeoScoreLabel(seoScore.score)}</div>
                 </div>
-                
+
                 {/* Progress Bar */}
                 <div className="cep-seo-progress-bar">
-                  <div 
+                  <div
                     className={`cep-seo-progress-fill cep-seo-progress-${getSeoScoreTone(seoScore.score)}`}
                     style={{ width: `${(seoScore.score / 10) * 100}%` }}
                   />
@@ -2363,7 +2368,7 @@ const handlePublish = () =>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Improvements - Các cải thiện ưu tiên */}
                 {seoScore.improvements && seoScore.improvements.length > 0 && (
                   <div className="cep-seo-suggestions">
@@ -2393,13 +2398,13 @@ const handlePublish = () =>
                     })}
                   </div>
                 )}
-                
+
                 {seoScore.score >= 9 && (
                   <div className="cep-seo-success-message">
                     ✓ Bài viết của bạn đã được tối ưu SEO tốt!
                   </div>
                 )}
-                
+
                 {/* Nút đánh giá lại */}
                 <button
                   className="cep-btn secondary"

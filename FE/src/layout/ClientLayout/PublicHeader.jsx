@@ -47,7 +47,7 @@ const BASE_NAV_ITEMS = [
   {
     label: "Hướng dẫn",
     anchor: "docs",
-    path: "/docs",
+    path: "/tai-lieu",
   },
 ];
 
@@ -175,7 +175,7 @@ const getDashboardRoute = (userRoles) => {
 
   // Check roles in priority order
   if (userRoles.includes("ADMIN")) {
-    return "/admin/home";
+    return "/admin/orders/dashboard";
   }
   if (userRoles.includes("CONTENT_CREATOR")) {
     return "/post-dashboard";

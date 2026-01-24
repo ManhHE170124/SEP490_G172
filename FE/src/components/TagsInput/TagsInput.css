@@ -207,6 +207,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -219,7 +220,7 @@
 
 /* Empty state */
 .tags-list:empty::after {
-  content: "Chưa có tag nào. Nhập để thêm tag mới...";
+  content: "Chưa có thẻ nào. Nhập để thêm thẻ mới...";
   color: #999;
   font-size: 13px;
   font-style: italic;
