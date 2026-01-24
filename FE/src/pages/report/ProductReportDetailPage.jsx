@@ -473,8 +473,42 @@ export default function ProductReportDetailPage() {
                       const isSelected = formData.itemId === val;
 
                       const handleItemClick = () => {
-                        setFormData(prev => ({...prev, itemId: val}));
+                        // Auto-populate user from order
+                        let userIdFromOrder = null;
+                        let userFromOrder = null;
+                        
+                        if (item.order) {
+                          // Extract user info from the order
+                          userIdFromOrder = item.order.userId;
+                          userFromOrder = {
+                            userId: item.order.userId,
+                            email: item.order.userEmail || item.order.email,
+                            fullName: item.order.userFullName || item.order.fullName,
+                            phoneNumber: item.order.userPhoneNumber || item.order.phoneNumber
+                          };
+                        } else if (item.orderUserId || item.userId) {
+                          // Fallback: check for direct user fields on item
+                          userIdFromOrder = item.orderUserId || item.userId;
+                          userFromOrder = {
+                            userId: userIdFromOrder,
+                            email: item.orderUserEmail || item.userEmail || item.email,
+                            fullName: item.orderUserFullName || item.userFullName || item.fullName,
+                            phoneNumber: item.orderUserPhoneNumber || item.userPhoneNumber || item.phoneNumber
+                          };
+                        }
+                        
+                        setFormData(prev => ({
+                          ...prev, 
+                          itemId: val,
+                          userId: userIdFromOrder || prev.userId
+                        }));
                         setSelectedItemDisplay(isKey ? item.keyString : item.accountEmail);
+                        
+                        if (userFromOrder && userIdFromOrder) {
+                          setSelectedUser(userFromOrder);
+                          setUserSearchTerm(userFromOrder.email || userFromOrder.fullName || '');
+                        }
+                        
                         setItemSearchResults([]);
                       };
 
