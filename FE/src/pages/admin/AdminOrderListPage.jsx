@@ -53,6 +53,51 @@ const normalizeText = (v) => String(v ?? "").trim();
 const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
 /**
+ * Parse tiền VN: loại bỏ dấu ngàn (.) và chuyển dấu thập phân (,) thành (.)
+ */
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const s = String(value).trim();
+  if (!s) return { num: null, raw: "" };
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return { num: null, raw: s };
+  return { num, raw: s };
+};
+
+/**
+ * Format số để hiển thị trong input: dùng định dạng VN (ngàn dùng ., thập phân dùng ,)
+ */
+const formatForInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return s;
+  return num.toLocaleString("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
+
+/**
+ * Validate format tiền: tối đa 18 chữ số phần nguyên, 2 chữ số phần thập phân
+ */
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = String(raw).trim().replace(/\./g, "").replace(/,/g, ".");
+  if (!normalized) return false;
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  if (fracPart.length > 2) return false;
+  return true;
+};
+
+/**
  * ✅ Order statuses đúng theo BE:
  * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction, Refunded
  */
@@ -544,18 +589,34 @@ export default function AdminOrderListPage() {
                 <div className="aol-amountRange">
                   <input
                     className="aol-input"
-                    inputMode="numeric"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="Từ"
-                    value={draft.minTotal}
-                    onChange={(e) => onDraftChange("minTotal", e.target.value)}
+                    value={formatForInput(draft.minTotal)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (/^[0-9.,]*$/.test(raw) && isValidDecimal18_2(raw)) {
+                        onDraftChange("minTotal", raw);
+                      } else if (raw === "") {
+                        onDraftChange("minTotal", "");
+                      }
+                    }}
                     onKeyDown={onEnterApply}
                   />
                   <input
                     className="aol-input"
-                    inputMode="numeric"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="Đến"
-                    value={draft.maxTotal}
-                    onChange={(e) => onDraftChange("maxTotal", e.target.value)}
+                    value={formatForInput(draft.maxTotal)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (/^[0-9.,]*$/.test(raw) && isValidDecimal18_2(raw)) {
+                        onDraftChange("maxTotal", raw);
+                      } else if (raw === "") {
+                        onDraftChange("maxTotal", "");
+                      }
+                    }}
                     onKeyDown={onEnterApply}
                   />
                 </div>
@@ -648,9 +709,9 @@ export default function AdminOrderListPage() {
                       </td>
 
                       <td className="aol-amount">
-                        {formatMoneyVnd(finalAmount)}
+                        <div>{formatMoneyVnd(finalAmount)}</div>
                         {totalAmount && totalAmount !== finalAmount ? (
-                          <div className="aol-buyerEmail" style={{ marginTop: 4 }}>
+                          <div className="aol-oldPrice">
                             {formatMoneyVnd(totalAmount)}
                           </div>
                         ) : null}
