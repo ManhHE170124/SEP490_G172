@@ -47,11 +47,46 @@ const ASSIGNMENT_OPTIONS = [
   { value: "Technical", label: "Đã chuyển" },
 ];
 
+// ✅ FE-only timezone display: luôn hiển thị theo UTC+7 (Asia/Bangkok)
+// - BE/DB giữ UTC như hiện tại
+// - Nếu chuỗi datetime không có timezone (không có Z / offset) => coi như UTC
+const DISPLAY_TZ = "Asia/Bangkok";
+
+function hasTimeZoneDesignator(s) {
+  return (
+    /[zZ]$/.test(s) ||
+    /[+\-]\d{2}:\d{2}$/.test(s) ||
+    /[+\-]\d{2}\d{2}$/.test(s)
+  );
+}
+
+function parseApiDateAssumeUtcIfNoTz(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+
+  if (typeof v === "number") {
+    const dNum = new Date(v);
+    return Number.isNaN(dNum.getTime()) ? null : dNum;
+  }
+
+  let s = String(v).trim();
+  if (!s) return null;
+
+  // .NET đôi khi trả fractional seconds 7 digits (vd: .1234567) => JS có thể parse lỗi
+  // Trim về tối đa 3 digits để chắc chắn parse được.
+  s = s.replace(/(\.\d{3})\d+/, "$1");
+
+  const iso = hasTimeZoneDesignator(s) ? s : `${s}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function fmtVNDate(dt) {
   try {
-    const d =
-      typeof dt === "string" || typeof dt === "number" ? new Date(dt) : dt;
+    const d = parseApiDateAssumeUtcIfNoTz(dt);
+    if (!d) return "";
     return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: DISPLAY_TZ,
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -212,9 +247,7 @@ export default function AdminTicketManagement() {
       await ticketsApi.assign(id, assigneeId);
       await fetchList();
     } catch (e) {
-      alert(
-        e?.response?.data?.message || e.message || "Gán ticket thất bại."
-      );
+      alert(e?.response?.data?.message || e.message || "Gán ticket thất bại.");
     }
   };
   const doTransfer = async (id, assigneeId) => {
@@ -234,9 +267,7 @@ export default function AdminTicketManagement() {
       await fetchList();
     } catch (e) {
       alert(
-        e?.response?.data?.message ||
-          e.message ||
-          "Hoàn thành ticket thất bại."
+        e?.response?.data?.message || e.message || "Hoàn thành ticket thất bại."
       );
     }
   };
@@ -246,9 +277,7 @@ export default function AdminTicketManagement() {
       await ticketsApi.close(id);
       await fetchList();
     } catch (e) {
-      alert(
-        e?.response?.data?.message || e.message || "Đóng ticket thất bại."
-      );
+      alert(e?.response?.data?.message || e.message || "Đóng ticket thất bại.");
     }
   };
 
@@ -530,9 +559,7 @@ export default function AdminTicketManagement() {
             ? "Chuyển hỗ trợ"
             : "Gán nhân viên phụ trách"
         }
-        excludeUserId={
-          modal.mode === "transfer" ? modal.currentAssigneeId : null
-        }
+        excludeUserId={modal.mode === "transfer" ? modal.currentAssigneeId : null}
         onClose={() =>
           setModal({
             open: false,
@@ -629,7 +656,12 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
       <div className="tk-modal-card">
         <div className="tk-modal-head">
           <h3 className="tk-modal-title">{title}</h3>
-          <button type="button" className="btn icon-btn ghost" onClick={onClose} title="Đóng">
+          <button
+            type="button"
+            className="btn icon-btn ghost"
+            onClick={onClose}
+            title="Đóng"
+          >
             ✕
           </button>
         </div>
@@ -653,9 +685,7 @@ function AssignModal({ open, title, onClose, onConfirm, excludeUserId }) {
                 {list.map((u) => (
                   <li
                     key={u.id}
-                    className={
-                      "staff-item" + (selected === u.id ? " selected" : "")
-                    }
+                    className={"staff-item" + (selected === u.id ? " selected" : "")}
                     onClick={() => setSelected(u.id)}
                   >
                     <span className="staff-avatar">
