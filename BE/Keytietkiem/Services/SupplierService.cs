@@ -49,6 +49,8 @@ namespace Keytietkiem.Services
                 Name = createDto.Name,
                 ContactEmail = createDto.ContactEmail,
                 ContactPhone = createDto.ContactPhone,
+                LicenseTerms = createDto.LicenseTerms,
+                Notes = createDto.Notes,
                 CreatedAt = _clock.UtcNow,
                 Status = nameof(SupplierStatus.Active)
             };
@@ -99,6 +101,7 @@ namespace Keytietkiem.Services
 
             supplier.Name = updateDto.Name;
             supplier.LicenseTerms = updateDto.LicenseTerms;
+            supplier.Notes = updateDto.Notes;
             supplier.ContactEmail = updateDto.ContactEmail;
             supplier.ContactPhone = updateDto.ContactPhone;
 
@@ -149,6 +152,7 @@ namespace Keytietkiem.Services
                 CreatedAt = supplier.CreatedAt,
                 Status = supplier.Status,
                 LicenseTerms = supplier.LicenseTerms,
+                Notes = supplier.Notes,
                 ActiveProductCount = activeProductCount,
                 TotalProductKeyCount = supplier.ProductKeys.Count
             };

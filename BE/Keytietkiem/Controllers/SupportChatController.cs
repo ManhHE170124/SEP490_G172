@@ -1,5 +1,6 @@
 ﻿// File: Controllers/SupportChatController.cs
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -9,18 +10,20 @@ using Keytietkiem.Hubs;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
+using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization; // ✅ NEW
-
+using Microsoft.Extensions.Configuration;
+using Keytietkiem.Utils.Constants;
 namespace Keytietkiem.Controllers;
 
 [ApiController]
@@ -31,6 +34,8 @@ public class SupportChatController : ControllerBase
     private readonly KeytietkiemDbContext _db;
     private readonly IHubContext<SupportChatHub> _hub;
     private readonly IAuditLogger _auditLogger;
+    private readonly INotificationSystemService _notificationSystemService;
+    private readonly IConfiguration _config;
     private readonly IClock _clock;
 
     private const string StatusWaiting = "Waiting";
@@ -40,11 +45,17 @@ public class SupportChatController : ControllerBase
     public SupportChatController(
         KeytietkiemDbContext db,
         IHubContext<SupportChatHub> hub,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        INotificationSystemService notificationSystemService,
+        IConfiguration config,
+        IClock clock)
     {
         _db = db;
         _hub = hub;
         _auditLogger = auditLogger;
+        _notificationSystemService = notificationSystemService;
+        _config = config;
+        _clock = clock;
     }
 
     // ===== Helpers =====
@@ -410,7 +421,7 @@ public class SupportChatController : ControllerBase
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Claim",
+                action: "ClaimSupportChatSession",
                 entityType: "SupportChatSession",
                 entityId: session.ChatSessionId.ToString(),
                 before: new
@@ -451,7 +462,7 @@ public class SupportChatController : ControllerBase
         await _auditLogger.LogAsync(
             HttpContext,
 
-            action: "Claim",
+            action: "ClaimSupportChatSession",
             entityType: "SupportChatSession",
             entityId: session.ChatSessionId.ToString(),
             before: null,
@@ -721,7 +732,7 @@ public class SupportChatController : ControllerBase
 
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Unassign",
+            action: "UnassignSupportChatSession",
             entityType: "SupportChatSession",
             entityId: session.ChatSessionId.ToString(),
             before: null,
@@ -798,7 +809,7 @@ public class SupportChatController : ControllerBase
 
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Close",
+            action: "CloseSupportChatSession",
             entityType: "SupportChatSession",
             entityId: session.ChatSessionId.ToString(),
             before: null,
@@ -1242,6 +1253,8 @@ public class SupportChatController : ControllerBase
             return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
         }
 
+
+
         session.AssignedStaffId = staff.UserId;
         session.AssignedStaff = staff;
         // Giữ nguyên Status (thường vẫn là Waiting),
@@ -1271,6 +1284,34 @@ public class SupportChatController : ControllerBase
                 Status = session.Status
             }
         );
+
+        // ✅ System notification: notify assignee that admin assigned the chat session (best-effort)
+        try
+        {
+            var actorName = currentUser.FullName ?? "(unknown)";
+            var actorEmail = currentUser.Email ?? "(unknown)";
+            var customerName = session.Customer?.FullName ?? session.Customer?.Email ?? "Khách hàng";
+            var customerEmail = session.Customer?.Email ?? string.Empty;
+
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/staff/support-chats?sessionId={session.ChatSessionId:D}";
+
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Bạn được gán phiên chat hỗ trợ",
+                Message = $"Admin {actorName} đã gán bạn phụ trách phiên chat của {customerName} ({customerEmail}).",
+                Severity = 0, // Info
+                CreatedByUserId = currentUser.UserId,
+                CreatedByEmail = actorEmail,
+                Type = "SupportChat.AdminAssigned",
+                RelatedEntityType = "SupportChatSession",
+                RelatedEntityId = session.ChatSessionId.ToString(),
+                RelatedUrl = relatedUrl,
+                TargetUserIds = new List<Guid> { staff.UserId }
+            });
+        }
+        catch { }
+
 
         return Ok(dto);
     }
@@ -1353,6 +1394,9 @@ public class SupportChatController : ControllerBase
             return BadRequest(new { message = "Nhân viên không hợp lệ (yêu cầu Customer Care Staff & Active)." });
         }
 
+        // Capture previous assignee (for notification)
+        var oldStaffId = session.AssignedStaffId;
+
         session.AssignedStaffId = staff.UserId;
         session.AssignedStaff = staff;
         // Không đổi Status (vẫn Waiting / Active tuỳ trạng thái hiện tại)
@@ -1381,6 +1425,54 @@ public class SupportChatController : ControllerBase
                 Status = session.Status
             }
         );
+
+        // ✅ System notification: notify new assignee + previous assignee about transfer (best-effort)
+        try
+        {
+            var actorName = currentUser.FullName ?? "(unknown)";
+            var actorEmail = currentUser.Email ?? "(unknown)";
+            var customerName = session.Customer?.FullName ?? session.Customer?.Email ?? "Khách hàng";
+            var customerEmail = session.Customer?.Email ?? string.Empty;
+
+            var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+            var relatedUrl = $"{origin}/staff/support-chats?sessionId={session.ChatSessionId:D}";
+
+            // Notify new staff
+            await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+            {
+                Title = "Bạn được chuyển phiên chat hỗ trợ",
+                Message = $"Admin {actorName} đã chuyển phiên chat của {customerName} ({customerEmail}) cho bạn.",
+                Severity = 0, // Info
+                CreatedByUserId = currentUser.UserId,
+                CreatedByEmail = actorEmail,
+                Type = "SupportChat.AdminTransferredToYou",
+                RelatedEntityType = "SupportChatSession",
+                RelatedEntityId = session.ChatSessionId.ToString(),
+                RelatedUrl = relatedUrl,
+                TargetUserIds = new List<Guid> { staff.UserId }
+            });
+
+            // Notify previous staff (if any)
+            if (oldStaffId.HasValue)
+            {
+                var newStaffName = staff.FullName ?? staff.Email ?? string.Empty;
+                await _notificationSystemService.CreateForUserIdsAsync(new SystemNotificationCreateRequest
+                {
+                    Title = "Phiên chat của bạn đã được chuyển",
+                    Message = $"Admin {actorName} đã chuyển phiên chat của {customerName} ({customerEmail}) sang cho {newStaffName}.",
+                    Severity = 1, // Warning
+                    CreatedByUserId = currentUser.UserId,
+                    CreatedByEmail = actorEmail,
+                    Type = "SupportChat.AdminTransferredAway",
+                    RelatedEntityType = "SupportChatSession",
+                    RelatedEntityId = session.ChatSessionId.ToString(),
+                    RelatedUrl = relatedUrl,
+                    TargetUserIds = new List<Guid> { oldStaffId.Value }
+                });
+            }
+        }
+        catch { }
+
 
         return Ok(dto);
     }

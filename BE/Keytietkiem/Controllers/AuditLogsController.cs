@@ -1,4 +1,5 @@
-﻿using System;
+﻿// File: Controllers/AuditLogsController.cs
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Keytietkiem.DTOs.AuditLogs;
@@ -21,40 +22,60 @@ namespace Keytietkiem.Controllers
             _db = db;
         }
 
+        // ✅ Timezone helper (IANA trên Linux, Windows fallback)
+        private static TimeZoneInfo GetBkkTimeZone()
+        {
+            try
+            {
+                // Linux / container thường dùng "Asia/Bangkok"
+                return TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                // Windows fallback
+                return TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+            }
+        }
+
+        private static DateTime ToUtcStartOfDay(DateTime dateOnly)
+        {
+            var tz = GetBkkTimeZone();
+
+            // 00:00 tại UTC+7 => convert về UTC
+            var localStart = DateTime.SpecifyKind(dateOnly.Date, DateTimeKind.Unspecified);
+            return TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+        }
+
+        private static DateTime ToUtcEndOfDay(DateTime dateOnly)
+        {
+            var tz = GetBkkTimeZone();
+
+            // 23:59:59.9999999 tại UTC+7 => convert về UTC
+            var localEnd = DateTime.SpecifyKind(dateOnly.Date.AddDays(1).AddTicks(-1), DateTimeKind.Unspecified); // 23:59:59.9999999
+            return TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+        }
+
         /// <summary>
         /// Search + xem danh sách AuditLog có filter + phân trang.
-        /// GET /api/auditlogs?Page=1&PageSize=20&ActorEmail=... 
+        /// GET /api/auditlogs?Page=1&PageSize=20&ActorEmail=...
         /// (ActorEmail = ô search chung)
         /// </summary>
         [HttpGet]
-        public async Task<ActionResult<AuditLogListResponseDto>> GetAuditLogs(
-            [FromQuery] AuditLogListFilterDto filter)
+        public async Task<ActionResult<AuditLogListResponseDto>> GetAuditLogs([FromQuery] AuditLogListFilterDto filter)
         {
             if (filter.Page <= 0) filter.Page = 1;
             if (filter.PageSize <= 0 || filter.PageSize > 200) filter.PageSize = 20;
 
-            var query = _db.AuditLogs.AsNoTracking();
+            var query = _db.AuditLogs.AsNoTracking().AsQueryable();
 
-            // ===== Time range filter =====
-            if (filter.From.HasValue)
-            {
-                query = query.Where(x => x.OccurredAt >= filter.From.Value);
-            }
-
-            if (filter.To.HasValue)
-            {
-                query = query.Where(x => x.OccurredAt <= filter.To.Value);
-            }
-
-            // ===== Search chung (ActorEmail là keyword) =====
-            // Gộp search cho: ActorEmail, ActorRole, Action, EntityType, EntityId
+            // ===== Keyword search (ActorEmail, IpAddress, Action, EntityType, EntityId) =====
             if (!string.IsNullOrWhiteSpace(filter.ActorEmail))
             {
                 var keyword = filter.ActorEmail.Trim();
 
                 query = query.Where(x =>
                     (x.ActorEmail != null && x.ActorEmail.Contains(keyword)) ||
-                    (x.ActorRole != null && x.ActorRole.Contains(keyword)) ||
+                    (x.IpAddress != null && x.IpAddress.Contains(keyword)) ||
                     (x.Action != null && x.Action.Contains(keyword)) ||
                     (x.EntityType != null && x.EntityType.Contains(keyword)) ||
                     (x.EntityId != null && x.EntityId.Contains(keyword)));
@@ -64,13 +85,24 @@ namespace Keytietkiem.Controllers
             if (!string.IsNullOrWhiteSpace(filter.ActorRole))
             {
                 var role = filter.ActorRole.Trim();
-                query = query.Where(x => x.ActorRole == role);
+
+                // ✅ Hỗ trợ filter "System" cho case DB lưu ActorRole null/"" (hoặc "System")
+                if (role.Equals("System", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(x =>
+                        x.ActorRole == null || x.ActorRole == "" ||
+                        x.ActorRole == "System");
+                }
+                else
+                {
+                    query = query.Where(x => x.ActorRole == role);
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Action))
             {
-                var action = filter.Action.Trim();
-                query = query.Where(x => x.Action == action);
+                var act = filter.Action.Trim();
+                query = query.Where(x => x.Action == act);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.EntityType))
@@ -79,74 +111,67 @@ namespace Keytietkiem.Controllers
                 query = query.Where(x => x.EntityType == entityType);
             }
 
-            // ===== Count total sau khi filter =====
+            // ===== Date range (OccurredAt) theo UTC, nhưng filter theo ngày ở UTC+7 =====
+            if (filter.From.HasValue)
+            {
+                var fromUtc = ToUtcStartOfDay(filter.From.Value);
+                query = query.Where(x => x.OccurredAt >= fromUtc);
+            }
+
+            if (filter.To.HasValue)
+            {
+                var toUtc = ToUtcEndOfDay(filter.To.Value);
+                query = query.Where(x => x.OccurredAt <= toUtc);
+            }
+
+
+            // ===== Tính total trước khi phân trang =====
             var totalItems = await query.CountAsync();
+
+            // ===== Sort & paging =====
             var skip = (filter.Page - 1) * filter.PageSize;
 
-            // ===== Sort động theo SortBy / SortDirection =====
-            // Mặc định: OccurredAt DESC
-            var sortBy = (filter.SortBy ?? "OccurredAt").Trim();
-            var sortDir = (filter.SortDirection ?? "desc").Trim().ToLowerInvariant();
-            var desc = sortDir != "asc"; // nếu không truyền hoặc truyền khác "asc" → desc
+            var sortBy = (filter.SortBy ?? "OccurredAt").Trim().ToLowerInvariant();
+            var desc = !string.IsNullOrWhiteSpace(filter.SortDirection)
+                && filter.SortDirection.Trim().Equals("desc", StringComparison.OrdinalIgnoreCase);
 
-            var sortKey = sortBy.ToLowerInvariant();
+            IOrderedQueryable<AuditLog> orderedQuery;
 
-            IQueryable<AuditLog> orderedQuery;
-
-            switch (sortKey)
+            switch (sortBy)
             {
+                case "actor":
                 case "actoremail":
                     orderedQuery = desc
-                        ? query.OrderByDescending(x => x.ActorEmail)
-                               .ThenByDescending(x => x.AuditId)
-                        : query.OrderBy(x => x.ActorEmail)
-                               .ThenBy(x => x.AuditId);
-                    break;
-
-                case "actorrole":
-                    orderedQuery = desc
-                        ? query.OrderByDescending(x => x.ActorRole)
-                               .ThenByDescending(x => x.AuditId)
-                        : query.OrderBy(x => x.ActorRole)
-                               .ThenBy(x => x.AuditId);
+                        ? query.OrderByDescending(x => x.ActorEmail).ThenByDescending(x => x.AuditId)
+                        : query.OrderBy(x => x.ActorEmail).ThenBy(x => x.AuditId);
                     break;
 
                 case "action":
                     orderedQuery = desc
-                        ? query.OrderByDescending(x => x.Action)
-                               .ThenByDescending(x => x.AuditId)
-                        : query.OrderBy(x => x.Action)
-                               .ThenBy(x => x.AuditId);
+                        ? query.OrderByDescending(x => x.Action).ThenByDescending(x => x.AuditId)
+                        : query.OrderBy(x => x.Action).ThenBy(x => x.AuditId);
                     break;
 
                 case "entitytype":
                     orderedQuery = desc
-                        ? query.OrderByDescending(x => x.EntityType)
-                               .ThenByDescending(x => x.AuditId)
-                        : query.OrderBy(x => x.EntityType)
-                               .ThenBy(x => x.AuditId);
+                        ? query.OrderByDescending(x => x.EntityType).ThenByDescending(x => x.AuditId)
+                        : query.OrderBy(x => x.EntityType).ThenBy(x => x.AuditId);
                     break;
 
                 case "entityid":
                     orderedQuery = desc
-                        ? query.OrderByDescending(x => x.EntityId)
-                               .ThenByDescending(x => x.AuditId)
-                        : query.OrderBy(x => x.EntityId)
-                               .ThenBy(x => x.AuditId);
+                        ? query.OrderByDescending(x => x.EntityId).ThenByDescending(x => x.AuditId)
+                        : query.OrderBy(x => x.EntityId).ThenBy(x => x.AuditId);
                     break;
 
-                // Default: OccurredAt
                 case "occurredat":
                 default:
                     orderedQuery = desc
-                        ? query.OrderByDescending(x => x.OccurredAt)
-                               .ThenByDescending(x => x.AuditId)
-                        : query.OrderBy(x => x.OccurredAt)
-                               .ThenBy(x => x.AuditId);
+                        ? query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.AuditId)
+                        : query.OrderBy(x => x.OccurredAt).ThenBy(x => x.AuditId);
                     break;
             }
 
-            // Lấy page entity trước, rồi build DTO + Changes ở memory
             var pageEntities = await orderedQuery
                 .Skip(skip)
                 .Take(filter.PageSize)
@@ -162,10 +187,10 @@ namespace Keytietkiem.Controllers
                     ActorRole = x.ActorRole,
                     SessionId = x.SessionId,
                     IpAddress = x.IpAddress,
-                    Action = x.Action,
+                    Action = x.Action ?? "",
                     EntityType = x.EntityType,
-                    EntityId = x.EntityId,
-                    Changes = AuditDiffHelper.BuildDiff(x.BeforeDataJson, x.AfterDataJson)
+                    // ✅ KHÔNG TRẢ EntityId ở list
+                    Changes = null
                 })
                 .ToList();
 
@@ -181,13 +206,12 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Endpoint trả về danh sách option không trùng nhau
-        /// cho dropdown: Action, EntityType, ActorRole.
         /// GET /api/auditlogs/options
         /// </summary>
         [HttpGet("options")]
         public async Task<ActionResult<AuditLogFilterOptionsDto>> GetFilterOptions()
         {
+            // Distinct actions, entityTypes, actorRoles
             var actions = await _db.AuditLogs
                 .AsNoTracking()
                 .Where(x => x.Action != null && x.Action != "")
@@ -212,6 +236,16 @@ namespace Keytietkiem.Controllers
                 .OrderBy(x => x)
                 .ToListAsync();
 
+            // Nếu có log system (ActorRole null/"") thì thêm option "System"
+            var hasSystemLogs = await _db.AuditLogs
+                .AsNoTracking()
+                .AnyAsync(x => x.ActorRole == null || x.ActorRole == "" || x.ActorRole == "System");
+
+            if (hasSystemLogs && !actorRoles.Contains("System"))
+            {
+                actorRoles.Insert(0, "System");
+            }
+
             var dto = new AuditLogFilterOptionsDto
             {
                 Actions = actions,
@@ -223,18 +257,17 @@ namespace Keytietkiem.Controllers
         }
 
         /// <summary>
-        /// Xem chi tiết 1 audit log.
         /// GET /api/auditlogs/{id}
         /// </summary>
         [HttpGet("{id:long}")]
-        public async Task<ActionResult<AuditLogDetailDto>> GetAuditLog(long id)
+        public async Task<ActionResult<AuditLogDetailDto>> GetAuditLogDetail(long id)
         {
             var entity = await _db.AuditLogs.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.AuditId == id);
 
             if (entity == null)
             {
-                return NotFound();
+                return NotFound(new { message = $"Audit log {id} không tồn tại." });
             }
 
             var dto = new AuditLogDetailDto
@@ -246,7 +279,7 @@ namespace Keytietkiem.Controllers
                 ActorRole = entity.ActorRole,
                 SessionId = entity.SessionId,
                 IpAddress = entity.IpAddress,
-                Action = entity.Action,
+                Action = entity.Action ?? "",
                 EntityType = entity.EntityType,
                 EntityId = entity.EntityId,
                 BeforeDataJson = entity.BeforeDataJson,
@@ -258,18 +291,10 @@ namespace Keytietkiem.Controllers
         }
     }
 
-    /// <summary>
-    /// DTO trả về cho endpoint /api/auditlogs/options
-    /// </summary>
     public class AuditLogFilterOptionsDto
     {
-        public System.Collections.Generic.List<string> Actions { get; set; }
-            = new System.Collections.Generic.List<string>();
-
-        public System.Collections.Generic.List<string> EntityTypes { get; set; }
-            = new System.Collections.Generic.List<string>();
-
-        public System.Collections.Generic.List<string> ActorRoles { get; set; }
-            = new System.Collections.Generic.List<string>();
+        public System.Collections.Generic.List<string> Actions { get; set; } = new();
+        public System.Collections.Generic.List<string> EntityTypes { get; set; } = new();
+        public System.Collections.Generic.List<string> ActorRoles { get; set; } = new();
     }
 }

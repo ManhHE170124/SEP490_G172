@@ -6,6 +6,7 @@ using Keytietkiem.DTOs.Enums;
 using Keytietkiem.Models;
 using Keytietkiem.Repositories;
 using Keytietkiem.Services.Interfaces;
+using Keytietkiem.Utils; // ✅ add: call VariantStockRecalculator directly
 using Microsoft.EntityFrameworkCore;
 
 namespace Keytietkiem.Services
@@ -77,7 +78,8 @@ namespace Keytietkiem.Services
                     Type = pk.Type,
                     UpdatedAt = pk.UpdatedAt,
                     ImportedAt = pk.ImportedAt,
-                    AssignToOrder = pk.AssignedToOrderId
+                    AssignToOrder = pk.AssignedToOrderId,
+                    ExpiryDate = pk.ExpiryDate
                 })
                 .ToListAsync(cancellationToken);
 
@@ -199,12 +201,15 @@ namespace Keytietkiem.Services
             _context.LicensePackages.Add(licensePackage);
             await _productKeyRepository.AddAsync(productKey, cancellationToken);
 
-            // Update Variant stock quantity
-            variant.StockQty += 1;
-            variant.UpdatedAt = DateTime.UtcNow;
-            _context.ProductVariants.Update(variant);
-
+            // ✅ KHÔNG cộng StockQty thủ công nữa
             await _context.SaveChangesAsync(cancellationToken);
+
+            // ✅ Sync stock/status trực tiếp
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                _context,
+                dto.VariantId,
+                DateTime.UtcNow,
+                cancellationToken);
 
             return await GetProductKeyByIdAsync(productKey.KeyId, cancellationToken);
         }
@@ -221,9 +226,9 @@ namespace Keytietkiem.Services
             if (key == null)
                 throw new InvalidOperationException("Product key không tồn tại");
 
-            var oldStatus = key.Status; // giữ lại để tránh thay đổi ngoài phạm vi audit
+            var oldStatus = key.Status;
 
-            key.ExpiryDate = dto.ExpiryDate;
+            //key.ExpiryDate = dto.ExpiryDate;
             key.Status = dto.Status;
             if (key.ExpiryDate.HasValue && key.ExpiryDate < DateTime.UtcNow)
                 key.Status = nameof(ProductKeyStatus.Expired);
@@ -233,6 +238,13 @@ namespace Keytietkiem.Services
             _productKeyRepository.Update(key);
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // ✅ Sync stock/status (status/expiry thay đổi có thể làm đổi stock)
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                _context,
+                key.VariantId,
+                DateTime.UtcNow,
+                cancellationToken);
 
             return await GetProductKeyByIdAsync(key.KeyId, cancellationToken);
         }
@@ -252,9 +264,18 @@ namespace Keytietkiem.Services
             if (key.AssignedToOrderId.HasValue)
                 throw new InvalidOperationException("Không thể xóa key đã được gán cho đơn hàng");
 
+            var variantId = key.VariantId;
+
             _productKeyRepository.Remove(key);
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // ✅ Sync stock/status sau khi xóa key
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                _context,
+                variantId,
+                DateTime.UtcNow,
+                cancellationToken);
         }
 
         public async Task AssignKeyToOrderAsync(
@@ -285,6 +306,13 @@ namespace Keytietkiem.Services
             _productKeyRepository.Update(key);
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // ✅ Sync stock/status (key không còn Available)
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                _context,
+                key.VariantId,
+                DateTime.UtcNow,
+                cancellationToken);
         }
 
         public async Task UnassignKeyFromOrderAsync(
@@ -302,7 +330,7 @@ namespace Keytietkiem.Services
             if (!key.AssignedToOrderId.HasValue)
                 throw new InvalidOperationException("Product key chưa được gán cho đơn hàng nào");
 
-            var orderId = key.AssignedToOrderId.Value; // giữ để không thay đổi code khác
+            var orderId = key.AssignedToOrderId.Value;
             key.AssignedToOrderId = null;
             key.Status = nameof(ProductKeyStatus.Available);
             key.UpdatedAt = DateTime.UtcNow;
@@ -310,6 +338,13 @@ namespace Keytietkiem.Services
             _productKeyRepository.Update(key);
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // ✅ Sync stock/status (key quay lại Available)
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                _context,
+                key.VariantId,
+                DateTime.UtcNow,
+                cancellationToken);
         }
 
         public async Task<int> BulkUpdateKeyStatusAsync(
@@ -335,6 +370,14 @@ namespace Keytietkiem.Services
 
             await _context.SaveChangesAsync(cancellationToken);
 
+            // ✅ Sync stock/status theo từng variant bị ảnh hưởng
+            var variantIds = keys.Select(k => k.VariantId).Distinct().ToList();
+            await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                _context,
+                variantIds,
+                now,
+                cancellationToken);
+
             return keys.Count;
         }
 
@@ -348,7 +391,6 @@ namespace Keytietkiem.Services
                 .Include(pk => pk.Supplier)
                 .AsQueryable();
 
-            // Apply same filters as GetProductKeysAsync
             if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
             {
                 var searchLower = filter.SearchTerm.ToLower();
@@ -426,7 +468,8 @@ namespace Keytietkiem.Services
                     Type = pk.Type,
                     UpdatedAt = pk.UpdatedAt,
                     ImportedAt = pk.ImportedAt,
-                    AssignToOrder = pk.AssignedToOrderId
+                    AssignToOrder = pk.AssignedToOrderId,
+                    ExpiryDate = pk.ExpiryDate
                 })
                 .ToListAsync(cancellationToken);
 

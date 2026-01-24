@@ -19,13 +19,17 @@ using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.DTOs.Post;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using System.Security.Claims;
 using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
+    /// <summary>
+    /// Controller for managing tags (CRUD operations).
+    /// Ensures unique tag names and slugs, and maintains referential integrity on updates/deletions.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
@@ -34,18 +38,22 @@ namespace Keytietkiem.Controllers
         private readonly IPostService _postService;
         private readonly KeytietkiemDbContext _context;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TagsController"/> class.
+        /// </summary>
+        /// <param name="postService">The post service for business logic operations.</param>
+        /// <param name="keytietkiemDbContext">The database context.</param>
+        /// <exception cref="ArgumentNullException">Thrown when postService is null.</exception>
         public TagsController(IPostService postService, KeytietkiemDbContext keytietkiemDbContext)
         {
             _postService = postService ?? throw new ArgumentNullException(nameof(postService));
             _context = keytietkiemDbContext;
         }
 
-        /**
-         * Summary: Retrieve all tags.
-         * Route: GET /api/tags
-         * Params: none
-         * Returns: 200 OK with list of tags
-         */
+        /// <summary>
+        /// Retrieves all tags.
+        /// </summary>
+        /// <returns>200 OK with list of tags.</returns>
         [HttpGet]
         [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -62,12 +70,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Retrieve a tag by id.
-         * Route: GET /api/tags/{id}
-         * Params: id (Guid) - tag identifier
-         * Returns: 200 OK with tag, 404 if not found
-         */
+        /// <summary>
+        /// Retrieves a tag by its identifier.
+        /// </summary>
+        /// <param name="id">The tag identifier.</param>
+        /// <returns>200 OK with tag details, or 404 if not found.</returns>
         [HttpGet("{id}")]
         [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -88,12 +95,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Create a new tag.
-         * Route: POST /api/tags
-         * Body: CreateTagDTO createTagDto
-         * Returns: 201 Created with created tag, 400/409 on validation errors
-         */
+        /// <summary>
+        /// Creates a new tag.
+        /// </summary>
+        /// <param name="createTagDto">The tag creation data.</param>
+        /// <returns>201 Created with the created tag, or 400/409 on validation errors.</returns>
         [HttpPost]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> CreateTag([FromBody] CreateTagDTO createTagDto)
@@ -129,13 +135,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Update an existing tag by id.
-         * Route: PUT /api/tags/{id}
-         * Params: id (Guid)
-         * Body: UpdateTagDTO updateTagDto
-         * Returns: 204 No Content, 400/404/409 on errors
-         */
+        /// <summary>
+        /// Updates an existing tag.
+        /// </summary>
+        /// <param name="id">The tag identifier.</param>
+        /// <param name="updateTagDto">The tag update data.</param>
+        /// <returns>204 No Content on success, or 400/404/409 on errors.</returns>
         [HttpPut("{id}")]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> UpdateTag(Guid id, [FromBody] UpdateTagDTO updateTagDto)
@@ -175,12 +180,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Delete a tag by id.
-         * Route: DELETE /api/tags/{id}
-         * Params: id (Guid)
-         * Returns: 204 No Content, 404 if not found
-         */
+        /// <summary>
+        /// Deletes a tag.
+        /// </summary>
+        /// <param name="id">The tag identifier.</param>
+        /// <returns>204 No Content on success, or 404 if not found.</returns>
         [HttpDelete("{id}")]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
         public async Task<IActionResult> DeleteTag(Guid id)

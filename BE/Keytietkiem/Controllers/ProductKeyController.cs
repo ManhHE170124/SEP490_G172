@@ -4,7 +4,6 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.Utils;
 using Keytietkiem.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +14,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -100,7 +100,7 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Create",
+                    action: "CreateProductKey",
                     entityType: "ProductKey",
                     entityId: result.KeyId.ToString(),
                     before: null,
@@ -155,7 +155,7 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Update",
+                    action: "UpdateProductKey",
                     entityType: "ProductKey",
                     entityId: keyId.ToString(),
                     before: before,
@@ -204,7 +204,7 @@ namespace Keytietkiem.Controllers
 
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Delete",
+                    action: "DeleteProductKey",
                     entityType: "ProductKey",
                     entityId: keyId.ToString(),
                     before: null,

@@ -15,8 +15,6 @@ import ProtectedRoute from "./ProtectedRoute";
 import UserProfilePage from "../pages/profile/UserProfilePage.jsx";
 import OrderHistoryDetailPage from "../pages/orders/OrderHistoryDetailPage.jsx";
 
-//Role Management Pages
-import RoleManage from "../pages/RoleManage/RoleManage";
 // Post Management Pages
 import AdminPostList from "../pages/PostManage/AdminPostList";
 import PostCreateEdit from "../pages/PostManage/CreateEditPost";
@@ -38,9 +36,13 @@ import AdminOrderListPage from "../pages/admin/AdminOrderListPage.jsx";
 import AdminOrderDetailPage from "../pages/admin/AdminOrderDetailPage.jsx";
 import AdminPaymentListPage from "../pages/admin/AdminPaymentListPage.jsx";
 import AdminNotificationsPage from "../pages/admin/AdminNotificationsPage.jsx";
+import AdminOrdersDashboardPage from "../pages/admin/AdminOrdersDashboardPage";
 import AdminHomePage from "../pages/admin/AdminHomePage.jsx";
 import SpecificDocumentationManage from "../pages/PostManage/SpecificDocumentationManage.jsx";
 import DocumentationViewPage from "../pages/documentation/DocumentationViewPage.jsx";
+
+import SystemInsightsDashboardPage from "../pages/admin/SystemInsightsDashboardPage.jsx";
+
 
 // App.jsx (hoặc routes admin)
 import VariantDetail from "../pages/admin/VariantDetail.jsx";
@@ -176,10 +178,10 @@ export default function AppRoutes() {
       <Route path="/staff/profile" element={renderAdminPage(<AdminProfilePage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF, ROLES.CUSTOMER_CARE, ROLES.CONTENT_CREATOR))} />
 
       {/* Admin Home Dashboard */}
-      <Route
+      {/* <Route
         path="/admin/home"
         element={renderAdminPage(<AdminHomePage />, role(ROLES.ADMIN))}
-      />
+      /> */}
 
       {/* Admin Tickets */}
       <Route
@@ -283,20 +285,23 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/orders"
-        element={renderAdminPage(<AdminOrderListPage />, role(ROLES.ADMIN))}
+        element={renderAdminPage(<AdminOrderListPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       <Route
         path="/admin/payments"
-        element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN))}
+        element={renderAdminPage(<AdminPaymentListPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       <Route
         path="/admin/payments/dashboard"
-        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN, ROLES.STORAGE_STAFF))}
+        element={renderAdminPage(<AdminPaymentsDashboardPage />, role(ROLES.ADMIN))}
+      />
+      <Route path="/admin/orders/dashboard"
+        element={renderAdminPage(<AdminOrdersDashboardPage />, role(ROLES.ADMIN))}
       />
 
       <Route
         path="/admin/orders/:id"
-        element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN))}
+        element={renderAdminPage(<AdminOrderDetailPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
       />
       {/* FAQs */}
       <Route
@@ -317,10 +322,7 @@ export default function AppRoutes() {
         path="/admin/user-dashboard"
         element={renderAdminPage(<UserDashboardAdminPage />, role(ROLES.ADMIN))}
       />
-      <Route
-        path="/role-manage"
-        element={renderAdminPage(<RoleManage />, role(ROLES.ADMIN))}
-      />
+
       {/* Post Routes */}
       <Route
         path="/post-dashboard"
@@ -394,8 +396,14 @@ export default function AppRoutes() {
       />
       <Route
         path="/admin/support-dashboard"
-        element={renderAdminPage(<SupportDashboardAdminPage />, role(ROLES.ADMIN, ROLES.CUSTOMER_CARE))}
+        element={renderAdminPage(<SupportDashboardAdminPage />, role(ROLES.ADMIN))}
       />
+      <Route
+        path="/admin/system-insights"
+        element={renderAdminPage(<SystemInsightsDashboardPage />, role(ROLES.ADMIN))}
+      />
+
+
       <Route
         path="/admin/support-chats"
         element={renderAdminPage(<AdminSupportChatPage />, role(ROLES.ADMIN))}

@@ -1,5 +1,4 @@
 ﻿using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Enums;
 using Keytietkiem.DTOs.Users;
@@ -11,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -546,7 +546,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateUser",
                 entityType: "User",
                 entityId: user.UserId.ToString(),
                 before: null,
@@ -735,7 +735,7 @@ namespace Keytietkiem.Controllers
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateUser",
                 entityType: "User",
                 entityId: u.UserId.ToString(),
                 before: before,

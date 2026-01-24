@@ -293,7 +293,7 @@ public class EmailService : IEmailService
                         <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 3px solid #ff9800;'>
                             <h4 style='color: #ff9800; font-size: 15px; margin: 0 0 10px 0;'>🙏 Cảm ơn bạn đã đặt hàng!</h4>
                             <p style='color: #856404; font-size: 14px; line-height: 1.6; margin: 10px 0;'>
-                                Để hoàn tất việc thêm bạn vào tài khoản chia sẻ, vui lòng làm theo các bước sau:
+                                Vui lòng chờ ít phút để thêm bạn vào tài khoản chia sẻ, nếu bạn chưa thấy bạn được thêm vào, vui lòng làm theo các bước sau:
                             </p>
                             <ol style='color: #856404; font-size: 14px; line-height: 1.8; margin: 10px 0; padding-left: 20px;'>
                                 <li><strong>Tạo ticket</strong> hỗ trợ trên hệ thống của chúng tôi</li>

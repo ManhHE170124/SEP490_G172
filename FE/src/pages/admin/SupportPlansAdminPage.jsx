@@ -333,7 +333,7 @@ function SupportPlanModal({
                   <input
                     type="text"
                     inputMode="numeric"
-                    pattern="[0-9]*"
+                    pattern="[0-9.]*"
                     value={formatVndDigits(form.price)}
                     onChange={handlePriceChange}
                     placeholder="VD: 100000"

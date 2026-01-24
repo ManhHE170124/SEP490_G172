@@ -7,7 +7,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Keytietkiem.Services;
 
-public class RoleService : IRoleService
+/// <summary>
+/// Service implementation for role operations.
+/// Handles role seeding and retrieval.
+/// </summary>
+ public class RoleService : IRoleService
 {
     private readonly KeytietkiemDbContext _context;
     private readonly IGenericRepository<Role> _roleRepository;
@@ -16,6 +20,13 @@ public class RoleService : IRoleService
 
     private static readonly string[] DefaultRoles = { "Admin", "Storage Staff", "Customer", "Content Creator", "Customer Care Staff" };
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RoleService"/> class.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="roleRepository">The role repository.</param>
+    /// <param name="clock">The clock for timestamps.</param>
+    /// <param name="logger">The logger.</param>
     public RoleService(
         KeytietkiemDbContext context,
         IGenericRepository<Role> roleRepository,
@@ -28,6 +39,10 @@ public class RoleService : IRoleService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Seeds default roles if they don't exist.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task SeedDefaultRolesAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Checking default roles (Admin, Staff, Customer)...");
@@ -94,6 +109,11 @@ public class RoleService : IRoleService
         }
     }
 
+    /// <summary>
+    /// Retrieves all active roles.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of active roles.</returns>
     public async Task<List<Role>> GetAllActiveRolesAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Roles
@@ -102,11 +122,23 @@ public class RoleService : IRoleService
             .ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Retrieves a role by its identifier.
+    /// </summary>
+    /// <param name="roleId">The role identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The role if found, otherwise null.</returns>
     public async Task<Role?> GetRoleByIdAsync(string roleId, CancellationToken cancellationToken = default)
     {
         return await _roleRepository.GetByIdAsync(roleId, cancellationToken);
     }
 
+    /// <summary>
+    /// Checks if a role exists.
+    /// </summary>
+    /// <param name="roleId">The role identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the role exists, otherwise false.</returns>
     public async Task<bool> RoleExistsAsync(string roleId, CancellationToken cancellationToken = default)
     {
         return await _roleRepository.AnyAsync(r => r.RoleId == roleId, cancellationToken);

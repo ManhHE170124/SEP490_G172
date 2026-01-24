@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { orderApi } from "../../services/orderApi";
 import "./AdminOrderDetailPage.css";
+import formatDatetime from "../../utils/formatDatetime";
 
 const formatMoneyVnd = (n) => {
   const x = Number(n ?? 0);
@@ -13,21 +14,59 @@ const formatMoneyVnd = (n) => {
   }
 };
 
-const formatDateTime = (dt) => {
-  if (!dt) return "—";
-  const d = new Date(dt);
-  if (Number.isNaN(d.getTime())) return String(dt);
-  const pad = (v) => String(v).padStart(2, "0");
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(
-    d.getDate()
-  )}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-};
+const formatDateTime = (dt) => formatDatetime(dt);
 
 const normalizeStatusKey = (s) => String(s || "").trim().toUpperCase();
 
 /**
+ * Parse tiền VN: loại bỏ dấu ngàn (.) và chuyển dấu thập phân (,) thành (.)
+ */
+const parseMoney = (value) => {
+  if (value === null || value === undefined) return { num: null, raw: "" };
+  const s = String(value).trim();
+  if (!s) return { num: null, raw: "" };
+  // Normalize: remove thousand separators (.) then convert decimal comma -> dot
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return { num: null, raw: s };
+  return { num, raw: s };
+};
+
+/**
+ * Format số để hiển thị trong input: dùng định dạng VN (ngàn dùng ., thập phân dùng ,)
+ */
+const formatForInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return s;
+  return num.toLocaleString("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
+
+/**
+ * Validate format tiền: tối đa 18 chữ số phần nguyên, 2 chữ số phần thập phân
+ */
+const isValidDecimal18_2 = (raw) => {
+  if (!raw) return false;
+  const normalized = String(raw).trim().replace(/\./g, "").replace(/,/g, ".");
+  if (!normalized) return false;
+  const neg = normalized[0] === "-";
+  const unsigned = neg ? normalized.slice(1) : normalized;
+  const parts = unsigned.split(".");
+  const intPart = parts[0] || "0";
+  const fracPart = parts[1] || "";
+  if (intPart.replace(/^0+/, "").length > 16) return false;
+  if (fracPart.length > 2) return false;
+  return true;
+};
+
+/**
  * ✅ Map đúng Order status theo BE:
- * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction
+ * PendingPayment, Paid, Cancelled, CancelledByTimeout, NeedsManualAction, Refunded
  * (vẫn tolerant thêm Timeout/Success/Completed nếu dữ liệu legacy)
  */
 const statusVi = (s) => {
@@ -39,6 +78,7 @@ const statusVi = (s) => {
   if (v === "NEEDSMANUALACTION") return "Cần xử lý thủ công";
   if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "Hủy do quá hạn";
   if (v === "CANCELLED") return "Đã hủy";
+  if (v === "REFUNDED") return "Đã hoàn tiền";
 
   // fallback
   return String(s);
@@ -52,6 +92,7 @@ const statusPillClass = (s) => {
   if (v === "NEEDSMANUALACTION") return "aod-pill aod-pending";
   if (v === "CANCELLEDBYTIMEOUT" || v === "TIMEOUT") return "aod-pill aod-cancelled";
   if (v === "CANCELLED") return "aod-pill aod-cancelled";
+  if (v === "REFUNDED") return "aod-pill aod-refunded";
 
   return "aod-pill aod-unknown";
 };
@@ -476,7 +517,7 @@ export default function AdminOrderDetailPage() {
         </div>
 
         <div className="aod-filters">
-          <div className="aod-field aod-fieldWide">
+          <div className="aod-field">
             <div className="aod-label">Tìm kiếm</div>
             <input
               value={filters.search}
@@ -488,12 +529,38 @@ export default function AdminOrderDetailPage() {
 
           <div className="aod-field">
             <div className="aod-label">Giá từ</div>
-            <input value={filters.minPrice} onChange={(e) => setF({ minPrice: e.target.value })} />
+            <input
+              type="text"
+              inputMode="decimal"
+              value={formatForInput(filters.minPrice)}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (/^[0-9.,]*$/.test(raw) && isValidDecimal18_2(raw)) {
+                  setF({ minPrice: raw });
+                } else if (raw === "") {
+                  setF({ minPrice: "" });
+                }
+              }}
+              placeholder="0"
+            />
           </div>
 
           <div className="aod-field">
             <div className="aod-label">Giá đến</div>
-            <input value={filters.maxPrice} onChange={(e) => setF({ maxPrice: e.target.value })} />
+            <input
+              type="text"
+              inputMode="decimal"
+              value={formatForInput(filters.maxPrice)}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (/^[0-9.,]*$/.test(raw) && isValidDecimal18_2(raw)) {
+                  setF({ maxPrice: raw });
+                } else if (raw === "") {
+                  setF({ maxPrice: "" });
+                }
+              }}
+              placeholder="0"
+            />
           </div>
 
           <div className="aod-field aod-fieldActions">

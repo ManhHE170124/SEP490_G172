@@ -16,10 +16,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
+    /// <summary>
+    /// Controller for managing post images.
+    /// Handles image upload to Cloudinary cloud storage and image deletion.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
@@ -28,6 +32,11 @@ namespace Keytietkiem.Controllers
         private readonly KeytietkiemDbContext _context;
         private readonly IPhotoService _photoService;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PostImagesController"/> class.
+        /// </summary>
+        /// <param name="context">The database context.</param>
+        /// <param name="photoService">The photo service for cloud storage operations.</param>
         public PostImagesController(
             KeytietkiemDbContext context,
             IPhotoService photoService)
@@ -36,12 +45,11 @@ namespace Keytietkiem.Controllers
             _photoService = photoService;
         }
 
-        /**
-         * Summary: Upload an image file.
-         * Route: POST /api/uploadImage
-         * Body: IFormFile file {"path": "res.cloudinary.com/doifb7f6k/image/upload/v1762196927/posts/abc123xyz.png" }
-         * Returns: 200 OK with image path, 400 on errors
-         */
+        /// <summary>
+        /// Uploads an image file to Cloudinary.
+        /// </summary>
+        /// <param name="request">The image upload request containing the file.</param>
+        /// <returns>200 OK with image path, or 400 on errors.</returns>
         [HttpPost("uploadImage")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadImage([FromForm] ImageUploadRequest request)
@@ -61,12 +69,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Delete an image from Cloudinary.
-         * Route: DELETE /api/deleteImage
-         * Body: JSON { "publicId": "posts/abc123xyz" }
-         * Returns: 200 OK on success, 400 or 500 on error.
-         */
+        /// <summary>
+        /// Deletes an image from Cloudinary.
+        /// </summary>
+        /// <param name="request">The image delete request containing the public ID.</param>
+        /// <returns>200 OK on success, or 400/500 on error.</returns>
         [HttpDelete("deleteImage")]
         public async Task<IActionResult> DeleteImage([FromBody] ImageDeleteRequest request)
         {

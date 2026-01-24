@@ -79,26 +79,28 @@ export default function LoginPage() {
       // Also check for legacy role names for backward compatibility
       const userRoles = response.user.roles || [];
       const firstRole = userRoles[0]?.toUpperCase() || "";
-      
+
       if (
-        firstRole === "ADMIN" || 
+        firstRole === "ADMIN"
+      ) {
+        navigate("/admin/orders/dashboard");
+      } else if (
         firstRole === "CUSTOMER_CARE"
       ) {
-        navigate("/admin/support-dashboard");
+        navigate("/staff/tickets");
       } else if (
-        // Content Creator -> post dashboard
         firstRole === "CONTENT_CREATOR" ||
-        firstRole === "CONTENT CREATOR" 
+        firstRole === "CONTENT CREATOR"
       ) {
         navigate("/post-dashboard");
-      }else if (
+      } else if (
         firstRole === "STORAGE_STAFF" ||
-        firstRole === "STORAGE STAFF" 
+        firstRole === "STORAGE STAFF"
       ) {
         navigate("/key-monitor");
       } else {
         // Default: Customer or other roles -> homepage
-          navigate("/");
+        navigate("/");
       }
     } catch (error) {
       const responseData = error?.response?.data;
@@ -219,7 +221,7 @@ export default function LoginPage() {
               <hr />
             </div>
 
-            <div className="form-row">
+            {/* <div className="form-row">
               <button
                 className="btn"
                 type="button"
@@ -233,7 +235,7 @@ export default function LoginPage() {
               >
                 Đăng nhập bằng Google
               </button>
-            </div>
+            </div> */}
 
             <p
               className="helper"

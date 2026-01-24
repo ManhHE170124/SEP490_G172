@@ -19,6 +19,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Keytietkiem.DTOs.Post
 {
+    /// <summary>
+    /// Data Transfer Object for Post operations.
+    /// Represents a complete post with all related data including tags and images.
+    /// </summary>
     public class PostDTO
     {
         public Guid PostId { get; set; }
@@ -40,6 +44,10 @@ namespace Keytietkiem.DTOs.Post
         public List<PostImageDTO> PostImages { get; set; } = new List<PostImageDTO>();
     }
 
+    /// <summary>
+    /// Data Transfer Object for Post list items.
+    /// Represents a simplified post view for list displays.
+    /// </summary>
     public class PostListItemDTO
     {
         public Guid PostId { get; set; }
@@ -58,6 +66,9 @@ namespace Keytietkiem.DTOs.Post
         public List<TagDTO> Tags { get; set; } = new List<TagDTO>();
     }
 
+    /// <summary>
+    /// Data Transfer Object for creating a new post.
+    /// </summary>
     public class CreatePostDTO
     {
         [Required(ErrorMessage = "Tiêu đề không được để trống.")]
@@ -83,6 +94,9 @@ namespace Keytietkiem.DTOs.Post
         public List<Guid> TagIds { get; set; } = new List<Guid>();
     }
 
+    /// <summary>
+    /// Data Transfer Object for updating an existing post.
+    /// </summary>
     public class UpdatePostDTO
     {
         [Required(ErrorMessage = "Tiêu đề không được để trống.")]
@@ -107,6 +121,9 @@ namespace Keytietkiem.DTOs.Post
         public List<Guid> TagIds { get; set; } = new List<Guid>();
     }
 
+    /// <summary>
+    /// Data Transfer Object for PostType operations.
+    /// </summary>
     public class PostTypeDTO
     {
         public Guid PostTypeId { get; set; }
@@ -124,6 +141,9 @@ namespace Keytietkiem.DTOs.Post
     //     public int PostCount { get; set; } 
     // }
 
+    /// <summary>
+    /// Data Transfer Object for creating a new post type.
+    /// </summary>
     public class CreatePostTypeDTO
     {
         [Required(ErrorMessage = "Tên danh mục không được để trống.")]
@@ -134,6 +154,9 @@ namespace Keytietkiem.DTOs.Post
         public string? Description { get; set; }
     }
 
+    /// <summary>
+    /// Data Transfer Object for updating an existing post type.
+    /// </summary>
     public class UpdatePostTypeDTO
     {
         [Required(ErrorMessage = "Tên danh mục không được để trống.")]

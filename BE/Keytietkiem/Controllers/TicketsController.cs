@@ -1,5 +1,4 @@
 ﻿// File: Controllers/TicketsController.cs
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Hubs;
@@ -8,6 +7,7 @@ using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
+using Keytietkiem.Utils.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http;
@@ -28,7 +28,6 @@ public class TicketsController : ControllerBase
     private readonly IAuditLogger _auditLogger;
     private readonly INotificationSystemService _notificationSystemService;
     private readonly IConfiguration _config;
-    private readonly IClock _clock;
     public TicketsController(
         KeytietkiemDbContext db,
         IHubContext<TicketHub> ticketHub,
@@ -61,6 +60,30 @@ public class TicketsController : ControllerBase
 
     private static AssignmentState ParseAssignState(string? s)
         => Enum.TryParse<AssignmentState>(NormAssign(s), true, out var v) ? v : AssignmentState.Unassigned;
+
+    // ✅ FIX UTC+Z: normalize DateTime Kind from SQL/EF (Unspecified) -> Utc
+    private static DateTime EnsureUtc(DateTime dt)
+    {
+        if (dt == default) return dt;
+
+        if (dt.Kind == DateTimeKind.Utc) return dt;
+
+        if (dt.Kind == DateTimeKind.Local)
+            return dt.ToUniversalTime();
+
+        // Unspecified (thường từ SQL Server datetime/datetime2) => coi là UTC và chỉ set Kind
+        return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+    }
+
+    private static DateTime? EnsureUtc(DateTime? dt)
+        => dt.HasValue ? EnsureUtc(dt.Value) : null;
+
+    private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
+    {
+        var dateStr = createdAt.ToString("yyyyMMdd");
+        var orderIdStr = orderId.ToString().Replace("-", "").Substring(0, 4).ToUpperInvariant();
+        return $"ORD-{dateStr}-{orderIdStr}";
+    }
 
     private static IQueryable<Ticket> BaseQuery(KeytietkiemDbContext db) => db.Tickets.AsNoTracking()
         .Include(t => t.User)
@@ -433,6 +456,31 @@ public class TicketsController : ControllerBase
             CreatedAt = x.CreatedAt
         }).ToList();
 
+        // ======= Customer Orders (toàn bộ đơn hàng của người tạo ticket) =======
+        var customerEmail = (t.User?.Email ?? string.Empty).Trim();
+        var ordersRaw = await _db.Orders.AsNoTracking()
+            .Where(o => o.UserId == t.UserId || (!string.IsNullOrEmpty(customerEmail) && o.Email == customerEmail))
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(o => new
+            {
+                o.OrderId,
+                o.TotalAmount,
+                o.FinalAmount,
+                o.Status,
+                o.CreatedAt
+            })
+            .ToListAsync();
+
+        var customerOrders = ordersRaw.Select(o => new LatestOrderMiniDto
+        {
+            OrderId = o.OrderId,
+            OrderNumber = FormatOrderNumber(o.OrderId, EnsureUtc(o.CreatedAt)),
+            TotalAmount = o.TotalAmount,
+            FinalAmount = o.FinalAmount,
+            Status = o.Status ?? string.Empty,
+            CreatedAt = EnsureUtc(o.CreatedAt)
+        }).ToList();
+
         var dto = new TicketDetailDto
         {
             TicketId = t.TicketId,
@@ -462,7 +510,10 @@ public class TicketsController : ControllerBase
             UpdatedAt = t.UpdatedAt,
 
             Replies = replies,
-            RelatedTickets = related
+            RelatedTickets = related,
+
+            CustomerOrders = customerOrders,
+            LatestOrder = customerOrders.FirstOrDefault()
         };
 
         return Ok(dto);
@@ -535,6 +586,31 @@ public class TicketsController : ControllerBase
             CreatedAt = x.CreatedAt
         }).ToList();
 
+        // ======= Customer Orders (toàn bộ đơn hàng của người tạo ticket) =======
+        var customerEmail = (t.User?.Email ?? string.Empty).Trim();
+        var ordersRaw = await _db.Orders.AsNoTracking()
+            .Where(o => o.UserId == t.UserId || (!string.IsNullOrEmpty(customerEmail) && o.Email == customerEmail))
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(o => new
+            {
+                o.OrderId,
+                o.TotalAmount,
+                o.FinalAmount,
+                o.Status,
+                o.CreatedAt
+            })
+            .ToListAsync();
+
+        var customerOrders = ordersRaw.Select(o => new LatestOrderMiniDto
+        {
+            OrderId = o.OrderId,
+            OrderNumber = FormatOrderNumber(o.OrderId, EnsureUtc(o.CreatedAt)),
+            TotalAmount = o.TotalAmount,
+            FinalAmount = o.FinalAmount,
+            Status = o.Status ?? string.Empty,
+            CreatedAt = EnsureUtc(o.CreatedAt)
+        }).ToList();
+
         var dto = new TicketDetailDto
         {
             TicketId = t.TicketId,
@@ -564,7 +640,9 @@ public class TicketsController : ControllerBase
             UpdatedAt = t.UpdatedAt,
 
             Replies = replies,
-            RelatedTickets = related
+            RelatedTickets = related,
+            CustomerOrders = customerOrders,
+            LatestOrder = customerOrders.FirstOrDefault()
         };
 
         return Ok(dto);
@@ -813,7 +891,7 @@ public class TicketsController : ControllerBase
         // 🔐 AUDIT LOG – ASSIGN TICKET
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Assign",
+            action: "AssignStaffToTicket",
             entityType: "Ticket",
             entityId: t.TicketId.ToString(),
             before: before,
@@ -1152,7 +1230,7 @@ public class TicketsController : ControllerBase
         // 🔐 AUDIT LOG – COMPLETE TICKET
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Complete",
+            action: "CompleteTicket",
             entityType: "Ticket",
             entityId: t.TicketId.ToString(),
             before: before,
@@ -1233,7 +1311,7 @@ public class TicketsController : ControllerBase
         // 🔐 AUDIT LOG – CLOSE TICKET
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Close",
+            action: "CloseTicket",
             entityType: "Ticket",
             entityId: t.TicketId.ToString(),
             before: before,

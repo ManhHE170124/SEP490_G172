@@ -1,5 +1,6 @@
 /**
  * File: PostCommentsController.cs
+ * Author: HieuNDHE173169
  * Created: 2025-01-15
  * Purpose: Manage post comments (CRUD). Handles comment creation, updates, deletion,
  *          and approval with support for nested comments (replies).
@@ -22,11 +23,15 @@ using Keytietkiem.DTOs.Post;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using System.Security.Claims;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
+    /// <summary>
+    /// Controller for managing post comments (CRUD operations).
+    /// Handles comment creation, updates, deletion, and approval with support for nested comments (replies).
+    /// </summary>
     [Route("api/comments")]
     [ApiController]
     [Authorize]
@@ -34,17 +39,24 @@ namespace Keytietkiem.Controllers
     {
         private readonly IPostService _postService;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PostCommentsController"/> class.
+        /// </summary>
+        /// <param name="postService">The post service for business logic operations.</param>
+        /// <exception cref="ArgumentNullException">Thrown when postService is null.</exception>
         public PostCommentsController(IPostService postService)
         {
             _postService = postService ?? throw new ArgumentNullException(nameof(postService));
         }
 
-        /**
-         * Summary: Retrieve all comments with optional filters.
-         * Route: GET /api/comments
-         * Params: postId, userId, isApproved, parentCommentId (all optional query params)
-         * Returns: 200 OK with list of comments
-         */
+        /// <summary>
+        /// Retrieves all comments with optional filters.
+        /// </summary>
+        /// <param name="postId">Optional post identifier to filter by.</param>
+        /// <param name="userId">Optional user identifier to filter by.</param>
+        /// <param name="isApproved">Optional approval status to filter by.</param>
+        /// <param name="parentCommentId">Optional parent comment identifier to filter by.</param>
+        /// <returns>200 OK with list of comments.</returns>
     [HttpGet]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
     public async Task<IActionResult> GetComments(
@@ -64,12 +76,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Retrieve a comment by id with nested replies.
-         * Route: GET /api/comments/{id}
-         * Params: id (Guid) - comment identifier
-         * Returns: 200 OK with comment, 404 if not found
-         */
+        /// <summary>
+        /// Retrieves a comment by its identifier with nested replies.
+        /// </summary>
+        /// <param name="id">The comment identifier.</param>
+        /// <returns>200 OK with comment details, or 404 if not found.</returns>
     [HttpGet("{id}")]
     [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
     public async Task<IActionResult> GetCommentById(Guid id)
@@ -89,12 +100,13 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Get top-level comments for a specific post (ParentCommentId = NULL).
-         * Route: GET /api/comments/posts/{postId}/comments
-         * Params: postId (Guid) - post identifier
-         * Returns: 200 OK with list of top-level comments and their replies
-         */
+        /// <summary>
+        /// Retrieves top-level comments for a specific post (ParentCommentId = NULL).
+        /// </summary>
+        /// <param name="postId">The post identifier.</param>
+        /// <param name="page">Page number (default: 1).</param>
+        /// <param name="pageSize">Page size (default: 20).</param>
+        /// <returns>200 OK with list of top-level comments and their replies.</returns>
         [HttpGet("posts/{postId}/comments")]
         [AllowAnonymous]
         public async Task<IActionResult> GetPostComments(
@@ -117,12 +129,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Get direct replies for a specific comment.
-         * Route: GET /api/comments/{id}/replies
-         * Params: id (Guid) - parent comment identifier
-         * Returns: 200 OK with list of replies, 404 if parent comment not found
-         */
+        /// <summary>
+        /// Retrieves direct replies for a specific comment.
+        /// </summary>
+        /// <param name="id">The parent comment identifier.</param>
+        /// <returns>200 OK with list of replies, or 404 if parent comment not found.</returns>
         [HttpGet("{id}/replies")]
         [AllowAnonymous]
         public async Task<IActionResult> GetCommentReplies(Guid id)
@@ -142,12 +153,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Create a new comment or reply.
-         * Route: POST /api/comments
-         * Body: CreatePostCommentDTO createCommentDto
-         * Returns: 201 Created with created comment, 400/404 on validation errors
-         */
+        /// <summary>
+        /// Creates a new comment or reply.
+        /// </summary>
+        /// <param name="createCommentDto">The comment creation data.</param>
+        /// <returns>201 Created with the created comment, or 400/404 on validation errors.</returns>
         [HttpPost]
         public async Task<IActionResult> CreateComment([FromBody] CreatePostCommentDTO createCommentDto)
         {
@@ -172,13 +182,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Update an existing comment.
-         * Route: PUT /api/comments/{id}
-         * Params: id (Guid)
-         * Body: UpdatePostCommentDTO updateCommentDto
-         * Returns: 200 OK, 400/404 on errors
-         */
+        /// <summary>
+        /// Updates an existing comment.
+        /// </summary>
+        /// <param name="id">The comment identifier.</param>
+        /// <param name="updateCommentDto">The comment update data.</param>
+        /// <returns>200 OK on success, or 400/404 on errors.</returns>
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateComment(Guid id, [FromBody] UpdatePostCommentDTO updateCommentDto)
         {
@@ -212,12 +221,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Delete a comment and all its replies recursively.
-         * Route: DELETE /api/comments/{id}
-         * Params: id (Guid)
-         * Returns: 204 No Content, 404 if not found
-         */
+        /// <summary>
+        /// Deletes a comment and all its replies recursively.
+        /// </summary>
+        /// <param name="id">The comment identifier.</param>
+        /// <returns>204 No Content on success, or 404 if not found.</returns>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteComment(Guid id)
         {
@@ -237,12 +245,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Show a comment (set IsApproved = true).
-         * Route: PATCH /api/comments/{id}/show
-         * Params: id (Guid)
-         * Returns: 200 OK, 400 if parent is hidden, 404 if not found
-         */
+        /// <summary>
+        /// Shows a comment (sets IsApproved = true).
+        /// </summary>
+        /// <param name="id">The comment identifier.</param>
+        /// <returns>200 OK on success, 400 if parent is hidden, or 404 if not found.</returns>
         [HttpPatch("{id}/show")]
         public async Task<IActionResult> ShowComment(Guid id)
         {
@@ -262,12 +269,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Hide a comment (set IsApproved = false).
-         * Route: PATCH /api/comments/{id}/hide
-         * Params: id (Guid)
-         * Returns: 200 OK, 404 if not found
-         */
+        /// <summary>
+        /// Hides a comment (sets IsApproved = false).
+        /// </summary>
+        /// <param name="id">The comment identifier.</param>
+        /// <returns>200 OK on success, or 404 if not found.</returns>
         [HttpPatch("{id}/hide")]
         public async Task<IActionResult> HideComment(Guid id)
         {

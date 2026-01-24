@@ -172,6 +172,17 @@
   font-size: 13px;
 }
 
+.apl-inlineError {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  background: rgba(185, 28, 28, 0.06);
+  color: #b91c1c;
+  border-radius: 12px;
+  font-weight: 900;
+  font-size: 13px;
+}
+
 /* ===== Table ===== */
 .apl-tableWrap {
   margin-top: 10px;
@@ -339,6 +350,109 @@
   border-color: rgba(168, 85, 247, 0.18);
 }
 
+/* ===== Status dropdown pill ===== */
+.apl-statusMenuWrap {
+  position: relative;
+  display: inline-block;
+}
+
+.apl-pillDropdown {
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
+  padding-right: 8px;
+  transition: box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.apl-pillDropdown:hover {
+  box-shadow: 0 8px 18px rgba(2, 6, 23, 0.08);
+}
+
+.apl-pillDropdown:active {
+  transform: translateY(1px);
+}
+
+.apl-pillDropdown.open {
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.12);
+}
+
+.apl-pillDropdown.disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.apl-pillText {
+  display: inline-flex;
+  align-items: center;
+}
+
+.apl-pillCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+/* menu */
+.apl-statusMenu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  box-shadow: 0 18px 46px rgba(2, 6, 23, 0.18);
+  padding: 8px;
+}
+
+.apl-statusMenuItem {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  padding: 10px 10px;
+  border-radius: 12px;
+  font-weight: 900;
+  font-size: 13px;
+  color: #111827;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
+}
+
+.apl-statusMenuItem:hover {
+  background: #f9fafb;
+  border-color: rgba(226, 232, 240, 0.9);
+}
+
+.apl-statusMenuItem:active {
+  transform: translateY(1px);
+}
+
+/* tint menu item theo status */
+.apl-statusMenuItem.payment-pending:hover {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.apl-statusMenuItem.payment-paid:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.apl-statusMenuItem.payment-cancelled:hover,
+.apl-statusMenuItem.payment-failed:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.apl-statusMenuItem.payment-timeout:hover {
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.apl-statusMenuItem.payment-refunded:hover {
+  background: rgba(2, 132, 199, 0.1);
+}
+
 /* ===== Pager ===== */
 .apl-pager {
   margin-top: 14px;
@@ -420,7 +534,7 @@
 
 /* ===== Modal (centered) ===== */
 .apl-modal-backdrop {
-  position: fixed; /* ✅ không bị nhảy xuống cuối trang */
+  position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.45);
   display: flex;

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CloudinaryDotNet.Actions;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Support;
 using Keytietkiem.Infrastructure;
@@ -13,6 +12,7 @@ using Keytietkiem.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -247,7 +247,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – CREATE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateSupportPriorityLoyaltyRule",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: entity.RuleId.ToString(),
                 before: null,
@@ -380,7 +380,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – UPDATE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateSupportPriorityLoyaltyRule",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: entity.RuleId.ToString(),
                 before: before,
@@ -419,7 +419,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – DELETE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteSupportPriorityLoyaltyRule",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: ruleId.ToString(),
                 before: before,
@@ -519,7 +519,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – TOGGLE RULE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Toggle",
+                action: "ToggleSupportPriorityLoyaltyRuleActive",
                 entityType: "SupportPriorityLoyaltyRule",
                 entityId: entity.RuleId.ToString(),
                 before: before,

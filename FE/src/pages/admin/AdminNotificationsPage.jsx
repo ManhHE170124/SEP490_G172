@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./admin-notifications-page.css";
 import { NotificationsApi } from "../../services/notifications";
+import formatDatetime from "../../utils/formatDatetime";
 
 const severityOptions = [
   { value: "", label: "Tất cả mức độ" },
@@ -59,15 +60,18 @@ function notificationTypeLabel(type) {
   const map = {
     // Ticket
     ticketassigned: "Gán ticket",
-    tickettransferred: "Chuyển ticket",
-    ticketstaffreplied: "Ticket có phản hồi",
-
-    // Key
+  tickettransferred: "Chuyển ticket",
+  ticketstaffreplied: "Ticket có phản hồi",
+  supportchatadminassigned: "Gán phiên chat",            
+  supportchatadmintransferredtoyou: "Được chuyển phiên chat",  
+  supportchatadmintransferredaway: "Bị chuyển phiên chat",  
     keyimportcsv: "Nhập key hàng loạt",
 
     // Report
-    productreportcreated: "Báo lỗi sản phẩm",
-
+  productreportcreated: "Báo lỗi sản phẩm",
+  orderneedsmanualaction: "Đơn hàng cần xử lý thủ công",
+  ordersharedaccountpurchased: "Đơn hàng mua tài khoản chia sẻ",       
+  paymentneedreview: "Giao dịch cần review thủ công",
     // Product account
     productaccountcustomerrevoked: "Thu hồi quyền truy cập tài khoản",
 
@@ -924,7 +928,7 @@ const AdminNotificationsPage = () => {
                   <tr key={n.id}>
                     <td className="col-created">
                       <span className="notif-date">
-                        {new Date(n.createdAtUtc).toLocaleString("vi-VN")}
+                        {formatDatetime(n.createdAtUtc)}
                       </span>
                     </td>
                     <td className="col-title notif-title-cell">
@@ -1483,9 +1487,7 @@ const AdminNotificationsPage = () => {
                     <div className="detail-row">
                       <span className="detail-label">Thời gian tạo:</span>
                       <span className="detail-value">
-                        {new Date(
-                          selectedNotification.createdAtUtc
-                        ).toLocaleString("vi-VN")}
+                        {formatDatetime(selectedNotification.createdAtUtc)}
                       </span>
                     </div>
 

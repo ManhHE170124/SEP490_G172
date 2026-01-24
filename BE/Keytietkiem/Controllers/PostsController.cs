@@ -24,19 +24,30 @@ using Keytietkiem.DTOs.Post;
 using Keytietkiem.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using System.Security.Claims;
 using Keytietkiem.Models;
 using Microsoft.EntityFrameworkCore;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
+    /// <summary>
+    /// Controller for managing blog posts (CRUD operations).
+    /// Handles post creation, updates, and deletion with proper relationships to authors, post types, tags, and post images.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class PostsController : ControllerBase
     {
         private readonly IPostService _postService;
         private readonly KeytietkiemDbContext _context;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PostsController"/> class.
+        /// </summary>
+        /// <param name="postService">The post service for business logic operations.</param>
+        /// <param name="keytietkiemDbContext">The database context.</param>
+        /// <exception cref="ArgumentNullException">Thrown when postService is null.</exception>
         public PostsController(
             IPostService postService, KeytietkiemDbContext keytietkiemDbContext)
         {
@@ -44,12 +55,11 @@ namespace Keytietkiem.Controllers
             _context = keytietkiemDbContext;
         }
 
-        /**
-         * Summary: Retrieve all posts.
-         * Route: GET /api/posts
-         * Params: excludeStaticContent (bool, optional) - If true, excludes static content posts
-         * Returns: 200 OK with list of posts
-         */
+        /// <summary>
+        /// Retrieves all posts.
+        /// </summary>
+        /// <param name="excludeStaticContent">If true, excludes static content posts.</param>
+        /// <returns>200 OK with list of posts.</returns>
         [HttpGet]
         [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -66,12 +76,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Retrieve a post by id.
-         * Route: GET /api/posts/{id}
-         * Params: id (Guid) - post identifier
-         * Returns: 200 OK with post, 404 if not found
-         */
+        /// <summary>
+        /// Retrieves a post by its identifier.
+        /// </summary>
+        /// <param name="id">The post identifier.</param>
+        /// <returns>200 OK with post details, or 404 if not found.</returns>
         [HttpGet("{id}")]
         [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -92,12 +101,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Create a new post.
-         * Route: POST /api/posts
-         * Body: CreatePostDTO createPostDto
-         * Returns: 201 Created with created post, 400/404 on validation errors
-         */
+        /// <summary>
+        /// Creates a new post.
+        /// </summary>
+        /// <param name="createPostDto">The post creation data.</param>
+        /// <returns>201 Created with the created post, or 400/404 on validation errors.</returns>
         [HttpPost]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -134,13 +142,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Update an existing post by id.
-         * Route: PUT /api/posts/{id}
-         * Params: id (Guid)
-         * Body: UpdatePostDTO updatePostDto
-         * Returns: 204 No Content, 400/404 on errors
-         */
+        /// <summary>
+        /// Updates an existing post.
+        /// </summary>
+        /// <param name="id">The post identifier.</param>
+        /// <param name="updatePostDto">The post update data.</param>
+        /// <returns>204 No Content on success, or 400/404 on errors.</returns>
         [HttpPut("{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -177,12 +184,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Delete a post by id and cascade remove related post images.
-         * Route: DELETE /api/posts/{id}
-         * Params: id (Guid)
-         * Returns: 204 No Content, 404 if not found
-         */
+        /// <summary>
+        /// Deletes a post and cascades removal of related post images.
+        /// </summary>
+        /// <param name="id">The post identifier.</param>
+        /// <returns>204 No Content on success, or 404 if not found.</returns>
         [HttpDelete("{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -204,12 +210,10 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Retrieve all post types.
-         * Route: GET /api/posts/posttypes
-         * Params: none
-         * Returns: 200 OK with list of post types
-         */
+        /// <summary>
+        /// Retrieves all post types.
+        /// </summary>
+        /// <returns>200 OK with list of post types.</returns>
         [HttpGet("posttypes")]
         [AllowAnonymous]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -226,6 +230,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
+        /// <summary>
+        /// Creates a new post type.
+        /// </summary>
+        /// <param name="createPostTypeDto">The post type creation data.</param>
+        /// <returns>201 Created with the created post type, or 400 on validation errors.</returns>
         [HttpPost("posttypes")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -258,6 +267,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
+        /// <summary>
+        /// Updates an existing post type.
+        /// </summary>
+        /// <param name="id">The post type identifier.</param>
+        /// <param name="updatePostTypeDto">The post type update data.</param>
+        /// <returns>204 No Content on success, or 400/404 on errors.</returns>
         [HttpPut("posttypes/{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -295,6 +310,11 @@ namespace Keytietkiem.Controllers
         }
 
 
+        /// <summary>
+        /// Deletes a post type.
+        /// </summary>
+        /// <param name="id">The post type identifier.</param>
+        /// <returns>204 No Content on success, or 400/404 on errors.</returns>
         [HttpDelete("posttypes/{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -316,12 +336,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Get post by slug for public viewing
-         * Route: GET /api/posts/slug/{slug}
-         * Params: slug (string) - post URL slug
-         * Returns: 200 OK with post detail, 404 if not found
-         */
+        /// <summary>
+        /// Retrieves a post by its slug for public viewing.
+        /// </summary>
+        /// <param name="slug">The post URL slug.</param>
+        /// <returns>200 OK with post details, or 404 if not found.</returns>
         [HttpGet("slug/{slug}")]
         [AllowAnonymous] 
         public async Task<IActionResult> GetPostBySlug(string slug)
@@ -341,12 +360,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Get related posts (same postType, exclude current)
-         * Route: GET /api/posts/{id}/related
-         * Params: id (Guid), limit (int, optional, default 3)
-         * Returns: 200 OK with list of related posts
-         */
+        /// <summary>
+        /// Retrieves related posts (same post type, excluding current post).
+        /// </summary>
+        /// <param name="id">The post identifier.</param>
+        /// <param name="limit">Maximum number of related posts to return (default: 3).</param>
+        /// <returns>200 OK with list of related posts.</returns>
         [HttpGet("{id}/related")]
         [AllowAnonymous]
         public async Task<IActionResult> GetRelatedPosts(Guid id, [FromQuery] int limit = 3)
@@ -367,11 +386,10 @@ namespace Keytietkiem.Controllers
         }
 
 
-        /**
-         * Summary: Get all SpecificDocumentation posts
-         * Route: GET /api/posts/specific-documentation
-         * Returns: 200 OK with list of SpecificDocumentation posts
-         */
+        /// <summary>
+        /// Retrieves all SpecificDocumentation posts.
+        /// </summary>
+        /// <returns>200 OK with list of SpecificDocumentation posts.</returns>
         [HttpGet("specific-documentation")]
         [AllowAnonymous]
         public async Task<IActionResult> GetAllSpecificDocumentation()
@@ -387,12 +405,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Get SpecificDocumentation post by slug
-         * Route: GET /api/posts/specific-documentation/{slug}
-         * Params: slug (string) - post slug
-         * Returns: 200 OK with post detail, 404 if not found
-         */
+        /// <summary>
+        /// Retrieves a SpecificDocumentation post by its slug.
+        /// </summary>
+        /// <param name="slug">The post slug.</param>
+        /// <returns>200 OK with post details, or 404 if not found.</returns>
         [HttpGet("specific-documentation/{slug}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetSpecificDocumentationBySlug(string slug)
@@ -416,12 +433,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Create new SpecificDocumentation post
-         * Route: POST /api/posts/specific-documentation
-         * Body: CreatePostDTO (with PostTypeId set to SpecificDocumentation)
-         * Returns: 201 Created with post detail, 400 on errors
-         */
+        /// <summary>
+        /// Creates a new SpecificDocumentation post.
+        /// </summary>
+        /// <param name="createDto">The post creation data (with PostTypeId set to SpecificDocumentation).</param>
+        /// <returns>201 Created with post details, or 400 on errors.</returns>
         [HttpPost("specific-documentation")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -458,13 +474,12 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Update SpecificDocumentation post
-         * Route: PUT /api/posts/specific-documentation/{id}
-         * Params: id (Guid) - post identifier
-         * Body: UpdatePostDTO
-         * Returns: 204 No Content, 400/404 on errors
-         */
+        /// <summary>
+        /// Updates a SpecificDocumentation post.
+        /// </summary>
+        /// <param name="id">The post identifier.</param>
+        /// <param name="updateDto">The post update data.</param>
+        /// <returns>204 No Content on success, or 400/404 on errors.</returns>
         [HttpPut("specific-documentation/{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]
@@ -501,12 +516,11 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        /**
-         * Summary: Delete SpecificDocumentation post
-         * Route: DELETE /api/posts/specific-documentation/{id}
-         * Params: id (Guid) - post identifier
-         * Returns: 204 No Content, 404 if not found
-         */
+        /// <summary>
+        /// Deletes a SpecificDocumentation post.
+        /// </summary>
+        /// <param name="id">The post identifier.</param>
+        /// <returns>204 No Content on success, or 404 if not found.</returns>
         [HttpDelete("specific-documentation/{id}")]
         [Authorize]
         [RequireRole(RoleCodes.ADMIN, RoleCodes.CONTENT_CREATOR)]

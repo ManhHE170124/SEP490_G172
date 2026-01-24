@@ -3,12 +3,12 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers;
 
@@ -81,7 +81,7 @@ public class SupplierController : ControllerBase
         // Audit log: CREATE (success only)
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Create",
+            action: "CreateSupplier",
             entityType: "Supplier",
             entityId: supplier.SupplierId.ToString(),
             before: null,
@@ -116,7 +116,7 @@ public class SupplierController : ControllerBase
         // Audit log: UPDATE (success only)
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Update",
+            action: "UpdateSupplier",
             entityType: "Supplier",
             entityId: supplier.SupplierId.ToString(),
             before: new
@@ -154,7 +154,7 @@ public class SupplierController : ControllerBase
         // Audit log: DEACTIVATE (success only)
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "Deactivate",
+            action: "DeactivateSupplier",
             entityType: "Supplier",
             entityId: dto.SupplierId.ToString(),
             before: new
@@ -189,7 +189,7 @@ public class SupplierController : ControllerBase
         // Audit log: TOGGLE STATUS (success only)
         await _auditLogger.LogAsync(
             HttpContext,
-            action: "ToggleStatus",
+            action: "ToggleSupplierStatus",
             entityType: "Supplier",
             entityId: supplier.SupplierId.ToString(),
             before: new

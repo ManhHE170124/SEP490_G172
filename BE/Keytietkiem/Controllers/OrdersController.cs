@@ -1,11 +1,9 @@
 ﻿using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Orders;
 using Keytietkiem.Infrastructure;
 using Keytietkiem.Models;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
-using Keytietkiem.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,10 +13,12 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using static Keytietkiem.Constants.RoleCodes;
+using static Keytietkiem.Utils.Constants.RoleCodes;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -48,6 +48,14 @@ namespace Keytietkiem.Controllers
         private const string PayStatus_NeedReview = "NeedReview";
         private const string PayStatus_DupCancelled = "DupCancelled";
         private const string PayStatus_Replaced = "Replaced";
+        private const string PayStatus_Refunded = "Refunded";
+
+        private const string OrderStatus_PendingPayment = "PendingPayment";
+        private const string OrderStatus_Paid = "Paid";
+        private const string OrderStatus_Cancelled = "Cancelled";
+        private const string OrderStatus_CancelledByTimeout = "CancelledByTimeout";
+        private const string OrderStatus_NeedsManualAction = "NeedsManualAction";
+        private const string OrderStatus_Refunded = "Refunded";
 
         private sealed class PaymentLite
         {
@@ -79,6 +87,9 @@ namespace Keytietkiem.Controllers
             _inventoryReservation = inventoryReservation;
         }
 
+        // =========================================================
+        // CHECKOUT
+        // =========================================================
         [HttpPost("checkout")]
         [EnableRateLimiting("CartPolicy")]
         [AllowAnonymous]
@@ -279,11 +290,19 @@ namespace Keytietkiem.Controllers
 
                 if (!db.Database.IsRelational())
                 {
-                    (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
-                        await GuardAndRepriceCartAsync(db, validItems, HttpContext.RequestAborted);
+                    try
+                    {
+                        (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
+                            await GuardAndRepriceCartAsync(db, validItems, HttpContext.RequestAborted);
 
-                    totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
-                    totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                        totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
+                        totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        // thiếu hàng / ngừng bán / kho không đủ
+                        return Conflict(new { message = ex.Message });
+                    }
                 }
 
                 Order order;
@@ -336,12 +355,19 @@ namespace Keytietkiem.Controllers
                         return BadRequest(new { message = "Giỏ hàng rỗng" });
                     }
 
-                    // ✅ Reprice + Guard snapshot SAU claim (đúng nghiệp vụ)
-                    (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
-                        await GuardAndRepriceCartAsync(db, txItems, HttpContext.RequestAborted);
+                    try
+                    {
+                        (lines, unitPriceByVariantId, totalListAmount, totalAmount) =
+                            await GuardAndRepriceCartAsync(db, txItems, HttpContext.RequestAborted);
 
-                    totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
-                    totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                        totalListAmount = Math.Round(totalListAmount, 2, MidpointRounding.AwayFromZero);
+                        totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        await tx.RollbackAsync();
+                        return Conflict(new { message = ex.Message });
+                    }
 
                     order = new Order
                     {
@@ -349,7 +375,7 @@ namespace Keytietkiem.Controllers
                         Email = buyerEmail,
                         TotalAmount = totalListAmount,
                         DiscountAmount = totalListAmount - totalAmount,
-                        Status = "PendingPayment",
+                        Status = OrderStatus_PendingPayment,
                         CreatedAt = nowUtc
                     };
 
@@ -464,7 +490,7 @@ namespace Keytietkiem.Controllers
                         Email = buyerEmail,
                         TotalAmount = totalListAmount,
                         DiscountAmount = totalListAmount - totalAmount,
-                        Status = "PendingPayment",
+                        Status = OrderStatus_PendingPayment,
                         CreatedAt = nowUtc
                     };
 
@@ -512,6 +538,36 @@ namespace Keytietkiem.Controllers
                     db.Payments.Add(payment);
                     await db.SaveChangesAsync();
 
+                    // ✅ Audit: order created + payment attempt created (InMemory/unit test path)
+                    try
+                    {
+                        await _auditLogger.LogAsync(
+                            HttpContext,
+                            action: "CheckoutFromCart",
+                            entityType: "Order",
+                            entityId: order.OrderId.ToString(),
+                            before: null,
+                            after: new
+                            {
+                                order.OrderId,
+                                order.Status,
+                                payment.PaymentId,
+                                PaymentStatus = payment.Status,
+                                payment.Provider,
+                                payment.ProviderOrderCode,
+                                payment.PaymentLinkId,
+                                payment.TargetType,
+                                payment.TargetId,
+                                CartId = cart.CartId,
+                                CartStatus = cart.Status,
+                                cart.ConvertedOrderId
+                            });
+                    }
+                    catch
+                    {
+                        // audit fail must not fail API
+                    }
+
                     return Ok(new CheckoutFromCartResponseDto
                     {
                         OrderId = order.OrderId,
@@ -528,20 +584,22 @@ namespace Keytietkiem.Controllers
             }
         }
 
-        // ================== READ-ONLY ==================
+        // =========================================================
+        // LIST / HISTORY / DETAIL
+        // =========================================================
         [HttpGet]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetOrders(
-          [FromQuery] string? search = null,
-     [FromQuery] DateTime? createdFrom = null,
-     [FromQuery] DateTime? createdTo = null,
-     [FromQuery] string? orderStatus = null,
-     [FromQuery] decimal? minTotal = null,
-     [FromQuery] decimal? maxTotal = null,
-     [FromQuery] string? sortBy = "createdat",
-     [FromQuery] string? sortDir = "desc",
-     [FromQuery] int pageIndex = 1,
-     [FromQuery] int pageSize = 20)
+            [FromQuery] string? search = null,
+            [FromQuery] DateTime? createdFrom = null,
+            [FromQuery] DateTime? createdTo = null,
+            [FromQuery] string? orderStatus = null,
+            [FromQuery] decimal? minTotal = null,
+            [FromQuery] decimal? maxTotal = null,
+            [FromQuery] string? sortBy = "createdat",
+            [FromQuery] string? sortDir = "desc",
+            [FromQuery] int pageIndex = 1,
+            [FromQuery] int pageSize = 20)
         {
             await using var db = _dbFactory.CreateDbContext();
 
@@ -568,18 +626,15 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // ✅ Filter created range
             if (createdFrom.HasValue)
                 query = query.Where(o => o.CreatedAt >= createdFrom.Value);
 
             if (createdTo.HasValue)
                 query = query.Where(o => o.CreatedAt <= createdTo.Value);
 
-            // ✅ Filter status
             if (!string.IsNullOrWhiteSpace(orderStatus))
                 query = query.Where(o => o.Status == orderStatus);
 
-            // ✅ Filter price range theo FinalAmount
             if (minTotal.HasValue)
                 query = query.Where(o => (o.TotalAmount - o.DiscountAmount) >= minTotal.Value);
 
@@ -588,7 +643,6 @@ namespace Keytietkiem.Controllers
 
             var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
 
-            // ✅ Sort
             query = (sortBy ?? string.Empty).Trim().ToLowerInvariant() switch
             {
                 "orderid" => desc ? query.OrderByDescending(o => o.OrderId) : query.OrderBy(o => o.OrderId),
@@ -620,19 +674,17 @@ namespace Keytietkiem.Controllers
                     CreatedAt = o.CreatedAt,
 
                     ItemCount = db.OrderDetails.Count(od => od.OrderId == o.OrderId),
-
-                    // nếu bạn đang dùng orderNumber theo FormatOrderNumber
                     OrderNumber = null,
-
-                    // giữ nguyên nếu bạn đang show payment summary ở list (không bắt buộc theo yêu cầu)
                     Payment = null,
                     PaymentAttemptCount = 0
                 })
                 .ToListAsync();
 
-            // (optional) gán OrderNumber (nếu bạn muốn)
             foreach (var it in items)
+            {
+                it.CreatedAt = EnsureUtc(it.CreatedAt);
                 it.OrderNumber = FormatOrderNumber(it.OrderId, it.CreatedAt);
+            }
 
             return Ok(new
             {
@@ -642,7 +694,6 @@ namespace Keytietkiem.Controllers
                 pageSize
             });
         }
-
 
         [HttpGet("history")]
         [Authorize]
@@ -670,7 +721,6 @@ namespace Keytietkiem.Controllers
 
             var items = orders.Select(o =>
             {
-                // ✅ ưu tiên Paid > Pending > latest (tránh case latest là DupCancelled/Replaced)
                 var pay = payments
                     .Where(p => p.TargetId == o.OrderId.ToString())
                     .OrderByDescending(p => IsPaidLike(p.Status))
@@ -710,11 +760,10 @@ namespace Keytietkiem.Controllers
             [FromQuery] bool includePaymentAttempts = true,
             [FromQuery] bool includeCheckoutUrl = false,
 
-            // ✅ apply cho OrderItems
             [FromQuery] string? search = null,
             [FromQuery] decimal? minPrice = null,
             [FromQuery] decimal? maxPrice = null,
-            [FromQuery] string? sortBy = "orderdetailid",   // orderdetailid|varianttitle|quantity|unitprice
+            [FromQuery] string? sortBy = "orderdetailid",
             [FromQuery] string? sortDir = "asc",
             [FromQuery] int pageIndex = 1,
             [FromQuery] int pageSize = 20)
@@ -736,32 +785,27 @@ namespace Keytietkiem.Controllers
                 if (order == null)
                     return NotFound(new { message = "Đơn hàng không được tìm thấy" });
 
-                // Check role: Admin/Storage Staff can view any order
-                // Customer can only view their own orders
                 var currentUserId = GetCurrentUserIdOrNull();
                 var roleCodes = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
                 bool hasPermission = false;
 
-                // Admin or Storage Staff have full access
-                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF))
+                if (roleCodes.Contains(RoleCodes.ADMIN) || roleCodes.Contains(RoleCodes.STORAGE_STAFF) || roleCodes.Contains(RoleCodes.CUSTOMER_CARE))
                 {
                     hasPermission = true;
                 }
 
-                // If user doesn't have permission, check if it's their own order
                 if (!hasPermission)
                 {
                     if (!currentUserId.HasValue || order.UserId != currentUserId.Value)
                     {
-                        // Return 404-like message for security (don't reveal resource existence)
                         return NotFound(new { message = "Đơn hàng không tồn tại." });
                     }
                 }
 
                 var orderDto = await MapToOrderDTOAsync(db, order);
+                orderDto.CreatedAt = EnsureUtc(orderDto.CreatedAt);
 
-                // ✅ Bổ sung payment summary + attempts (giữ nguyên logic cũ của bạn)
                 var nowUtc = DateTime.UtcNow;
                 var targetId = id.ToString();
 
@@ -783,6 +827,12 @@ namespace Keytietkiem.Controllers
                                     && nowUtc > p.CreatedAt.Add(PaymentTimeout)
                     })
                     .ToListAsync();
+
+                foreach (var a in attempts)
+                {
+                    a.CreatedAt = EnsureUtc(a.CreatedAt);
+                    a.ExpiresAtUtc = EnsureUtc(a.ExpiresAtUtc);
+                }
 
                 var best = attempts
                     .OrderByDescending(x => IsPaidLike(x.Status))
@@ -827,7 +877,6 @@ namespace Keytietkiem.Controllers
                 if (includePaymentAttempts)
                     orderDto.PaymentAttempts = attempts;
 
-                // ================== ✅ Filter/Search/Sort/Paging cho OrderItems ==================
                 var allItems = orderDto.OrderDetails ?? new List<OrderDetailDTO>();
 
                 if (!string.IsNullOrWhiteSpace(search))
@@ -872,12 +921,8 @@ namespace Keytietkiem.Controllers
                     .Take(pageSize)
                     .ToList();
 
-                // ✅ đảm bảo payload không “lộ” list full ngoài paging
                 orderDto.OrderDetails = pagedItems;
 
-
-                // ✅ Audit truy cập Order Detail (có thể chứa key/account/password).
-                // Chỉ audit khi order.Status == "Paid" để tránh spam log.
                 await TryAuditOrderDetailAccessIfPaidAsync(
                     order,
                     endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{id:guid}"),
@@ -911,8 +956,9 @@ namespace Keytietkiem.Controllers
                 return StatusCode(500, new { message = "Đã có lỗi hệ thống. Vui lòng thử lại sau.", error = ex.Message });
             }
         }
+
         [HttpGet("{id:guid}/details")]
-        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF)]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.STORAGE_STAFF, RoleCodes.CUSTOMER_CARE)]
         public async Task<IActionResult> GetOrderDetails(
             Guid id,
             [FromQuery] string? search = null,
@@ -983,9 +1029,6 @@ namespace Keytietkiem.Controllers
                 .Take(pageSize)
                 .ToList();
 
-
-            // ✅ Audit truy cập Order Detail list (có thể chứa key/account/password).
-            // Chỉ audit khi order.Status == "Paid" để tránh spam log.
             await TryAuditOrderDetailAccessIfPaidAsync(
                 order,
                 endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{id:guid}/details"),
@@ -1013,9 +1056,7 @@ namespace Keytietkiem.Controllers
         }
 
         [HttpGet("{orderId:guid}/details/{orderDetailId:long}/credentials")]
-        public async Task<IActionResult> GetOrderDetailCredentials(
-            Guid orderId,
-            long orderDetailId)
+        public async Task<IActionResult> GetOrderDetailCredentials(Guid orderId, long orderDetailId)
         {
             await using var db = _dbFactory.CreateDbContext();
 
@@ -1032,13 +1073,11 @@ namespace Keytietkiem.Controllers
             if (od == null)
                 return NotFound(new { message = "Order detail không được tìm thấy" });
 
-            // ✅ keys
             var keysByOrderDetail = await LoadAssignedKeysByOrderDetailAsync(db, orderId, HttpContext.RequestAborted);
             var keys = keysByOrderDetail.TryGetValue(orderDetailId, out var klist)
                 ? klist.Take(Math.Min(Math.Max(od.Quantity, 1), klist.Count)).ToList()
                 : new List<(Guid KeyId, string KeyString)>();
 
-            // ✅ accounts
             var accountsByOrderDetail = await LoadAssignedAccountsByOrderDetailAsync(
                 db,
                 orderId,
@@ -1049,9 +1088,6 @@ namespace Keytietkiem.Controllers
                 ? (alist ?? new List<OrderAccountCredentialDTO>())
                 : new List<OrderAccountCredentialDTO>();
 
-
-            // ✅ Audit truy cập credentials (key/account/password).
-            // Chỉ audit khi order.Status == "Paid" để tránh spam log.
             await TryAuditOrderDetailAccessIfPaidAsync(
                 order,
                 endpoint: (HttpContext?.Request?.Path.Value ?? "GET /api/orders/{orderId:guid}/details/{orderDetailId:long}/credentials"),
@@ -1076,10 +1112,132 @@ namespace Keytietkiem.Controllers
             });
         }
 
+        // =========================================================
+        // ✅ PATCH: manual order status change (ONLY Case B)
+        // - Only allow when Order.Status == NeedsManualAction
+        // - AND no payment attempt is NeedReview
+        // - NewStatus allowed: Paid | Cancelled
+        // =========================================================
+        public class ManualUpdateOrderStatusRequestDto
+        {
+            public string Status { get; set; } = "";
+            public string? Note { get; set; }
+        }
 
+        [HttpPatch("{orderId:guid}/status")]
+        [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
+        public async Task<IActionResult> ManualUpdateOrderStatus(Guid orderId, [FromBody] ManualUpdateOrderStatusRequestDto req, CancellationToken ct = default)
+        {
+            var desiredStatus = (req?.Status ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(desiredStatus))
+                return BadRequest(new { message = "Thiếu trạng thái cần cập nhật." });
 
-        // ================== Helpers ==================
+            // chỉ cho phép Paid/Cancelled
+            if (!string.Equals(desiredStatus, OrderStatus_Paid, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(desiredStatus, OrderStatus_Cancelled, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Trạng thái đích không hợp lệ. Chỉ hỗ trợ: Paid hoặc Cancelled." });
+            }
 
+            await using var db = _dbFactory.CreateDbContext();
+
+            var order = await db.Orders
+                .Include(o => o.OrderDetails)
+                .FirstOrDefaultAsync(o => o.OrderId == orderId, ct);
+
+            if (order == null)
+                return NotFound(new { message = "Đơn hàng không tồn tại." });
+
+            // ✅ chỉ cho đổi thủ công khi đang NeedsManualAction
+            if (!string.Equals(order.Status, OrderStatus_NeedsManualAction, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { message = "Chỉ có thể đổi thủ công khi đơn đang ở trạng thái NeedsManualAction." });
+
+            // ✅ nếu có Payment NeedReview => chặn đổi Order (case A: chỉ xử lý Payment)
+            var hasNeedReviewPayment = await db.Payments
+                .AsNoTracking()
+                .AnyAsync(p => p.TargetType == "Order"
+                               && p.TargetId == orderId.ToString()
+                               && p.Status == PayStatus_NeedReview, ct);
+
+            if (hasNeedReviewPayment)
+                return Conflict(new { message = "Đơn hàng có Payment ở trạng thái NeedReview. Chỉ được xử lý thủ công Payment, không đổi thủ công Order." });
+
+            var before = order.Status;
+            order.Status = desiredStatus;
+
+            var nowUtc = DateTime.UtcNow;
+
+            // ✅ xử lý inventory tương ứng
+            try
+            {
+                if (string.Equals(desiredStatus, OrderStatus_Paid, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _inventoryReservation.FinalizeReservationAsync(db, orderId, nowUtc, ct);
+                }
+                else if (string.Equals(desiredStatus, OrderStatus_Cancelled, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _inventoryReservation.ReleaseReservationAsync(db, orderId, nowUtc, ct);
+                }
+            }
+            catch (Exception ex)
+            {
+                // inventory adjust fail => vẫn cho đổi trạng thái, nhưng log
+                _logger.LogWarning(ex, "ManualUpdateOrderStatus: inventory adjust failed for order {OrderId}", orderId);
+            }
+
+            // ✅ nếu đổi Paid/Cancelled thì huỷ/đánh dấu các attempt Pending
+            var pendingPays = await db.Payments
+                .Where(p => p.TargetType == "Order"
+                            && p.TargetId == orderId.ToString()
+                            && p.Status == PayStatus_Pending)
+                .ToListAsync(ct);
+
+            var linksToCancel = pendingPays
+                .Where(p => !string.IsNullOrWhiteSpace(p.PaymentLinkId))
+                .Select(p => p.PaymentLinkId!)
+                .Distinct()
+                .ToList();
+
+            foreach (var p in pendingPays)
+            {
+                p.Status = string.Equals(desiredStatus, OrderStatus_Paid, StringComparison.OrdinalIgnoreCase)
+                    ? PayStatus_DupCancelled
+                    : PayStatus_Cancelled;
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            // ✅ Best-effort cancel PayOS links (không fail endpoint)
+            foreach (var link in linksToCancel)
+            {
+                try
+                {
+                    await _payOs.CancelPaymentLink(link, "OrderManualClosed");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ManualUpdateOrderStatus: cancel PayOS link failed. linkId={LinkId}", link);
+                }
+            }
+
+            // ✅ audit
+            await TryAuditOrderStatusChangeAsync(
+                order,
+                before,
+                order.Status,
+                reason: "ManualOrderStatusChange",
+                extra: new { note = req.Note });
+
+            return Ok(new
+            {
+                orderId = order.OrderId,
+                status = order.Status
+            });
+        }
+
+        // =========================================================
+        // Helpers
+        // =========================================================
         private Guid? GetCurrentUserIdOrNull()
         {
             var claim = User.FindFirst("uid") ?? User.FindFirst(ClaimTypes.NameIdentifier);
@@ -1087,13 +1245,29 @@ namespace Keytietkiem.Controllers
             return Guid.TryParse(claim.Value, out var id) ? id : (Guid?)null;
         }
 
+        // ✅ FIX UTC+Z: normalize DateTime Kind from SQL/EF (Unspecified) -> Utc
+        private static DateTime EnsureUtc(DateTime dt)
+        {
+            if (dt == default) return dt;
+
+            if (dt.Kind == DateTimeKind.Utc) return dt;
+
+            if (dt.Kind == DateTimeKind.Local)
+                return dt.ToUniversalTime();
+
+            // Unspecified (thường từ SQL Server datetime/datetime2) => coi là UTC và chỉ set Kind
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        }
+
+        private static DateTime? EnsureUtc(DateTime? dt)
+            => dt.HasValue ? EnsureUtc(dt.Value) : null;
+
         private static string FormatOrderNumber(Guid orderId, DateTime createdAt)
         {
             var dateStr = createdAt.ToString("yyyyMMdd");
             var orderIdStr = orderId.ToString().Replace("-", "").Substring(0, 4).ToUpperInvariant();
             return $"ORD-{dateStr}-{orderIdStr}";
         }
-
 
         private async Task TryAuditOrderDetailAccessIfPaidAsync(
             Order order,
@@ -1103,15 +1277,14 @@ namespace Keytietkiem.Controllers
         {
             if (order == null) return;
 
-            // ✅ Chỉ audit khi đơn đã Paid (yêu cầu truy vết truy cập credentials)
-            if (!string.Equals(order.Status, "Paid", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(order.Status, OrderStatus_Paid, StringComparison.OrdinalIgnoreCase))
                 return;
 
             try
             {
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: includesCredentials ? "OrderDetail.ViewWithCredentials" : "OrderDetail.View",
+                    action: includesCredentials ? "ViewOrderDetailWithCredentials" : "ViewOrderDetail",
                     entityType: "Order",
                     entityId: order.OrderId.ToString(),
                     before: null,
@@ -1129,6 +1302,46 @@ namespace Keytietkiem.Controllers
             }
         }
 
+        private async Task TryAuditOrderStatusChangeAsync(
+            Order order,
+            string? beforeStatus,
+            string? afterStatus,
+            string reason,
+            object? extra = null)
+        {
+            if (order == null) return;
+
+            var b = beforeStatus?.Trim();
+            var a = afterStatus?.Trim();
+
+            if (string.Equals(b, a, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action: "ChangeOrderStatus",
+                    entityType: "Order",
+                    entityId: order.OrderId.ToString(),
+                    before: new
+                    {
+                        OrderId = order.OrderId,
+                        Status = b
+                    },
+                    after: new
+                    {
+                        OrderId = order.OrderId,
+                        Status = a,
+                        Reason = reason,
+                        Extra = extra
+                    });
+            }
+            catch
+            {
+                // audit fail must not fail API
+            }
+        }
 
         private async Task<bool> TryClaimCartForCheckoutAsync(KeytietkiemDbContext db, Guid cartId, DateTime nowUtc)
         {
@@ -1172,7 +1385,6 @@ namespace Keytietkiem.Controllers
 
         private async Task<OrderDTO> MapToOrderDTOAsync(KeytietkiemDbContext db, Order order)
         {
-            // Payment (nếu lỗi vẫn trả order.Status)
             Payment? relatedPayment = null;
             try
             {
@@ -1202,11 +1414,9 @@ namespace Keytietkiem.Controllers
                 _logger.LogWarning(ex, "MapToOrderDTOAsync: load keys failed for {OrderId}", order.OrderId);
             }
 
-            // Sau đoạn load key (keysByOrderDetail)
             Dictionary<long, List<OrderAccountCredentialDTO>> accountsByOrderDetail = new();
             try
             {
-                // Lấy tất cả account gắn với đơn hàng qua ProductAccountCustomer
                 var accQuery = from pac in db.ProductAccountCustomers
                                join pa in db.ProductAccounts on pac.ProductAccountId equals pa.ProductAccountId
                                join od in db.OrderDetails on pac.OrderId equals od.OrderId
@@ -1236,7 +1446,6 @@ namespace Keytietkiem.Controllers
             {
                 _logger.LogWarning(ex, "MapToOrderDTOAsync: load accounts failed for {OrderId}", order.OrderId);
             }
-
 
             var details = order.OrderDetails?.Select(od =>
             {
@@ -1294,21 +1503,18 @@ namespace Keytietkiem.Controllers
                 DiscountAmount = order.DiscountAmount,
                 FinalAmount = (order.TotalAmount - order.DiscountAmount),
                 Status = displayStatus,
-                CreatedAt = order.CreatedAt,
+                CreatedAt = EnsureUtc(order.CreatedAt),
                 OrderDetails = details
             };
         }
-
 
         private async Task<Dictionary<long, List<(Guid KeyId, string KeyString)>>> LoadAssignedKeysByOrderDetailAsync(
             KeytietkiemDbContext db,
             Guid orderId,
             CancellationToken ct)
         {
-            // ✅ QUAN TRỌNG: dùng named tuple ở đây để không mất .KeyId/.KeyString khi truyền qua các chỗ khác
             var result = new Dictionary<long, List<(Guid KeyId, string KeyString)>>();
 
-            // ✅ 1) Ưu tiên: OrderDetail.KeyId -> join ProductKey lấy KeyString
             var odKeys = await db.OrderDetails
                 .AsNoTracking()
                 .Where(od => od.OrderId == orderId && od.KeyId != null)
@@ -1344,7 +1550,6 @@ namespace Keytietkiem.Controllers
                 }
             }
 
-            // ✅ 2) Fallback: ProductKey.AssignedToOrderId (flow assign theo order)
             var fallback = await db.Set<ProductKey>()
                 .AsNoTracking()
                 .Where(k => k.AssignedToOrderId == orderId && k.Status == "Sold")
@@ -1355,7 +1560,6 @@ namespace Keytietkiem.Controllers
             if (fallback.Count == 0)
                 return result;
 
-            // map OrderDetail theo Variant để phân bổ keys đúng theo Quantity
             var details = await db.OrderDetails
                 .AsNoTracking()
                 .Where(od => od.OrderId == orderId)
@@ -1378,7 +1582,6 @@ namespace Keytietkiem.Controllers
                 if (!keyQueues.TryGetValue(od.VariantId, out var q) || q.Count == 0)
                     continue;
 
-                // đã có keys từ OrderDetail.KeyId thì không lấy trùng
                 if (result.TryGetValue(od.OrderDetailId, out var exist) && exist.Count > 0)
                 {
                     var used = new HashSet<Guid>(exist.Select(x => x.KeyId));
@@ -1416,14 +1619,14 @@ namespace Keytietkiem.Controllers
 
             return result;
         }
+
         private async Task<Dictionary<Guid, List<OrderAccountCredentialDTO>>> LoadAssignedAccountsByVariantAsync(
-    KeytietkiemDbContext db,
-    Guid orderId,
-    CancellationToken ct)
+            KeytietkiemDbContext db,
+            Guid orderId,
+            CancellationToken ct)
         {
             var result = new Dictionary<Guid, List<OrderAccountCredentialDTO>>();
 
-            // ✅ Admin cần xem credentials đã gán cho đơn, không lọc IsActive ở đây
             var baseQuery = db.Set<ProductAccountCustomer>()
                 .AsNoTracking()
                 .Where(pac => pac.OrderId == orderId)
@@ -1432,7 +1635,6 @@ namespace Keytietkiem.Controllers
                     pa => pa.ProductAccountId,
                     (pac, pa) => pa);
 
-            // ✅ detect column username (tránh compile/runtime lệch tên)
             var paEntity = db.Model.FindEntityType(typeof(ProductAccount));
             var hasAccountUsername = paEntity?.FindProperty("AccountUsername") != null;
             var hasAccountUserName = paEntity?.FindProperty("AccountUserName") != null;
@@ -1549,7 +1751,10 @@ namespace Keytietkiem.Controllers
             return result;
         }
 
-
+        // =========================================================
+        // ✅ CASE B: if order auto switches to NeedsManualAction (payment NOT NeedReview)
+        // => notify Admin + CustomerCare (open -> OrderList with search)
+        // =========================================================
         private async Task<IActionResult> BuildCheckoutResponseFromExistingOrderAsync(
             KeytietkiemDbContext db,
             Guid orderId,
@@ -1566,10 +1771,31 @@ namespace Keytietkiem.Controllers
                 {
                     await EnsureOrderReservedAsync(db, orderId, nowUtc, HttpContext.RequestAborted);
                 }
-                catch (InvalidOperationException)
+                catch (InvalidOperationException ex)
                 {
-                    order.Status = "NeedsManualAction";
+                    var beforeStatus = order.Status;
+                    order.Status = OrderStatus_NeedsManualAction;
                     await db.SaveChangesAsync();
+
+                    await TryAuditOrderStatusChangeAsync(
+                        order,
+                        beforeStatus,
+                        order.Status,
+                        reason: "EnsureOrderReservedFailed",
+                        extra: new
+                        {
+                            orderId,
+                            ex = ex.Message,
+                            source = "BuildCheckoutResponseFromExistingOrderAsync"
+                        });
+
+                    // ✅ CASE B notification (Order needs manual, payment is not NeedReview here)
+                    await NotifyAdminAndCustomerCare_OrderNeedsManualActionAsync(
+                        db,
+                        order,
+                        reason: "InventoryReservationFailed",
+                        detail: ex.Message,
+                        ct: HttpContext.RequestAborted);
                 }
             }
 
@@ -1630,6 +1856,7 @@ namespace Keytietkiem.Controllers
                         _logger.LogWarning(ex, "Failed to fetch checkoutUrl from PayOS for PaymentLinkId={PaymentLinkId}", pending.PaymentLinkId);
                     }
                 }
+
                 if (!string.IsNullOrWhiteSpace(pending.PaymentLinkId))
                 {
                     try
@@ -1643,6 +1870,7 @@ namespace Keytietkiem.Controllers
                             pending.PaymentLinkId);
                     }
                 }
+
                 pending.Status = PayStatus_Replaced;
                 await db.SaveChangesAsync();
             }
@@ -1660,6 +1888,231 @@ namespace Keytietkiem.Controllers
             });
         }
 
+        // =========================================================
+        // Notifications (DB-level, resilient via EF model reflection)
+        // =========================================================
+        private async Task NotifyAdminAndCustomerCare_OrderNeedsManualActionAsync(
+            KeytietkiemDbContext db,
+            Order order,
+            string reason,
+            string? detail,
+            CancellationToken ct)
+        {
+            try
+            {
+                var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
+                var relatedUrl = $"{origin}/admin/orders?search={order.OrderId}";
+
+                var title = "Đơn hàng cần xử lý thủ công";
+                var msg =
+                    $"Đơn hàng đã chuyển sang trạng thái {OrderStatus_NeedsManualAction}.\n" +
+                    $"- OrderId: {order.OrderId}\n" +
+                    (!string.IsNullOrWhiteSpace(order.Email) ? $"- Email: {order.Email}\n" : "") +
+                    $"- Reason: {reason}\n" +
+                    (!string.IsNullOrWhiteSpace(detail) ? $"- Detail: {detail}" : "");
+
+                await CreateSystemNotificationForRolesAsync(
+                    db,
+                    roleCodes: new[] { RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE },
+                    title: title,
+                    message: msg,
+                    type: "Order.NeedsManualAction",
+                    relatedEntityType: "Order",
+                    relatedEntityId: order.OrderId.ToString(),
+                    relatedUrl: relatedUrl,
+                    nowUtc: DateTime.UtcNow,
+                    ct: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "NotifyAdminAndCustomerCare_OrderNeedsManualActionAsync failed. OrderId={OrderId}", order?.OrderId);
+            }
+        }
+
+        private async Task CreateSystemNotificationForRolesAsync(
+            KeytietkiemDbContext db,
+            IEnumerable<string> roleCodes,
+            string title,
+            string message,
+            string type,
+            string relatedEntityType,
+            string relatedEntityId,
+            string relatedUrl,
+            DateTime nowUtc,
+            CancellationToken ct)
+        {
+            // Try to locate notification entity in EF model (avoid hard dependency on model class/properties)
+            var notifEt = db.Model.GetEntityTypes()
+                .FirstOrDefault(t =>
+                    string.Equals(t.ClrType.Name, "Notification", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(t.ClrType.Name, "SystemNotification", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(t.ClrType.Name, "UserNotification", StringComparison.OrdinalIgnoreCase));
+
+            if (notifEt == null)
+            {
+                // No entity mapped => silently ignore (still satisfies business flow)
+                return;
+            }
+
+            var notifType = notifEt.ClrType;
+
+            // Prefer role-targeted notification if supported
+            var roleProp =
+                notifType.GetProperty("TargetRoleCode") ??
+                notifType.GetProperty("RoleCode") ??
+                notifType.GetProperty("TargetRole") ??
+                notifType.GetProperty("ReceiverRoleCode");
+
+            var receiverUserProp =
+                notifType.GetProperty("ReceiverUserId") ??
+                notifType.GetProperty("TargetUserId") ??
+                notifType.GetProperty("UserId");
+
+            bool canRoleTarget = roleProp != null;
+
+            if (canRoleTarget)
+            {
+                foreach (var rc in roleCodes.Distinct())
+                {
+                    var n = Activator.CreateInstance(notifType);
+                    if (n == null) continue;
+
+                    TrySetProp(n, "NotificationId", Guid.NewGuid());
+                    TrySetProp(n, "Id", Guid.NewGuid());
+                    TrySetProp(n, roleProp.Name, rc);
+
+                    TrySetProp(n, "Title", title);
+                    TrySetProp(n, "Message", message);
+                    TrySetProp(n, "Content", message);
+                    TrySetProp(n, "Body", message);
+
+                    TrySetProp(n, "Type", type);
+                    TrySetProp(n, "Severity", 1);
+                    TrySetProp(n, "IsRead", false);
+                    TrySetProp(n, "CreatedAt", nowUtc);
+                    TrySetProp(n, "CreatedTime", nowUtc);
+
+                    TrySetProp(n, "RelatedEntityType", relatedEntityType);
+                    TrySetProp(n, "RelatedEntityId", relatedEntityId);
+                    TrySetProp(n, "RelatedUrl", relatedUrl);
+                    TrySetProp(n, "Url", relatedUrl);
+
+                    db.Add(n);
+                }
+
+                await db.SaveChangesAsync(ct);
+                return;
+            }
+
+            // Fallback: per-user notification (if entity supports receiver user id)
+            if (receiverUserProp == null)
+                return;
+
+            // Find role property on User (runtime)
+            var userClr = typeof(User);
+            var userRolePropName = new[] { "RoleCode", "Role", "RoleName" }
+                .FirstOrDefault(p => userClr.GetProperty(p) != null);
+
+            if (string.IsNullOrWhiteSpace(userRolePropName))
+                return;
+
+            var roleSet = roleCodes.Distinct().ToList();
+            var recipients = await db.Users
+                .AsNoTracking()
+                .Where(u => roleSet.Contains(EF.Property<string>(u, userRolePropName)))
+                .Select(u => new { u.UserId })
+                .ToListAsync(ct);
+
+            foreach (var u in recipients)
+            {
+                var n = Activator.CreateInstance(notifType);
+                if (n == null) continue;
+
+                TrySetProp(n, "NotificationId", Guid.NewGuid());
+                TrySetProp(n, "Id", Guid.NewGuid());
+
+                TrySetProp(n, receiverUserProp.Name, u.UserId);
+                TrySetProp(n, "Title", title);
+                TrySetProp(n, "Message", message);
+                TrySetProp(n, "Content", message);
+                TrySetProp(n, "Body", message);
+
+                TrySetProp(n, "Type", type);
+                TrySetProp(n, "Severity", 1);
+                TrySetProp(n, "IsRead", false);
+                TrySetProp(n, "CreatedAt", nowUtc);
+                TrySetProp(n, "CreatedTime", nowUtc);
+
+                TrySetProp(n, "RelatedEntityType", relatedEntityType);
+                TrySetProp(n, "RelatedEntityId", relatedEntityId);
+                TrySetProp(n, "RelatedUrl", relatedUrl);
+                TrySetProp(n, "Url", relatedUrl);
+
+                db.Add(n);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        private static void TrySetProp(object obj, string propName, object? value)
+        {
+            var p = obj.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance);
+            if (p == null || !p.CanWrite) return;
+
+            try
+            {
+                if (value == null)
+                {
+                    p.SetValue(obj, null);
+                    return;
+                }
+
+                var t = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
+
+                if (t == typeof(Guid))
+                {
+                    if (value is Guid g) p.SetValue(obj, g);
+                    else if (Guid.TryParse(value.ToString(), out var gg)) p.SetValue(obj, gg);
+                    return;
+                }
+
+                if (t == typeof(DateTime))
+                {
+                    if (value is DateTime dt) p.SetValue(obj, dt);
+                    else if (DateTime.TryParse(value.ToString(), out var dtt)) p.SetValue(obj, dtt);
+                    return;
+                }
+
+                if (t == typeof(int))
+                {
+                    if (value is int i) p.SetValue(obj, i);
+                    else if (int.TryParse(value.ToString(), out var ii)) p.SetValue(obj, ii);
+                    return;
+                }
+
+                if (t == typeof(bool))
+                {
+                    if (value is bool b) p.SetValue(obj, b);
+                    else if (bool.TryParse(value.ToString(), out var bb)) p.SetValue(obj, bb);
+                    return;
+                }
+
+                if (t == typeof(string))
+                {
+                    p.SetValue(obj, value.ToString());
+                    return;
+                }
+
+                // fallback convert
+                var converted = Convert.ChangeType(value, t);
+                p.SetValue(obj, converted);
+            }
+            catch
+            {
+                // ignore set failures for resilience
+            }
+        }
+
         private async Task<PayOSCreatePaymentResult> CreateOrRefreshPayOSLinkAsync(
             Payment payment,
             string buyerName,
@@ -1670,11 +2123,10 @@ namespace Keytietkiem.Controllers
             var amountInt = (int)Math.Round(payment.Amount, 0, MidpointRounding.AwayFromZero);
             if (amountInt <= 0) throw new Exception("Amount không hợp lệ");
 
-            // ✅ tránh overflow int
             var epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var baseCode = (int)(epoch % 2_000_000);               // 0..1,999,999
-            var random = Random.Shared.Next(100, 999);             // 100..998
-            var orderCode = Math.Abs(baseCode * 1000 + random);    // < 2,000,000,000
+            var baseCode = (int)(epoch % 2_000_000);
+            var random = Random.Shared.Next(100, 999);
+            var orderCode = Math.Abs(baseCode * 1000 + random);
 
             var frontendBaseUrl = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
 
@@ -1719,10 +2171,11 @@ namespace Keytietkiem.Controllers
         private static bool IsFinalOrderStatus(string? s)
         {
             if (string.IsNullOrWhiteSpace(s)) return false;
-            return s.Equals("Paid", StringComparison.OrdinalIgnoreCase)
-                || s.Equals("Cancelled", StringComparison.OrdinalIgnoreCase)
-                || s.Equals("CancelledByTimeout", StringComparison.OrdinalIgnoreCase)
-                || s.Equals("NeedsManualAction", StringComparison.OrdinalIgnoreCase);
+            return s.Equals(OrderStatus_Paid, StringComparison.OrdinalIgnoreCase)
+                || s.Equals(OrderStatus_Cancelled, StringComparison.OrdinalIgnoreCase)
+                || s.Equals(OrderStatus_CancelledByTimeout, StringComparison.OrdinalIgnoreCase)
+                || s.Equals(OrderStatus_NeedsManualAction, StringComparison.OrdinalIgnoreCase)
+                || s.Equals(OrderStatus_Refunded, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsPaidLike(string? paymentStatus)
@@ -1734,7 +2187,6 @@ namespace Keytietkiem.Controllers
                 || ps.Equals("Completed", StringComparison.OrdinalIgnoreCase);
         }
 
-        // ✅ cập nhật mapping theo bộ status mới (Timeout/NeedReview)
         private string ResolveOrderDisplayStatus(string? orderStatus, string? paymentStatus)
         {
             var os = orderStatus?.Trim();
@@ -1745,12 +2197,13 @@ namespace Keytietkiem.Controllers
                 if (IsFinalOrderStatus(os) || string.IsNullOrWhiteSpace(ps))
                     return os;
 
-                if (os.Equals("PendingPayment", StringComparison.OrdinalIgnoreCase))
+                if (os.Equals(OrderStatus_PendingPayment, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (IsPaidLike(ps)) return "Paid";
-                    if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return "Cancelled";
-                    if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return "CancelledByTimeout";
-                    if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return "NeedsManualAction";
+                    if (IsPaidLike(ps)) return OrderStatus_Paid;
+                    if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return OrderStatus_Cancelled;
+                    if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return OrderStatus_CancelledByTimeout;
+                    if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return OrderStatus_NeedsManualAction;
+                    if (ps.Equals(PayStatus_Refunded, StringComparison.OrdinalIgnoreCase)) return OrderStatus_Refunded;
                 }
 
                 return os;
@@ -1758,11 +2211,11 @@ namespace Keytietkiem.Controllers
 
             if (!string.IsNullOrWhiteSpace(ps))
             {
-                if (IsPaidLike(ps)) return "Paid";
-                if (ps.Equals(PayStatus_Pending, StringComparison.OrdinalIgnoreCase)) return "PendingPayment";
-                if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return "CancelledByTimeout";
-                if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return "NeedsManualAction";
-                if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return "Cancelled";
+                if (IsPaidLike(ps)) return OrderStatus_Paid;
+                if (ps.Equals(PayStatus_Pending, StringComparison.OrdinalIgnoreCase)) return OrderStatus_PendingPayment;
+                if (ps.Equals(PayStatus_Timeout, StringComparison.OrdinalIgnoreCase)) return OrderStatus_CancelledByTimeout;
+                if (ps.Equals(PayStatus_NeedReview, StringComparison.OrdinalIgnoreCase)) return OrderStatus_NeedsManualAction;
+                if (ps.Equals(PayStatus_Cancelled, StringComparison.OrdinalIgnoreCase)) return OrderStatus_Cancelled;
                 return ps;
             }
 
@@ -1836,6 +2289,13 @@ namespace Keytietkiem.Controllers
 
             var lines = new List<(Guid VariantId, int Quantity)>();
 
+            var needByVariantId = validItems
+                .Where(x => x.Quantity > 0)
+                .GroupBy(x => x.VariantId)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+            await EnsureInventoryAvailableBeforeCreateOrderAsync(db, needByVariantId, map, ct);
+
             foreach (var item in validItems)
             {
                 if (!map.TryGetValue(item.VariantId, out var v) || v.Product == null)
@@ -1865,6 +2325,102 @@ namespace Keytietkiem.Controllers
             return (lines, unitPriceByVariantId, totalList, total);
         }
 
+        private static bool RequiresInventoryForCheckout(string? productType)
+        {
+            if (string.IsNullOrWhiteSpace(productType)) return true;
+            return !productType.Contains("supportplan", StringComparison.OrdinalIgnoreCase)
+                && !productType.Contains("support plan", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAccountType(string? productType)
+        {
+            if (string.IsNullOrWhiteSpace(productType)) return false;
+            return productType.Contains("account", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task EnsureInventoryAvailableBeforeCreateOrderAsync(
+            KeytietkiemDbContext db,
+            Dictionary<Guid, int> needByVariantId,
+            Dictionary<Guid, ProductVariant> variantMap,
+            CancellationToken ct)
+        {
+            if (needByVariantId == null || needByVariantId.Count == 0) return;
+
+            // Đảm bảo mỗi variant chỉ bị sync fallback tối đa 1 lần / 1 lần checkout
+            var syncedVariantIds = new HashSet<Guid>();
+
+            foreach (var kv in needByVariantId)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var variantId = kv.Key;
+                var need = kv.Value;
+
+                if (need <= 0) continue;
+
+                if (!variantMap.TryGetValue(variantId, out var v) || v.Product == null)
+                    throw new InvalidOperationException("Sản phẩm/biến thể không tồn tại.");
+
+                if (!RequiresInventoryForCheckout(v.Product.ProductType))
+                    continue;
+
+                // Đọc tồn kho hiện tại từ StockQty
+                int available;
+                try { available = Convert.ToInt32(v.StockQty); }
+                catch { available = 0; }
+                if (available < 0) available = 0;
+
+                // Nếu có vẻ không đủ hàng thì fallback: sync lại stock 1 lần cho variant này
+                if (need > available)
+                {
+                    if (!syncedVariantIds.Contains(variantId))
+                    {
+                        var nowUtc = DateTime.UtcNow;
+
+                        // Fallback: sync lại tồn kho + status từ raw inventory + reservations
+                        await VariantStockRecalculator.SyncVariantStockAndStatusAsync(
+                            db,
+                            new[] { variantId },
+                            nowUtc,
+                            ct);
+
+                        // Reload lại variant từ DB để lấy StockQty mới nhất
+                        var fresh = await db.ProductVariants
+                            .Include(x => x.Product)
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(x => x.VariantId == variantId, ct);
+
+                        if (fresh != null)
+                        {
+                            // Cập nhật lại entry trong map để phía sau dùng cũng là dữ liệu mới
+                            v.StockQty = fresh.StockQty;
+                            v.Status = fresh.Status;
+
+                            if (v.Product != null && fresh.Product != null)
+                            {
+                                v.Product.Status = fresh.Product.Status;
+                            }
+
+                            try { available = Convert.ToInt32(fresh.StockQty); }
+                            catch { available = 0; }
+                            if (available < 0) available = 0;
+                        }
+
+                        syncedVariantIds.Add(variantId);
+                    }
+                }
+
+                // Sau khi fallback (nếu có) mà vẫn thiếu thì mới báo lỗi
+                if (need > available)
+                {
+                    var name = v.Product?.ProductName ?? v.Title ?? variantId.ToString();
+                    throw new InvalidOperationException(
+                        $"\"{name}\" không đủ hàng. Cần {need}, còn {available}. Vui lòng giảm số lượng trong giỏ.");
+                }
+            }
+        }
+
+
         private async Task EnsureOrderReservedAsync(KeytietkiemDbContext db, Guid orderId, DateTime nowUtc, CancellationToken ct)
         {
             var lines = await db.OrderDetails
@@ -1880,21 +2436,19 @@ namespace Keytietkiem.Controllers
 
             try
             {
-                // ✅ ưu tiên gia hạn nếu đã có reservation
                 await _inventoryReservation.ExtendReservationAsync(db, orderId, until, nowUtc, ct);
             }
             catch
             {
-                // ✅ chưa có reservation (hoặc đã bị release) -> reserve lại rồi gia hạn
                 await _inventoryReservation.ReserveForOrderAsync(db, orderId, list, nowUtc, until, ct);
                 await _inventoryReservation.ExtendReservationAsync(db, orderId, until, nowUtc, ct);
             }
         }
+
         private static bool IsAccountProductType(string? productType)
         {
             if (string.IsNullOrWhiteSpace(productType)) return false;
             return productType.Contains("account", StringComparison.OrdinalIgnoreCase);
         }
-
     }
 }

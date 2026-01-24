@@ -17,8 +17,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using System.Text.Json;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -174,7 +174,7 @@ namespace Keytietkiem.Controllers
                 // 🔐 AUDIT LOG – SAVE WEBSITE SETTINGS (chỉ log summary, không log mật khẩu)
                 await _auditLogger.LogAsync(
                     HttpContext,
-                    action: "Save",
+                    action: "SaveWebsiteSettings",
                     entityType: "WebsiteSettings",
                     entityId: "global",
                     before: null,

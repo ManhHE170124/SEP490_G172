@@ -23,7 +23,7 @@ using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
-    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
 
 // ===== Connection string =====
@@ -71,7 +71,6 @@ builder.Services.AddScoped<IProductAccountService, ProductAccountService>();
 builder.Services.AddScoped<IProductReportService, ProductReportService>();
 builder.Services.AddScoped<IWebsiteSettingService, WebsiteSettingService>();
 builder.Services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
-builder.Services.AddScoped<IRealtimeDatabaseUpdateService, RealtimeDatabaseUpdateService>();  // ✅ chỉ 1 lần
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<ISupportStatsUpdateService, SupportStatsUpdateService>();          // ✅ chỉ 1 lần
 builder.Services.AddScoped<INotificationSystemService, NotificationSystemService>();
@@ -80,7 +79,8 @@ builder.Services.AddHostedService<PaymentTimeoutService>();
 builder.Services.AddScoped<IInventoryReservationService, InventoryReservationService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
 builder.Services.AddScoped<IPostService, PostService>();
-builder.Services.AddHostedService<StartupStockSyncHostedService>();
+builder.Services.AddScoped<ISystemInsightsDashboardService, SystemInsightsDashboardService>();
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<ISendPulseService, SendPulseService>((sp, http) =>
 {

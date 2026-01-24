@@ -1,5 +1,5 @@
 // File: src/pages/admin/AdminPaymentsDashboardPage.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -84,6 +84,9 @@ const startOfMonthLocal = (d) =>
   new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
 const startOfNextMonthLocal = (d) =>
   new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0);
+
+const addMonthsLocal = (d, m) => new Date(d.getFullYear(), d.getMonth() + m, 1, 0, 0, 0, 0);
+const addYearsLocal = (d, y) => new Date(d.getFullYear() + y, 0, 1, 0, 0, 0, 0);
 
 const startOfYearLocal = (y) => new Date(y, 0, 1, 0, 0, 0, 0);
 const startOfNextYearLocal = (y) => new Date(y + 1, 0, 1, 0, 0, 0, 0);
@@ -250,8 +253,11 @@ export default function AdminPaymentsDashboardPage() {
   const [targetType, setTargetType] = useState("");
   const [pendingOverdueMinutes, setPendingOverdueMinutes] = useState(5);
 
-  const [rangePreset, setRangePreset] = useState("today"); // today | week | month | custom
+  const [rangePreset, setRangePreset] = useState("last30"); // today | last7 | last30 | month | year | custom
   const [customMode, setCustomMode] = useState("day"); // day | month | year
+
+  const [monthAnchor, setMonthAnchor] = useState(() => startOfMonthLocal(new Date()));
+  const [yearAnchor, setYearAnchor] = useState(() => startOfYearLocal(new Date().getFullYear()));
 
   const [fromPick, setFromPick] = useState(startOfDayLocal(new Date()));
   const [toPick, setToPick] = useState(addDaysLocal(startOfDayLocal(new Date()), 1));
@@ -272,52 +278,73 @@ export default function AdminPaymentsDashboardPage() {
   const [typeSplit, setTypeSplit] = useState({ order: 0, support: 0 });
 
   const tzOffsetMinutesAdd = useMemo(() => getTzOffsetMinutesAdd(), []);
+  const loadRef = useRef(false);
 
   const computeRequestedRangeLocal = useCallback(() => {
     const now = new Date();
 
     if (rangePreset === "today") {
-      const f = startOfDayLocal(now);
-      const t = addDaysLocal(f, 1);
-      return { fromLocal: f, toLocal: t };
+      const from = startOfDayLocal(now);
+      const to = addDaysLocal(from, 1);
+      return { fromLocal: from, toLocal: to };
     }
 
-    if (rangePreset === "week") {
-      const f = startOfWeekMonLocal(now);
-      const t = addDaysLocal(f, 7);
-      return { fromLocal: f, toLocal: t };
+    if (rangePreset === "last7") {
+      const to = addDaysLocal(startOfDayLocal(now), 1);
+      const from = addDaysLocal(to, -7);
+      return { fromLocal: from, toLocal: to };
+    }
+
+    if (rangePreset === "last30") {
+      const to = addDaysLocal(startOfDayLocal(now), 1);
+      const from = addDaysLocal(to, -30);
+      return { fromLocal: from, toLocal: to };
     }
 
     if (rangePreset === "month") {
-      const f = startOfMonthLocal(now);
-      const t = startOfNextMonthLocal(now);
-      return { fromLocal: f, toLocal: t };
+      const from = startOfMonthLocal(monthAnchor);
+      const to = addMonthsLocal(from, 1);
+      return { fromLocal: from, toLocal: to };
     }
 
-    let f = fromPick ? startOfDayLocal(fromPick) : startOfDayLocal(now);
-    let t = toPick ? startOfDayLocal(toPick) : addDaysLocal(f, 1);
+    if (rangePreset === "year") {
+      const from = startOfYearLocal(yearAnchor.getFullYear());
+      const to = addYearsLocal(from, 1);
+      return { fromLocal: from, toLocal: to };
+    }
+
+    // custom
+    let s = fromPick ? startOfDayLocal(fromPick) : startOfDayLocal(now);
+    let e = toPick ? startOfDayLocal(toPick) : s;
+
+    if (customMode === "day") {
+      const from = startOfDayLocal(s);
+      const to = addDaysLocal(startOfDayLocal(e), 1);
+      if (to <= from) return { fromLocal: from, toLocal: addDaysLocal(from, 1) };
+      return { fromLocal: from, toLocal: to };
+    }
 
     if (customMode === "month") {
-      const f2 = fromPick ? startOfMonthLocal(fromPick) : startOfMonthLocal(now);
-      const t2 = toPick ? startOfNextMonthLocal(toPick) : startOfNextMonthLocal(f2);
-      f = f2;
-      t = t2;
+      const mf = startOfMonthLocal(fromPick || now);
+      const mt = startOfMonthLocal(toPick || fromPick || now);
+      const from = mf;
+      const to = addMonthsLocal(mt, 1);
+      if (to <= from) return { fromLocal: from, toLocal: addMonthsLocal(from, 1) };
+      return { fromLocal: from, toLocal: to };
     }
 
-    if (customMode === "year") {
-      const fy = (fromPick || now).getFullYear();
-      const ty = (toPick || new Date(fy, 0, 1)).getFullYear();
-      const yFrom = Math.min(fy, ty);
-      const yTo = Math.max(fy, ty);
-      f = startOfYearLocal(yFrom);
-      t = startOfNextYearLocal(yTo);
-    }
-
-    if (t <= f) t = addDaysLocal(f, 1);
-    return { fromLocal: f, toLocal: t };
-  }, [rangePreset, fromPick, toPick, customMode]);
+    // year
+    const yf = startOfYearLocal((fromPick || now).getFullYear());
+    const yt = startOfYearLocal((toPick || fromPick || now).getFullYear());
+    const from = yf;
+    const to = addYearsLocal(yt, 1);
+    if (to <= from) return { fromLocal: from, toLocal: addYearsLocal(from, 1) };
+    return { fromLocal: from, toLocal: to };
+  }, [rangePreset, monthAnchor, yearAnchor, customMode, fromPick, toPick]);
 
   const loadAll = useCallback(async () => {
+    if (loadRef.current) return; // prevent concurrent loads
+    loadRef.current = true;
     setLoading(true);
     setErr("");
 
@@ -410,6 +437,7 @@ export default function AdminPaymentsDashboardPage() {
       setErr(e?.message || "Không thể tải dữ liệu dashboard thanh toán.");
     } finally {
       setLoading(false);
+      loadRef.current = false;
     }
   }, [
     provider,
@@ -423,6 +451,14 @@ export default function AdminPaymentsDashboardPage() {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-apply when filters change (debounced)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      loadAll();
+    }, 250);
+    return () => clearTimeout(id);
+  }, [rangePreset, customMode, fromPick, toPick, provider, targetType, pendingOverdueMinutes, loadAll]);
 
   const effectiveRangeText = useMemo(() => {
     if (!effectiveFromUtc || !effectiveToUtc) return "";
@@ -504,6 +540,18 @@ export default function AdminPaymentsDashboardPage() {
   const onPreset = (p) => setRangePreset(p);
   const onApply = async () => loadAll();
 
+  const resetFilters = useCallback(() => {
+    const now = new Date();
+    setRangePreset("today");
+    setCustomMode("day");
+    setFromPick(startOfDayLocal(now));
+    setToPick(addDaysLocal(startOfDayLocal(now), 1));
+    setProvider("PayOS");
+    setTargetType("");
+    setPendingOverdueMinutes(5);
+    loadAll();
+  }, [loadAll]);
+
   const fmtYAxisVnd = (v) => {
     const n = asNum(v, 0);
     if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
@@ -568,16 +616,17 @@ export default function AdminPaymentsDashboardPage() {
           <div className="apd-sub">
             <span>• Kỳ lọc: </span>
             <span className="apd-subrange">{effectiveRangeText || "—"}</span>
-            <span className="apd-subhint">
-              {grain === "day"
-                ? "(theo ngày)"
-                : grain === "week"
-                ? "(gộp theo tuần)"
-                : grain === "month"
-                ? "(gộp theo tháng)"
-                : "(gộp theo quý)"}
-            </span>
           </div>
+        </div>
+        <div className="apd-actions">
+          <button
+            className="apd-btn apd-btn-ghost"
+            onClick={resetFilters}
+            disabled={loading}
+            type="button"
+          >
+            Reset
+          </button>
         </div>
       </div>
 
@@ -587,153 +636,147 @@ export default function AdminPaymentsDashboardPage() {
           <div className="apd-filter apd-filter-wide">
             <div className="apd-label">Khoảng thời gian</div>
 
-            {/* ✅ Preset buttons + Apply cùng hàng */}
             <div className="apd-time-row">
               <div className="apd-seg apd-time-seg">
                 <button
+                  type="button"
                   className={"apd-segbtn " + (rangePreset === "today" ? "is-on" : "")}
                   onClick={() => onPreset("today")}
                 >
                   Hôm nay
                 </button>
                 <button
-                  className={"apd-segbtn " + (rangePreset === "week" ? "is-on" : "")}
-                  onClick={() => onPreset("week")}
+                  type="button"
+                  className={"apd-segbtn " + (rangePreset === "last7" ? "is-on" : "")}
+                  onClick={() => onPreset("last7")}
                 >
-                  Tuần này
+                  7 ngày
                 </button>
                 <button
+                  type="button"
+                  className={"apd-segbtn " + (rangePreset === "last30" ? "is-on" : "")}
+                  onClick={() => onPreset("last30")}
+                >
+                  30 ngày
+                </button>
+                <button
+                  type="button"
                   className={"apd-segbtn " + (rangePreset === "month" ? "is-on" : "")}
                   onClick={() => onPreset("month")}
                 >
-                  Tháng này
+                  Theo tháng
                 </button>
                 <button
-                  className={"apd-segbtn " + (rangePreset === "custom" ? "is-on" : "")}
-                  onClick={() => onPreset("custom")}
+                  type="button"
+                  className={"apd-segbtn " + (rangePreset === "year" ? "is-on" : "")}
+                  onClick={() => onPreset("year")}
                 >
-                  Tùy chọn
+                  Theo năm
                 </button>
+                
               </div>
 
-              <button
-                className="apd-btn apd-apply-inline"
-                onClick={onApply}
-                disabled={loading}
-                title="Áp dụng bộ lọc hiện tại"
-              >
-                {loading ? "Đang tải..." : "Áp dụng"}
-              </button>
-            </div>
-
-            {/* ✅ Custom: Kiểu lọc + Từ + Đến cùng hàng */}
-            {rangePreset === "custom" && (
-              <div className="apd-range-extra">
-                <div className="apd-range-item">
-                  <div className="apd-label-mini">Kiểu lọc</div>
-                  <div className="apd-seg">
+              <div className="apd-compact">
+                {rangePreset === "month" ? (
+                  <div className="apd-compact-row">
                     <button
-                      className={"apd-segbtn " + (customMode === "day" ? "is-on" : "")}
-                      onClick={() => setCustomMode("day")}
+                      className="apd-navbtn"
+                      onClick={() => setMonthAnchor(addMonthsLocal(startOfMonthLocal(monthAnchor), -1))}
+                      title="Tháng trước"
+                      type="button"
                     >
-                      Ngày
+                      ‹
                     </button>
+                    <DatePicker
+                      selected={new Date(monthAnchor)}
+                      onChange={(d) => d && setMonthAnchor(startOfMonthLocal(d))}
+                      className="apd-input apd-mini"
+                      dateFormat="MM/yyyy"
+                      showMonthYearPicker
+                    />
                     <button
-                      className={"apd-segbtn " + (customMode === "month" ? "is-on" : "")}
-                      onClick={() => setCustomMode("month")}
+                      className="apd-navbtn"
+                      onClick={() => setMonthAnchor(addMonthsLocal(startOfMonthLocal(monthAnchor), 1))}
+                      title="Tháng sau"
+                      type="button"
                     >
-                      Tháng
-                    </button>
-                    <button
-                      className={"apd-segbtn " + (customMode === "year" ? "is-on" : "")}
-                      onClick={() => setCustomMode("year")}
-                    >
-                      Năm
+                      ›
                     </button>
                   </div>
-                </div>
+                ) : null}
 
-                <div className="apd-range-item">
-                  <div className="apd-label-mini">Từ</div>
-                  <DatePicker
-                    className="apd-input apd-date"
-                    selected={fromPick}
-                    onChange={(d) => setFromPick(d || new Date())}
-                    dateFormat={
-                      customMode === "day"
-                        ? "dd/MM/yyyy"
-                        : customMode === "month"
-                        ? "MM/yyyy"
-                        : "yyyy"
-                    }
-                    showMonthYearPicker={customMode === "month"}
-                    showYearPicker={customMode === "year"}
-                  />
-                </div>
-
-                <div className="apd-range-item">
-                  <div className="apd-label-mini">Đến</div>
-                  <DatePicker
-                    className="apd-input apd-date"
-                    selected={toPick}
-                    onChange={(d) => setToPick(d || new Date())}
-                    dateFormat={
-                      customMode === "day"
-                        ? "dd/MM/yyyy"
-                        : customMode === "month"
-                        ? "MM/yyyy"
-                        : "yyyy"
-                    }
-                    showMonthYearPicker={customMode === "month"}
-                    showYearPicker={customMode === "year"}
-                  />
-                </div>
+                {rangePreset === "year" ? (
+                  <div className="apd-compact-row">
+                    <button
+                      className="apd-navbtn"
+                      onClick={() => setYearAnchor(addYearsLocal(startOfYearLocal(yearAnchor.getFullYear()), -1))}
+                      title="Năm trước"
+                      type="button"
+                    >
+                      ‹
+                    </button>
+                    <DatePicker
+                      selected={new Date(yearAnchor)}
+                      onChange={(d) => d && setYearAnchor(startOfYearLocal(d.getFullYear()))}
+                      className="apd-input apd-mini"
+                      dateFormat="yyyy"
+                      showYearPicker
+                    />
+                    <button
+                      className="apd-navbtn"
+                      onClick={() => setYearAnchor(addYearsLocal(startOfYearLocal(yearAnchor.getFullYear()), 1))}
+                      title="Năm sau"
+                      type="button"
+                    >
+                      ›
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            )}
-
-            {rangePreset === "custom" && (
-              <div className="apd-hint">
-                Mẹo: lọc dài sẽ tự gộp theo tuần/tháng/quý để chart không bị kéo dài.
-              </div>
-            )}
+            </div>
           </div>
 
-          <div className="apd-filter">
-            <div className="apd-label">Cổng thanh toán</div>
-            <select
-              className="apd-input"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-            >
-              <option value="PayOS">PayOS</option>
-              <option value="ALL">Tất cả</option>
-            </select>
+          {/* bottom filters moved below to keep time controls separate */}
+          {/* bottom filters: provider, targetType, pendingOverdueMinutes */}
+          <div className="apd-bottom-filters">
+            <div className="apd-filter">
+              <div className="apd-label">Cổng thanh toán</div>
+              <select
+                className="apd-input"
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+              >
+                <option value="PayOS">PayOS</option>
+                <option value="ALL">Tất cả</option>
+              </select>
+            </div>
+
+            <div className="apd-filter">
+              <div className="apd-label">Loại giao dịch</div>
+              <select
+                className="apd-input"
+                value={targetType}
+                onChange={(e) => setTargetType(e.target.value)}
+              >
+                <option value="">Tất cả</option>
+                <option value="Order">Đơn hàng</option>
+                <option value="SupportPlan">Gói hỗ trợ</option>
+              </select>
+            </div>
+
+            <div className="apd-filter">
+              <div className="apd-label">Chờ quá hạn (phút)</div>
+              <input
+                className="apd-input"
+                type="number"
+                value={pendingOverdueMinutes}
+                min={1}
+                max={240}
+                onChange={(e) => setPendingOverdueMinutes(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="apd-filter">
-            <div className="apd-label">Loại giao dịch</div>
-            <select
-              className="apd-input"
-              value={targetType}
-              onChange={(e) => setTargetType(e.target.value)}
-            >
-              <option value="">Tất cả</option>
-              <option value="Order">Đơn hàng</option>
-              <option value="SupportPlan">Gói hỗ trợ</option>
-            </select>
-          </div>
-
-          <div className="apd-filter">
-            <div className="apd-label">Chờ quá hạn (phút)</div>
-            <input
-              className="apd-input"
-              type="number"
-              value={pendingOverdueMinutes}
-              min={1}
-              max={240}
-              onChange={(e) => setPendingOverdueMinutes(e.target.value)}
-            />
-          </div>
         </div>
 
         {err && <div className="apd-error">{err}</div>}
@@ -758,7 +801,7 @@ export default function AdminPaymentsDashboardPage() {
                 {successRateValue === null ? "—" : toPct(successRateValue)}
               </span>
             </div>
-            <div className="apd-card-foot">Paid / Success / Completed</div>
+            
           </div>
 
           <div className="apd-card">
@@ -766,7 +809,7 @@ export default function AdminPaymentsDashboardPage() {
             <div className="apd-card-val">
               {toVnd(pick(summary, "totalAmountCollected", "TotalAmountCollected"))}
             </div>
-            <div className="apd-card-foot">Tổng amount của giao dịch thành công</div>
+            
           </div>
 
           <div className="apd-card">
@@ -777,7 +820,7 @@ export default function AdminPaymentsDashboardPage() {
                 {timeoutRateValue === null ? "—" : toPct(timeoutRateValue)}
               </span>
             </div>
-            <div className="apd-card-foot">Hết hạn thanh toán</div>
+            
           </div>
 
           <div className="apd-card">
@@ -788,7 +831,7 @@ export default function AdminPaymentsDashboardPage() {
                 {cancelRateValue === null ? "—" : toPct(cancelRateValue)}
               </span>
             </div>
-            <div className="apd-card-foot">Người dùng hủy / hủy hệ thống</div>
+            
           </div>
 
           <div className="apd-card">
@@ -808,7 +851,7 @@ export default function AdminPaymentsDashboardPage() {
             <div className="apd-card-val">
               {secToHuman(pick(summary, "medianTimeToPaySeconds", "MedianTimeToPaySeconds"))}
             </div>
-            <div className="apd-card-foot">P50 time-to-pay (từ AuditLogs Paid)</div>
+            <div className="apd-card-foot">P50 thời gian thanh toán</div>
           </div>
 
           <div className="apd-card">
@@ -849,7 +892,6 @@ export default function AdminPaymentsDashboardPage() {
           <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Giao dịch theo trạng thái</div>
-              <div className="apd-panel-sub">Zoom + tự gộp theo {grain}</div>
             </div>
 
             <div className="apd-chart apd-rechart">
@@ -1110,7 +1152,6 @@ export default function AdminPaymentsDashboardPage() {
           <div className="apd-panel">
             <div className="apd-panel-head">
               <div className="apd-panel-title">Top lý do thất bại</div>
-              <div className="apd-panel-sub">Hiển thị thuần Việt</div>
             </div>
 
             <div className="apd-chart apd-rechart">
@@ -1140,7 +1181,6 @@ export default function AdminPaymentsDashboardPage() {
             <div className="apd-panel-head">
               <div className="apd-panel-title">Giao dịch thành công theo giờ</div>
               <div className="apd-panel-sub">
-                Theo múi giờ trình duyệt (UTC+{Math.round(tzOffsetMinutesAdd / 60)})
               </div>
             </div>
 

@@ -1,7 +1,6 @@
 ﻿// File: Controllers/TicketSubjectTemplatesAdminController.cs
 using System.Collections.Generic;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.Tickets;
 using Keytietkiem.Infrastructure;
@@ -13,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -430,7 +430,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – CREATE TEMPLATE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateTicketSubjectTemplate",
                 entityType: "TicketSubjectTemplate",
                 entityId: entity.TemplateCode,
                 before: null,
@@ -599,7 +599,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – UPDATE TEMPLATE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateTicketSubjectTemplate",
                 entityType: "TicketSubjectTemplate",
                 entityId: entity.TemplateCode,
                 before: before,
@@ -650,7 +650,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – DELETE TEMPLATE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteTicketSubjectTemplate",
                 entityType: "TicketSubjectTemplate",
                 entityId: code,
                 before: before,
@@ -710,7 +710,7 @@ namespace Keytietkiem.Controllers
             // 🔐 AUDIT LOG – TOGGLE TEMPLATE
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Toggle",
+                action: "ToggleTicketSubjectTemplateActive",
                 entityType: "TicketSubjectTemplate",
                 entityId: entity.TemplateCode,
                 before: before,

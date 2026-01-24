@@ -6,6 +6,7 @@ import StorefrontCartApi, { CART_UPDATED_EVENT } from "../../services/storefront
 import { NotificationsApi } from "../../services/notifications";
 import StorefrontProductApi from "../../services/storefrontProductService";
 import axiosClient from "../../api/axiosClient";
+import formatDatetime from "../../utils/formatDatetime";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 import "./PublicHeader.css";
 
@@ -35,7 +36,7 @@ const BASE_NAV_ITEMS = [
         label: "Hướng dẫn sử dụng",
         path: "https://drive.google.com/file/d/1g5p5UI9luWWv-yn0VvWmq580WkBhv9JV/view",
       },
-      { label: "Ticket hỗ trợ", path: "/tickets" },
+      { label: "Tạo phiếu hỗ trợ", path: "/tickets/create" },
     ],
   },
   {
@@ -46,7 +47,7 @@ const BASE_NAV_ITEMS = [
   {
     label: "Hướng dẫn",
     anchor: "docs",
-    path: "/docs",
+    path: "/tai-lieu",
   },
 ];
 
@@ -143,14 +144,7 @@ const getNotifSeverityLabel = (sev) => {
   }
 };
 
-const formatNotificationTime = (value) => {
-  if (!value) return "";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return "";
-  }
-};
+const formatNotificationTime = (value) => (value ? formatDatetime(value) : "");
 
 // Helper function to get user roles from localStorage
 const getUserRoles = () => {
@@ -158,10 +152,10 @@ const getUserRoles = () => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
-      const roles = Array.isArray(parsedUser?.roles) 
-        ? parsedUser.roles 
-        : parsedUser?.role 
-          ? [parsedUser.role] 
+      const roles = Array.isArray(parsedUser?.roles)
+        ? parsedUser.roles
+        : parsedUser?.role
+          ? [parsedUser.role]
           : [];
       return roles.map(r => {
         if (typeof r === "string") return r.toUpperCase();
@@ -178,10 +172,10 @@ const getUserRoles = () => {
 // Helper function to get dashboard route based on user roles
 const getDashboardRoute = (userRoles) => {
   if (!userRoles || userRoles.length === 0) return null;
-  
+
   // Check roles in priority order
   if (userRoles.includes("ADMIN")) {
-    return "/admin/home";
+    return "/admin/orders/dashboard";
   }
   if (userRoles.includes("CONTENT_CREATOR")) {
     return "/post-dashboard";
@@ -190,9 +184,9 @@ const getDashboardRoute = (userRoles) => {
     return "/key-monitor";
   }
   if (userRoles.includes("CUSTOMER_CARE")) {
-    return "/admin/support-dashboard";
+    return "/staff/tickets";
   }
-  
+
   // Customer or no matching role - return null (don't show button)
   return null;
 };
@@ -433,7 +427,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     switch (action) {
       case "profile": navigate("/profile"); break;
       case "orders": navigate("/orders"); break;
-      case "support": navigate("/support"); break;
+      case "support": navigate("/tickets"); break;
       case "logout": handleLogout(); break;
       default: break;
     }
@@ -656,7 +650,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
     );
 
     observer.observe(sentinelEl);
-    return () => { try { observer.disconnect(); } catch {} };
+    return () => { try { observer.disconnect(); } catch { } };
   }, [isNotifWidgetOpen]);
 
   // ===== SignalR notifications =====
@@ -716,7 +710,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       try {
         const total = await NotificationsApi.getMyUnreadCount();
         setUnreadCount(typeof total === "number" ? total : 0);
-      } catch {}
+      } catch { }
 
       fetchNotificationHistory({ append: false });
     });
@@ -729,7 +723,7 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
       if (notifConnectionRef.current) {
         notifConnectionRef.current.off("ReceiveNotification");
         notifConnectionRef.current.off("ReceiveGlobalNotification");
-        notifConnectionRef.current.stop().catch(() => {});
+        notifConnectionRef.current.stop().catch(() => { });
         notifConnectionRef.current = null;
       }
     };
@@ -967,14 +961,14 @@ const PublicHeader = ({ settings, loading, profile, profileLoading }) => {
                         navigate(dashboardRoute);
                       }}
                     >
-                      Dashboard
+                      Bảng điều khiển quản trị
                     </button>
                   )}
                   <button
                     className="account-dropdown-item"
                     onClick={() => handleAccountAction("support")}
                   >
-                    Liên hệ hỗ trợ
+                    Phiếu hỗ trợ của tôi
                   </button>
                   <div className="account-dropdown-divider" />
                   <button className="account-dropdown-item logout" onClick={() => handleAccountAction("logout")}>

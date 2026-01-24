@@ -1,7 +1,6 @@
 ﻿// File: Controllers/SlaRulesAdminController.cs
 using CloudinaryDotNet.Actions;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.DTOs.Common;
 using Keytietkiem.DTOs.SlaRules;
 using Keytietkiem.Infrastructure;
@@ -13,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {
@@ -327,7 +327,7 @@ namespace Keytietkiem.Controllers
             // AUDIT LOG: CREATE (success only)
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateSlaRule",
                 entityType: "SlaRule",
                 entityId: entity.SlaRuleId.ToString(),
                 before: null,
@@ -467,7 +467,7 @@ namespace Keytietkiem.Controllers
             // AUDIT LOG: UPDATE (success only)
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Update",
+                action: "UpdateSlaRule",
                 entityType: "SlaRule",
                 entityId: entity.SlaRuleId.ToString(),
                 before: before,
@@ -521,7 +521,7 @@ namespace Keytietkiem.Controllers
             // AUDIT LOG: DELETE (success only)
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Delete",
+                action: "DeleteSlaRule",
                 entityType: "SlaRule",
                 entityId: entity.SlaRuleId.ToString(),
                 before: before,

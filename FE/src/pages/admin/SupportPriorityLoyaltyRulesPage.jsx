@@ -282,7 +282,7 @@ function RuleModal({
                   <input
                     type="text"
                     inputMode="numeric"
-                    pattern="[0-9]*"
+                    pattern="[0-9.]*"
                     value={formatVndDigits(form.minTotalSpend)}
                     onChange={handleMinSpendChange}
                     placeholder="VD: 500000"

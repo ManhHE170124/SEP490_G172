@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers
 {

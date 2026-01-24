@@ -183,12 +183,13 @@ function FaqModal({
   const catScrollable = safeCategories.length > 3;
   const prodScrollable = safeProducts.length > 3;
   const catListStyle = catScrollable
-  ? { maxHeight: "210px", overflowY: "auto" } // ~ 3 item
-  : {};
+    ? { maxHeight: "210px", overflowY: "auto" } // ~ 3 item
+    : {};
 
-const prodListStyle = prodScrollable
-  ? { maxHeight: "210px", overflowY: "auto" }
-  : {};
+  const prodListStyle = prodScrollable
+    ? { maxHeight: "210px", overflowY: "auto" }
+    : {};
+
   return (
     <div className="cat-modal-backdrop">
       <div className="cat-modal-card">
@@ -287,48 +288,50 @@ const prodListStyle = prodScrollable
                     </h4>
                     <div className="caret">▾</div>
                   </div>
-                 {showCatsPanel && (
-  <div className="panel-body" style={catListStyle}>
-    {safeCategories.length === 0 && (
-      <div className="muted">Không có danh mục hoạt động nào.</div>
-    )}
-    {safeCategories.map((c) => {
-      const id = c.categoryId ?? c.id;
-      const name = c.categoryName ?? c.name ?? `Danh mục #${id}`;
-      const checked = catIds.includes(id);
-      return (
-        <div key={id} className="list-row">
-          <div className="left">
-            <div>{name}</div>
-          </div>
-          <div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    set(
-                      "categoryIds",
-                      Array.from(new Set([...catIds, id]))
-                    );
-                  } else {
-                    set(
-                      "categoryIds",
-                      catIds.filter((x) => x !== id)
-                    );
-                  }
-                }}
-              />
-              <span className="slider" />
-            </label>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)}
-
+                  {showCatsPanel && (
+                    <div className="panel-body" style={catListStyle}>
+                      {safeCategories.length === 0 && (
+                        <div className="muted">
+                          Không có danh mục hoạt động nào.
+                        </div>
+                      )}
+                      {safeCategories.map((c) => {
+                        const id = c.categoryId ?? c.id;
+                        const name =
+                          c.categoryName ?? c.name ?? `Danh mục #${id}`;
+                        const checked = catIds.includes(id);
+                        return (
+                          <div key={id} className="list-row">
+                            <div className="left">
+                              <div>{name}</div>
+                            </div>
+                            <div>
+                              <label className="switch">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      set(
+                                        "categoryIds",
+                                        Array.from(new Set([...catIds, id]))
+                                      );
+                                    } else {
+                                      set(
+                                        "categoryIds",
+                                        catIds.filter((x) => x !== id)
+                                      );
+                                    }
+                                  }}
+                                />
+                                <span className="slider" />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -356,50 +359,51 @@ const prodListStyle = prodScrollable
                     </h4>
                     <div className="caret">▾</div>
                   </div>
-           {showProductsPanel && (
-  <div className="panel-body" style={prodListStyle}>
-    {safeProducts.length === 0 && (
-      <div className="muted">Không có sản phẩm đang hoạt động nào.</div>
-    )}
-    {safeProducts.map((p) => {
-      const id = p.productId ?? p.id;
-      const name = p.productName ?? p.name ?? `Sản phẩm #${id}`;
-      const checked = prodIds.includes(id);
-      return (
-        <div key={id} className="list-row">
-          <div className="left">
-            {/* chỉ hiển thị TÊN sản phẩm */}
-            <div>{name}</div>
-          </div>
-          <div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    set(
-                      "productIds",
-                      Array.from(new Set([...prodIds, id]))
-                    );
-                  } else {
-                    set(
-                      "productIds",
-                      prodIds.filter((x) => x !== id)
-                    );
-                  }
-                }}
-              />
-              <span className="slider" />
-            </label>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)}
-
-
+                  {showProductsPanel && (
+                    <div className="panel-body" style={prodListStyle}>
+                      {safeProducts.length === 0 && (
+                        <div className="muted">
+                          Không có sản phẩm nào.
+                        </div>
+                      )}
+                      {safeProducts.map((p) => {
+                        const id = p.productId ?? p.id;
+                        const name =
+                          p.productName ?? p.name ?? `Sản phẩm #${id}`;
+                        const checked = prodIds.includes(id);
+                        return (
+                          <div key={id} className="list-row">
+                            <div className="left">
+                              {/* chỉ hiển thị TÊN sản phẩm */}
+                              <div>{name}</div>
+                            </div>
+                            <div>
+                              <label className="switch">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      set(
+                                        "productIds",
+                                        Array.from(new Set([...prodIds, id]))
+                                      );
+                                    } else {
+                                      set(
+                                        "productIds",
+                                        prodIds.filter((x) => x !== id)
+                                      );
+                                    }
+                                  }}
+                                />
+                                <span className="slider" />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -487,7 +491,7 @@ export default function FaqsPage() {
   });
   const [faqSubmitting, setFaqSubmitting] = React.useState(false);
 
-  // ===== Danh mục & Sản phẩm đang hoạt động =====
+  // ===== Danh mục & Sản phẩm =====
   const [categories, setCategories] = React.useState([]);
   const [products, setProducts] = React.useState([]);
 
@@ -515,9 +519,8 @@ export default function FaqsPage() {
         );
       });
 
-    // Sản phẩm đang hoạt động
-    // (giả định ProductApi.list hỗ trợ filter status; nếu API khác thì chỉnh lại cho khớp)
-    ProductApi.list({ status: "ACTIVE" })
+    // Sản phẩm: lấy TẤT CẢ để có thể gắn FAQ cho cả sản phẩm hết hàng / ngưng bán
+    ProductApi.list({})
       .then((data) => {
         const arr = Array.isArray(data)
           ? data
@@ -755,12 +758,11 @@ export default function FaqsPage() {
             </button>
           </div>
 
-      {/* Bảng FAQ */}
-<table
-  className="table variants-table faq-table"
-  style={{ marginTop: 10 }}
->
-
+          {/* Bảng FAQ */}
+          <table
+            className="table variants-table faq-table"
+            style={{ marginTop: 10 }}
+          >
             <thead>
               <tr>
                 <th
@@ -856,51 +858,53 @@ export default function FaqsPage() {
                       {f.isActive ? "Hiển thị" : "Ẩn"}
                     </span>
                   </td>
-                 <td className="td-actions td-left">
-  <div className="action-buttons">
-    <button
-      className="action-btn edit-btn"
-      type="button"
-      title="Xem chi tiết / chỉnh sửa"
-      onClick={() => openEditFaq(f)}
-    >
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="16"
-                          height="16"
-                          fill="currentColor"
-                          aria-hidden="true"
+                  <td className="td-actions td-left">
+                    <div className="td-actions-row">
+                      <div className="action-buttons">
+                        <button
+                          className="action-btn edit-btn"
+                          type="button"
+                          title="Xem chi tiết / chỉnh sửa"
+                          onClick={() => openEditFaq(f)}
                         >
-                          <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
-                          <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                        </svg>
-                      </button>
-                      <button
-                        className="action-btn delete-btn"
-                        title="Xoá FAQ"
-                        type="button"
-                        onClick={() => deleteFaq(f)}
-                      >
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="16"
-                          height="16"
-                          fill="currentColor"
-                          aria-hidden="true"
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25z" />
+                            <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                          </svg>
+                        </button>
+                        <button
+                          className="action-btn delete-btn"
+                          title="Xoá FAQ"
+                          type="button"
+                          onClick={() => deleteFaq(f)}
                         >
-                          <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
-                        </svg>
-                      </button>
-                    </div>
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
+                          </svg>
+                        </button>
+                      </div>
 
-                    <label className="switch" title="Bật/Tắt hiển thị">
-                      <input
-                        type="checkbox"
-                        checked={!!f.isActive}
-                        onChange={() => faqToggle(f)}
-                      />
-                      <span className="slider" />
-                    </label>
+                      <label className="switch" title="Bật/Tắt hiển thị">
+                        <input
+                          type="checkbox"
+                          checked={!!f.isActive}
+                          onChange={() => faqToggle(f)}
+                        />
+                        <span className="slider" />
+                      </label>
+                    </div>
                   </td>
                 </tr>
               ))}

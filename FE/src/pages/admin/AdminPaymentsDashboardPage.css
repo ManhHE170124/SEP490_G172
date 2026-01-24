@@ -114,7 +114,8 @@
 .apd-seg {
   display: inline-flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* keep all preset buttons on single row */
+  align-items: center;
 }
 .apd-segbtn {
   border: 1px solid var(--line, #e5e7eb);
@@ -126,6 +127,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
+.apd-segbtn { flex: 0 1 auto; min-width: 0; }
 .apd-segbtn.is-on {
   border-color: #111827;
   background: #111827;
@@ -143,6 +145,35 @@
   margin-left: auto;      /* ✅ đẩy ra cuối hàng */
 }
 
+/* Compact datepicker block (tháng / năm): đặt ở cuối cùng của dòng */
+.apd-compact {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  min-width: 260px;
+}
+.apd-compact-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apd-mini {
+  width: 120px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.apd-navbtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #e5e7eb);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 900;
+}
+
 /* ✅ Custom row: Kiểu lọc + Từ + Đến cùng hàng */
 .apd-range-extra{
   margin-top: 10px;
@@ -154,8 +185,18 @@
 }
 .apd-range-item{ min-width: 0; }
 
+/* Bottom filters: provider/target/overdue arranged in one row */
+.apd-bottom-filters{
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: end;
+  grid-column: 1 / -1; /* span full width of filters grid */
+}
+
 /* react-datepicker */
-.react-datepicker-wrapper{ width: 100%; }
+.react-datepicker-wrapper{ width: auto; }
 .react-datepicker-popper{ z-index: 50; }
 
 .apd-error {

@@ -23,16 +23,20 @@ const sanitizeThumbnail = (url, max = 255) => {
 
 const parseMoney = (value) => {
   if (value === null || value === undefined) return { num: null, raw: "" };
-  const raw = String(value).replace(/,/g, "").trim();
-  if (!raw) return { num: null, raw: "" };
-  const num = Number(raw);
-  if (!Number.isFinite(num)) return { num: null, raw };
-  return { num, raw };
+  // Accept strings formatted like vi-VN (1.234.567 or 1.234,56)
+  const s = String(value).trim();
+  if (!s) return { num: null, raw: "" };
+  // Normalize: remove thousand separators (.) then convert decimal comma -> dot
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return { num: null, raw: s };
+  return { num, raw: s };
 };
 
 const isValidDecimal18_2 = (raw) => {
   if (!raw) return false;
-  const normalized = raw.replace(/,/g, "").trim();
+  // Normalize similar to parseMoney: remove thousand separators and unify decimal to dot
+  const normalized = String(raw).trim().replace(/\./g, "").replace(/,/g, ".");
   if (!normalized) return false;
 
   const neg = normalized[0] === "-";
@@ -46,6 +50,21 @@ const isValidDecimal18_2 = (raw) => {
   if (fracPart.length > 2) return false;
 
   return true;
+};
+
+// Format a number/string for input display: vi-VN thousands (.) and decimal (,)
+const formatForInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const s = String(value).trim();
+  // Try to parse using the same normalization
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) return s;
+  // Use vi-VN formatting: thousand '.' and decimal ','
+  return num.toLocaleString("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 };
 
 export default function VariantDetail() {
@@ -133,14 +152,11 @@ export default function VariantDetail() {
         thumbnail: serverThumb,
         status: (v.status ?? v.Status ?? "INACTIVE").toString().toUpperCase(),
         hasSections: v.hasSections ?? v.HasSections ?? false,
-        sellPrice: v.sellPrice ?? v.SellPrice ?? 0,
-        listPrice:
-          v.listPrice ??
-          v.ListPrice ??
-          v.cogsPrice ??
-          v.CogsPrice ??
-          0,
-        cogsPrice: v.cogsPrice ?? v.CogsPrice ?? 0, // giá vốn – chỉ hiển thị
+        sellPrice: formatForInput(v.sellPrice ?? v.SellPrice ?? 0),
+        listPrice: formatForInput(
+          v.listPrice ?? v.ListPrice ?? v.cogsPrice ?? v.CogsPrice ?? 0
+        ),
+        cogsPrice: formatForInput(v.cogsPrice ?? v.CogsPrice ?? 0), // giá vốn – chỉ hiển thị
       };
 
       setVariant(mapped);
@@ -742,14 +758,15 @@ export default function VariantDetail() {
             </div>
             <div className="group">
               <span>
-                Giá niêm yết<span style={{ color: "#dc2626" }}>*</span>
+                Giá niêm yết (đ)<span style={{ color: "#dc2626" }}>*</span>
               </span>
               <input
-                type="number"
-                min={0}
-                step={1000}
-                value={variant.listPrice ?? ""}
-                onChange={(e) => setVar("listPrice", e.target.value)}
+                type="text"
+                value={formatForInput(variant.listPrice ?? "")}
+                onChange={(e) => {
+                  const cleaned = (e.target.value || "").replace(/[^0-9.,]/g, "");
+                  setVar("listPrice", formatForInput(cleaned));
+                }}
                 className={errors.listPrice ? "input-error" : ""}
               />
               {errors.listPrice && (
@@ -758,14 +775,15 @@ export default function VariantDetail() {
             </div>
             <div className="group">
               <span>
-                Giá bán<span style={{ color: "#dc2626" }}>*</span>
+                Giá bán (đ)<span style={{ color: "#dc2626" }}>*</span>
               </span>
               <input
-                type="number"
-                min={0}
-                step={1000}
-                value={variant.sellPrice ?? ""}
-                onChange={(e) => setVar("sellPrice", e.target.value)}
+                type="text"
+                value={formatForInput(variant.sellPrice ?? "")}
+                onChange={(e) => {
+                  const cleaned = (e.target.value || "").replace(/[^0-9.,]/g, "");
+                  setVar("sellPrice", formatForInput(cleaned));
+                }}
                 className={errors.sellPrice ? "input-error" : ""}
               />
               {errors.sellPrice && (
@@ -780,12 +798,10 @@ export default function VariantDetail() {
             style={{ gridColumn: "1 / 3" }}
           >
             <div className="group">
-              <span>Giá vốn (chỉ hiển thị)</span>
+              <span>Giá vốn (chỉ hiển thị) (đ)</span>
               <input
-                type="number"
-                min={0}
-                step={1000}
-                value={variant.cogsPrice ?? ""}
+                type="text"
+                value={formatForInput(variant.cogsPrice ?? "")}
                 disabled
               />
             </div>

@@ -3,7 +3,6 @@ using Keytietkiem.Infrastructure;
 using Keytietkiem.Services;
 using Keytietkiem.Services.Interfaces;
 using Keytietkiem.Utils;
-using Keytietkiem.Constants;
 using Keytietkiem.Utils; // ✅ NEW
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +10,7 @@ using System;
 using System.Collections.Generic; // ✅ NEW
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Keytietkiem.Utils.Constants;
 
 namespace Keytietkiem.Controllers;
 
@@ -89,17 +89,15 @@ public class ProductReportController : ControllerBase
 
             await _auditLogger.LogAsync(
                 HttpContext,
-                action: "Create",
+                action: "CreateProductReport",
                 entityType: "ProductReport",
                 entityId: report.Id.ToString(),
                 before: null,
                 after: report
             );
 
-            // ✅ System notification: tạo báo cáo -> notify STORAGE_STAFF (best-effort)
             try
             {
-                // Map status sang tiếng Việt (theo FE)
                 static string StatusVi(string? s)
                 {
                     var v = (s ?? "").Trim();
@@ -111,7 +109,7 @@ public class ProductReportController : ControllerBase
                 }
 
                 var origin = PublicUrlHelper.GetPublicOrigin(HttpContext, _config);
-                var relatedUrl = $"{origin}/reports/{report.Id}"; // ✅ route FE: /reports/:id
+                var relatedUrl = $"{origin}/reports/{report.Id}"; // route FE: /reports/:id
 
                 await _notificationSystemService.CreateForRoleCodesAsync(new SystemNotificationCreateRequest
                 {
@@ -146,7 +144,7 @@ public class ProductReportController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/status")]
-    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE)]
+    [RequireRole(RoleCodes.ADMIN, RoleCodes.CUSTOMER_CARE, RoleCodes.STORAGE_STAFF)]
     public async Task<IActionResult> UpdateProductReportStatus(Guid id, [FromBody] UpdateProductReportDto dto)
     {
         if (id != dto.Id)

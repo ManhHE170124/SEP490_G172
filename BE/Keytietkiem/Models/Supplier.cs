@@ -19,6 +19,8 @@ public partial class Supplier
 
     public string? LicenseTerms { get; set; }
 
+    public string? Notes { get; set; }
+
     public virtual ICollection<LicensePackage> LicensePackages { get; set; } = new List<LicensePackage>();
 
     public virtual ICollection<ProductAccount> ProductAccounts { get; set; } = new List<ProductAccount>();

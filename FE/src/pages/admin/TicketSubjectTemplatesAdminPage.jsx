@@ -156,12 +156,12 @@ function TicketSubjectTemplateModal({
 
     if (!isEdit) {
       if (!codeRaw) {
-        e.templateCode = "Mã template không được để trống.";
+        e.templateCode = "Mã mẫu chủ đề không được để trống.";
       } else if (codeRaw.length > 50) {
-        e.templateCode = "Mã template không được vượt quá 50 ký tự.";
+        e.templateCode = "Mã mẫu chủ đề không được vượt quá 50 ký tự.";
       } else if (!/^[A-Za-z0-9_\-]+$/.test(codeRaw)) {
         e.templateCode =
-          "Mã template chỉ được chứa chữ, số, dấu - và _, không chứa khoảng trắng.";
+          "Mã mẫu chủ đề chỉ được chứa chữ, số, dấu - và _, không chứa khoảng trắng.";
       }
     }
 
@@ -202,8 +202,8 @@ function TicketSubjectTemplateModal({
         "warning",
         "Vui lòng kiểm tra các trường được đánh dấu.",
         isEdit
-          ? "Dữ liệu template chưa hợp lệ"
-          : "Dữ liệu template chưa hợp lệ"
+          ? "Dữ liệu mẫu chủ đề chưa hợp lệ"
+          : "Dữ liệu mẫu chủ đề chưa hợp lệ"
       );
     }
     return Object.keys(e).length === 0;
@@ -235,14 +235,14 @@ function TicketSubjectTemplateModal({
         openConfirm({
           title: "Đóng cửa sổ?",
           message:
-            "Bạn có các thay đổi template chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này.",
+            "Bạn có các thay đổi mẫu chủ đề chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này.",
           onConfirm: () => {
             onClose?.();
           },
         });
       } else {
         const ok = window.confirm(
-          "Bạn có các thay đổi template chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này. Bạn có chắc muốn thoát?"
+          "Bạn có các thay đổi mẫu chủ đề chưa lưu. Đóng cửa sổ sẽ làm mất các thay đổi này. Bạn có chắc muốn thoát?"
         );
         if (!ok) return;
         onClose?.();
@@ -260,12 +260,12 @@ function TicketSubjectTemplateModal({
         <div className="cat-modal-header">
           <h3>
             {isEdit
-              ? "Chỉnh sửa Ticket Subject Template"
-              : "Thêm Ticket Subject Template"}
+              ? "Chỉnh sửa mẫu chủ đề phiếu hỗ trợ"
+              : "Thêm mẫu chủ đề phiếu hỗ trợ"}
           </h3>
           <div className="group" style={{ marginTop: 8 }}>
             <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <label className="switch" title="Bật/Tắt template">
+              <label className="switch" title="Bật/Tắt mẫu chủ đề">
                 <input
                   type="checkbox"
                   checked={!!form.isActive}
@@ -288,7 +288,7 @@ function TicketSubjectTemplateModal({
             <div className="row" style={{ gap: 16 }}>
               <div className="group" style={{ width: 260 }}>
                 <span>
-                  Mã template <RequiredMark />
+                  Mã mẫu chủ đề <RequiredMark />
                 </span>
                 <input
                   type="text"
@@ -300,7 +300,7 @@ function TicketSubjectTemplateModal({
                 <FieldError message={errors.templateCode} />
                 {isEdit && (
                   <span className="muted">
-                    Mã template không thể thay đổi sau khi tạo.
+                    Mã mẫu chủ đề không thể thay đổi sau khi tạo.
                   </span>
                 )}
               </div>
@@ -375,7 +375,7 @@ function TicketSubjectTemplateModal({
                   : "Đang tạo..."
                 : isEdit
                 ? "Lưu thay đổi"
-                : "Tạo template mới"}
+                : "Tạo mẫu chủ đề mới"}
             </button>
           </div>
         </form>
@@ -474,7 +474,7 @@ export default function TicketSubjectTemplatesAdminPage() {
         console.error(err);
         addToast(
           "error",
-          "Không tải được danh sách Ticket Subject Template.",
+          "Không tải được danh sách mẫu chủ đề phiếu hỗ trợ.",
           "Lỗi"
         );
       })
@@ -513,7 +513,7 @@ export default function TicketSubjectTemplatesAdminPage() {
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không tải được chi tiết template để chỉnh sửa.",
+          "Không tải được chi tiết mẫu chủ đề để chỉnh sửa.",
         "Lỗi"
       );
     }
@@ -526,7 +526,7 @@ export default function TicketSubjectTemplatesAdminPage() {
         await TicketSubjectTemplatesAdminApi.create(payload);
         addToast(
           "success",
-          "Đã tạo Ticket Subject Template mới.",
+          "Đã tạo mẫu chủ đề phiếu hỗ trợ mới.",
           "Thành công"
         );
       } else if (modalState.mode === "edit" && modalState.data) {
@@ -541,7 +541,7 @@ export default function TicketSubjectTemplatesAdminPage() {
         );
         addToast(
           "success",
-          "Đã cập nhật Ticket Subject Template.",
+          "Đã cập nhật mẫu chủ đề phiếu hỗ trợ.",
           "Thành công"
         );
       }
@@ -552,7 +552,7 @@ export default function TicketSubjectTemplatesAdminPage() {
       console.error(e);
       addToast(
         "error",
-        e?.response?.data?.message || "Lưu Ticket Subject Template thất bại.",
+        e?.response?.data?.message || "Lưu mẫu chủ đề phiếu hỗ trợ thất bại.",
         "Lỗi"
       );
     } finally {
@@ -563,14 +563,14 @@ export default function TicketSubjectTemplatesAdminPage() {
   const toggleActive = async (tpl) => {
     try {
       await TicketSubjectTemplatesAdminApi.toggle(tpl.templateCode);
-      addToast("success", "Đã cập nhật trạng thái template.", "Thành công");
+      addToast("success", "Đã cập nhật trạng thái mẫu chủ đề.", "Thành công");
       loadTemplates();
     } catch (e) {
       console.error(e);
       addToast(
         "error",
         e?.response?.data?.message ||
-          "Không thể cập nhật trạng thái template.",
+          "Không thể cập nhật trạng thái mẫu chủ đề.",
         "Lỗi"
       );
     }
@@ -578,14 +578,14 @@ export default function TicketSubjectTemplatesAdminPage() {
 
   const deleteTemplate = (tpl) => {
     openConfirm({
-      title: "Xoá Ticket Subject Template?",
-      message: `Xoá template "${tpl.title}" (mã: ${tpl.templateCode})? Hành động này không thể hoàn tác!`,
+      title: "Xoá mẫu chủ đề phiếu hỗ trợ?",
+      message: `Xoá mẫu chủ đề "${tpl.title}" (mã: ${tpl.templateCode})? Hành động này không thể hoàn tác!`,
       onConfirm: async () => {
         try {
           await TicketSubjectTemplatesAdminApi.remove(tpl.templateCode);
           addToast(
             "success",
-            "Đã xoá Ticket Subject Template.",
+            "Đã xoá mẫu chủ đề phiếu hỗ trợ.",
             "Thành công"
           );
           loadTemplates();
@@ -594,7 +594,7 @@ export default function TicketSubjectTemplatesAdminPage() {
           addToast(
             "error",
             e?.response?.data?.message ||
-              "Xoá Ticket Subject Template thất bại.",
+              "Xoá mẫu chủ đề phiếu hỗ trợ thất bại.",
             "Lỗi"
           );
         }
@@ -620,10 +620,10 @@ export default function TicketSubjectTemplatesAdminPage() {
         <div className="card">
           <div className="card-header">
             <div className="left">
-              <h2>Cấu hình Ticket Subject Template</h2>
+              <h2>Cấu hình mẫu chủ đề phiếu hỗ trợ</h2>
               <p className="muted">
                 Quản lý danh sách chủ đề có sẵn khi khách tạo phiếu hỗ trợ
-                (ticket). Mỗi template gồm mã cố định, tiêu đề hiển thị, độ ưu
+                (ticket). Mỗi mẫu chủ đề gồm mã cố định, tiêu đề hiển thị, độ ưu
                 tiên (Severity) và nhóm vấn đề (Category) hiển thị bằng tiếng
                 Việt giống màn tạo ticket.
               </p>
@@ -745,7 +745,7 @@ export default function TicketSubjectTemplatesAdminPage() {
               style={{ flexShrink: 0, whiteSpace: "nowrap" }}
               onClick={openAdd}
             >
-              Thêm template
+              Thêm mẫu chủ đề
             </button>
           </div>
 
@@ -753,7 +753,7 @@ export default function TicketSubjectTemplatesAdminPage() {
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
               <tr>
-                <th style={{ width: 160 }}>Mã template</th>
+                <th style={{ width: 160 }}>Mã mẫu chủ đề</th>
                 <th style={{ minWidth: 260 }}>Tiêu đề</th>
                 <th style={{ width: 130 }}>Severity</th>
                 <th style={{ width: 200 }}>Nhóm vấn đề</th>
@@ -841,7 +841,7 @@ export default function TicketSubjectTemplatesAdminPage() {
                           type="button"
                           className="action-btn edit-btn"
                           onClick={() => openEdit(t)}
-                          title="Chỉnh sửa template"
+                          title="Chỉnh sửa mẫu chủ đề"
                         >
                           {/* icon bút chì */}
                           <svg
@@ -862,7 +862,7 @@ export default function TicketSubjectTemplatesAdminPage() {
                           type="button"
                           className="action-btn delete-btn"
                           onClick={() => deleteTemplate(t)}
-                          title="Xoá template"
+                          title="Xoá mẫu chủ đề"
                         >
                           {/* icon thùng rác */}
                           <svg
@@ -890,7 +890,7 @@ export default function TicketSubjectTemplatesAdminPage() {
               {templates.length === 0 && !loading && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: 14 }}>
-                    Chưa có Ticket Subject Template nào.
+                    Chưa có mẫu chủ đề phiếu hỗ trợ nào.
                   </td>
                 </tr>
               )}
@@ -920,7 +920,7 @@ export default function TicketSubjectTemplatesAdminPage() {
                 Trang {page} / {totalPages}{" "}
                 {total > 0 && (
                   <span className="muted">
-                    (Tổng {total.toLocaleString("vi-VN")} template)
+                    (Tổng {total.toLocaleString("vi-VN")} mẫu chủ đề)
                   </span>
                 )}
               </span>
