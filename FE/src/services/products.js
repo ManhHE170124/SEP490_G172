@@ -5,7 +5,6 @@ const ROOT = "products";
 
 // VIỆT HOÁ loại sản phẩm
 export const PRODUCT_TYPES = [
-  { value: "SHARED_KEY",       label: "Key dùng chung" },
   { value: "PERSONAL_KEY",     label: "Key cá nhân" },
   { value: "SHARED_ACCOUNT",   label: "Tài khoản dùng chung" },
   { value: "PERSONAL_ACCOUNT", label: "Tài khoản cá nhân" },

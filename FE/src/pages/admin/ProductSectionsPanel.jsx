@@ -412,10 +412,10 @@ export default function ProductSectionsPanel({
           editing.sectionId,
           dto
         );
-        addToast("success", "Cập nhật section", "Section đã được lưu thay đổi.");
+        addToast("success", "Cập nhật mô tả", "Mô tả đã được lưu thay đổi.");
       } else {
         await ProductSectionsApi.create(productId, variantId, dto);
-        addToast("success", "Thêm section", "Section mới đã được tạo.");
+        addToast("success", "Thêm mô tả", "Mô tả mới đã được tạo.");
       }
 
       await load();
@@ -549,7 +549,7 @@ export default function ProductSectionsPanel({
       <div className="panel">
         <div className="panel-header" style={{ alignItems: "center" }}>
           <h4>
-            Thông tin sản phẩm / Sections{" "}
+            Thông tin sản phẩm{" "}
             <span
               style={{
                 fontSize: 12,
@@ -591,7 +591,7 @@ export default function ProductSectionsPanel({
               <option value="false">Đang ẩn</option>
             </select>
             <button className="btn primary" onClick={openCreate}>
-              + Thêm section
+              + Thêm mô tả
             </button>
           </div>
         </div>
@@ -854,7 +854,7 @@ export default function ProductSectionsPanel({
           >
             <div className="modal-topbar">
               <h3 style={{ margin: 0 }}>
-                {editing ? "Sửa section" : "Thêm section"}
+                {editing ? "Sửa mô tả" : "Thêm mô tả"}
               </h3>
               <div className="row" style={{ gap: 8, alignItems: "center" }}>
                 <label className="switch" title="Bật/Tắt hiển thị">
