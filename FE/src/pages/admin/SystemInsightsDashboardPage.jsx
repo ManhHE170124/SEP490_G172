@@ -14,9 +14,6 @@ import {
   Line,
   Bar,
   Brush,
-  PieChart,
-  Pie,
-  Cell,
   BarChart,
 } from "recharts";
 
@@ -67,7 +64,9 @@ const ACTION_VI = {
   CheckoutFromCart: "Thanh toán từ giỏ hàng",
   ViewOrderDetail: "Xem chi tiết đơn hàng",
   ViewOrderDetailWithCredentials: "Xem chi tiết đơn hàng",
+  ChangeOrderStatus: "Nhân viên đổi trạng thái đơn hàng",
   PaymentStatusChanged: "Cập nhật trạng thái thanh toán",
+  OrderStatusChanged: "Đồng bộ trạng thái đơn hàng theo thanh toán",
   CreateSupportPlanPayOSPayment: "Tạo thanh toán PayOS cho gói hỗ trợ",
   ConfirmSupportPlanPayment: "Xác nhận thanh toán gói hỗ trợ",
 
@@ -348,7 +347,6 @@ async function fetchSystemInsightsOverview({ fromLocalIso, toLocalExclusiveIso, 
     bucket: bucket || "day",
   };
 
-  // ✅ FIX: KHÔNG dùng "/..." để khỏi mất baseURL "/api"
   const res = await axiosClient.get("system-insights-dashboard/overview", { params });
   return res?.data ?? res;
 }
@@ -411,30 +409,49 @@ const ReadRateTooltip = ({ active, payload, label }) => {
 /* =========================
    Small components
    ========================= */
-function TopBars({ data, height = 280, valueKey = "value", labelKey = "label", barName = "Số lần", barColor = "#2563eb" }) {
+function TopBars({
+  data,
+  height = 280,
+  valueKey = "value",
+  labelKey = "label",
+  barName = "Số lần",
+  barColor = "#2563eb",
+}) {
   const list = Array.isArray(data) ? data : [];
   if (!list.length) return <div className="sid-empty">Chưa có dữ liệu</div>;
 
-  // Recharts vertical layout: top to bottom => đảo để item lớn nhất nằm trên
-  const sorted = list.slice().sort((a, b) => Number(b[valueKey] || 0) - Number(a[valueKey] || 0)).slice(0, 10);
+  const sorted = list
+    .slice()
+    .sort((a, b) => Number(b[valueKey] || 0) - Number(a[valueKey] || 0))
+    .slice(0, 10);
 
   return (
     <div className="sid-chart">
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={sorted} layout="vertical" margin={{ top: 8, right: 10, bottom: 0, left: 10 }}>
+        <BarChart
+          data={sorted}
+          layout="vertical"
+          margin={{ top: 8, right: 10, bottom: 0, left: 10 }}
+        >
           <CartesianGrid stroke="#eef2f7" />
           <XAxis type="number" allowDecimals={false} />
           <YAxis type="category" dataKey={labelKey} width={170} tick={{ fontSize: 12 }} />
           <Tooltip formatter={(v) => fmtInt(v)} />
           <Legend />
-          <Bar dataKey={valueKey} name={barName} fill={barColor} isAnimationActive={false} barSize={16} radius={[8, 8, 8, 8]} />
+          <Bar
+            dataKey={valueKey}
+            name={barName}
+            fill={barColor}
+            isAnimationActive={false}
+            barSize={16}
+            radius={[8, 8, 8, 8]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-/* Heatmap giữ custom (Recharts không có heatmap native) */
 function Heatmap({ cells }) {
   const data = Array.isArray(cells) ? cells : [];
   if (!data.length) return <div className="sid-empty">Chưa có dữ liệu</div>;
@@ -443,7 +460,9 @@ function Heatmap({ cells }) {
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
   const getCount = (d, h) => {
-    const found = data.find((x) => Number(x.dayIndex) === d && Number(x.hour) === h);
+    const found = data.find(
+      (x) => Number(x.dayIndex) === d && Number(x.hour) === h
+    );
     return found ? Number(found.count || 0) : 0;
   };
 
@@ -473,7 +492,9 @@ function Heatmap({ cells }) {
                     key={`${d}-${h}`}
                     className="sid-heatmap-cell"
                     style={{ opacity: 0.15 + 0.85 * t }}
-                    title={`${weekdayViByMon0(d)} • ${h}h: ${fmtInt(c)} thao tác`}
+                    title={`${weekdayViByMon0(d)} • ${h}h: ${fmtInt(
+                      c
+                    )} thao tác`}
                   />
                 );
               })}
@@ -503,13 +524,12 @@ export default function SystemInsightsDashboardPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4500);
   };
 
-  const [preset, setPreset] = useState("last30"); // today | last7 | last30 | custom
-  const [bucket, setBucket] = useState("day"); // day | hour
+  const [preset, setPreset] = useState("last30");
+  const [bucket, setBucket] = useState("day");
 
-  // custom day range (inclusive end for UI)
   const [customDayRange, setCustomDayRange] = useState(() => {
     const today0 = localStartOfDay(new Date());
-    const end = today0; // inclusive
+    const end = today0;
     const start = addDaysLocal(end, -6);
     return [start, end];
   });
@@ -542,19 +562,24 @@ export default function SystemInsightsDashboardPage() {
       return { from, toExclusive, displayTo };
     }
 
-    // custom
-    const s = customDayRange?.[0] ? localStartOfDay(new Date(customDayRange[0])) : today0;
-    const e = customDayRange?.[1] ? localStartOfDay(new Date(customDayRange[1])) : s;
+    const s = customDayRange?.[0]
+      ? localStartOfDay(new Date(customDayRange[0]))
+      : today0;
+    const e = customDayRange?.[1]
+      ? localStartOfDay(new Date(customDayRange[1]))
+      : s;
     const from = s;
     const toExclusive = addDaysLocal(e, 1);
     const displayTo = e;
-    if (toExclusive <= from) return { from, toExclusive: addDaysLocal(from, 1), displayTo: from };
+    if (toExclusive <= from)
+      return { from, toExclusive: addDaysLocal(from, 1), displayTo: from };
     return { from, toExclusive, displayTo };
   }, [preset, customDayRange]);
 
-  const rangeText = useMemo(() => {
-    return `${dmy(range.from)} → ${dmy(range.displayTo)} (UTC+7)`;
-  }, [range]);
+  const rangeText = useMemo(
+    () => `${dmy(range.from)} → ${dmy(range.displayTo)} (UTC+7)`,
+    [range]
+  );
 
   const load = useCallback(async (r, bkt) => {
     setErr("");
@@ -572,7 +597,10 @@ export default function SystemInsightsDashboardPage() {
 
       setData(res);
     } catch (e) {
-      const msg = e?.response?.data?.message || e?.message || "Không tải được dữ liệu giám sát hệ thống.";
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Không tải được dữ liệu giám sát hệ thống.";
       setErr(msg);
       setData(null);
       addToast("error", msg, "Lỗi");
@@ -581,7 +609,6 @@ export default function SystemInsightsDashboardPage() {
     }
   }, []);
 
-  // ✅ Auto apply (debounce) khi đổi filter giống Orders Dashboard
   const debounceRef = useRef(null);
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -619,50 +646,44 @@ export default function SystemInsightsDashboardPage() {
   }, [data]);
 
   const readRateTrend = useMemo(() => {
-    const raw = data?.notificationReadRateDaily || data?.NotificationReadRateDaily || [];
+    const raw =
+      data?.notificationReadRateDaily || data?.NotificationReadRateDaily || [];
     return raw.map((d) => ({
       label: bucketLabelVi(d.dateLocal || d.DateLocal),
-      readRatePct: Math.round((Number(d.readRate ?? d.ReadRate ?? 0) * 1000)) / 10, // 0..100, 1 decimal
+      readRatePct:
+        Math.round(
+          Number(d.readRate ?? d.ReadRate ?? 0) * 1000
+        ) / 10,
     }));
   }, [data]);
 
   const topAuditActions = useMemo(() => {
     const raw = data?.topAuditActions || data?.TopAuditActions || [];
-    return raw.map((x) => ({ label: viAction(x.name ?? x.Name), value: Number(x.count ?? x.Count ?? 0) }));
+    return raw.map((x) => ({
+      label: viAction(x.name ?? x.Name),
+      value: Number(x.count ?? x.Count ?? 0),
+    }));
   }, [data]);
 
   const topAuditEntities = useMemo(() => {
     const raw = data?.topAuditEntityTypes || data?.TopAuditEntityTypes || [];
-    return raw.map((x) => ({ label: viEntity(x.name ?? x.Name), value: Number(x.count ?? x.Count ?? 0) }));
-  }, [data]);
-
-  const topAuditIps = useMemo(() => {
-    const raw = data?.topAuditIpAddresses || data?.TopAuditIpAddresses || [];
-    return raw.map((x) => ({ label: String(x.name ?? x.Name ?? "-"), value: Number(x.count ?? x.Count ?? 0) }));
+    return raw.map((x) => ({
+      label: viEntity(x.name ?? x.Name),
+      value: Number(x.count ?? x.Count ?? 0),
+    }));
   }, [data]);
 
   const topNotiTypes = useMemo(() => {
     const raw = data?.topNotificationTypes || data?.TopNotificationTypes || [];
-    return raw.map((x) => ({ label: notificationTypeLabel(x.name ?? x.Name), value: Number(x.count ?? x.Count ?? 0) }));
-  }, [data]);
-
-  const notiScopePie = useMemo(() => {
-    const s = data?.notificationScope || data?.NotificationScope;
-    if (!s) return [];
-    return [
-      { name: "Toàn hệ thống", value: Number(s.global ?? s.Global ?? 0) },
-      { name: "Theo nhóm quyền", value: Number(s.roleTargeted ?? s.RoleTargeted ?? 0) },
-      { name: "Người dùng cụ thể", value: Number(s.userTargeted ?? s.UserTargeted ?? 0) },
-    ].filter((x) => x.value > 0);
-  }, [data]);
-
-  const notiRecipientsHistogram = useMemo(() => {
-    const raw = data?.notificationRecipientsHistogram || data?.NotificationRecipientsHistogram || [];
-    return raw.map((x) => ({ label: String(x.label ?? x.Label ?? ""), value: Number(x.count ?? x.Count ?? 0) }));
+    return raw.map((x) => ({
+      label: notificationTypeLabel(x.name ?? x.Name),
+      value: Number(x.count ?? x.Count ?? 0),
+    }));
   }, [data]);
 
   const notiSeverityDaily = useMemo(() => {
-    const raw = data?.notificationsSeverityDaily || data?.NotificationsSeverityDaily || [];
+    const raw =
+      data?.notificationsSeverityDaily || data?.NotificationsSeverityDaily || [];
     return raw.map((d) => {
       const info = Number(d.info ?? d.Info ?? 0);
       const success = Number(d.success ?? d.Success ?? 0);
@@ -679,16 +700,30 @@ export default function SystemInsightsDashboardPage() {
     });
   }, [data]);
 
-  const auditHeatmap = useMemo(() => data?.auditHeatmap || data?.AuditHeatmap || [], [data]);
+  const auditHeatmap = useMemo(
+    () => data?.auditHeatmap || data?.AuditHeatmap || [],
+    [data]
+  );
 
   // KPIs
   const sysAct = data?.systemActivity || data?.SystemActivity || {};
   const notiHealth = data?.notificationsHealth || data?.NotificationsHealth || {};
 
-  const systemActionRate = Number(sysAct.systemActionRate ?? sysAct.SystemActionRate ?? 0);
-  const overallReadRate = Number(notiHealth.overallReadRate ?? notiHealth.OverallReadRate ?? 0);
+  const totalActions = Number(sysAct.totalActions ?? sysAct.TotalActions ?? 0);
+  const systemActions = Number(sysAct.systemActions ?? sysAct.SystemActions ?? 0);
+  const systemActionRate =
+    Number(
+      sysAct.systemActionRate ??
+        sysAct.SystemActionRate ??
+        (totalActions > 0 ? systemActions / totalActions : 0)
+    );
+  const userActions = Math.max(0, totalActions - systemActions);
+  const userActionRate = totalActions > 0 ? userActions / totalActions : 0;
 
-  // Chart colors (giống style Orders Dashboard)
+  const overallReadRate = Number(
+    notiHealth.overallReadRate ?? notiHealth.OverallReadRate ?? 0
+  );
+
   const C_MAIN = "#2563eb";
   const C_SYS = "#16a34a";
   const C_MANUAL = "#f59e0b";
@@ -706,7 +741,12 @@ export default function SystemInsightsDashboardPage() {
           </div>
 
           <div className="sid-actions">
-            <button className="sid-btn sid-btn-ghost" onClick={resetFilters} disabled={loading} type="button">
+            <button
+              className="sid-btn sid-btn-ghost"
+              onClick={resetFilters}
+              disabled={loading}
+              type="button"
+            >
               Reset
             </button>
           </div>
@@ -719,16 +759,32 @@ export default function SystemInsightsDashboardPage() {
           <div className="sid-filters">
             <div className="sid-filterbar">
               <div className="sid-seg sid-seg-wide">
-                <button className={`sid-segbtn ${preset === "today" ? "is-on" : ""}`} onClick={() => setPreset("today")} type="button">
+                <button
+                  className={`sid-segbtn ${preset === "today" ? "is-on" : ""}`}
+                  onClick={() => setPreset("today")}
+                  type="button"
+                >
                   Hôm nay
                 </button>
-                <button className={`sid-segbtn ${preset === "last7" ? "is-on" : ""}`} onClick={() => setPreset("last7")} type="button">
+                <button
+                  className={`sid-segbtn ${preset === "last7" ? "is-on" : ""}`}
+                  onClick={() => setPreset("last7")}
+                  type="button"
+                >
                   7 ngày
                 </button>
-                <button className={`sid-segbtn ${preset === "last30" ? "is-on" : ""}`} onClick={() => setPreset("last30")} type="button">
+                <button
+                  className={`sid-segbtn ${preset === "last30" ? "is-on" : ""}`}
+                  onClick={() => setPreset("last30")}
+                  type="button"
+                >
                   30 ngày
                 </button>
-                <button className={`sid-segbtn ${preset === "custom" ? "is-on" : ""}`} onClick={() => setPreset("custom")} type="button">
+                <button
+                  className={`sid-segbtn ${preset === "custom" ? "is-on" : ""}`}
+                  onClick={() => setPreset("custom")}
+                  type="button"
+                >
                   Tuỳ chọn
                 </button>
               </div>
@@ -736,7 +792,11 @@ export default function SystemInsightsDashboardPage() {
               <div className="sid-compact">
                 <div className="sid-compact-row">
                   <span className="sid-compact-label">Nhóm theo</span>
-                  <select className="sid-input sid-mini" value={bucket} onChange={(e) => setBucket(e.target.value)}>
+                  <select
+                    className="sid-input sid-mini"
+                    value={bucket}
+                    onChange={(e) => setBucket(e.target.value)}
+                  >
                     <option value="day">Theo ngày</option>
                     <option value="hour">Theo giờ</option>
                   </select>
@@ -746,8 +806,16 @@ export default function SystemInsightsDashboardPage() {
                   <div className="sid-compact-row">
                     <DatePicker
                       selectsRange
-                      startDate={customDayRange?.[0] ? new Date(customDayRange[0]) : null}
-                      endDate={customDayRange?.[1] ? new Date(customDayRange[1]) : null}
+                      startDate={
+                        customDayRange?.[0]
+                          ? new Date(customDayRange[0])
+                          : null
+                      }
+                      endDate={
+                        customDayRange?.[1]
+                          ? new Date(customDayRange[1])
+                          : null
+                      }
                       onChange={(update) => setCustomDayRange(update)}
                       className="sid-input sid-range-one"
                       dateFormat="dd/MM/yyyy"
@@ -767,69 +835,35 @@ export default function SystemInsightsDashboardPage() {
           <div className="sid-kpis">
             <div className="sid-card">
               <div className="sid-card-label">Tổng số thao tác</div>
-              <div className="sid-card-val">{fmtInt(sysAct.totalActions ?? sysAct.TotalActions ?? 0)}</div>
-              <div className="sid-card-foot">Số thao tác với hệ thống trong khoảng thời gian</div>
+              <div className="sid-card-val">{fmtInt(totalActions)}</div>
+              <div className="sid-card-foot">
+                Số thao tác với hệ thống trong khoảng thời gian
+              </div>
             </div>
 
             <div className="sid-card">
               <div className="sid-card-label">Số người thao tác</div>
-              <div className="sid-card-val">{fmtInt(sysAct.uniqueActors ?? sysAct.UniqueActors ?? 0)}</div>
-              <div className="sid-card-foot">Số email người thao tác (không trùng)</div>
+              <div className="sid-card-val">
+                {fmtInt(sysAct.uniqueActors ?? sysAct.UniqueActors ?? 0)}
+              </div>
+              <div className="sid-card-foot">
+                Số email người thao tác (không trùng)
+              </div>
             </div>
 
             <div className="sid-card">
               <div className="sid-card-label">Thao tác do hệ thống</div>
-              <div className="sid-card-val">{fmtInt(sysAct.systemActions ?? sysAct.SystemActions ?? 0)}</div>
+              <div className="sid-card-val">{fmtInt(systemActions)}</div>
               <div className="sid-card-foot">
                 Tỷ lệ: <b>{fmtPercent(systemActionRate)}</b>
               </div>
             </div>
 
             <div className="sid-card">
-              <div className="sid-card-label">Tỷ lệ thao tác do hệ thống</div>
-              <div className="sid-card-val">{fmtPercent(systemActionRate)}</div>
-              <div className="sid-card-foot">Gợi ý phát hiện job/bot chạy quá nhiều</div>
-            </div>
-          </div>
-        </section>
-
-        {/* KPI: Notifications */}
-        <section className="sid-section">
-          <div className="sid-kpis">
-            <div className="sid-card">
-              <div className="sid-card-label">Tổng thông báo</div>
-              <div className="sid-card-val">{fmtInt(notiHealth.totalNotifications ?? notiHealth.TotalNotifications ?? 0)}</div>
-              <div className="sid-card-foot">Số thông báo tạo trong khoảng thời gian</div>
-            </div>
-
-            <div className="sid-card">
-              <div className="sid-card-label">Hệ thống / Thủ công</div>
-              <div className="sid-card-val">
-                {fmtInt(notiHealth.systemGeneratedCount ?? notiHealth.SystemGeneratedCount ?? 0)} /{" "}
-                {fmtInt(notiHealth.manualCount ?? notiHealth.ManualCount ?? 0)}
-              </div>
+              <div className="sid-card-label">Thao tác do người dùng</div>
+              <div className="sid-card-val">{fmtInt(userActions)}</div>
               <div className="sid-card-foot">
-                Tỷ lệ hệ thống: <b>{fmtPercent(notiHealth.systemGeneratedRate ?? notiHealth.SystemGeneratedRate ?? 0)}</b>
-              </div>
-            </div>
-
-            <div className="sid-card">
-              <div className="sid-card-label">Toàn hệ thống / Có mục tiêu</div>
-              <div className="sid-card-val">
-                {fmtInt(notiHealth.globalCount ?? notiHealth.GlobalCount ?? 0)} /{" "}
-                {fmtInt(notiHealth.targetedCount ?? notiHealth.TargetedCount ?? 0)}
-              </div>
-              <div className="sid-card-foot">
-                Tỷ lệ toàn hệ thống: <b>{fmtPercent(notiHealth.globalRate ?? notiHealth.GlobalRate ?? 0)}</b>
-              </div>
-            </div>
-
-            <div className="sid-card">
-              <div className="sid-card-label">Tỷ lệ đã đọc tổng</div>
-              <div className="sid-card-val">{fmtPercent(overallReadRate)}</div>
-              <div className="sid-card-foot">
-                Đã đọc: <b>{fmtInt(notiHealth.readCountSum ?? notiHealth.ReadCountSum ?? 0)}</b> / Tổng người nhận:{" "}
-                <b>{fmtInt(notiHealth.totalTargetUsersSum ?? notiHealth.TotalTargetUsersSum ?? 0)}</b>
+                Tỷ lệ: <b>{fmtPercent(userActionRate)}</b>
               </div>
             </div>
           </div>
@@ -839,79 +873,102 @@ export default function SystemInsightsDashboardPage() {
         <section className="sid-section">
           <div className="sid-section-title">Thao tác với hệ thống</div>
 
-          <div className="sid-grid-3">
-            {/* Trend - full width */}
-            <div className="sid-panel sid-span-3">
+          {/* Hàng 1: Trend theo thời gian + Heatmap (giống nhau về "khi nào") */}
+          <div className="sid-grid-2 sid-row">
+            <div className="sid-panel">
               <div className="sid-panel-head">
                 <div>
                   <div className="sid-panel-title">Số thao tác theo thời gian</div>
-                  <div className="sid-panel-sub">Nhóm theo: {bucket === "hour" ? "giờ" : "ngày"}</div>
+                  <div className="sid-panel-sub">
+                    Nhóm theo: {bucket === "hour" ? "giờ" : "ngày"}
+                  </div>
                 </div>
                 <div className="sid-unit">Thao tác</div>
               </div>
 
               <div className="sid-chart">
                 <ResponsiveContainer width="100%" height={280}>
-                  <ComposedChart data={auditTrend} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+                  <ComposedChart
+                    data={auditTrend}
+                    margin={{ top: 8, right: 10, bottom: 0, left: 0 }}
+                  >
                     <CartesianGrid stroke="#eef2f7" />
-                    <XAxis dataKey="label" interval="preserveStartEnd" tickMargin={8} />
+                    <XAxis
+                      dataKey="label"
+                      interval="preserveStartEnd"
+                      tickMargin={8}
+                    />
                     <YAxis allowDecimals={false} />
                     <Tooltip content={<AuditTrendTooltip />} />
                     <Legend />
-                    <Bar dataKey="count" name="Thao tác" fill={C_MAIN} isAnimationActive={false} barSize={22} />
-                    <Line type="monotone" dataKey="count" name="Xu hướng" stroke={C_MAIN} strokeWidth={2} dot={false} isAnimationActive={false} />
-                    {auditTrend.length > 20 ? <Brush dataKey="label" height={20} travellerWidth={10} /> : null}
+                    <Bar
+                      dataKey="count"
+                      name="Thao tác"
+                      fill={C_MAIN}
+                      isAnimationActive={false}
+                      barSize={22}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      name="Xu hướng"
+                      stroke={C_MAIN}
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    {auditTrend.length > 20 ? (
+                      <Brush dataKey="label" height={20} travellerWidth={10} />
+                    ) : null}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
+
+            <div className="sid-panel">
+              <div className="sid-panel-head">
+                <div>
+                  <div className="sid-panel-title">Bản đồ nhiệt hoạt động</div>
+                  <div className="sid-panel-sub">
+                    Giờ trong ngày × Thứ trong tuần
+                  </div>
+                </div>
+              </div>
+              <Heatmap cells={auditHeatmap} />
+            </div>
           </div>
 
-          <div className="sid-grid-2">
-            {/* Top actions (top 5) */}
+          {/* Hàng 2: Top hành động + Top loại đối tượng (giống nhau về "cái gì") */}
+          <div className="sid-grid-2 sid-row">
             <div className="sid-panel">
               <div className="sid-panel-head">
                 <div>
                   <div className="sid-panel-title">Top hành động</div>
-                  <div className="sid-panel-sub">Hành động diễn ra nhiều nhất</div>
+                  <div className="sid-panel-sub">
+                    Hành động diễn ra nhiều nhất
+                  </div>
                 </div>
               </div>
-              <TopBars data={topAuditActions.slice(0, 5)} height={280} barName="Số lần" barColor={C_MAIN} />
+              <TopBars
+                data={topAuditActions.slice(0, 5)}
+                height={280}
+                barName="Số lần"
+                barColor={C_MAIN}
+              />
             </div>
 
-            {/* Top entities (top 5) - remove EntityType subtext */}
             <div className="sid-panel">
               <div className="sid-panel-head">
                 <div>
                   <div className="sid-panel-title">Top loại đối tượng</div>
                 </div>
               </div>
-              <TopBars data={topAuditEntities.slice(0, 5)} height={280} barName="Số lần" barColor="#6d28d9" />
-            </div>
-          </div>
-
-          <div className="sid-grid-2">
-            <div className="sid-panel">
-              <div className="sid-panel-head">
-                <div>
-                  <div className="sid-panel-title">Bản đồ nhiệt hoạt động</div>
-                  <div className="sid-panel-sub">Giờ trong ngày × Thứ trong tuần</div>
-                </div>
-              </div>
-              <Heatmap cells={auditHeatmap} />
-            </div>
-
-            <div className="sid-panel">
-              <div className="sid-panel-head">
-                <div>
-                  <div className="sid-panel-title">Top địa chỉ IP truy cập</div>
-                  <div className="sid-panel-sub">Gợi ý phát hiện bất thường</div>
-                </div>
-              </div>
-              <TopBars data={topAuditIps.slice(0, 5)} height={280} barName="Số thao tác" barColor="#0ea5e9" />
-              <div className="sid-note">
-                Gợi ý: IP lặp lại quá dày trong khoảng ngắn → xem lại đăng nhập lạ / spam thao tác.
-              </div>
+              <TopBars
+                data={topAuditEntities.slice(0, 5)}
+                height={280}
+                barName="Số lần"
+                barColor="#6d28d9"
+              />
             </div>
           </div>
         </section>
@@ -920,63 +977,75 @@ export default function SystemInsightsDashboardPage() {
         <section className="sid-section">
           <div className="sid-section-title">Thông báo</div>
 
-          <div className="sid-grid-3">
-            {/* Trend - span full row */}
-            <div className="sid-panel sid-span-3">
+          {/* Hàng 1: Trend số thông báo + Trend read rate (cùng "theo thời gian") */}
+          <div className="sid-grid-2 sid-row">
+            <div className="sid-panel">
               <div className="sid-panel-head">
                 <div>
-                  <div className="sid-panel-title">Số thông báo theo thời gian</div>
-                  <div className="sid-panel-sub">Tổng + tách Hệ thống/Thủ công</div>
+                  <div className="sid-panel-title">
+                    Số thông báo theo thời gian
+                  </div>
+                  <div className="sid-panel-sub">
+                    Tổng + tách Hệ thống/Thủ công
+                  </div>
                 </div>
                 <div className="sid-unit">Thông báo</div>
               </div>
 
               <div className="sid-chart">
                 <ResponsiveContainer width="100%" height={280}>
-                  <ComposedChart data={notiTrend} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+                  <ComposedChart
+                    data={notiTrend}
+                    margin={{ top: 8, right: 10, bottom: 0, left: 0 }}
+                  >
                     <CartesianGrid stroke="#eef2f7" />
-                    <XAxis dataKey="label" interval="preserveStartEnd" tickMargin={8} />
+                    <XAxis
+                      dataKey="label"
+                      interval="preserveStartEnd"
+                      tickMargin={8}
+                    />
                     <YAxis allowDecimals={false} />
                     <Tooltip content={<NotiTrendTooltip />} />
                     <Legend />
-                    <Bar dataKey="total" name="Tổng" fill={C_MANUAL} isAnimationActive={false} barSize={18} />
-                    <Line type="monotone" dataKey="system" name="Hệ thống" stroke={C_SYS} strokeWidth={2} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="manual" name="Thủ công" stroke={C_MAIN} strokeWidth={2} dot={false} isAnimationActive={false} />
-                    {notiTrend.length > 20 ? <Brush dataKey="label" height={20} travellerWidth={10} /> : null}
+                    <Bar
+                      dataKey="total"
+                      name="Tổng"
+                      fill={C_MANUAL}
+                      isAnimationActive={false}
+                      barSize={18}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="system"
+                      name="Hệ thống"
+                      stroke={C_SYS}
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="manual"
+                      name="Thủ công"
+                      stroke={C_MAIN}
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    {notiTrend.length > 20 ? (
+                      <Brush dataKey="label" height={20} travellerWidth={10} />
+                    ) : null}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-          </div>
-
-          <div className="sid-grid-2-wide">
-            {/* Top types */}
             <div className="sid-panel">
               <div className="sid-panel-head">
                 <div>
-                  <div className="sid-panel-title">Top loại thông báo</div>
-                </div>
-              </div>
-              <TopBars data={topNotiTypes.slice(0, 5)} height={280} barName="Số thông báo" barColor="#f59e0b" />
-            </div>
-
-            {/* Phân bố số người nhận (wider) */}
-            <div className="sid-panel">
-              <div className="sid-panel-head">
-                <div>
-                  <div className="sid-panel-title">Phân bố số người nhận</div>
-                </div>
-              </div>
-              <TopBars data={notiRecipientsHistogram} height={280} valueKey="value" labelKey="label" barName="Số người nhận" barColor="#111827" />
-            </div>
-          </div>
-
-          <div className="sid-grid-2">
-            <div className="sid-panel sid-span-2">
-              <div className="sid-panel-head">
-                <div>
-                  <div className="sid-panel-title">Tỷ lệ đã đọc theo thời gian</div>
+                  <div className="sid-panel-title">
+                    Tỷ lệ đã đọc theo thời gian
+                  </div>
                   <div className="sid-panel-sub">(theo ngày)</div>
                 </div>
                 <div className="sid-unit">%</div>
@@ -984,60 +1053,96 @@ export default function SystemInsightsDashboardPage() {
 
               <div className="sid-chart">
                 <ResponsiveContainer width="100%" height={280}>
-                  <ComposedChart data={readRateTrend} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+                  <ComposedChart
+                    data={readRateTrend}
+                    margin={{ top: 8, right: 10, bottom: 0, left: 0 }}
+                  >
                     <CartesianGrid stroke="#eef2f7" />
-                    <XAxis dataKey="label" interval="preserveStartEnd" tickMargin={8} />
+                    <XAxis
+                      dataKey="label"
+                      interval="preserveStartEnd"
+                      tickMargin={8}
+                    />
                     <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                     <Tooltip content={<ReadRateTooltip />} />
                     <Legend />
-                    <Line type="monotone" dataKey="readRatePct" name="Tỷ lệ đã đọc" stroke={C_SYS} strokeWidth={2} dot={false} isAnimationActive={false} />
-                    {readRateTrend.length > 20 ? <Brush dataKey="label" height={20} travellerWidth={10} /> : null}
+                    <Line
+                      type="monotone"
+                      dataKey="readRatePct"
+                      name="Tỷ lệ đã đọc"
+                      stroke={C_SYS}
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    {readRateTrend.length > 20 ? (
+                      <Brush dataKey="label" height={20} travellerWidth={10} />
+                    ) : null}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
 
-              <div className="sid-note">Ghi chú: biểu đồ hiển thị phần trăm (0–100%).</div>
+              <div className="sid-note">
+                Ghi chú: biểu đồ hiển thị phần trăm (0–100%).
+              </div>
             </div>
           </div>
 
-          {/* Severity table */}
-          <div className="sid-panel" style={{ marginTop: 10 }}>
-            <div className="sid-panel-head">
+          {/* Hàng 2: Top loại thông báo + Severity theo ngày (cùng về phân loại nội dung) */}
+          <div className="sid-grid-2 sid-row">
+            <div className="sid-panel">
+              <div className="sid-panel-head">
                 <div>
-                  <div className="sid-panel-title">Mức độ theo ngày</div>
+                  <div className="sid-panel-title">Top loại thông báo</div>
                 </div>
               </div>
-
-            <div className="sid-sev-table">
-              <div className="sid-sev-head">
-                <div>Ngày</div>
-                <div>Thông tin</div>
-                <div>Thành công</div>
-                <div>Cảnh báo</div>
-                <div>Lỗi</div>
-                <div>Tổng</div>
-              </div>
-
-              {(notiSeverityDaily || []).slice(-7).map((r, idx) => (
-                <div key={idx} className="sid-sev-row" title={`Ngày ${r.label}`}>
-                  <div className="sid-mono">{r.label}</div>
-                  <div>{fmtInt(r.info)}</div>
-                  <div>{fmtInt(r.success)}</div>
-                  <div className={r.warning > 0 ? "sid-warn" : ""}>{fmtInt(r.warning)}</div>
-                  <div className={r.error > 0 ? "sid-err" : ""}>{fmtInt(r.error)}</div>
-                  <div className="sid-strong">{fmtInt(r.total)}</div>
-                </div>
-              ))}
+              <TopBars
+                data={topNotiTypes.slice(0, 5)}
+                height={280}
+                barName="Số thông báo"
+                barColor="#f59e0b"
+              />
             </div>
 
-            <div className="sid-note">Nhìn nhanh xu hướng tăng của Cảnh báo/Lỗi để xử lý vận hành.</div>
+            <div className="sid-panel">
+              <div className="sid-panel-head">
+                <div>
+                  <div className="sid-panel-title">Mức độ thông báo theo ngày</div>
+                  <div className="sid-panel-sub">
+                    So sánh Info / Success / Warning / Error
+                  </div>
+                </div>
+              </div>
+
+              <div className="sid-chart">
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={notiSeverityDaily}>
+                    <CartesianGrid stroke="#eef2f7" vertical={false} />
+                    <XAxis dataKey="label" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="info" name="Thông tin" stackId="sev" />
+                    <Bar dataKey="success" name="Thành công" stackId="sev" />
+                    <Bar dataKey="warning" name="Cảnh báo" stackId="sev" />
+                    <Bar dataKey="error" name="Lỗi" stackId="sev" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="sid-note">
+                Nhìn nhanh ngày nào có nhiều Cảnh báo/Lỗi để ưu tiên xử lý vận
+                hành.
+              </div>
+            </div>
           </div>
         </section>
-
-        {/* Foot (explanatory text removed per request) */}
       </div>
 
-      <ToastContainer toasts={toasts} onRemove={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
+      <ToastContainer
+        toasts={toasts}
+        onRemove={(id) => setToasts((p) => p.filter((t) => t.id !== id))}
+      />
     </>
   );
 }

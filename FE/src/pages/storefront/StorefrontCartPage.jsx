@@ -201,10 +201,14 @@ const StorefrontCartPage = () => {
     } catch (err) {
       console.error("Remove item failed:", err);
       if (err?.response?.status === 409) {
-        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        const serverMsg = err?.response?.data?.message;
+        const msg = serverMsg || err?.message || "Vui lòng thử lại sau.";
+        // Remove dành cho 409 do checkout lock
+        addToast("warning", "Giỏ hàng đang checkout", msg);
         tryAutoReloadAfterConflict();
       } else {
-        addToast("error", "Xoá sản phẩm thất bại", err?.message || "Không thể xoá sản phẩm khỏi giỏ.");
+        const serverMsg = err?.response?.data?.message;
+        addToast("error", "Xoá sản phẩm thất bại", serverMsg || err?.message || "Không thể xoá sản phẩm khỏi giỏ.");
       }
     } finally {
       setUpdatingItemId(null);
@@ -223,6 +227,10 @@ const StorefrontCartPage = () => {
 
   const handleChangeQuantity = async (item, delta) => {
     if (!cart) return;
+
+    // ✅ Anti-spam: nếu item này đang cập nhật thì bỏ qua click tiếp theo
+    if (updatingItemId === item.variantId) return;
+
     const newQty = (item.quantity || 0) + delta;
     if (newQty < 0) return;
 
@@ -247,13 +255,38 @@ const StorefrontCartPage = () => {
     } catch (err) {
       console.error("Update quantity failed:", err);
 
-      if (err?.response?.status === 409) {
-        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
-        tryAutoReloadAfterConflict();
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      const fallbackMsg = err?.message || "Vui lòng thử lại sau.";
+
+      if (status === 409) {
+        const msg = serverMsg || fallbackMsg;
+        const lower = (serverMsg || "").toLowerCase();
+
+        // ✅ Case 1: Hết hàng / không đủ hàng → hiển thị đúng thông báo stock, KHÔNG auto reload
+        if (
+          lower.includes("không đủ hàng") ||
+          lower.includes("hết hàng") ||
+          lower.includes("het hang")
+        ) {
+          addToast("warning", "Không đủ số lượng tồn kho", msg);
+        }
+        // ✅ Case 2: Cart đang được checkout → giữ behaviour cũ + auto reload nhẹ
+        else if (lower.includes("đang được checkout")) {
+          addToast("warning", "Giỏ hàng đang checkout", msg);
+          tryAutoReloadAfterConflict();
+        }
+        // ✅ Case 3: 409 loại khác (phòng hờ)
+        else {
+          addToast("warning", "Lỗi giỏ hàng", msg);
+        }
       } else {
-        const serverMsg = err?.response?.data?.message;
-        const type = err?.response?.status === 400 ? "warning" : "error";
-        addToast(type, "Cập nhật số lượng thất bại", serverMsg || err?.message || "Không thể cập nhật số lượng.");
+        const type = status === 400 ? "warning" : "error";
+        addToast(
+          type,
+          "Cập nhật số lượng thất bại",
+          serverMsg || fallbackMsg || "Không thể cập nhật số lượng."
+        );
       }
     } finally {
       setUpdatingItemId(null);
@@ -270,10 +303,13 @@ const StorefrontCartPage = () => {
       console.error("Clear cart failed:", err);
 
       if (err?.response?.status === 409) {
-        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        const serverMsg = err?.response?.data?.message;
+        const msg = serverMsg || err?.message || "Vui lòng thử lại sau.";
+        addToast("warning", "Giỏ hàng đang checkout", msg);
         tryAutoReloadAfterConflict();
       } else {
-        addToast("error", "Xoá giỏ hàng thất bại", err?.message || "Không thể xoá giỏ hàng.");
+        const serverMsg = err?.response?.data?.message;
+        addToast("error", "Xoá giỏ hàng thất bại", serverMsg || err?.message || "Không thể xoá giỏ hàng.");
       }
     }
   };
@@ -306,10 +342,13 @@ const StorefrontCartPage = () => {
     } catch (err) {
       console.error("Update receiver email failed:", err);
       if (err?.response?.status === 409) {
-        addToast("warning", "Giỏ hàng đang checkout", err?.message || "Vui lòng thử lại sau.");
+        const serverMsg = err?.response?.data?.message;
+        const msg = serverMsg || err?.message || "Vui lòng thử lại sau.";
+        addToast("warning", "Giỏ hàng đang checkout", msg);
         tryAutoReloadAfterConflict();
       } else {
-        addToast("error", "Lưu email nhận hàng thất bại", err?.message || "Không thể lưu email nhận hàng.");
+        const serverMsg = err?.response?.data?.message;
+        addToast("error", "Lưu email nhận hàng thất bại", serverMsg || err?.message || "Không thể lưu email nhận hàng.");
       }
     } finally {
       setUpdatingEmail(false);
@@ -404,7 +443,8 @@ const StorefrontCartPage = () => {
       const serverMsg = err?.response?.data?.message;
 
       if (err?.response?.status === 409) {
-        addToast("warning", "Giỏ hàng đang checkout", serverMsg || err?.message || "Vui lòng thử lại sau.");
+        const msg = serverMsg || err?.message || "Vui lòng thử lại sau.";
+        addToast("warning", "Giỏ hàng đang checkout", msg);
         tryAutoReloadAfterConflict();
       } else {
         addToast("error", "Thanh toán thất bại", serverMsg || err?.message || "Không thể tạo phiên thanh toán.");

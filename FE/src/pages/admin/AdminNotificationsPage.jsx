@@ -59,15 +59,18 @@ function notificationTypeLabel(type) {
   const map = {
     // Ticket
     ticketassigned: "Gán ticket",
-    tickettransferred: "Chuyển ticket",
-    ticketstaffreplied: "Ticket có phản hồi",
-
-    // Key
+  tickettransferred: "Chuyển ticket",
+  ticketstaffreplied: "Ticket có phản hồi",
+  supportchatadminassigned: "Gán phiên chat",            
+  supportchatadmintransferredtoyou: "Được chuyển phiên chat",  
+  supportchatadmintransferredaway: "Bị chuyển phiên chat",  
     keyimportcsv: "Nhập key hàng loạt",
 
     // Report
-    productreportcreated: "Báo lỗi sản phẩm",
-
+  productreportcreated: "Báo lỗi sản phẩm",
+  orderneedsmanualaction: "Đơn hàng cần xử lý thủ công",
+  ordersharedaccountpurchased: "Đơn hàng mua tài khoản chia sẻ",       
+  paymentneedreview: "Giao dịch cần review thủ công",
     // Product account
     productaccountcustomerrevoked: "Thu hồi quyền truy cập tài khoản",
 
