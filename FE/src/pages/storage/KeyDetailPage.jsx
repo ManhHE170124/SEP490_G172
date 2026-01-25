@@ -180,7 +180,7 @@ export default function KeyDetailPage() {
     }
 
     if (!formData.variantId) {
-      newErrors.variantId = "Biến thể sản phẩm là bắt buộc";
+      newErrors.variantId = "Gói sản phẩm là bắt buộc";
     }
 
     if (!formData.supplierId) {
@@ -399,7 +399,7 @@ export default function KeyDetailPage() {
 
             <div className="group" style={{ flex: "1 1 300px" }}>
               <span style={{ whiteSpace: "nowrap" }}>
-                Biến thể <span style={{ color: "red" }}>*</span>
+                Gói sản phẩm <span style={{ color: "red" }}>*</span>
               </span>
               <div>
                 <select
@@ -413,7 +413,7 @@ export default function KeyDetailPage() {
                       ? "Đang tải..."
                       : !formData.productId
                       ? "Chọn sản phẩm trước"
-                      : "Chọn biến thể"}
+                      : "Chọn gói sản phẩm"}
                   </option>
                   {variants.map((variant) => (
                     <option key={variant.variantId} value={variant.variantId}>

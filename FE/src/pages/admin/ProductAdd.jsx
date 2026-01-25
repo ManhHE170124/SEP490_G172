@@ -300,7 +300,7 @@ export default function ProductAdd() {
           ? "Đã tạo & xuất bản sản phẩm"
           : "Đã lưu nháp sản phẩm",
         message: publish
-          ? "Sản phẩm đã được tạo. Bạn có thể cấu hình biến thể / FAQ và theo dõi ở trang danh sách."
+          ? "Sản phẩm đã được tạo. Bạn có thể cấu hình gói sản phẩm / FAQ và theo dõi ở trang danh sách."
           : "Bản nháp sản phẩm đã được lưu. Bạn có thể xuất bản sau tại trang chi tiết sản phẩm.",
       };
       try {

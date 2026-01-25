@@ -224,7 +224,7 @@ export default function VariantsPanel({
         console.error(e);
         addToast(
           "error",
-          "Lỗi tải biến thể",
+          "Lỗi tải gói sản phẩm",
           e?.response?.data?.message || e.message
         );
       } finally {
@@ -435,16 +435,16 @@ export default function VariantsPanel({
 
     // Tên biến thể
     if (!title) {
-      errors.title = "Tên biến thể là bắt buộc.";
+      errors.title = "Tên gói sản phẩm là bắt buộc.";
     } else if (title.length > TITLE_MAX) {
-      errors.title = `Tên biến thể không được vượt quá ${TITLE_MAX} ký tự.`;
+      errors.title = `Tên gói sản phẩm không được vượt quá ${TITLE_MAX} ký tự.`;
     }
 
     // Mã biến thể
     if (!variantCode) {
-      errors.variantCode = "Mã biến thể là bắt buộc.";
+      errors.variantCode = "Mã gói sản phẩm là bắt buộc.";
     } else if (variantCode.length > CODE_MAX) {
-      errors.variantCode = `Mã biến thể không được vượt quá ${CODE_MAX} ký tự.`;
+      errors.variantCode = `Mã gói sản phẩm không được vượt quá ${CODE_MAX} ký tự.`;
     }
 
     // Không trùng trong cùng sản phẩm (so với list hiện tại)
@@ -453,10 +453,10 @@ export default function VariantsPanel({
 
     items.forEach((v) => {
       if ((v.title || "").trim().toLowerCase() === lowerTitle) {
-        errors.title = "Tên biến thể đã tồn tại trong sản phẩm này.";
+        errors.title = "Tên gói sản phẩm đã tồn tại trong sản phẩm này.";
       }
       if ((v.variantCode || "").trim().toLowerCase() === lowerCode) {
-        errors.variantCode = "Mã biến thể đã tồn tại trong sản phẩm này.";
+        errors.variantCode = "Mã gói sản phẩm đã tồn tại trong sản phẩm này.";
       }
     });
 
@@ -537,8 +537,8 @@ export default function VariantsPanel({
       await ProductVariantsApi.create(productId, dto);
       addToast(
         "success",
-        "Thêm biến thể",
-        "Biến thể mới đã được tạo thành công."
+        "Thêm gói sản phẩm",
+        "Gói sản phẩm mới đã được tạo thành công."
       );
 
       setShowModal(false);
@@ -548,7 +548,7 @@ export default function VariantsPanel({
       console.error(err);
       addToast(
         "error",
-        "Lưu biến thể thất bại",
+        "Lưu gói sản phẩm thất bại",
         err?.response?.data?.message || err.message
       );
     }
@@ -556,14 +556,14 @@ export default function VariantsPanel({
 
   const onDelete = async (id) => {
     const ok = await askConfirm(
-      "Xoá biến thể",
-      "Bạn có chắc chắn muốn xoá biến thể này?"
+      "Xoá gói sản phẩm",
+      "Bạn có chắc chắn muốn xoá gói sản phẩm này?"
     );
     if (!ok) return;
 
     try {
       await ProductVariantsApi.remove(productId, id);
-      addToast("success", "Đã xoá biến thể", "Biến thể đã được xoá.");
+      addToast("success", "Đã xoá gói sản phẩm", "Gói sản phẩm đã được xoá.");
       await load();
     } catch (err) {
       console.error(err);
@@ -578,19 +578,19 @@ export default function VariantsPanel({
         if (!detail) {
           if (code === "VARIANT_IN_USE_SECTION") {
             detail =
-              "Biến thể này đang được sử dụng trong các section, vui lòng chỉnh sửa hoặc xoá section trước.";
+              "Gói sản phẩm này đang được sử dụng trong các section, vui lòng chỉnh sửa hoặc xoá section trước.";
           } else {
             detail =
-              "Biến thể này đang được sử dụng bởi dữ liệu khác nên không thể xoá.";
+              "Gói sản phẩm này đang được sử dụng bởi dữ liệu khác nên không thể xoá.";
           }
         }
 
-        addToast("warning", "Không thể xoá biến thể", detail);
+        addToast("warning", "Không thể xoá gói sản phẩm", detail);
       } else {
         addToast(
           "error",
-          "Xoá biến thể thất bại",
-          msg || "Đã xảy ra lỗi khi xoá biến thể."
+          "Xoá gói sản phẩm thất bại",
+          msg || "Đã xảy ra lỗi khi xoá gói sản phẩm."
         );
       }
     }
@@ -627,7 +627,7 @@ export default function VariantsPanel({
         addToast(
           "success",
           "Cập nhật trạng thái",
-          "Đã cập nhật trạng thái biến thể."
+          "Đã cập nhật trạng thái gói sản phẩm."
         );
         return;
       }
@@ -635,20 +635,20 @@ export default function VariantsPanel({
       if (next === "OUT_OF_STOCK" || (v.stockQty ?? 0) <= 0) {
         addToast(
           "info",
-          "Biến thể hết hàng",
-          "Biến thể hiện đang ở trạng thái 'Hết hàng' (khách vẫn có thể xem nhưng không thể mua cho đến khi nhập thêm tồn kho)."
+          "Gói sản phẩm hết hàng",
+          "Gói sản phẩm hiện đang ở trạng thái 'Hết hàng' (khách vẫn có thể xem nhưng không thể mua cho đến khi nhập thêm tồn kho)."
         );
       } else if (next === "INACTIVE") {
         addToast(
           "info",
-          "Biến thể đã ẩn",
-          "Biến thể đã được ẩn khỏi trang bán."
+          "Gói sản phẩm đã ẩn",
+          "Gói sản phẩm đã được ẩn khỏi trang bán."
         );
       } else {
         addToast(
           "success",
           "Cập nhật trạng thái",
-          `Biến thể hiện đang ở trạng thái "${statusLabel(
+          `Gói sản phẩm hiện đang ở trạng thái "${statusLabel(
             next,
             v.stockQty
           )}".`
@@ -692,7 +692,7 @@ export default function VariantsPanel({
       <div className="panel">
         <div className="panel-header" style={{ alignItems: "center" }}>
           <h4>
-            Biến thể thời gian{" "}
+            Gói sản phẩm{" "}
             <span
               style={{
                 fontSize: 12,
@@ -751,7 +751,7 @@ export default function VariantsPanel({
               Đặt lại
             </button>
             <button className="btn primary" onClick={openCreate}>
-              + Thêm biến thể
+              + Thêm gói sản phẩm
             </button>
           </div>
         </div>
@@ -780,7 +780,7 @@ export default function VariantsPanel({
                         onClick={() => headerSort("title")}
                         style={{ cursor: "pointer" }}
                       >
-                        Tên biến thể{sortMark("title")}
+                        Tên gói sản phẩm{sortMark("title")}
                       </th>
                       <th>Ảnh</th>
                       <th
@@ -935,7 +935,7 @@ export default function VariantsPanel({
                             padding: 18,
                           }}
                         >
-                          Chưa có biến thể nào.
+                          Chưa có gói sản phẩm nào.
                         </td>
                       </tr>
                     )}
@@ -1060,7 +1060,7 @@ export default function VariantsPanel({
             }}
           >
             <div className="modal-topbar">
-              <h3 style={{ margin: 0 }}>Thêm biến thể</h3>
+              <h3 style={{ margin: 0 }}>Thêm gói sản phẩm</h3>
               <div className="row" style={{ gap: 8, alignItems: "center" }}>
                 <label className="switch" title="Bật/Tắt hiển thị">
                   <input
@@ -1091,7 +1091,7 @@ export default function VariantsPanel({
               <div className="grid cols-2">
                 <div className="group">
                   <span>
-                    Tên biến thể <span style={{ color: "#dc2626" }}>*</span>
+                    Tên gói sản phẩm <span style={{ color: "#dc2626" }}>*</span>
                   </span>
                   <input
                     name="title"
@@ -1105,7 +1105,7 @@ export default function VariantsPanel({
                 </div>
                 <div className="group">
                   <span>
-                    Mã biến thể <span style={{ color: "#dc2626" }}>*</span>
+                    Mã gói sản phẩm <span style={{ color: "#dc2626" }}>*</span>
                   </span>
                   <input
                     name="variantCode"
@@ -1203,7 +1203,7 @@ export default function VariantsPanel({
 
               {/* Upload thumbnail */}
               <div className="group" style={{ marginTop: 8 }}>
-                <span>Ảnh biến thể (thumbnail)</span>
+                <span>Ảnh gói sản phẩm (thumbnail)</span>
                 <input
                   ref={fileInputRef}
                   type="file"

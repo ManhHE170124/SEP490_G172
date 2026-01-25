@@ -531,7 +531,7 @@ export default function ProductDetail() {
                 disabled={lockIdentity}
                 title={
                   lockIdentity
-                    ? "Không cho phép đổi mã khi sản phẩm đã có biến thể"
+                    ? "Không cho phép đổi mã khi sản phẩm đã có gói sản phẩm"
                     : "Mã duy nhất cho sản phẩm"
                 }
                 className={

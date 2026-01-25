@@ -531,7 +531,7 @@ export default function SupplierDetailPage() {
     if (!variantId) {
       showError(
         "Thiếu thông tin",
-        "Không tìm thấy biến thể cho gói license này. Vui lòng tải lại dữ liệu."
+        "Không tìm thấy gói sản phẩm cho gói license này. Vui lòng tải lại dữ liệu."
       );
       return;
     }
@@ -1086,7 +1086,7 @@ export default function SupplierDetailPage() {
               )}
             </div>
             <div className="group" style={{ minWidth: 180 }}>
-              <span>Biến thể</span>
+              <span>Gói sản phẩm</span>
               <select
                 className="input"
                 value={packageForm.variantId}
@@ -1104,7 +1104,7 @@ export default function SupplierDetailPage() {
                     ? "Đang tải..."
                     : !packageForm.productId
                     ? "Chọn sản phẩm trước"
-                    : "Chọn biến thể"}
+                    : "Chọn gói sản phẩm"}
                 </option>
                 {variants.map((variant) => (
                   <option key={variant.variantId} value={variant.variantId}>
@@ -1233,7 +1233,7 @@ export default function SupplierDetailPage() {
                 <thead>
                   <tr>
                     <th>Sản phẩm</th>
-                    <th>Biến thể</th>
+                    <th>Gói sản phẩm</th>
                     <th>Email</th>
                     <th>Username</th>
                     <th>Số người dùng</th>

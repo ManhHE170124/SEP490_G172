@@ -89,10 +89,10 @@ const ACTION_VI = {
   DeleteProduct: "Xóa sản phẩm",
   ToggleVisibility: "Ẩn/hiện sản phẩm",
 
-  CreateProductVariant: "Tạo biến thể sản phẩm",
-  UpdateProductVariant: "Cập nhật biến thể sản phẩm",
-  DeleteProductVariant: "Xóa biến thể sản phẩm",
-  ToggleProductVariantStatus: "Bật/tắt trạng thái biến thể sản phẩm",
+  CreateProductVariant: "Tạo gói sản phẩm",
+  UpdateProductVariant: "Cập nhật gói sản phẩm",
+  DeleteProductVariant: "Xóa gói sản phẩm",
+  ToggleProductVariantStatus: "Bật/tắt trạng thái gói sản phẩm",
 
   UploadImage: "Tải lên hình ảnh",
   DeleteImage: "Xóa hình ảnh",
@@ -194,8 +194,8 @@ const ENTITY_VI = {
   Role: "Vai trò",
 
   Product: "Sản phẩm",
-  ProductVariant: "Biến thể sản phẩm",
-  ProductVariantImage: "Ảnh biến thể sản phẩm",
+  ProductVariant: "Gói sản phẩm",
+  ProductVariantImage: "Ảnh gói sản phẩm",
   ProductSection: "Mục nội dung sản phẩm",
   Category: "Danh mục",
   Badge: "Nhãn sản phẩm",

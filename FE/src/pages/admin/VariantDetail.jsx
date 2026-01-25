@@ -220,7 +220,7 @@ export default function VariantDetail() {
       addToast(
         "warning",
         "Không thể đổi trạng thái",
-        "Biến thể này đang hết hàng (tồn kho = 0). Vui lòng nhập thêm tồn kho trước khi bật hiển thị."
+        "Gói sản phẩm này đang hết hàng (tồn kho = 0). Vui lòng nhập thêm tồn kho trước khi bật hiển thị."
       );
       return;
     }
@@ -249,7 +249,7 @@ export default function VariantDetail() {
         addToast(
           "success",
           "Cập nhật trạng thái",
-          `Trạng thái biến thể hiện tại: ${statusText(next)}.`
+          `Trạng thái gói sản phẩm hiện tại: ${statusText(next)}.`
         );
       }
     } catch (e) {
@@ -437,15 +437,15 @@ export default function VariantDetail() {
     const variantCode = (variant.variantCode || "").trim();
 
     if (!title) {
-      nextErrors.title = "Tên biến thể là bắt buộc.";
+      nextErrors.title = "Tên gói sản phẩm là bắt buộc.";
     } else if (title.length > TITLE_MAX) {
-      nextErrors.title = `Tên biến thể không được vượt quá ${TITLE_MAX} ký tự.`;
+      nextErrors.title = `Tên gói sản phẩm không được vượt quá ${TITLE_MAX} ký tự.`;
     }
 
     if (!variantCode) {
-      nextErrors.variantCode = "Mã biến thể là bắt buộc.";
+      nextErrors.variantCode = "Mã gói sản phẩm là bắt buộc.";
     } else if (variantCode.length > CODE_MAX) {
-      nextErrors.variantCode = `Mã biến thể không được vượt quá ${CODE_MAX} ký tự.`;
+      nextErrors.variantCode = `Mã gói sản phẩm không được vượt quá ${CODE_MAX} ký tự.`;
     }
 
     const parseIntOrNull = (v) => {
@@ -549,8 +549,8 @@ export default function VariantDetail() {
 
       addToast(
         "success",
-        "Cập nhật biến thể",
-        "Biến thể đã được lưu thành công."
+        "Cập nhật gói sản phẩm",
+        "Gói sản phẩm đã được lưu thành công."
       );
 
       setTimeout(() => {
@@ -565,32 +565,32 @@ export default function VariantDetail() {
       if (status === 409 && code === "VARIANT_TITLE_DUPLICATE") {
         setErrors((prev) => ({
           ...prev,
-          title: msg || "Tên biến thể đã tồn tại trong sản phẩm này.",
+          title: msg || "Tên gói sản phẩm đã tồn tại trong sản phẩm này.",
         }));
         addToast(
           "warning",
-          "Tên biến thể trùng",
-          msg || "Tên biến thể đã tồn tại trong sản phẩm này."
+          "Tên gói sản phẩm trùng",
+          msg || "Tên gói sản phẩm đã tồn tại trong sản phẩm này."
         );
       } else if (status === 409 && code === "VARIANT_CODE_DUPLICATE") {
         setErrors((prev) => ({
           ...prev,
-          variantCode: msg || "Mã biến thể đã tồn tại trong sản phẩm này.",
+          variantCode: msg || "Mã gói sản phẩm đã tồn tại trong sản phẩm này.",
         }));
         addToast(
           "warning",
-          "Mã biến thể trùng",
-          msg || "Mã biến thể đã tồn tại trong sản phẩm này."
+          "Mã gói sản phẩm trùng",
+          msg || "Mã gói sản phẩm đã tồn tại trong sản phẩm này."
         );
       } else if (status === 409 && code === "VARIANT_IN_USE_SECTION") {
         addToast(
           "warning",
-          "Không thể chỉnh sửa biến thể",
+          "Không thể chỉnh sửa gói sản phẩm",
           msg ||
-            "Biến thể này đang được sử dụng trong các section, không thể chỉnh sửa mã biến thể."
+            "Gói sản phẩm này đang được sử dụng trong các section, không thể chỉnh sửa mã gói sản phẩm."
         );
       } else {
-        addToast("error", "Lưu biến thể thất bại", msg);
+        addToast("error", "Lưu gói sản phẩm thất bại", msg);
       }
     } finally {
       setSaving(false);
@@ -601,7 +601,7 @@ export default function VariantDetail() {
     return (
       <>
         <div className="page">
-          <div className="card">Đang tải chi tiết biến thể…</div>
+          <div className="card">Đang tải chi tiết gói sản phẩm…</div>
         </div>
         <ToastContainer
           toasts={toasts}
@@ -617,7 +617,7 @@ export default function VariantDetail() {
       <>
         <div className="page">
           <div className="card">
-            <h2>Không tìm thấy biến thể</h2>
+            <h2>Không tìm thấy gói sản phẩm</h2>
             <div className="row" style={{ marginTop: 10 }}>
               <Link className="btn" to={`/admin/products/${productId}`}>
                 ← Quay lại sản phẩm
@@ -646,7 +646,7 @@ export default function VariantDetail() {
               marginBottom: 10,
             }}
           >
-            <h2>Chi tiết biến thể</h2>
+            <h2>Chi tiết gói sản phẩm</h2>
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <span className="badge gray">
@@ -654,12 +654,12 @@ export default function VariantDetail() {
               </span>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label className="switch" title="Bật/Tắt hiển thị biến thể">
+                <label className="switch" title="Bật/Tắt hiển thị gói sản phẩm">
                   <input
                     type="checkbox"
                     checked={variant.status === "ACTIVE"}
                     onChange={toggleActive}
-                    aria-label="Bật/Tắt hiển thị biến thể"
+                    aria-label="Bật/Tắt hiển thị gói sản phẩm"
                   />
                   <span className="slider" />
                 </label>
@@ -684,7 +684,7 @@ export default function VariantDetail() {
           >
             <div className="group">
               <span>
-                Tên biến thể<span style={{ color: "#dc2626" }}>*</span>
+                Tên gói sản phẩm<span style={{ color: "#dc2626" }}>*</span>
               </span>
               <input
                 value={variant.title || ""}
@@ -699,7 +699,7 @@ export default function VariantDetail() {
             </div>
             <div className="group">
               <span>
-                Mã biến thể<span style={{ color: "#dc2626" }}>*</span>
+                Mã gói sản phẩm<span style={{ color: "#dc2626" }}>*</span>
               </span>
               <input
                 value={variant.variantCode || ""}
@@ -711,7 +711,7 @@ export default function VariantDetail() {
               />
               {variant.hasSections && (
                 <div className="field-error">
-                  Biến thể đang được sử dụng trong các section, không thể chỉnh
+                  Gói sản phẩm đang được sử dụng trong các section, không thể chỉnh
                   sửa mã.
                 </div>
               )}
@@ -809,7 +809,7 @@ export default function VariantDetail() {
 
           <div className="input-group" style={{ gridColumn: "1 / 3" }}>
             <div className="group">
-              <span>Ảnh biến thể (thumbnail)</span>
+              <span>Ảnh gói sản phẩm (thumbnail)</span>
 
               <input
                 ref={fileInputRef}

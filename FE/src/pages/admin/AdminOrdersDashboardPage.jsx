@@ -166,7 +166,7 @@ function TopTable({ kind, items, limit = 5 }) {
 
             <th>
               <div className="aod-thbtn aod-thbtn-left" style={{ justifyContent: "flex-start" }}>
-                {isVariant ? "Biến thể" : "Sản phẩm"}
+                {isVariant ? "Gói sản phẩm" : "Sản phẩm"}
               </div>
             </th>
 
@@ -791,7 +791,7 @@ export default function AdminOrdersDashboardPage() {
           <div className="aod-panel">
             <div className="aod-panel-head">
               <div>
-                <div className="aod-panel-title">Top biến thể</div>
+                <div className="aod-panel-title">Top gói sản phẩm</div>
               </div>
             </div>
             <TopTable kind="variant" items={dash?.topVariants} />

@@ -443,7 +443,7 @@ export default function AccountDetailPage() {
     }
 
     if (!formData.variantId) {
-      newErrors.variantId = "Biến thể sản phẩm là bắt buộc";
+      newErrors.variantId = "Gói sản phẩm là bắt buộc";
     }
 
     if (!formData.accountEmail.trim()) {
@@ -993,7 +993,7 @@ export default function AccountDetailPage() {
 
             <div className="group" style={{ flex: "1 1 300px" }}>
               <span style={{ whiteSpace: "nowrap" }}>
-                Biến thể <span style={{ color: "red" }}>*</span>
+                Gói sản phẩm <span style={{ color: "red" }}>*</span>
               </span>
               <div>
                 <select
@@ -1007,7 +1007,7 @@ export default function AccountDetailPage() {
                       ? "Đang tải..."
                       : !formData.productId
                       ? "Chọn sản phẩm trước"
-                      : "Chọn biến thể"}
+                      : "Chọn gói sản phẩm"}
                   </option>
                   {variants.map((variant) => (
                     <option key={variant.variantId} value={variant.variantId}>

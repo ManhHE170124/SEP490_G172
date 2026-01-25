@@ -395,7 +395,7 @@ export default function ProductReportDetailPage() {
               {/* Variant Selection */}
               <div className="report-form-field">
                 <label>
-                  Biến thể <span>*</span>
+                  Gói sản phẩm <span>*</span>
                 </label>
                 <select
                   className="input"
@@ -407,7 +407,7 @@ export default function ProductReportDetailPage() {
                   required
                 >
                   <option value="">
-                    {loadingVariants ? "Đang tải..." : "Chọn biến thể"}
+                    {loadingVariants ? "Đang tải..." : "Chọn gói sản phẩm"}
                   </option>
                   {variants.map((v) => (
                     <option key={v.variantId} value={v.variantId}>
@@ -742,7 +742,7 @@ export default function ProductReportDetailPage() {
             </div>
 
              <div className="group" style={{ flex: "1 1 300px" }}>
-              <span>Sản phẩm/Biến thể</span>
+              <span>Sản phẩm/Gói sản phẩm</span>
               <input
                 className="input"
                 value={`${report.productName || ""} - ${report.productVariantTitle || ""}`}

@@ -89,7 +89,7 @@ export default function CsvUploadModal({
             </p>
             {variantTitle && (
               <p style={{ margin: "0 0 8px", fontSize: "14px" }}>
-                <strong>Biến thể:</strong> {variantTitle}
+                <strong>Gói sản phẩm:</strong> {variantTitle}
               </p>
             )}
             <p style={{ margin: "0 0 8px", fontSize: "14px" }}>

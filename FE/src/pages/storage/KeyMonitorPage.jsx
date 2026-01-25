@@ -292,10 +292,10 @@ export default function KeyMonitorPage() {
       const mappedVariants = response?.items || response?.data || [];
       setVariants(mappedVariants);
       if (!mappedVariants.length) {
-        showError("Chưa có biến thể", "Sản phẩm này chưa có biến thể nào");
+        showError("Chưa có gói sản phẩm", "Sản phẩm này chưa có gói sản phẩm nào");
       }
     } catch (e) {
-      showError("Lỗi tải biến thể", "Không thể tải danh sách biến thể");
+      showError("Lỗi tải gói sản phẩm", "Không thể tải danh sách gói sản phẩm");
       setVariants([]);
     } finally {
       setLoadingVariants(false);
@@ -838,9 +838,9 @@ export default function KeyMonitorPage() {
                     <span>Sản phẩm: <strong>{importProduct?.productName}</strong></span>
                  </div>
                  <div className="group">
-                    <span>Biến thể</span>
+                    <span>Gói sản phẩm</span>
                     <select className="input" value={selectedVariantId} onChange={(e) => setSelectedVariantId(e.target.value)}>
-                        <option value="">Chọn biến thể</option>
+                        <option value="">Chọn gói sản phẩm</option>
                         {variants.map(v => <option key={v.variantId} value={v.variantId}>{v.title}</option>)}
                     </select>
                  </div>

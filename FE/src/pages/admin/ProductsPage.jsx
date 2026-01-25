@@ -624,7 +624,7 @@ export default function ProductsPage() {
                         <Link
                           className="action-btn edit-btn"
                           to={`/admin/products/${p.productId}`}
-                          title="Chi tiết / Biến thể"
+                          title="Chi tiết / Gói sản phẩm"
                           onClick={(e) => {
                             if (!canViewDetail) {
                               e.preventDefault();
