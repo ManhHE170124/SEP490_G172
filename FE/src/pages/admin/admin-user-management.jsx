@@ -736,14 +736,25 @@ export default function AdminUserManagement() {
                       {u.status}
                     </span>
                   </td>
-                  <td className="ktk-um-actionsTd">
+
+                  {/* ✅ FIX: dùng <td> "thuần" giống các cột khác, bọc nút bằng inline-flex để không nhảy dòng */}
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap", verticalAlign: "middle" }}>
                     {u.isTemp ? (
                       <span className="ktk-um-muted" style={{ fontSize: 12 }}>
                         Người dùng tạm thời
                       </span>
                     ) : (
-                      <>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          gap: 6,
+                          flexWrap: "nowrap",
+                        }}
+                      >
                         <button
+                          type="button"
                           className="ktk-um-btn ktk-um-btn--ghost"
                           onClick={() => openViewOrEdit(u.userId, "view")}
                           title="Xem"
@@ -751,6 +762,7 @@ export default function AdminUserManagement() {
                           👁️
                         </button>
                         <button
+                          type="button"
                           className="ktk-um-btn ktk-um-btn--ghost"
                           onClick={() => openViewOrEdit(u.userId, "edit")}
                           title="Sửa"
@@ -758,13 +770,14 @@ export default function AdminUserManagement() {
                           ✏️
                         </button>
                         <button
+                          type="button"
                           className="ktk-um-btn ktk-um-btn--ghost"
                           onClick={() => toggleDisable(u)}
                           title={u.status === USER_STATUS.Active ? "Disable" : "Reactive"}
                         >
                           {u.status === USER_STATUS.Active ? "🚫" : "✅"}
                         </button>
-                      </>
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -776,8 +789,7 @@ export default function AdminUserManagement() {
           <div className="ktk-um-pager">
             <div className="ktk-um-pagerLeft">
               <span>
-                {data.totalItems} người dùng ·{" "}
-                {data.totalItems > 0 ? `Hiển thị ${fromIndex}–${toIndex}` : "Không có bản ghi"}
+                {data.totalItems} người dùng · {data.totalItems > 0 ? `Hiển thị ${fromIndex}–${toIndex}` : "Không có bản ghi"}
               </span>
             </div>
             <div className="ktk-um-pagerRight">

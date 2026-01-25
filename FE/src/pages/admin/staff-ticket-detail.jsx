@@ -668,56 +668,7 @@ export default function AdminTicketDetail() {
                     if (replyError) setReplyError("");
                   }}
                 />
-                <div className="reply-quick">
-                  <span>Mẫu phản hồi nhanh</span>
-                  <div className="reply-quick-buttons">
-                    <button
-                      type="button"
-                      className="chip-btn"
-                      onClick={() =>
-                        handleQuickInsert(
-                          "Chào anh/chị, hệ thống đã tiếp nhận yêu cầu. Em sẽ kiểm tra và phản hồi sớm nhất ạ."
-                        )
-                      }
-                    >
-                      Chào hỏi
-                    </button>
-                    <button
-                      type="button"
-                      className="chip-btn"
-                      onClick={() =>
-                        handleQuickInsert(
-                          "Hiện tại em đang kiểm tra lại thông tin đơn hàng và key kích hoạt cho anh/chị."
-                        )
-                      }
-                    >
-                      Đang kiểm tra
-                    </button>
-                    <button
-                      type="button"
-                      className="chip-btn"
-                      onClick={() =>
-                        handleQuickInsert(
-                          "Em đã cập nhật lại key/tài khoản cho anh/chị. Anh/chị vui lòng thử lại và phản hồi giúp em nhé."
-                        )
-                      }
-                    >
-                      Giải pháp
-                    </button>
-                    <button
-                      type="button"
-                      className="chip-btn"
-                      onClick={() =>
-                        handleQuickInsert(
-                          "Vấn đề đã được xử lý. Nếu cần thêm hỗ trợ anh/chị có thể phản hồi lại ticket này hoặc tạo ticket mới ạ."
-                        )
-                      }
-                    >
-                      Kết thúc
-                    </button>
-                  </div>
-                </div>
-
+               
                 {/* Lỗi gửi phản hồi (chưa login / nội dung trống / lỗi server) */}
                 {replyError && <div className="reply-error">{replyError}</div>}
 

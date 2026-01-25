@@ -625,10 +625,7 @@ export default function AdminSupportChatPage() {
           joinedSessionIdRef.current &&
           joinedSessionIdRef.current !== selectedSessionId
         ) {
-          await connection.invoke(
-            "LeaveSession",
-            joinedSessionIdRef.current
-          );
+          await connection.invoke("LeaveSession", joinedSessionIdRef.current);
           joinedSessionIdRef.current = null;
         }
 
@@ -867,10 +864,8 @@ export default function AdminSupportChatPage() {
 
   const handleClose = (sessionId) => {
     if (!sessionId) return;
-    openConfirm(
-      "Đóng phiên chat",
-      "Bạn có chắc muốn đóng phiên chat này không?",
-      () => doClose(sessionId)
+    openConfirm("Đóng phiên chat", "Bạn có chắc muốn đóng phiên chat này không?", () =>
+      doClose(sessionId)
     );
   };
 
@@ -898,10 +893,7 @@ export default function AdminSupportChatPage() {
       if (msg) {
         setMessages((prev) => {
           const list = prev || [];
-          if (
-            msg.messageId &&
-            list.some((x) => x.messageId === msg.messageId)
-          ) {
+          if (msg.messageId && list.some((x) => x.messageId === msg.messageId)) {
             return prev;
           }
           return [...list, msg];
@@ -1039,8 +1031,7 @@ export default function AdminSupportChatPage() {
         {messages.map((msg) => {
           const key = msg.messageId || `${msg.chatSessionId}_${msg.sentAt}`;
           const rowCls =
-            "msg-row " +
-            (msg.isFromStaff ? "msg-row-staff" : "msg-row-customer");
+            "msg-row " + (msg.isFromStaff ? "msg-row-staff" : "msg-row-customer");
           const msgCls =
             "msg " + (msg.isFromStaff ? "msg-staff" : "msg-customer");
 
@@ -1087,59 +1078,53 @@ export default function AdminSupportChatPage() {
           </div>
         )}
 
-        {canShowPanel &&
-          !loadingPreviousSessions &&
-          !previewSession && (
-            <>
-              {previousSessions.length === 0 && (
-                <div className="previous-sessions-empty">
-                  Chưa có phiên chat trước nào.
-                </div>
-              )}
+        {canShowPanel && !loadingPreviousSessions && !previewSession && (
+          <>
+            {previousSessions.length === 0 && (
+              <div className="previous-sessions-empty">
+                Chưa có phiên chat trước nào.
+              </div>
+            )}
 
-              {previousSessions.length > 0 && (
-                <div className="previous-sessions-list">
-                  {previousSessions.map((s) => {
-                    let timeLabel = "";
-                    if (s.lastMessageAt) {
-                      timeLabel = `Tin cuối: ${formatTimeShort(
-                        s.lastMessageAt
-                      )}`;
-                    } else if (s.startedAt) {
-                      timeLabel = `Bắt đầu: ${formatTimeShort(
-                        s.startedAt
-                      )}`;
-                    }
+            {previousSessions.length > 0 && (
+              <div className="previous-sessions-list">
+                {previousSessions.map((s) => {
+                  let timeLabel = "";
+                  if (s.lastMessageAt) {
+                    timeLabel = `Tin cuối: ${formatTimeShort(s.lastMessageAt)}`;
+                  } else if (s.startedAt) {
+                    timeLabel = `Bắt đầu: ${formatTimeShort(s.startedAt)}`;
+                  }
 
-                    return (
-                      <button
-                        key={s.chatSessionId}
-                        type="button"
-                        className="previous-session-item"
-                        onClick={() => handleOpenTranscript(s)}
-                      >
-                        <div className="previous-session-line1">
-                          <span className="previous-session-status">
-                            {getStatusLabel(s)}
+                  return (
+                    <button
+                      key={s.chatSessionId}
+                      type="button"
+                      className="previous-session-item"
+                      onClick={() => handleOpenTranscript(s)}
+                    >
+                      <div className="previous-session-line1">
+                        <span className="previous-session-status">
+                          {getStatusLabel(s)}
+                        </span>
+                        {timeLabel && (
+                          <span className="previous-session-time">
+                            {timeLabel}
                           </span>
-                          {timeLabel && (
-                            <span className="previous-session-time">
-                              {timeLabel}
-                            </span>
-                          )}
-                        </div>
-                        {s.lastMessagePreview && (
-                          <div className="previous-session-preview">
-                            {s.lastMessagePreview}
-                          </div>
                         )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
+                      </div>
+                      {s.lastMessagePreview && (
+                        <div className="previous-session-preview">
+                          {s.lastMessagePreview}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
         {canShowPanel && previewSession && (
           <div className="previous-transcript">
@@ -1155,8 +1140,7 @@ export default function AdminSupportChatPage() {
                 <span>{getStatusLabel(previewSession)}</span>
                 {previewSession.startedAt && (
                   <span>
-                    Bắt đầu:{" "}
-                    {formatTimeShort(previewSession.startedAt)}
+                    Bắt đầu: {formatTimeShort(previewSession.startedAt)}
                   </span>
                 )}
               </div>
@@ -1176,9 +1160,7 @@ export default function AdminSupportChatPage() {
                       msg.messageId || `${msg.chatSessionId}_${msg.sentAt}`;
                     const rowCls =
                       "msg-row msg-row-compact " +
-                      (msg.isFromStaff
-                        ? "msg-row-staff"
-                        : "msg-row-customer");
+                      (msg.isFromStaff ? "msg-row-staff" : "msg-row-customer");
                     const msgCls =
                       "msg msg-compact " +
                       (msg.isFromStaff ? "msg-staff" : "msg-customer");
@@ -1244,9 +1226,7 @@ export default function AdminSupportChatPage() {
           <div className="tabs">
             <button
               type="button"
-              className={
-                "tab" + (activeTab === "unassigned" ? " tab-active" : "")
-              }
+              className={"tab" + (activeTab === "unassigned" ? " tab-active" : "")}
               onClick={() => handleChangeTab("unassigned")}
             >
               Chờ nhận
@@ -1254,9 +1234,7 @@ export default function AdminSupportChatPage() {
             </button>
             <button
               type="button"
-              className={
-                "tab" + (activeTab === "assigned" ? " tab-active" : "")
-              }
+              className={"tab" + (activeTab === "assigned" ? " tab-active" : "")}
               onClick={() => handleChangeTab("assigned")}
             >
               Đã nhận
@@ -1283,25 +1261,21 @@ export default function AdminSupportChatPage() {
                     Chưa có phiên chat nào trong hàng chờ.
                   </div>
                 )}
-                {!loadingQueue &&
-                  queue.map((s) => renderSessionItem(s, true))}
+                {!loadingQueue && queue.map((s) => renderSessionItem(s, true))}
               </>
             )}
 
             {activeTab === "assigned" && (
               <>
                 {loadingAssigned && (
-                  <div className="empty small">
-                    Đang tải phiên đã nhận...
-                  </div>
+                  <div className="empty small">Đang tải phiên đã nhận...</div>
                 )}
                 {!loadingAssigned && assigned.length === 0 && (
                   <div className="empty">
                     Chưa có phiên chat nào đã được nhận.
                   </div>
                 )}
-                {!loadingAssigned &&
-                  assigned.map((s) => renderSessionItem(s, false))}
+                {!loadingAssigned && assigned.map((s) => renderSessionItem(s, false))}
               </>
             )}
           </div>
@@ -1338,9 +1312,7 @@ export default function AdminSupportChatPage() {
                           {selectedSession.priorityLevel !== undefined && (
                             <span className="meta-item">
                               <strong>Ưu tiên:</strong>{" "}
-                              {getPriorityLabel(
-                                selectedSession.priorityLevel
-                              )}
+                              {getPriorityLabel(selectedSession.priorityLevel)}
                             </span>
                           )}
                           {selectedSession.customerEmail && (
@@ -1357,34 +1329,41 @@ export default function AdminSupportChatPage() {
                           )}
                         </div>
                         {sessionStatusText && (
-                          <div className="chat-meta-sub">
-                            {sessionStatusText}
-                          </div>
+                          <div className="chat-meta-sub">{sessionStatusText}</div>
                         )}
                       </div>
                     </div>
 
                     {/* Admin actions */}
                     <div className="chat-header-actions">
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() =>
-                          selectedSession &&
-                          handleUnassign(selectedSession.chatSessionId)
-                        }
-                      >
-                        Trả lại hàng chờ
-                      </button>
+                      {/* ✅ FIX: Chỉ "Trả lại hàng chờ" khi phiên đã được nhận.
+                          Với phiên chưa nhận -> hiển thị nút "Gán". */}
+                      {!selectedSession.assignedStaffId ? (
+                        <button
+                          type="button"
+                          className="btn primary"
+                          onClick={() => handleOpenAssignModalForSession(selectedSession)}
+                        >
+                          Gán
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() =>
+                            handleUnassign(selectedSession.chatSessionId)
+                          }
+                        >
+                          Trả lại hàng chờ
+                        </button>
+                      )}
 
                       {selectedSession.assignedStaffId && (
                         <button
                           type="button"
                           className="btn warning"
                           onClick={() =>
-                            handleOpenTransferModalForSession(
-                              selectedSession
-                            )
+                            handleOpenTransferModalForSession(selectedSession)
                           }
                         >
                           Chuyển nhân viên
@@ -1395,7 +1374,6 @@ export default function AdminSupportChatPage() {
                         type="button"
                         className="btn danger"
                         onClick={() =>
-                          selectedSession &&
                           handleClose(selectedSession.chatSessionId)
                         }
                       >
@@ -1432,9 +1410,7 @@ export default function AdminSupportChatPage() {
                       </div>
 
                       {errorText && (
-                        <div className="error-text chat-error">
-                          {errorText}
-                        </div>
+                        <div className="error-text chat-error">{errorText}</div>
                       )}
                     </div>
                   </form>
