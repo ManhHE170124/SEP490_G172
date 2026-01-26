@@ -8,9 +8,9 @@ import ToastContainer from "../../components/Toast/ToastContainer";
 import ConfirmDialog from "../../components/ConfirmDialog/ConfirmDialog";
 import { orderApi } from "../../services/orderApi";
 import useToast from "../../hooks/useToast";
-import formatDateTime from "../../utils/formatDatetime";
 import { getStatusLabel } from "../../utils/productKeyHepler";
 import "../admin/admin.css";
+import formatDateTimevn from "../../utils/formatDateTimevn";
 
 export default function KeyDetailPage() {
   const { id } = useParams();
@@ -483,7 +483,7 @@ export default function KeyDetailPage() {
                 disabled={!isNew}
               >
                 <option value="Individual">Cá nhân</option>
-                <option value="Pool">Dùng chung (Pool)</option>
+                {/* <option value="Pool">Dùng chung (Pool)</option> */}
               </select>
             </div>
 
@@ -591,7 +591,7 @@ export default function KeyDetailPage() {
                 </div>
                 <div>
                   <small className="muted">Ngày nhập kho:</small>
-                  <div>{formatDateTime(keyInfo.importedAt)}</div>
+                  <div>{formatDateTimevn(keyInfo.importedAt)}</div>
                 </div>
                 <div>
                   <small className="muted">Người nhập:</small>
@@ -600,7 +600,7 @@ export default function KeyDetailPage() {
                 {keyInfo.updatedAt && (
                   <div>
                     <small className="muted">Cập nhật lần cuối:</small>
-                    <div>{formatDateTime(keyInfo.updatedAt)}</div>
+                    <div>{formatDateTimevn(keyInfo.updatedAt)}</div>
                   </div>
                 )}
                 {keyInfo.assignedToOrderId && (
